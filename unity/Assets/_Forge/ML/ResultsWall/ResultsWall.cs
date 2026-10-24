@@ -90,7 +90,7 @@ namespace Forge.ML
         void ShowMistakes() { gallery = true; wrongDots = true; confidentMistakes = classPicker = false; classFilter = truth = predicted = -1; selected = -1; page = 0; Refresh(); }
         void ShowConfidentMistakes() { gallery = true; wrongDots = true; confidentMistakes = true; classPicker = false; classFilter = truth = predicted = -1; selected = -1; page = 0; Refresh(); }
         void ShowClassPicker() { classPicker = true; gallery = false; selected = -1; page = 0; Refresh(); }
-        void ChooseClass(int index) { classFilter = index; gallery = true; wrongDots = true; confidentMistakes = false; classPicker = false; truth = predicted = -1; selected = -1; page = 0; Refresh(); }
+        public void ChooseClass(int index) { classFilter = index; gallery = true; wrongDots = true; confidentMistakes = false; classPicker = false; truth = predicted = -1; selected = -1; page = 0; Refresh(); }
         void ChangePage(int delta)
         {
             if (!gallery) return;

@@ -207,6 +207,11 @@ class UiHighlight(BaseModel):
     class_idx: int | None = None
 
 
+class UiOpenMode(BaseModel):
+    """ui.open_mode (proposed): Bit opens a workspace mode (Unity BitUiDirector -> Workspace.Open)."""
+    mode: Literal["code", "cad", "ml", "messages"]
+
+
 class SlackMessage(BaseModel):
     """One Slack message as the hub saw it. Payload of notify.message; also what /messages/* return."""
     channel: str

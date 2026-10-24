@@ -90,6 +90,7 @@ public static class MainSceneBuilder
         presence.head = head;
         var dock = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(ForgePrefabBuilder.DockPath), root.transform);
         var workspace = root.AddComponent<Workspace>();
+        root.AddComponent<BitUiDirector>();  // Bit's ui.open_mode / ui.highlight (hub/agent/ui_tools.py)
         workspace.presence = presence;
         workspace.dock = dock.GetComponent<DeskDock>();
         workspace.panelPrefab = AssetDatabase.LoadAssetAtPath<ForgePanel>(ForgePrefabBuilder.PanelPath);

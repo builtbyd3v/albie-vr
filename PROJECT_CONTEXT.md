@@ -290,6 +290,7 @@ cad.model_updated{ version, params }
 pet.state        { pet_id, mode: "follow"|"idle"|"listening"|"thinking"|"working"|"speaking", target_panel? }
 pet.say          { pet_id, text, card?: { title, bullets: string[], actions?: [{ label, action_id }] } }
 ui.highlight     { panel, item_ids?: string[], class_idx? }
+ui.open_mode     { mode: "code"|"cad"|"ml"|"messages" }   (proposed: Bit opens a workspace mode; tool ui_open_mode)
 
 notify.message   SlackMessage (above; `ts` is the reply thread key). Also the user's OWN posts made elsewhere (is_me: true) so the open conversation stays live; the digest and unread counts skip those
 notify.channels  { channels: ChannelSummary[] }   (the whole list whenever unread / mention counts or last_ts change, debounced 300 ms; sticky: replayed on connect)
