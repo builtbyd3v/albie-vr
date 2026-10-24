@@ -2,8 +2,9 @@
 
 Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
 the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/PET_AGENT_CONTRACT.md Addendum F) and the desk extras (ui.widgets, timers.updated, notes.updated,
-movie.state). The ML and pet models from section 7 still belong to their owners; add them next to these.
+docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated, movie.state)
+and Bit driving the views: ui.open_mode, cad.action, draft attachments (Addendum H). The ML and pet models from
+section 7 still belong to their owners; add them next to these.
 """
 from __future__ import annotations
 
@@ -176,6 +177,18 @@ class CadView(BaseModel):
     focus_id: str | None = None
 
 
+class CadAction(BaseModel):
+    """Bit pressing a button in the CAD view (docs/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
+    that connects later must not replay it. Unity applies it once the model of `version` is on screen."""
+    action: Literal["expand", "demo", "markers", "dimensions", "tab", "reassemble"]
+    on: bool | None = None            # expand (Inspect: the model big in front of the user) / demo (Fly, Hover, Run) /
+                                      # markers / dimensions: true = turn it on, false = off
+    tab: str | None = None            # tab: overview | parameters | analysis | history (the design panel)
+    part: str = ""                    # the design it is for
+    version: int | None = None        # the version it is for: wait until that version is loaded
+    seq: int = 0                      # increasing per hub run: a CadSession that starts late applies the last one once
+
+
 class VscodeEvent(BaseModel):
     """Pushed by the Forge Bit VS Code extension so Bit can speak up on its own."""
     kind: Literal["errors", "command_finished"]
@@ -208,8 +221,9 @@ class UiHighlight(BaseModel):
 
 
 class UiOpenMode(BaseModel):
-    """ui.open_mode (proposed): Bit opens a workspace mode (Unity BitUiDirector -> Workspace.Open)."""
-    mode: Literal["code", "cad", "ml", "messages"]
+    """ui.open_mode (proposed): Bit opens a workspace mode (Unity BitUiDirector -> Workspace.Open). Unity's
+    WorkspaceRemote answers with workspace.mode {mode, reason?} (Addendum H; agent/workspace.py waits for it)."""
+    mode: Literal["code", "cad", "ml", "messages", ""]  # "" closes the open mode
 
 
 class SlackMessage(BaseModel):
@@ -250,6 +264,17 @@ class NotifyChannels(BaseModel):
     channels: list[ChannelSummary] = []
 
 
+class Attachment(BaseModel):
+    """A file on a draft (Addendum H). The hub keeps the file; clients only see what to show on the card."""
+    id: str
+    name: str                         # file name as it lands in Slack: rocket_v12.step
+    title: str = ""                   # what it is, in words: "CAD model (STEP)"
+    kind: str = "file"                # step | stl | drawing | parts | file: picks the chip's icon
+    bytes: int = 0
+    source: str = ""                  # where it came from: "cad rocket v12"
+    path: str = Field(default="", exclude=True)  # on the hub's disk; never serialized
+
+
 class Draft(BaseModel):
     """A reply Bit wrote but has NOT sent. Payload of notify.draft; Unity shows it as a Send / Cancel card.
 
@@ -263,6 +288,7 @@ class Draft(BaseModel):
     thread_ts: str | None = None
     reply_to: SlackMessage | None = None
     edited: bool = False              # the user changed the text (PATCH /messages/drafts/{id}); same draft_id re-emitted
+    attachments: list[Attachment] = []  # files uploaded with the message when it is sent (Addendum H); [] = text only
 
 
 class NotifySent(BaseModel):

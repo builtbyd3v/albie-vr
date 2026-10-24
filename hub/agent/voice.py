@@ -5,7 +5,8 @@ VOICE_PROVIDER (env):
 * ``grok``  Grok Voice over raw websockets (``wss://api.x.ai/v1/realtime``), key ``XAI_API_KEY``.
 * ``fake``  canned reply from a bundled PCM file, no key, no network (Unity testing).
 
-Grok handles conversation itself. Quick actions (CAD params, VS Code highlight/open) are direct tools from
+Grok handles conversation itself. Quick actions (open a view, the CAD design and its demo, Slack drafts with files,
+VS Code highlight/open) are direct tools from
 agent/tools.py (incl. the crew tools: spawn_agent, assign_task, ... from agent/crew.py). ``delegate`` sends anything about the repo, runs or a code change to the Claude runner
 (the "brain"), whose answer is then spoken verbatim with ``force_message``. Push-to-talk is a manual turn:
 
@@ -100,17 +101,24 @@ DELEGATE_RULES = (
     "ready. Answer everything else yourself."
 )
 TOOL_RULES = (
-    " Use your other tools yourself for quick actions: read or change the rocket design, open, highlight "
-    "or check code in VS Code, set the focus timer, keep the user's notes, and play the movie on the big screen. "
-    "Call them instead of guessing, then say in one short line what you did. "
-    "Slack replies go out under the user's own name and are never sent directly: messages_send only writes a draft "
-    "that pops up for them to confirm, so say what you wrote and ask them to tap Send or say 'send it'; "
-    "messages_confirm is for their yes or no."
+    " Use your other tools yourself for quick actions: call them instead of guessing, then say in one short line what "
+    "you did. You run the whole workspace: set the focus timer, keep the user's notes, play the movie on the big screen. "
+    "Open, highlight or check code in VS Code. ui_open_mode opens a view at the desk (cad is 3D modeling, code is VS Code, "
+    "ml, messages is the Slack messenger). The CAD tools open the CAD view themselves: cad_open_part opens a design "
+    "(rocket, quadcopter, gearbox), cad_set_params and cad_apply_preset change it, cad_view expands it big in front of "
+    "the user, explodes it or shows markers and dimensions, cad_demo shows it working (the rocket flies, the "
+    "quadcopter hovers, the gearbox turns), and cad_undo or cad_restore_version go back. When one request asks for "
+    "several things, do every one, one tool after another, in the order asked. If a tool returns an error or a "
+    "view_error, say it plainly. Slack messages go out under the user's own name and are never sent directly: "
+    "messages_send only writes a draft that pops up for them to confirm, and its attach option puts the open design's "
+    "files on it (STEP model, STL, drawing PDF, parts list; never delegate that). messages_edit_draft rewords the open "
+    "draft and keeps its files. Say what you wrote and ask them to tap Send or say 'send it'; messages_confirm is for "
+    "their yes or no."
 )
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
 VIEW_NOTES = {
     "code": "The user switched to the CODE view (VS Code on the main screen); crew tools are available now.",
-    "cad": "The user switched to the CAD view (the rocket design); crew tools are off until they open CODE.",
+    "cad": "The user switched to the CAD view (the open design on the desk); crew tools are off until they open CODE.",
     "ml": "The user switched to the ML view (training data and runs); crew tools are off until they open CODE.",
     "messages": "The user switched to the MESSAGES view (their Slack inbox); crew tools are off until they open CODE.",
     "": "The user closed the workspace views; crew tools are off until they open CODE.",
@@ -133,6 +141,9 @@ DELEGATE_TOOL = {
 # Albie's own vocabulary first in grok-transcribe's hints ("fins" came back as "Fizz" in a live test).
 ROCKET_TERMS = ["Albie", "ML", "ML panel", "ML desk", "fins", "fin", "nose cone", "body tube", "static margin", "apogee", "center of pressure",
                 "center of gravity", "calibers", "Estes", "ogive", "fin span", "fin sweep"]
+# The rest of the CAD library and what Albie does with it (views, demos, the files he sends).
+DESIGN_TERMS = ["quadcopter", "gearbox", "pinion", "shaft", "props", "prop clearance", "hexacopter", "explode",
+                "STEP file", "STL", "Slack", "CAD"]
 # "Stop" over Albie should just stop him, not start a reply ("Okay, quiet!").
 STOP_CORE = {"stop", "wait", "quiet", "shh", "shush", "hush", "enough", "nevermind"}
 STOP_FILLER = ALIASES["bit"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
@@ -841,7 +852,7 @@ def has_name(text: str, last: bool = True) -> bool:
 
 
 def keyterms_for(repo: Path | None) -> list[str]:
-    return list(dict.fromkeys(ROCKET_TERMS + vocab_terms(repo)))[:100]
+    return list(dict.fromkeys(ROCKET_TERMS + DESIGN_TERMS + vocab_terms(repo)))[:100]
 
 
 def vocab_terms(repo: Path | None, limit: int = 100) -> list[str]:

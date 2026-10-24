@@ -119,14 +119,6 @@ def ui(name, args, bus):
     return run(ui_tools.call_tool(name, args, bus))
 
 
-def test_open_mode_broadcasts():
-    bus = FakeBus()
-    assert ui("ui_open_mode", {"mode": "ml"}, bus) == {"ok": True, "mode": "ml"}
-    assert bus.sent == [("ui.open_mode", {"mode": "ml"})]
-    assert "error" in ui("ui_open_mode", {"mode": "games"}, bus)
-    assert len(bus.sent) == 1
-
-
 def test_highlight_broadcasts_the_existing_event():
     bus = FakeBus()
     assert ui("ui_highlight", {"panel": "ml-results", "item_ids": ["val_0003"]}, bus)["ok"]
@@ -148,7 +140,7 @@ def test_registry_walks_bit_to_the_ml_panel():
     assert agent_tools.PANELS["ml"] == "ml-results"
     names = {d["name"] for d in ml_tools.TOOLS + ui_tools.TOOLS}
     assert names == {"ml_get_run_summary", "ml_relabel", "ml_remove", "ml_start_training", "ml_confirm",
-                     "ui_open_mode", "ui_highlight"}
+                     "ui_highlight"}  # ui_open_mode: agent/workspace.py
 
 
 def test_hub_registers_the_tools(tmp_path, monkeypatch):
