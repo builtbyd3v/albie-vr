@@ -2,5 +2,5 @@
 # Paths are expanded (~) server-side and never sent to clients.
 projects:
   gatorhack:
-    path: "~/Documents/gatorhack-dubz"
+    path: "~/Documents/GitHub/gatorhack-dubz-demo"
     default_mode: "qa"
