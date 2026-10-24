@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from agent import handle_socket as agent_socket, router as agent_router
 from agent import speech, tools as agent_tools
 from agent.app import health_fields as agent_health, load_env
+from agent.watcher import watcher as proactive
 from cad.router import router as cad_router
 from cad.service import CadService, watch_script
 from events import EventBus
@@ -47,6 +48,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(name, args, slack))
         await cad.start()
         await slack.start()
+        proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
+        cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         watcher = asyncio.create_task(watch_script(cad)) if watch else None
         try:
             yield
