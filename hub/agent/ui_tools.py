@@ -18,8 +18,8 @@ TOOLS: list[dict[str, Any]] = [
      "parameters": {"type": "object", "properties": {"mode": {"type": "string", "enum": list(MODES)}},
                     "required": ["mode"]}},
     {"name": "ui_highlight",
-     "description": "Point the user at a panel: its frame pulses. On ml-results, item_ids selects that sample and "
-                    "class_idx selects that class.",
+     "description": "Point the user at a panel: its frame pulses. Its mode must be open (ui_open_mode first). On "
+                    "ml-results, item_ids selects that sample and class_idx shows that class's mistakes.",
      "parameters": {"type": "object", "properties": {
          "panel": {"type": "string", "enum": list(PANEL_IDS)},
          "item_ids": {"type": "array", "items": {"type": "string"}, "description": "optional sample ids"},
