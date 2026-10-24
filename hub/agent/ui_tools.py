@@ -1,22 +1,17 @@
-"""Bit's workspace tools: open a mode, point at a panel. Registered from main.py; they only broadcast on /ws
-(Unity's BitUiDirector acts on them). Events: ui.open_mode {mode} and ui.highlight {panel, item_ids?, class_idx?}.
+"""Bit's workspace tools: point at a panel. Registered from main.py; it only broadcasts on /ws (Unity's BitUiDirector
+acts on it). Event: ui.highlight {panel, item_ids?, class_idx?}. ui_open_mode (ui.open_mode {mode}, waits for Unity's
+workspace.mode) lives in agent/workspace.py.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from events import UiHighlight, UiOpenMode
+from events import UiHighlight
 
-MODES = ("code", "cad", "ml", "messages")
 PANEL_IDS = ("screen-main", "ml-datastack", "ml-model3d", "ml-results", "ml-training", "cad-viewer", "messages",
              "messages-mentions")  # PROJECT_CONTEXT section 7
 
 TOOLS: list[dict[str, Any]] = [
-    {"name": "ui_open_mode",
-     "description": "Open a workspace mode around the desk: code (just the editor), cad (the rocket), ml (dataset, "
-                    "model, training, results), messages (Slack).",
-     "parameters": {"type": "object", "properties": {"mode": {"type": "string", "enum": list(MODES)}},
-                    "required": ["mode"]}},
     {"name": "ui_highlight",
      "description": "Point the user at a panel: its frame pulses. Its mode must be open (ui_open_mode first). On "
                     "ml-results, item_ids selects that sample and class_idx shows that class's mistakes.",
@@ -29,12 +24,6 @@ TOOLS: list[dict[str, Any]] = [
 
 
 async def call_tool(name: str, args: dict[str, Any], bus: Any) -> dict[str, Any]:
-    if name == "ui_open_mode":
-        mode = args.get("mode")
-        if mode not in MODES:
-            return {"error": f"mode must be one of {', '.join(MODES)}"}
-        await bus.publish("ui.open_mode", UiOpenMode(mode=mode))
-        return {"ok": True, "mode": mode}
     if name == "ui_highlight":
         panel, item_ids, class_idx = args.get("panel"), args.get("item_ids"), args.get("class_idx")
         if panel not in PANEL_IDS:
