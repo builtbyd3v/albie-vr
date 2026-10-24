@@ -810,7 +810,6 @@ public class Workspace : MonoBehaviour
             {
                 new WorkspaceItem("screen-main", "VS Code", WorkspaceSlot.Main),
                 new WorkspaceItem("ml-training", "Training", WorkspaceSlot.Above),
-                // Panels, like the ML prefabs (ML/Resources/MLPanels, all ForgePanel variants); ids per section 7.
                 new WorkspaceItem("ml-datastack", "Dataset", WorkspaceSlot.FarLeft),
                 new WorkspaceItem("ml-model3d", "Model", WorkspaceSlot.Left),
                 new WorkspaceItem("ml-results", "Results", WorkspaceSlot.Right),
