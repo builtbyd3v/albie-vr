@@ -1,7 +1,6 @@
 """Forge hub: one FastAPI process, a router per module, one `/ws` event bus.
 
-Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process). The ML router
-is still to come.
+Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), ML.
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
 the hub through one ForgeNet socket. See README "Agent module (pet)".
 Run from hub/:  uvicorn main:app --host 0.0.0.0 --port 8000   (no --reload: it would restart the CAD worker)
@@ -21,7 +20,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent import handle_socket as agent_socket, router as agent_router
-from agent import speech, tools as agent_tools
+from agent import speech, tools as agent_tools, ui_tools
 from agent import ws as agent_ws
 from agent.app import health_fields as agent_health, load_env
 from agent.watcher import watcher as proactive
@@ -31,7 +30,9 @@ from events import EventBus
 from messaging import MessageStore, SlackService, SlackSettings
 from messaging import tools as messaging_tools
 from messaging.router import router as messaging_router
+from ml import tools as ml_tools
 from ml.router import router as ml_router
+from ml.service import MLService
 from screens import ScreenBridgeService
 from screens import router as screens_router
 from vscode.router import router as vscode_router
@@ -53,6 +54,9 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         app.state.slack = slack
         agent_ws.client_handlers["messages.focus"] = slack.focus_from_ws  # "Reply with Bit" from a message card
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(name, args, slack))
+        app.state.ml = getattr(app.state, "ml", None) or MLService()  # one MLService for /ml and Bit's ml_* tools
+        agent_tools.register(ml_tools.TOOLS, lambda name, args: ml_tools.call_tool(name, args, app.state.ml, bus))
+        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))
         await cad.start()
         await slack.start()
         screens = ScreenBridgeService(bus)  # npm start in screen-bridge/, killed with the hub (SCREEN_BRIDGE=0 to skip)
