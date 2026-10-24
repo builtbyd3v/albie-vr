@@ -31,6 +31,7 @@ from events import EventBus
 from messaging import MessageStore, SlackService, SlackSettings
 from messaging import tools as messaging_tools
 from messaging.router import router as messaging_router
+from ml.router import router as ml_router
 from screens import ScreenBridgeService
 from screens import router as screens_router
 from vscode.router import router as vscode_router
@@ -78,6 +79,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.include_router(vscode_router)
     app.include_router(messaging_router)
     app.include_router(screens_router)
+    app.include_router(ml_router)
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket):
