@@ -95,7 +95,7 @@ def test_training_waits_for_confirmation_then_starts(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     (repo / ".forge").mkdir(parents=True)
     (repo / ".forge" / "profile.json").write_text(json.dumps(
-        {"archetype": "generic", "python": sys.executable, "train_cmd": "python train.py"}))
+        {"archetype": "generic", "python": sys.executable, "train_cmd": "python train.py --epochs 10"}))
     (repo / "train.py").write_text(textwrap.dedent("""
         import json, os, sys
         json.dump({"argv": sys.argv[1:], "hub": os.environ["FORGE_HUB"]}, open("ran.json", "w"))
