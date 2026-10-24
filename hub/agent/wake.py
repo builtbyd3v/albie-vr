@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 GREETINGS = {"hey", "hi", "hello", "ok", "okay", "yo", "oi", "oh", "um", "uh", "so"}
 # Common mis-hearings, per pet id ("bit" = the lead, spoken name Albie). Keep these unambiguous English-wise.
 ALIASES: dict[str, set[str]] = {
-    "bit": {"albie", "albee", "alby", "elbie", "abby"},  # "abby": live grok-transcribe for "Hi Albie"
+    "bit": {"albie", "albee", "alby", "albi", "elbie", "abby"},  # "abby", "albi": live grok-transcribe for "Albie"
     "fixer": {"fixer", "fixa", "fixor"},
     "scribe": {"scribe", "scribes"},
     "shipper": {"shipper", "skipper"},
@@ -109,22 +109,26 @@ class WakeRouter:
         self.target = target or None
         self.facing, self.gated = facing, gated
 
-    def _who(self, text: str) -> tuple[str | None, str]:
+    def _who(self, text: str, target: str | None) -> tuple[str | None, str]:
         pid, rest = parse(text, self.lead)
-        if pid is None and self.target is not None:
-            return self.target, text.strip()
+        if pid is None and target is not None:
+            return target, text.strip()
         return pid, rest
 
     async def partial(self, text: str) -> None:
-        pid, _ = self._who(text)
+        pid, _ = self._who(text, self.target)
         if pid is not None:  # addressed: now the gator may show what it's hearing
             await self._emit_for(pid)(ev.stt_partial(pid, text))
 
-    async def final(self, text: str) -> Decision:
-        pid, rest = self._who(text)
-        gated = self.gated
-        ask = pid is None and (self.facing or gated) and bool(text.strip())
-        self.target, self.facing, self.gated, self.judged = None, False, False, None
+    async def final(self, text: str, flags: tuple[str | None, bool, bool] | None = None) -> Decision:
+        """flags: (target, facing, gated) of an earlier turn whose transcript arrived late (voice.py); None = this
+        turn's, which are then reset."""
+        target, facing, gated = flags if flags is not None else (self.target, self.facing, self.gated)
+        if flags is None:
+            self.target, self.facing, self.gated = None, False, False
+        pid, rest = self._who(text, target)
+        ask = pid is None and (facing or gated) and bool(text.strip())
+        self.judged = None
         if ask:
             # ponytail: awaited on the voice reader (up to addressed.JUDGE_TIMEOUT_S); nothing else is due for this turn
             self.judged = await self.judge(text, gated)
