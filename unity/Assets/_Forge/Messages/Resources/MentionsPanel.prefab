@@ -102,7 +102,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4877024378306074836, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
       propertyPath: m_text
-      value: Mentions
+      value: Mentions & notifications
       objectReference: {fileID: 0}
     - target: {fileID: 6409264383709292510, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
       propertyPath: _size.x
@@ -145,4 +145,3 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4a7fb8bda5607450fab11dbdd671d2aa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MentionsPanel
-  floating: 0

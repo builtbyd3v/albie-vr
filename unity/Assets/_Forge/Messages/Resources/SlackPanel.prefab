@@ -145,3 +145,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 712b56e376bfc4be9a33b06bf0761b21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SlackPanel
+  iMessagePanel: 0
