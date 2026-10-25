@@ -245,6 +245,7 @@ class SlackMessage(BaseModel):
     edited: bool | None = None        # Slack marked it edited
     is_me: bool | None = None         # the user's own message: shown in history, skipped by digest / unread
     user_initials: str | None = None  # two letters for the avatar bubble
+    source: Literal["slack", "imessage"] = "slack"
 
 
 NotifyMessage = SlackMessage          # same name as the C# DTO
@@ -261,6 +262,7 @@ class ChannelSummary(BaseModel):
     last_text: str | None = None
     topic: str | None = None
     is_default: bool = False          # SLACK_DEFAULT_CHANNEL
+    source: Literal["slack", "imessage"] = "slack"
 
 
 class NotifyChannels(BaseModel):
@@ -293,6 +295,7 @@ class Draft(BaseModel):
     reply_to: SlackMessage | None = None
     edited: bool = False              # the user changed the text (PATCH /messages/drafts/{id}); same draft_id re-emitted
     attachments: list[Attachment] = []  # files uploaded with the message when it is sent (Addendum H); [] = text only
+    source: Literal["slack", "imessage"] = "slack"
 
 
 class NotifySent(BaseModel):
@@ -301,6 +304,7 @@ class NotifySent(BaseModel):
     channel_name: str
     text: str
     ts: str
+    source: Literal["slack", "imessage"] = "slack"
 
 
 class NotifyDraftCancelled(BaseModel):

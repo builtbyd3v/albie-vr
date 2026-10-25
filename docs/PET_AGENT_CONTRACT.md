@@ -205,10 +205,10 @@ Client → hub:
 ```
 hello        { ..., audio_out_rate?: 48000 }    # AudioSettings.outputSampleRate; Grok speaks at it when supported
 stt.start / <binary PCM16 16 kHz> / stt.stop    # unchanged; voice mode: stt.start = barge-in + new turn, stt.stop = commit + response.create
-stt.start.require_name: bool = false             # proposed (gated turn: look-to-talk / follow-up reply, user not facing Bit): the hub
-                                                  # answers only if the transcript names him (first two words or last: "Bit, ...",
-                                                  # "..., Bit?"), else empty stt.final, no captions, no reply; "stop" needs the name too
-stt.start.facing: bool = false                   # proposed (wake turns): user faced Bit at speech onset: counts as his name, except what
+stt.start.require_name: bool = false             # proposed (gated turn: look-to-talk / follow-up reply, user not facing Albie): the hub
+                                                  # answers only if the transcript names him (first two words or last: "Albie, ...",
+                                                  # "..., Albie?"), else empty stt.final, no captions, no reply; "stop" needs the name too
+stt.start.facing: bool = false                   # proposed (wake turns): user faced Albie at speech onset: counts as his name, except what
                                                   # hub/agent/addressed.py's word rules drop (talk to a person, fragments, filler alone)
 stt.cancel   { pet_id }                          # drop the open turn: audio after it is ignored, its stt.stop yields an empty stt.final
 tts.stop     { pet_id }                          # stop the current reply (ITextToSpeech.Stop)
@@ -291,7 +291,7 @@ gator and a WhistleButton with Poke/Ray interactables to the open scene (idempot
 | fixer | hunts down bugs and fixes the root cause | code | 0.90 | bandana, red |
 | tester | writes and runs tests (test files only) | code | 0.86 | visor, yellow |
 | reviewer | reviews branches and diffs for bugs | read-only + git read | 1.10 | beanie, purple |
-| scribe | writes docs, READMEs and comments | edit/write, no shell | 0.87 | top hat, blue |
+| scribe | writes docs, READMEs and comments | edit/write + git add/commit | 0.87 | top hat, blue |
 | shipper | handles git, changelogs and PR write-ups (never pushes) | code | 1.14 | captain cap, white |
 | designer | tweaks the rocket CAD design | read + CAD tools | 0.89 | bow, pink |
 | sentinel | audits the code for security problems | read-only + git read | 1.15 | helmet, navy |
@@ -309,8 +309,12 @@ gator and a WhistleButton with Poke/Ray interactables to the open scene (idempot
 * Every `GatorAgentBridge` now ignores events whose `pet_id` isn't its own (Bit = `pet_config.json` petId).
 * Crew code tasks run in a git worktree (`<repo>-crew/<agent>-<id>`, branch `pet/<agent>/<slug>-<id>`) and are
   committed there; `git push`, `checkout`, `switch`, `reset`, `merge`, `rebase`, `stash` and `worktree` are denied.
-* Bit's lead-only tools: `spawn_agent {type}`, `assign_task {agent, task, mode?}`, `dismiss_agent {agent}`,
-  `crew_status {}`. In voice mode, Bit speaks "<Name> says: <summary>" when a member finishes.
+  The worktree starts from the main checkout as it is (`git stash create`, so Albie's uncommitted edits are in it).
+* When a crew code task finishes, its changes (commits plus anything uncommitted) are applied to the main checkout
+  with `git apply`, as uncommitted edits on whatever branch is checked out, and the worktree and branch are removed.
+  If they don't apply cleanly, nothing is touched: the worktree and branch stay and the summary names them.
+* Albie's lead-only tools: `spawn_agent {type}`, `assign_task {agent, task, mode?}`, `dismiss_agent {agent}`,
+  `crew_status {}`. In voice mode, Albie speaks "<Name> says: <summary>" when a member finishes.
 
 **Unity** (`Forge/Pet/7. Add Agent Crew To Open Scene`):
 

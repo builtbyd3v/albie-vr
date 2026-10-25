@@ -60,7 +60,7 @@ from typing import Any, Protocol
 from . import addressed
 from . import events as ev
 from . import tools
-from .crew import lead_rules
+from .crew import TYPES, lead_rules
 from .bus import tidy_paths
 from .events import Event
 from .wake import ALIASES, SPLIT_FIRST, SPLIT_SECOND
@@ -119,7 +119,7 @@ TOOL_RULES = (
     "the user, explodes it or shows markers and dimensions, cad_take_part hands the user one part or puts it back, cad_demo shows it working (the rocket flies, the "
     "quadcopter hovers, the gearbox turns), and cad_undo or cad_restore_version go back. When one request asks for "
     "several things, do every one, one tool after another, in the order asked. If a tool returns an error or a "
-    "view_error, say it plainly. Slack messages go out under the user's own name and are never sent directly: "
+    "view_error, say it plainly. Slack and iMessage messages go out under the user's own account and are never sent directly: "
     "messages_send only writes a draft that pops up for them to confirm, and its attach option puts the open design's "
     "files on it (STEP model, STL, drawing PDF, parts list; never delegate that). messages_edit_draft rewords the open "
     "draft and keeps its files. Say what you wrote and ask them to tap Send or say 'send it'; messages_confirm is for "
@@ -739,6 +739,15 @@ class GrokVoiceSession(_Base):
         if self._final_sent:
             return
         final = (text if text is not None else self._partial).strip()
+        crew_pid = (self.wake_router.crew_target(final)
+                    if not self._wake and self.wake_router is not None else None)
+        if crew_pid is not None:
+            # "Tester, run the hub tests" in one of Bit's own turns (hands-free, follow-up window, push-to-talk; the
+            # WakeListener is paused then): the crew gator gets it, Bit says nothing and goes back to idle.
+            self._drop_reply = True
+            await super()._final("")
+            await self.wake_router.final(final)
+            return
         stop = is_stop(final)
         named = "partial" if self._named else "final" if has_name(final) else "no"
         drop = stop or (self._require_name and named == "no")
@@ -928,7 +937,9 @@ def has_name(text: str, last: bool = True) -> bool:
 
 
 def keyterms_for(repo: Path | None) -> list[str]:
-    return list(dict.fromkeys(ROCKET_TERMS + DESIGN_TERMS + vocab_terms(repo)))[:100]
+    # The crew's names right after Albie's, so "Hey Scout" isn't transcribed as "Hey Scott" (agent/wake.py routes by name).
+    crew_names = [t.name for t in TYPES.values()]
+    return list(dict.fromkeys(ROCKET_TERMS[:1] + crew_names + ROCKET_TERMS[1:] + DESIGN_TERMS + vocab_terms(repo)))[:100]
 
 
 def vocab_terms(repo: Path | None, limit: int = 100) -> list[str]:

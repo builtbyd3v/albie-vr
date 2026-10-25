@@ -13,7 +13,7 @@
 //   errors            a saved file has errors (first one + count), or its errors are now fixed (count 0)
 //   command_finished  a command in the "Albie" terminal ended, with its exit code
 //
-// A "Bit" item in the status bar says what Bit is doing in this window, so it shows on the streamed screen too.
+// An "Albie" item in the status bar says what Albie is doing in this window, so it shows on the streamed screen too.
 //
 // Command "Forge: Open this repo in the ML desk" tells the hub which repo is open (POST <hubUrl>/ml/project) and
 // follows its setup here: Show diff / Accept / Skip for the training patch, a type picker when the classifier
