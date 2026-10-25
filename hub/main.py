@@ -1,7 +1,7 @@
 """Forge hub: one FastAPI process, a router per module, one `/ws` event bus.
 
-Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), ML (training
-runs, datasets and results for the ML desk; `ml/router.py`), desk (timers, notes, movie).
+Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), desk
+(timers, notes, movie), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
 the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
 ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
@@ -39,9 +39,8 @@ from messaging import MessageStore, SlackService, SlackSettings
 from messaging import tools as messaging_tools
 from messaging.imessage import IMessageService, IMessageSettings
 from messaging.router import router as messaging_router
-from ml import tools as ml_tools
 from ml.router import router as ml_router
-from ml.service import MLService
+from ml.tools import TOOLS as ML_TOOLS, MLTools
 from screens import ScreenBridgeService
 from screens import router as screens_router
 from vscode.router import router as vscode_router
@@ -68,7 +67,6 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             imessage = IMessageService(imessage_settings, slack.store, bus, speech.note)
             slack.extra_channel_summaries = imessage.channel_summaries
             imessage.channels_changed = slack.channels_changed
-            imessage.on_message = lambda msg: proactive.notify("notify.message", msg)  # allowlisted texts only
         app.state.imessage = imessage
 
         async def messages_focus(session, payload):
@@ -86,12 +84,20 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_ws.client_handlers["messages.focus"] = messages_focus  # reply flow from either provider
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(
             name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
-        app.state.ml = getattr(app.state, "ml", None) or MLService()  # one MLService for /ml and Bit's ml_* tools
-        agent_tools.register(ml_tools.TOOLS, lambda name, args: ml_tools.call_tool(name, args, app.state.ml, bus))
-        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))
         desk = DeskService(data_dir, bus, speech.speak)  # timer, notes, movie: .data/desk, .data/media
         app.state.desk = desk
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
+        ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
+        agent_tools.register(ML_TOOLS, ml_tools.call)
+        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (BitUiDirector)
+
+        async def ml_card(session, action_id):
+            if await ml_tools.card_action(action_id):
+                note = getattr(session.voice, "note", None)  # Grok asked the question: it must not apply it again
+                if note is not None:
+                    await note("The user tapped Apply on your ML proposal; it's applied and training. Don't call ml_apply.")
+
+        agent_ws.card_handlers["ml"] = ml_card  # Apply / Not now on Albie's ML proposal card
         await cad.start()
         await slack.start()
         # In the background: the first read of chat.db and the imsg checks never hold up Slack, screens or /health.
@@ -102,8 +108,6 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
         cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         cad.on_built = lambda record: proactive.notify("cad.built", record)
-        app.state.proactive = proactive  # ml/router.py: overfit alerts
-        slack.on_mention = lambda msg: proactive.notify("notify.message", msg)  # a Slack mention or DM is read out
         watcher = asyncio.create_task(watch_script(cad)) if watch else None
         try:
             yield
@@ -132,8 +136,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.include_router(vscode_router)
     app.include_router(messaging_router)
     app.include_router(screens_router)
-    app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
     app.include_router(desk_router)
+    app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket):

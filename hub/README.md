@@ -1,7 +1,7 @@
 # Forge hub
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
-Modules: **CAD** (see `../CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`) and the **desk** extras (timers, notes, movie; see [Desk](#desk-timers-notes-movie)).
+Modules: **CAD** (see `../CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes, movie; see [Desk](#desk-timers-notes-movie)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
 
@@ -223,14 +223,6 @@ only answers segments that name a gator ("Hey Albie, ...", "Tester, run the test
 ("Hey Scout") comes back as `wake.listen` and that gator takes the next sentence. Anything else is dropped
 without a caption (and deleted from the Grok conversation). In voice mode every segment is transcribed by xAI.
 
-### Albie speaks first (agent/watcher.py)
-
-One line at a time (20 s apart, never over anyone), an offer, never an action; "Albie, yes" (or a bare "yes" within
-10 s of his question) answers it. Triggers: a saved file with errors or a crashed Albie-terminal command (VS Code),
-a broken `rocket.py`, an `ml.overfit_alert` from the forge SDK or `/ml/replay` (he walks to `ml-results`), a Slack
-mention or DM, and a new text from an allowlisted iMessage contact (the messaging/imessage service, IMESSAGE_ALLOW;
-nothing else is read). For a message, "Albie, yes, tell them ..." drafts the reply; he never sends.
-
 ### Crew (extra gators, one per agent type)
 
 The user hatches helper gators in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
@@ -410,7 +402,7 @@ or a person's name: "tell Hudson ..." drafts into their DM (opened with `convers
 | `POST /messages/digest {pet_id?}` | Unity calls it when `DeskPresence` goes Seated: everything unread in every conversation -> `notify.digest` (newest 4), `pet.say` with the one-line summary, spoken on the live voice session (`agent/speech.py`). Marks every conversation seen. |
 | `POST /messages/focus {pet_id?, channel, ts}` | "Reply with Albie" on a message (same as the ws message `messages.focus`): Albie says "<who> in <#channel or a DM> says: <text>. Want me to answer?" (voice, else `pet.say`), and the next `messages_send` without a target replies in that thread. 404 if the message isn't one of that conversation's last 200. |
 | `/ws` events | `notify.message` (each message, your own included with `is_me`), `notify.channels {channels}` (sticky, debounced 300 ms), `notify.draft`, `notify.sent {draft_id, ...}`, `notify.draft_cancelled {draft_id, reason}`, `notify.digest`; client -> hub: `messages.focus {pet_id, channel, ts}` |
-| Albie's tools | `messages_read_latest {n?}`, `messages_list_channels {}`, `messages_read_channel {channel, n?}`, `messages_send {text, reply_to_ts?, channel?, thread_ts?, via?, attach?, open_messenger?}` (draft only; no target = the message in focus; a person's name = their DM; iMessage replies route by source; `via: imessage` starts a new iMessage draft; `attach` (Slack only): the open CAD design's files, `all` or `step`/`stl`/`drawing`/`parts`; with files the messenger opens first), `messages_edit_draft {text}` (reword the open draft, keeps its files), `messages_confirm {send, draft_id?}` |
+| Albie's tools | `messages_read_latest {n?}`, `messages_list_channels {}`, `messages_read_channel {channel, n?}`, `messages_send {text, reply_to_ts?, channel?, thread_ts?, via?, attach?, open_messenger?}` (draft only; no target = the message in focus; a person's name = their DM; iMessage replies route by source; `via: imessage` starts a new iMessage draft; `attach`: the open CAD design's files on a Slack draft, `all` or `step`/`stl`/`drawing`/`parts`; with files the messenger opens first), `messages_edit_draft {text}` (reword the open Slack draft, keeps its files), `messages_confirm {send, draft_id?}` |
 | Rate limits | one `Retry-After` is waited out per request (per run for the backfill and the 60 s channel refresh); the next one is a `503 {"detail": {"error": "ratelimited", "retry_after"}}` and one log line |
 
 **Startup backfill and the channel list.** Right after Socket Mode connects, a background task caches the workspace's
