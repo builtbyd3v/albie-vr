@@ -904,3 +904,34 @@ def test_the_last_turns_words_are_cut_off_the_next_transcript() -> None:
     assert s._fresh("Can you run the rocket file for me? I want to test it.") == \
         "Can you run the rocket file for me? I want to test it."  # the same words alone: a real repeat, kept
     assert s._fresh("Open train.py") == "Open train.py"
+
+
+def test_a_long_winded_reply_is_cut_at_the_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grok ignores token caps: after MAX_REPLY_S of audio the hub cancels the reply and ends the speech."""
+    monkeypatch.setattr(voice_mod, "MAX_REPLY_S", 1.0)
+
+    async def run() -> None:
+        grok, sink = MockGrok(), Sink()
+        s = _session(grok, sink, rate=24000)
+        await s.begin_turn()
+        await s.feed(b"\x10\x00" * 9600)
+        await s.commit_turn()  # the hub asked for this reply
+        grok.push(type="response.created")
+        second = b"\x01\x00" * 24000  # 1 s of 24 kHz PCM16
+        for _ in range(3):
+            grok.push(type="response.output_audio.delta", delta=_b64(second))
+        grok.push(type="response.done")
+        await _settle()
+        assert {"type": "response.cancel"} in grok.sent
+        assert sink.flat().count("owner:tts.end") == 1
+        assert sum(len(v) for k, v in sink.log if k == "bytes") == len(second)  # only the first second went out
+        await s.close()
+
+    asyncio.run(run())
+
+
+def test_verbatim_lines_are_cut_to_whole_sentences() -> None:
+    long = "I changed train.py to lower the learning rate. Then I reran it. " * 5
+    out = voice_mod.short_line(long)
+    assert len(out) <= voice_mod.SAY_MAX and out.endswith(".")
+    assert voice_mod.short_line("Done.") == "Done."
