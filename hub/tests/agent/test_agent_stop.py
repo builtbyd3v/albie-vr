@@ -146,3 +146,37 @@ def test_a_bare_undo_in_the_window_is_answered_by_the_hub_not_grok() -> None:
         await s.close()
 
     asyncio.run(run())
+
+
+def test_stopping_his_training_run_offers_undo_and_train_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[Event] = []
+    calls: list[tuple[str, dict]] = []
+
+    async def broadcast(event: Event) -> None:
+        sent.append(event)
+
+    async def call(name: str, args: dict, pet_id: str) -> dict:
+        calls.append((name, args))
+        return {"ok": True}
+
+    async def stop_training() -> bool:
+        return True  # a run Albie started was training
+
+    monkeypatch.setattr(ws_mod.bus, "broadcast", broadcast)
+    monkeypatch.setattr(ws_mod.tools, "call", call)
+    monkeypatch.setitem(ws_mod.task_stoppers, "ml", stop_training)
+
+    async def run() -> None:
+        voice = FakeVoice()
+        voice.last_ml = ("ml_apply", {})  # type: ignore[attr-defined]
+        s = _session(voice)
+        await ws_mod._stop_and_ask(s, voice)
+        card = [e for e in sent if e.type == "pet.say"][-1].payload
+        assert card["text"] == "Stopped the training. Want me to undo the change, start it again, or leave it?"
+        await ws_mod._stop_choice(s, "undo")
+        assert calls == [("ml_undo", {})]
+        s.stopped = {"task": None, "edits": {}, "cad": False, "ml": ("ml_train", {"epochs": 5})}
+        await ws_mod._stop_choice(s, "continue")
+        assert calls[-1] == ("ml_train", {"epochs": 5})
+
+    asyncio.run(run())
