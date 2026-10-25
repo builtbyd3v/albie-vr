@@ -68,6 +68,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             imessage = IMessageService(imessage_settings, slack.store, bus, speech.note)
             slack.extra_channel_summaries = imessage.channel_summaries
             imessage.channels_changed = slack.channels_changed
+            imessage.on_message = lambda msg: proactive.notify("notify.message", msg)  # allowlisted texts only
         app.state.imessage = imessage
 
         async def messages_focus(session, payload):
@@ -101,6 +102,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
         cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         cad.on_built = lambda record: proactive.notify("cad.built", record)
+        app.state.proactive = proactive  # ml/router.py: overfit alerts
+        slack.on_mention = lambda msg: proactive.notify("notify.message", msg)  # a Slack mention or DM is read out
         watcher = asyncio.create_task(watch_script(cad)) if watch else None
         try:
             yield
