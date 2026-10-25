@@ -159,11 +159,12 @@ ROCKET_TERMS = ["Albie", "ML", "ML panel", "ML desk", "fins", "fin", "nose cone"
 DESIGN_TERMS = ["quadcopter", "gearbox", "pinion", "shaft", "props", "prop clearance", "hexacopter", "explode",
                 "STEP file", "STL", "Slack", "CAD"]
 # "Stop" over Albie should just stop him, not start a reply ("Okay, quiet!").
-STOP_CORE = {"stop", "wait", "quiet", "shh", "shush", "hush", "enough", "nevermind"}
+STOP_CORE = {"stop", "wait", "quiet", "shh", "shush", "hush", "enough", "nevermind", "shutup", "cancel"}  # "shut up" -> shutup
 STOP_FILLER = ALIASES["bit"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
                                                                 "mind", "now", "right"}
 NO_REPLY_S = 4.0  # committed turn with no transcript and no response from Grok by then: treat it as empty
 DRAIN_TIMEOUT_S = 20.0  # longest we wait for Grok to finish talking before speaking a delegate answer
+UNDOABLE_TOOLS = {"cad_set_params", "cad_apply_preset", "cad_restore_version", "cad_reset"}  # undone by cad_undo
 DUPLICATE_S = 20.0  # the same transcript again within this is the same turn (live 22:26: one sentence, three turns)
 WAKE_FINAL_TIMEOUT_S = 8.0  # a wake turn with no transcription.completed by then is decided on the last partial
 # (5 s decided on partials over the phone hotspot, live 19:29-19:30; Unity's PushToTalk finalTimeout is 10 s)
@@ -341,6 +342,11 @@ class GrokVoiceSession(_Base):
         self._dropped_items: list[str] = []  # output items of a cancelled reply, deleted at its response.done
         self.on_stop: Callable[[], Awaitable[None]] | None = None  # ws.py: "Albie, stop" also cancels his running task
         self._last_heard, self._last_heard_t = "", 0.0  # the same transcript twice within DUPLICATE_S is one turn
+        # After "Stopped. Undo, continue, or leave it?": until choice_until a bare "undo" / "continue" / "leave it"
+        # is the answer (ws.py on_choice runs it), no name needed.
+        self.choice_until = 0.0
+        self.on_choice: Callable[[str], Awaitable[None]] | None = None
+        self.last_change: tuple[str, float] | None = None  # (tool, when) of the last CAD change Grok made: Undo-able
         self._response_suppressed = False
         self._response_requested = False  # response.create sent, response.created not seen yet
         self._idle_close_s = float(os.getenv("VOICE_IDLE_CLOSE_S", "120"))  # 20 s cost a reconnect (up to 6 s on the hotspot) after every quiet spell
@@ -730,6 +736,8 @@ class GrokVoiceSession(_Base):
             args = {}
         await self._emit(ev.tool_call(self.pet_id, call_id, name, args))
         log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to (VS Code vs crew)
+        if name in UNDOABLE_TOOLS:
+            self.last_change = (name, time.monotonic())
         if name == "delegate" and self._delegate is not None and str(args.get("task", "")).strip():
             mode = args.get("mode") if args.get("mode") in ("qa", "code", "auto") else "auto"
             # Grok has no "pending" results: acknowledge now so it can say "on it", speak the answer later.
@@ -813,6 +821,14 @@ class GrokVoiceSession(_Base):
             return
         if final:
             self._last_heard, self._last_heard_t = final, time.monotonic()
+        choice = stop_choice(final) if final and time.monotonic() < self.choice_until else None
+        if choice is not None and self.on_choice is not None:
+            self.choice_until = 0.0
+            self._drop_reply = True  # the hub answers it (undo / continue / leave), not Grok
+            log.info("turn: %r -> stop choice %s", final[:80], choice)
+            await super()._final("")
+            await self.on_choice(choice)
+            return
         stop = is_stop(final) or has_named_stop(final)
         named = "partial" if self._named else "final" if has_name(final) else "no"
         drop = stop or (self._require_name and named == "no")
@@ -983,18 +999,39 @@ def make_voice(*, pet_id: str, client_rate: int | None, send_event: SendEvent, s
 _TOKENS = re.compile(r"[A-Za-z0-9']+")
 
 
+CHOICE_UNDO = {"undo", "revert", "reverse", "back"}
+CHOICE_GO = {"continue", "resume", "going", "finish"}  # "keep going", "go on" is matched below
+
+
+def stop_choice(text: str) -> str | None:
+    """The answer to "Undo, continue, or leave it?": "undo" / "continue" / "leave", else None."""
+    low = text.lower()
+    words = set(re.findall(r"[a-z]+", low))
+    if words & CHOICE_UNDO:
+        return "undo"
+    if words & CHOICE_GO or "go on" in low or "pick up" in low:
+        return "continue"
+    if "leave" in words or words & {"nothing", "nope"} or low.strip(" .!") in ("no", "never mind"):
+        return "leave"
+    return None
+
+
 def has_named_stop(text: str) -> bool:
     """A short sentence with his name and a stop word anywhere in the turn: "No, no. Albie, stop. You ..." (live 22:27)."""
     for sentence in re.split(r"[.?!]+(?=\s|$)", text.lower()):
-        words = re.findall(r"[a-z]+", sentence)
+        words = _stop_words(sentence)
         if 0 < len(words) <= 4 and set(words) & STOP_CORE and set(words) & NAME_WORDS:
             return True
     return False
 
 
+def _stop_words(text: str) -> list[str]:
+    return re.findall(r"[a-z]+", text.lower().replace("never mind", "nevermind").replace("shut up", "shutup"))
+
+
 def is_stop(text: str) -> bool:
     """Only stop words and filler ("Wait, stop, Albie.", "Never mind."): the user wants silence, not an answer."""
-    words = re.findall(r"[a-z]+", text.lower().replace("never mind", "nevermind"))
+    words = _stop_words(text)
     return bool(words) and set(words) <= STOP_CORE | STOP_FILLER and bool(set(words) & STOP_CORE)
 
 
