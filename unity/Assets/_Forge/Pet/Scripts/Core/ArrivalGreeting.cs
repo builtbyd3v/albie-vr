@@ -23,11 +23,14 @@ namespace Forge.Pet
         [SerializeField] DockRing startRing;
         [SerializeField, Tooltip("Card centre from the greeting spot, desk frame (m): right of it, up, into the desk.")]
         Vector3 cardOffset = new Vector3(0.28f, 0.21f, -0.02f);
-        [SerializeField, Tooltip("START pill centre, desk frame (m): x from straight in front of the user's eyes, low over the desk, a little in.")]
-        Vector3 startOffset = new Vector3(0f, 0.22f, 0.14f); // 22 cm up: clears Albie (about 15 cm tall) standing under it
+        // START pill centre, desk frame (m): x from straight in front of the user's eyes, 22 cm up, a little in. Code, not a
+        // serialized field: a prefab imported before the field existed keeps the old default baked in its import.
+        static readonly Vector3 StartOffset = new Vector3(0f, 0.22f, 0.14f);
 
         // The frosted bar around the pill (mm of room each side) and how see-through it is.
         const float FrostPad = 16f, FrostAlpha = 0.6f;
+        // Room (m) between the card's right edge and the frosted bar, when the card would reach over it.
+        const float CardGap = 0.03f;
 
         /// <summary>START was pressed (once per Show).</summary>
         public event Action StartPressed;
@@ -64,10 +67,13 @@ namespace Forge.Pet
             if (presence == null || presence.Frame == null) return;
             Transform frame = presence.Frame;
             Vector3 spot = frame.InverseTransformPoint(greetingSpot);
-            Vector3 cardLocal = new Vector3(spot.x + cardOffset.x, cardOffset.y, spot.z + cardOffset.z);
             float reach = Mathf.Max(0f, presence.FrameWidth * 0.5f - 0.15f);   // keep the bar on this desk
-            float ringX = Mathf.Clamp(presence.EyeInFrame().x + startOffset.x, -reach, reach);
-            Vector3 ringLocal = new Vector3(ringX, startOffset.y, startOffset.z);
+            float ringX = Mathf.Clamp(presence.EyeInFrame().x + StartOffset.x, -reach, reach);
+            Vector3 ringLocal = new Vector3(ringX, StartOffset.y, StartOffset.z);
+            float cardHalf = card != null ? card.sizeDelta.x * 0.5f * ForgePanel.MetersPerUnit : 0.15f;
+            float barHalf = startRing != null ? (startRing.HalfWidth + FrostPad) * ForgePanel.MetersPerUnit : 0.1f;
+            float cardX = Mathf.Min(spot.x + cardOffset.x, ringX - barHalf - CardGap - cardHalf);   // never over the bar
+            Vector3 cardLocal = new Vector3(cardX, cardOffset.y, spot.z + cardOffset.z);
 
             gameObject.SetActive(true);
             if (headline != null) headline.text = line ?? "";
