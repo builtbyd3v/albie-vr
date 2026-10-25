@@ -352,6 +352,7 @@ class GrokVoiceSession(_Base):
         self.choice_until = 0.0
         self.on_choice: Callable[[str], Awaitable[None]] | None = None
         self.last_change: tuple[str, float] | None = None  # (tool, when) of the last CAD change Grok made: Undo-able
+        self.last_ml: tuple[str, dict[str, Any]] | None = None  # the last training run Grok started (ml_apply / ml_train)
         self._response_suppressed = False
         self._response_requested = False  # response.create sent, response.created not seen yet
         self._idle_close_s = float(os.getenv("VOICE_IDLE_CLOSE_S", "120"))  # 20 s cost a reconnect (up to 6 s on the hotspot) after every quiet spell
@@ -743,6 +744,8 @@ class GrokVoiceSession(_Base):
         log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to (VS Code vs crew)
         if name in UNDOABLE_TOOLS:
             self.last_change = (name, time.monotonic())
+        if name in ("ml_apply", "ml_train"):
+            self.last_ml = (name, args)  # "Albie, stop" while that run trains: undo (ml_undo) or train again
         if name == "delegate" and self._delegate is not None and str(args.get("task", "")).strip():
             mode = args.get("mode") if args.get("mode") in ("qa", "code", "auto") else "auto"
             # Grok has no "pending" results: acknowledge now so it can say "on it", speak the answer later.

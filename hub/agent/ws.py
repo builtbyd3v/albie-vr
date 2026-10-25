@@ -261,6 +261,8 @@ async def _on_ask(s: Session, ask: AgentAsk) -> None:
     s.turn = asyncio.create_task(_guarded(coro, emit, pet_id))
 
 
+# Background work "Albie, stop" can end, by name; each returns True if something was running (main.py: "ml").
+task_stoppers: dict[str, Callable[[], Awaitable[bool]]] = {}
 STOP_CHOICE_S = 14.0  # the question takes ~4 s to say, then a 10 s window for a bare "undo" / "continue" / "leave it"
 STOP_CHOICES = {"undo": "Undo", "continue": "Continue", "leave": "Leave it"}
 
@@ -275,13 +277,21 @@ async def _stop_and_ask(s: Session, voice) -> None:
     edits = dict(runner_mod.TASK_EDITS.get(s.pet_id) or {}) if code else {}
     change = getattr(voice, "last_change", None)
     cad = bool(change and time.monotonic() - change[1] < 30.0) and not code
-    if not code and not cad:
+    ml = getattr(voice, "last_ml", None) if not code and not cad else None
+    stopper = task_stoppers.get("ml")
+    ml_stopped = bool(ml and stopper is not None and await stopper())
+    if not code and not cad and not ml_stopped:
         return
-    s.stopped = {"task": task if code else None, "edits": edits, "cad": cad}
-    choices = (["undo"] if edits or cad else []) + (["continue"] if code else []) + ["leave"]
-    said = {("undo", "continue", "leave"): "Stopped. Want me to undo what I changed, pick up where I left off, or leave it?",
-            ("continue", "leave"): "Stopped. Want me to pick up where I left off, or leave it?",
-            ("undo", "leave"): "Stopped. Want me to undo that change, or leave it?"}[tuple(choices)]
+    applied = ml_stopped and ml[0] == "ml_apply"  # type: ignore[index]
+    s.stopped = {"task": task if code else None, "edits": edits, "cad": cad, "ml": ml if ml_stopped else None}
+    choices = (["undo"] if edits or cad or applied else []) + (["continue"] if code or ml_stopped else []) + ["leave"]
+    if ml_stopped:
+        said = ("Stopped the training. Want me to undo the change, start it again, or leave it?" if applied
+                else "Stopped the training. Want me to start it again, or leave it?")
+    else:
+        said = {("undo", "continue", "leave"): "Stopped. Want me to undo what I changed, pick up where I left off, or leave it?",
+                ("continue", "leave"): "Stopped. Want me to pick up where I left off, or leave it?",
+                ("undo", "leave"): "Stopped. Want me to undo that change, or leave it?"}[tuple(choices)]
     card = ev.Card(title="Stopped", actions=[ev.CardAction(label=STOP_CHOICES[c], action_id=f"stop:{c}") for c in choices])
     await Emitter(s.pet_id)(ev.pet_say(s.pet_id, said, card))
     voice.choice_until = time.monotonic() + STOP_CHOICE_S
@@ -297,11 +307,19 @@ async def _stop_choice(s: Session, answer: str) -> None:
         s.voice.choice_until = 0.0
     if stopped is None:
         return
+    ml = stopped.get("ml")
     if answer == "undo":
         restored = await asyncio.to_thread(_restore, stopped["edits"])
         if stopped["cad"]:
             await tools.call("cad_undo", {}, s.pet_id)
-        said = "Undone." if restored or stopped["cad"] else "There was nothing to undo."
+        if ml and ml[0] == "ml_apply":
+            await tools.call("ml_undo", {}, s.pet_id)
+        undone = restored or stopped["cad"] or bool(ml and ml[0] == "ml_apply")
+        said = "Undone." if undone else "There was nothing to undo."
+    elif answer == "continue" and ml:
+        epochs = (ml[1] or {}).get("epochs")
+        await tools.call("ml_train", {"epochs": epochs} if epochs else {}, s.pet_id)
+        said = "Training again."
     elif answer == "continue" and stopped["task"]:
         said = "Picking up where I left off."
         task = stopped["task"] + "\n\nYou were stopped partway through this task. Some files may already have your changes: continue from there."

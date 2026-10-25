@@ -89,6 +89,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
         ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)
+        agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
         agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (BitUiDirector)
 
         async def ml_card(session, action_id):
