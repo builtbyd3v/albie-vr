@@ -323,6 +323,10 @@ async def _open_voice(s: Session, h: Hello) -> None:
     if voice is None:
         return
     voice.wake_router = s.wake
+    async def stop_task() -> None:  # "Albie, stop": his running code / Q&A task ends too
+        await _cancel(s, announce=False)
+
+    voice.on_stop = stop_task
     judge = getattr(voice, "addressed", None)  # unnamed facing / follow-up turns: judged with Albie's last line
     if s.wake is not None and judge is not None:
         s.wake.judge = judge
