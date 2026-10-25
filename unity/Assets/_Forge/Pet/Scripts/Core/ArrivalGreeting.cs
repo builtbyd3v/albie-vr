@@ -24,7 +24,7 @@ namespace Forge.Pet
         [SerializeField, Tooltip("Card centre from the greeting spot, desk frame (m): right of it, up, into the desk.")]
         Vector3 cardOffset = new Vector3(0.28f, 0.21f, -0.02f);
         [SerializeField, Tooltip("START pill centre, desk frame (m): x from straight in front of the user's eyes, low over the desk, a little in.")]
-        Vector3 startOffset = new Vector3(0f, 0.07f, 0.14f);
+        Vector3 startOffset = new Vector3(0f, 0.22f, 0.14f); // 22 cm up: clears Albie (about 15 cm tall) standing under it
 
         // The frosted bar around the pill (mm of room each side) and how see-through it is.
         const float FrostPad = 16f, FrostAlpha = 0.6f;
