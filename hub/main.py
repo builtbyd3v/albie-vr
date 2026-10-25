@@ -31,6 +31,7 @@ from agent.workspace import workspace as views
 from cad import tools as cad_tools
 from cad.router import router as cad_router
 from cad.service import CadService, watch_script
+from agent import wake as agent_wake
 from desk import DeskService
 from desk import tools as desk_tools
 from desk.router import router as desk_router
@@ -68,6 +69,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             imessage = IMessageService(imessage_settings, slack.store, bus, speech.note)
             slack.extra_channel_summaries = imessage.channel_summaries
             imessage.channels_changed = slack.channels_changed
+            imessage.on_message = lambda msg: proactive.notify("notify.message", msg)  # allowlisted texts only
         app.state.imessage = imessage
 
         async def messages_focus(session, payload):
@@ -88,6 +90,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
         desk = DeskService(data_dir, bus, speech.speak)  # timer, notes, movie: .data/desk, .data/media
         app.state.desk = desk
+        agent_wake.name_needed = lambda: desk.movie.state().status == "playing"  # its soundtrack is not the user
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
         ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)
@@ -121,6 +124,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
         cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         cad.on_built = lambda record: proactive.notify("cad.built", record)
+        app.state.proactive = proactive  # ml/router.py: overfit alerts
+        slack.on_mention = lambda msg: proactive.notify("notify.message", msg)  # a Slack mention or DM is read out
         watcher = asyncio.create_task(watch_script(cad)) if watch else None
         try:
             yield

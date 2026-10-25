@@ -51,3 +51,37 @@ def test_looking_at_albie_counts_as_his_name_only_with_voice_facing(text: str) -
 ])
 def test_a_bare_answer_to_his_question_needs_no_name(text: str, last: str, age: float, said_to_albie: bool) -> None:
     assert asyncio.run(addressed.judge(text, last, age)) is said_to_albie
+
+
+@pytest.mark.parametrize("text, last, age, held", [
+    ("Can you open the, um", None, None, "partial"),  # mid-thought: the next segment finishes it
+    ("Albie, make the arms longer and", None, None, "partial"),
+    ("Um, Albie, close all of this, clear the notes, um", None, None, None),  # finished, then a sound
+    ("Yeah, what, yeah, um.", None, None, "filler"),
+    ("Nah.", "Want me to open it?", 3.0, None),  # answers his question
+    ("Nah.", "Want me to open it?", 30.0, "filler"),
+    ("Open up Iron Man now.", None, None, None),
+    ("How can I get", None, None, "partial"),  # live 02:05: no end mark, cut off
+    ("Is the PyTorch", None, None, "partial"),
+    ("I think...", None, None, "partial"),
+])
+def test_free_speech_holds_half_thoughts(text: str, last: str | None, age: float | None, held: str | None) -> None:
+    assert addressed.unfinished(text, last, age) == held
+
+
+@pytest.mark.parametrize("text", ["And then, um", "Can you, uh", "And then"])
+def test_a_short_opener_trailing_off_is_held(text: str) -> None:
+    assert addressed.unfinished(text) == "partial"
+
+
+def test_a_finished_request_with_a_trailing_um_is_answered() -> None:
+    assert addressed.unfinished("Can you clear the notes and close the messenger, um") is None
+
+
+@pytest.mark.parametrize("text", ["Louder", "Undo", "Pause it", "Undo that"])
+def test_a_bare_short_command_is_answered_at_once(text: str) -> None:
+    assert addressed.unfinished(text) is None
+
+
+def test_a_bare_open_still_waits_for_what() -> None:
+    assert addressed.unfinished("Open") == "partial"

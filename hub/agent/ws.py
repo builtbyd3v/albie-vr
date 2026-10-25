@@ -41,7 +41,8 @@ from .events import (
 from .runner import get_runner
 from .stt import SpeechToText, make_stt
 from .turn import TurnControl, classify_mode
-from .voice import VoiceSession, make_voice, view_note
+from .voice import VoiceSession, make_voice, short_line, view_note
+from . import wake as wake_mod
 from .wake import WakeRouter
 from .watcher import watcher
 from .workspace import workspace
@@ -167,11 +168,13 @@ async def _on_text(s: Session, raw: str) -> None:
             if start.sample_rate != 16000:
                 log.warning("stt.start sample_rate=%s; expected 16000", start.sample_rate)
             s.stt_cancelled = False
-            s.wake_turn = start.wake and s.wake is not None
+            named = wake_mod.NAME_REQUIRED or wake_mod.name_needed()  # free speech (default): a plain turn for Albie
+            s.wake_turn = start.wake and s.wake is not None and (named or start.pet_id not in (None, "", s.pet_id))
+            require_name = start.require_name and named
             if s.wake_turn:
                 s.wake.begin(start.pet_id if start.pet_id != s.pet_id else None, facing=start.facing)  # type: ignore[union-attr]
             if s.voice is not None:
-                await _voice_call(s, lambda: s.voice.begin_turn(require_name=start.require_name, wake=s.wake_turn))
+                await _voice_call(s, lambda: s.voice.begin_turn(require_name=require_name, wake=s.wake_turn))
             else:
                 s.stt = await asyncio.to_thread(make_stt, _project_path(s))
         elif event.type == "stt.cancel":
@@ -481,6 +484,15 @@ class _QuietSteps:
                 self._working = True
                 await self._emit(ev.pet_state(self._pet_id, "working", target_panel="screen-main"))
             return
+        # Albie speaks short_line(answer) (voice.say); the bubble showed the whole runner answer (live 03:47).
+        if event.type == "agent.partial_answer":
+            return
+        if event.type == "agent.answer_done":
+            event = ev.answer_done(self._pet_id, short_line(str(event.payload.get("text") or "")))
+        elif event.type == "agent.task_complete":
+            p = event.payload
+            event = ev.task_complete(self._pet_id, p["task_id"], short_line(str(p.get("summary") or "")),
+                                     branch=p.get("branch"))
         await self._emit(event)
 
 
