@@ -357,7 +357,8 @@ public class CadSession : MonoBehaviour
 
     public void SetView(bool explode, string focusId)
     {
-        var view = new CadView { explode = explode, focusId = focusId };
+        // the same focus keeps its other parts (explode toggled while every fin is lit)
+        var view = new CadView { explode = explode, focusId = focusId, focusIds = focusId == View.focusId ? View.focusIds : null };
         ApplyView(view);
         if (!IsMock) StartCoroutine(Post("/cad/view", JsonConvert.SerializeObject(view), refresh: false));
     }
@@ -687,7 +688,7 @@ public class CadSession : MonoBehaviour
 
     void OnViewEvent(CadView view)
     {
-        if (IsMock || view == null || (view.explode == View.explode && view.focusId == View.focusId)) return;
+        if (IsMock || view == null || (view.explode == View.explode && view.SameFocus(View))) return;
         ApplyView(view);
     }
 
