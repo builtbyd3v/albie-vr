@@ -123,7 +123,7 @@ TOOL_RULES = (
     "which the user can't see in VS Code. Use the crew only when the user names a crew member or asks for help in "
     "parallel. "
     "ML (machine learning) requests always go to your ml tools, never to delegate: opening the ML project or 'the "
-    "ML stuff' is ml_open (not ui_open_view), 'how is my model doing' or the last score is ml_status, 'what can I do "
+    "ML stuff' is ml_open (not ui_open_view), pulling up or importing a repo from GitHub is ml_github, 'how is my model doing' or the last score is ml_status, 'what can I do "
     "better' or 'improve it' is ml_improve, a yes or 'apply it' after an ml_improve suggestion is ml_apply, 'undo "
     "that' is ml_undo, and 'train it again' is ml_train. "
     "Set the focus timer, keep the user's notes, and play the movie on the big screen with your desk tools. "
