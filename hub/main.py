@@ -4,7 +4,7 @@ Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-
 (timers, notes, movie), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
 the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
-ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
+ui.mode out, workspace.mode back), and his Slack drafts can carry the open desk's files (cad/tools.py attachments, ml/tools.py MLTools.attachments).
 Run from hub/:  uvicorn main:app --host 0.0.0.0 --port 8000   (no --reload: it would restart the CAD worker)
 
 Env: FORGE_DATA_DIR (default hub/.data), FORGE_CAD_SCRIPT (default hub/cad/parts/rocket.py), SLACK_* (messaging/settings.py),
@@ -86,13 +86,15 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
 
         agent_ws.client_handlers["messages.focus"] = messages_focus  # reply flow from either provider
         agent_ws.client_handlers["messages.opened"] = slack.opened_from_ws  # Unity's answer to messages.open
+        ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
+        attach = messaging_tools.desk_attach(lambda kinds: cad_tools.attachments(cad, kinds), ml_tools.attachments,
+                                             lambda: views.desk)  # "send the updated files": the open desk's
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(
-            name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
+            name, args, slack, imessage, attach=attach, show=views.ensure))
         desk = DeskService(data_dir, bus, speech.speak)  # timer, notes, movie: .data/desk, .data/media
         app.state.desk = desk
         agent_wake.name_needed = lambda: desk.movie.state().status == "playing"  # its soundtrack is not the user
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
-        ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)
         agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
         agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (BitUiDirector)

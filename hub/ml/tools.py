@@ -11,6 +11,7 @@ so a voice turn never waits on them. Nothing in the user's repo changes before m
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import logging
 import os
@@ -22,6 +23,7 @@ from typing import Any
 
 from agent import events as ev
 from agent import speech as agent_speech
+from events import Attachment
 
 from . import github, improve
 from .router import _stop_tail, service, start_run, start_setup
@@ -34,6 +36,8 @@ Speak = Callable[[str, str], Awaitable[bool]]
 PET_ID = "bit"
 OPEN_WAIT_S = 25.0  # a project with a working .forge/ is ready in a few seconds; a cold one keeps going after
 SEARCH_DIRS = [ROOT / "ml-examples", Path.home() / "Desktop" / "ml-examples"]
+FILE_KINDS = ("code", "results", "model")  # messages_send attach on the ML desk; "all" = all three
+MODEL_MAX_BYTES = 50 * 1024 * 1024  # ponytail: Slack takes 1 GB, but a big upload over the demo hotspot stalls the send
 
 TOOLS: list[dict[str, Any]] = [
     {"name": "ml_open",
@@ -236,6 +240,68 @@ class MLTools:
             out["improvement"] = {"applied": pending["applied"], "changes": [c["title"] for c in pending["changes"]]}
         out.update(self._last_run())
         return out
+
+    # --- files for Slack ----------------------------------------------------------------------------
+    async def attachments(self, kinds: list[str]) -> list[Attachment]:
+        """The open project's latest files as draft attachments (messages_send attach on the ML desk): code = the
+        files the applied improvement changed plus their diff (else the training script), results = the last finished
+        run's numbers, model = the checkpoint. "all" skips a missing or too-big checkpoint; asking for it raises."""
+        return await asyncio.to_thread(self._attachments, kinds)
+
+    def _attachments(self, kinds: list[str]) -> list[Attachment]:
+        svc, every = self.svc, "all" in kinds
+        want = set(FILE_KINDS) if every else set(kinds)
+        unknown = sorted(want - set(FILE_KINDS))
+        if unknown:
+            raise LookupError(f"No file kind {unknown}; the ML kinds are {list(FILE_KINDS)} or all")
+        run_id = improve.latest_run(svc)
+        source = f"ml {svc.repo.name} run {run_id}" if run_id else f"ml {svc.repo.name}"
+        out = self.recent_path.parent / "outbox"
+        out.mkdir(parents=True, exist_ok=True)
+        files: list[Attachment] = []
+
+        def add(path: Path, title: str) -> None:
+            files.append(Attachment(id=f"ml-{run_id}-{path.name}", name=path.name, title=title, kind="file",
+                                    bytes=path.stat().st_size, source=source, path=str(path)))
+
+        if "code" in want:
+            pending = improve.plan(svc)
+            changed = list(pending["files"]) if pending.get("applied") else []
+            for rel in changed:
+                orig = improve._dir(svc) / f"{rel}.orig"
+                add(svc.repo / rel, "Training code (changed)")
+                if orig.exists():
+                    diff = out / f"{Path(rel).name}.diff"
+                    diff.write_text("".join(difflib.unified_diff(
+                        orig.read_text().splitlines(keepends=True), (svc.repo / rel).read_text().splitlines(keepends=True),
+                        f"a/{rel}", f"b/{rel}")))
+                    add(diff, "What changed (diff)")
+            if not changed:
+                script = svc.repo / ((svc.profile().get("entry_points") or {}).get("train") or "train.py")
+                if script.is_file():
+                    add(script, "Training code")
+        if "results" in want:
+            if run_id is None:
+                raise LookupError("There's no finished run to send yet: train once first")
+            d = improve.diagnose(svc, run_id)
+            summary = svc.run_dir(run_id) / "summary.json"
+            if summary.exists():
+                d["per_class"] = json.loads(summary.read_text()).get("per_class")
+            path = out / f"{svc.repo.name}_{run_id}_results.json"
+            path.write_text(json.dumps(d, indent=1, default=str))
+            add(path, f"Run results ({improve.headline(d)})")
+        if "model" in want:
+            rel = svc.profile().get("checkpoint")
+            ckpt = svc.repo / rel if rel else None
+            if ckpt is None or not ckpt.is_file():
+                if not every:
+                    raise LookupError("There's no checkpoint on disk for this project")
+            elif ckpt.stat().st_size > MODEL_MAX_BYTES:
+                if not every:
+                    raise LookupError(f"The checkpoint is too big for Slack here ({ckpt.stat().st_size >> 20} MB)")
+            else:
+                add(ckpt, "Model checkpoint")
+        return files
 
     # --- improve, apply, train -------------------------------------------------------------------
     def start_improve(self) -> dict[str, Any]:

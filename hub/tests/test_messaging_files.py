@@ -241,5 +241,6 @@ def test_edit_without_a_draft_and_tool_shape(tmp_path: Path) -> None:
     out = asyncio.run(mtools.call_tool("messages_edit_draft", {"text": "hello"}, svc))
     assert "no open draft" in out["error"]
     send = next(t for t in mtools.TOOLS if t["name"] == "messages_send")
-    assert send["parameters"]["properties"]["attach"]["items"]["enum"] == ["all", "step", "stl", "drawing", "parts"]
+    assert send["parameters"]["properties"]["attach"]["items"]["enum"] == ["all", "step", "stl", "drawing", "parts",
+                                                                        "code", "results", "model"]
     assert "messages_edit_draft" in send["description"]

@@ -5,8 +5,8 @@ count), messages_read_channel (the last n in one conversation). Showing: message
 Slack panel (opens the MSG view). Sending is two tools on purpose: messages_send only
 WRITES a draft (Unity shows it in the composer with Send / Cancel); messages_confirm is the spoken "send it" /
 "never mind". Nothing reaches Slack or iMessage without one of those two confirmations. messages_edit_draft rewords the
-open draft in place (same draft, same files). messages_send can attach the open CAD design's files (`attach`, resolved
-by main.py through cad/tools.py `attachments`) and show the draft in the messenger view (`open_messenger`, through
+open draft in place (same draft, same files). messages_send can attach the open desk's files (`attach`: CAD kinds go
+to cad/tools.py `attachments`, ML kinds to ml/tools.py `MLTools.attachments`, "all" to the desk open last; `desk_attach`) and show the draft in the messenger view (`open_messenger`, through
 `show`). iMessage drafts (opt-in, messaging/imessage/) carry text only.
 """
 from __future__ import annotations
@@ -22,7 +22,8 @@ from .slack_client import AmbiguousName, SlackService
 
 Attach = Callable[[list[str]], Awaitable[list[Attachment]]]  # ["all"] / ["step", "drawing"] -> files on the hub's disk
 Show = Callable[[str], Awaitable[dict[str, Any]]]
-FILE_KINDS = ["all", "step", "stl", "drawing", "parts"]
+CAD_KINDS, ML_KINDS = ["step", "stl", "drawing", "parts"], ["code", "results", "model"]
+FILE_KINDS = ["all", *CAD_KINDS, *ML_KINDS]
 
 if TYPE_CHECKING:
     from .imessage.service import IMessageService
@@ -65,8 +66,8 @@ TOOLS: list[dict[str, Any]] = [
                     "thread. To message a person directly ('message Adrian ...') pass their name as channel: it becomes "
                     "their DM. For an iMessage reply, pass its ts as reply_to_ts; for a new iMessage draft, set "
                     "via='imessage' and pass an existing contact/chat name or im:<chat-guid> as channel. attach puts the "
-                    "open CAD design's files on a Slack draft (for a supplier, a teammate or a print shop; 'with all the "
-                    "files' = all). To change the wording afterwards use messages_edit_draft; calling this again starts a "
+                    "open desk's files on a Slack draft (CAD design or ML project; for a supplier, a teammate or a print "
+                    "shop; 'with all the files' or 'the updated files' = all, which picks the desk that's open). To change the wording afterwards use messages_edit_draft; calling this again starts a "
                     "new draft and drops the old one and its files.",
      "parameters": {"type": "object", "properties": {
          "text": {"type": "string", "description": "the message, as the user would write it"},
@@ -76,9 +77,11 @@ TOOLS: list[dict[str, Any]] = [
          "via": {"type": "string", "enum": ["slack", "imessage"], "description": "Optional provider for a new conversation"},
          "thread_ts": {"type": "string", "description": "thread to post in (optional; implied by reply_to_ts)"},
          "attach": {"type": "array", "items": {"type": "string", "enum": FILE_KINDS},
-                    "description": "files of the CAD design open on the desk, current version: step = the CAD model, "
-                                   "stl = mesh for 3D printing, drawing = engineering drawing PDF, parts = parts list "
-                                   "CSV, all = all four (Slack only)"},
+                    "description": "files of the open desk (Slack only). CAD design, current version: step = the "
+                                   "CAD model, stl = mesh for 3D printing, drawing = engineering drawing PDF, parts = "
+                                   "parts list CSV. ML project, latest run: code = the changed training code and its "
+                                   "diff, results = the run's numbers, model = the checkpoint. all = every file of the "
+                                   "desk that's open (CAD or ML)"},
          "open_messenger": {"type": "boolean",
                             "description": "show the draft in the Slack messenger view (default: true with files, "
                                            "else it pops up as a card next to you)"}},
@@ -99,6 +102,17 @@ TOOLS: list[dict[str, Any]] = [
          "draft_id": {"type": "string", "description": "optional; defaults to the open draft"}},
          "required": ["send"]}},
 ]
+
+
+def desk_attach(cad: Attach, ml: Attach, desk: Callable[[], str | None]) -> Attach:
+    """One `attach` for both desks: CAD kinds to `cad`, ML kinds to `ml`, "all" to the desk open last (`desk()`, CAD
+    when no client said yet)."""
+    async def attach(kinds: list[str]) -> list[Attachment]:
+        if "all" in kinds:
+            return await (ml if desk() == "ml" else cad)(["all"])
+        cad_kinds, ml_kinds = [k for k in kinds if k not in ML_KINDS], [k for k in kinds if k in ML_KINDS]
+        return (await cad(cad_kinds) if cad_kinds else []) + (await ml(ml_kinds) if ml_kinds else [])
+    return attach
 
 
 def _row(m: Any) -> dict[str, Any]:
@@ -176,8 +190,8 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, imessage
                     return {"error": "Attaching files isn't available on this hub"}
                 try:
                     files = await attach(kinds)
-                except Exception as e:  # noqa: BLE001 - a CAD failure, not a Slack one
-                    return {"error": f"Couldn't make the design's files: {e}"}
+                except Exception as e:  # noqa: BLE001 - a CAD / ML failure, not a Slack one
+                    return {"error": f"Couldn't get the files: {e}"}
             view: dict[str, Any] = {}
             opening = args.get("open_messenger")
             if (bool(files) if opening is None else bool(opening)) and show is not None:

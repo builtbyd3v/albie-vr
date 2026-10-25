@@ -156,8 +156,9 @@ TOOL_RULES = (
     "Set the focus timer, keep the user's notes (one notes_add call per item: 'add X and Y' is two calls), and play "
     "the movie on the big screen with your desk tools. "
     "Slack and iMessage replies go out under the user's own account and are never sent directly: messages_send only "
-    "writes a draft that pops up for them to confirm, and its attach option puts the open design's files on a Slack "
-    "draft (STEP model, STL, drawing PDF, parts list; never delegate that). messages_edit_draft rewords the open draft "
+    "writes a draft that pops up for them to confirm, and its attach option puts the open desk's files on a Slack "
+    "draft (CAD: STEP model, STL, drawing PDF, parts list; ML: changed code and diff, run results, checkpoint; "
+    "'send the updated files to Adrian' = attach all with Adrian as channel; never delegate that). messages_edit_draft rewords the open draft "
     "and keeps its files. Say what you wrote and ask them to tap Send or say 'send it'; messages_confirm is for "
     "their yes or no."
 )

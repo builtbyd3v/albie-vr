@@ -59,6 +59,7 @@ def resolve(view: str) -> str | None:
 class Workspace:
     def __init__(self) -> None:
         self.mode: str | None = None  # None: no client has said yet
+        self.desk: str | None = None  # the last of cad / ml open: whose files "send the updated files" means
         self.reason: str | None = None
         self.publish: Publish | None = None
         self._waiters: list[tuple[str, asyncio.Future[tuple[str, str | None]]]] = []
@@ -68,6 +69,8 @@ class Workspace:
         """A client's workspace.mode: remember it and wake whoever waits for that view (or any reason)."""
         mode = mode.strip().lower()
         self.mode, self.reason, self._unanswered = mode, reason or None, False
+        if mode in ("cad", "ml"):
+            self.desk = mode
         for wanted, fut in list(self._waiters):
             if not fut.done() and (mode == wanted or reason):
                 fut.set_result((mode, reason or None))
