@@ -91,11 +91,16 @@ PERSONA = (
 )
 # Last in the instructions, after the tool rules, so it wins over "tell me everything".
 BREVITY = (
-    " Most important rule: every reply is one or two short sentences, about 20 words at most. Lead with the "
-    "answer, no warm-up. Even if the user asks for everything or a long answer, give only the key point, "
-    "then offer to say more."
+    " Most important rule: every reply is one or two short sentences, 20 words at most, under eight seconds out "
+    "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give "
+    "only the key point, then offer to say more."
 )
-BREVITY_NOW = " Reply now in at most two short sentences."
+BREVITY_NOW = " Reply now in at most 20 words."
+# Grok ignores max_output_tokens / max_response_output_tokens (probed 2026-10-24: 100 s answers either way), so the
+# hub cuts a reply after this much of its audio. Unity plays it 1.2x faster (pitch), and audio arrives in chunks
+# (a cut at 12 s landed at 13.4 s), so 10 s here is ~8.5-9.5 s heard: under Dev's 10 s.
+MAX_REPLY_S = float(os.getenv("VOICE_MAX_REPLY_S", "10"))
+SAY_MAX = 150  # a verbatim line (runner answer, proactive line) is cut to whole sentences within this many characters
 # A wake turn's audio can start with room talk before the user said "Albie" (and grok-transcribe repeats the last turn).
 ADDRESSED_NOW = " Answer only what the user asked you after saying your name; ignore anything said before it."
 DELEGATE_RULES = (
@@ -372,6 +377,7 @@ class GrokVoiceSession(_Base):
         # current response
         self._utt: str | None = None
         self._audio_started = False
+        self._utt_s = 0.0  # audio seconds of the current reply (MAX_REPLY_S)
         # Grok sends speech faster than real time, so Unity is often still playing after response.done.
         self._playing_utt: str | None = None
         self._play_until = 0.0  # monotonic time Unity's queued speech runs out
@@ -657,6 +663,7 @@ class GrokVoiceSession(_Base):
                 return
             self._utt = uuid.uuid4().hex[:12]
             self._audio_started = False
+            self._utt_s = 0.0
             self._answer, self._answer_done = "", False
             self._forwarding = self._response_active = True
             self._response_requested = False
@@ -795,6 +802,7 @@ class GrokVoiceSession(_Base):
         await self.start()
         if context:
             await self._send(_note_item(context))
+        text = short_line(text)
         self._suppress_transcript = True
         self._spoke(text)
         self._expected += 1  # a force_message also starts a response
@@ -872,6 +880,14 @@ class GrokVoiceSession(_Base):
         await self._send_bytes(pcm)
         self._playing_utt = self._utt
         self._play_until = max(self._play_until, time.monotonic()) + len(pcm) / 2 / self.sample_rate
+        self._utt_s += len(pcm) / 2 / self.sample_rate
+        if self._utt_s >= MAX_REPLY_S:  # long-winded: end it here (Unity plays what it has, then tts.end)
+            log.info("reply cut at %.0f s of audio", self._utt_s)
+            self._forwarding = False
+            await self._send({"type": "response.cancel"})
+            await self._send_event(ev.tts_end(self.pet_id, self._utt))
+            if self._answer and not self._answer_done:
+                await self._answer_finished(self._answer)
 
     async def _answer_finished(self, text: str) -> None:
         self._answer_done = True
@@ -1022,6 +1038,20 @@ def stop_choice(text: str) -> str | None:
     if "leave" in words or words & {"nothing", "nope"} or low.strip(" .!") in ("no", "never mind"):
         return "leave"
     return None
+
+
+def short_line(text: str) -> str:
+    """Whole sentences within SAY_MAX characters (at least the first, cut at a word): what Albie says verbatim."""
+    text = " ".join(text.split())
+    if len(text) <= SAY_MAX:
+        return text
+    out = ""
+    for sentence in re.findall(r"[^.!?]+[.!?]*", text):
+        if out and len(out) + len(sentence) > SAY_MAX:
+            break
+        out += sentence
+    out = out.strip()
+    return out if len(out) <= SAY_MAX else out[:SAY_MAX].rsplit(" ", 1)[0] + "..."
 
 
 def has_named_stop(text: str) -> bool:
