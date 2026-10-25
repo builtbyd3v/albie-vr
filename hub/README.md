@@ -223,6 +223,14 @@ only answers segments that name a gator ("Hey Albie, ...", "Tester, run the test
 ("Hey Scout") comes back as `wake.listen` and that gator takes the next sentence. Anything else is dropped
 without a caption (and deleted from the Grok conversation). In voice mode every segment is transcribed by xAI.
 
+### Albie speaks first (agent/watcher.py)
+
+One line at a time (20 s apart, never over anyone), an offer, never an action; "Albie, yes" (or a bare "yes" within
+10 s of his question) answers it. Triggers: a saved file with errors or a crashed Albie-terminal command (VS Code),
+a broken `rocket.py`, an `ml.overfit_alert` from the forge SDK or `/ml/replay` (he walks to `ml-results`), a Slack
+mention or DM, and a new text from an allowlisted iMessage contact (the messaging/imessage service, IMESSAGE_ALLOW;
+nothing else is read). For a message, "Albie, yes, tell them ..." drafts the reply; he never sends.
+
 ### Crew (extra gators, one per agent type)
 
 The user hatches helper gators in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
