@@ -48,9 +48,9 @@ namespace Forge.ML
                 // One line per layer: a layer's input shape is the previous layer's output, so drawing both on rows
                 // `step` apart (about 30 with 16 layers) put each shape twice, 3 units apart: it read as doubled text.
                 // The input shape is still in the detail line on hover.
-                var label = MLUI.Text(root, $"{layer.name} · {layer.type}  <color=#FFFFFFB3>{string.Join("×",layer.out_shape)}</color>", 190, y, 260, 15, 12);
+                var label = MLUI.Text(root, $"{layer.name} · {layer.type}  <color=#FFFFFFB3>{string.Join("×",layer.out_shape)}</color>", 190, y, 260, 19, 13);
                 label.color = colors[i]; label.textWrappingMode = TMPro.TextWrappingModes.NoWrap; label.overflowMode = TMPro.TextOverflowModes.Truncate;
-                var hit = MLUI.Rect("Layer hit " + i, root, 180, y, 280, Mathf.Max(15, step)).gameObject;
+                var hit = MLUI.Rect("Layer hit " + i, root, 180, y, 280, Mathf.Max(19, step)).gameObject;
                 var image = hit.AddComponent<Image>(); image.color = new Color(0, 0, 0, .001f);
                 var input = hit.AddComponent<MLModelLayerInput>(); input.owner = this; input.layerIndex = i;
             }

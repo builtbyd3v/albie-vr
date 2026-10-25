@@ -291,6 +291,16 @@ def test_llm_wrapper_explains_missing_credentials(monkeypatch):
         llm_mod.complete_json("sys", [], {"type": "object"})
 
 
+def test_llm_wrapper_explains_a_missing_anthropic_package(monkeypatch):
+    """A hub env without hub/ml/requirements.txt: setup stops with an install hint, not an ImportError."""
+    from ml.setup import llm
+
+    monkeypatch.setattr(llm, "_client", None)
+    monkeypatch.setitem(sys.modules, "anthropic", None)  # import anthropic -> ImportError
+    with pytest.raises(LLMError, match="pip install -r hub/ml/requirements.txt"):
+        llm.complete_json("system", [{"role": "user", "content": "hi"}], {"type": "object"})
+
+
 def test_a_patch_that_doesnt_parse_goes_back_to_the_llm(repo):
     broken = {"adapter_py": GOOD_ADAPTER, "patches": [{"path": "train.py", "content": "def main(:\n"}], "notes": ""}
     llm = FakeLLM([PROFILE], [broken, adapter_reply()])
@@ -316,3 +326,15 @@ def test_an_extra_viz_that_doesnt_parse_is_a_round_trip(repo):
     assert statuses(events)[-1] == "needs_approval"
     assert "extra_viz.py doesn't parse" in llm.calls[2]["messages"][-1]["content"]
     ws.__exit__(None, None, None)
+
+
+def test_profile_python_resolves_like_the_service(tmp_path, monkeypatch):
+    """A hand-written profile saying "python" must still run when the hub's PATH has no `python` (no env active)."""
+    from ml.prescan import resolve_python
+
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert resolve_python(tmp_path, "python") == sys.executable
+    venv = tmp_path / ".venv" / "bin"
+    venv.mkdir(parents=True)
+    (venv / "python").write_text("")
+    assert resolve_python(tmp_path, ".venv/bin/python") == str(venv / "python")
