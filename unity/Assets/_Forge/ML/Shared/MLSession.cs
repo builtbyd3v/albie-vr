@@ -233,7 +233,7 @@ namespace Forge.ML
             if (TrainBusy) return;  // a second POST only gets the hub's 409 "still training"
             TrainPending = true; Notice = "Starting training..."; Changed?.Invoke();
             ForgeNet.Post("/ml/train", new { epochs }, _ => { TrainPending = false; Changed?.Invoke(); },
-                e => { TrainPending = false; Notice = "Train failed: " + e; Changed?.Invoke(); Debug.LogWarning("[ML] Train failed: " + e); });
+                e => { TrainPending = false; Notice = "Training didn't start."; Changed?.Invoke(); Debug.LogWarning("[ML] Train failed: " + e); });
         }
         public void SelectPair(int truth, int predicted) => PairSelected?.Invoke(truth, predicted);
         // Live: the hub writes labels_override.json and echoes ml.sample_updated, which applies the change.
@@ -415,7 +415,7 @@ namespace Forge.ML
                 // Connected to a hub without the ML router (or an empty repo): play the demo run so the panels
                 // aren't blank, and say why on the Training panel.
                 Debug.LogWarning("[ML] Hub data unavailable, keeping the current data: " + (error ?? "empty dataset"));
-                Notice = "No ML data from the hub (" + (error ?? "empty dataset") + "). Showing the demo run.";
+                Notice = (error != null ? "No ML data from the hub." : "The hub's dataset is empty.") + " Showing the demo run.";  // raw error: logged above
                 if (!HubData) { replay = true; RestartMock(); }
                 else Changed?.Invoke();
             }
