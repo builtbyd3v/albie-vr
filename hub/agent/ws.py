@@ -19,15 +19,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from . import events as ev
-from . import speech
+from . import runner as runner_mod
+from . import speech, tools
 from .bus import Emitter, bus
 from .config import ProjectNotFound, resolve_project
 from .crew import Member, crew, spoken
@@ -60,6 +63,8 @@ class Session:
     project_id: str | None = None
     turn: asyncio.Task[str] | None = None
     turn_mode: str | None = None
+    turn_text: str | None = None  # the running turn's task (Continue after "Albie, stop" restarts it)
+    stopped: dict | None = None  # what "Albie, stop" interrupted: {"task", "edits", "cad"} for Undo / Continue
     control: TurnControl | None = None
     stt: SpeechToText | None = None
     stt_busy: bool = False
@@ -249,15 +254,90 @@ async def _on_ask(s: Session, ask: AgentAsk) -> None:
     # omitted mode -> project default; "auto" -> imperative-verb heuristic
     mode = classify_mode(ask.text, ask.mode or project.default_mode)
     s.control = TurnControl()
-    s.turn_mode = mode
+    s.turn_mode, s.turn_text = mode, ask.text
     emit = Emitter(pet_id, redact=[str(project.path)])
     run = get_runner()
     coro = run(project, ask.text, mode, emit, pet_id=pet_id, control=s.control)
     s.turn = asyncio.create_task(_guarded(coro, emit, pet_id))
 
 
+STOP_CHOICE_S = 14.0  # the question takes ~4 s to say, then a 10 s window for a bare "undo" / "continue" / "leave it"
+STOP_CHOICES = {"undo": "Undo", "continue": "Continue", "leave": "Leave it"}
+
+
+async def _stop_and_ask(s: Session, voice) -> None:
+    """ "Albie, stop": end the running code task (or note a CAD change from the last 30 s), then ask one question.
+    Only talking (no task, no change): stop just silences him."""
+    running = s.turn is not None and not s.turn.done()
+    code = running and s.turn_mode == "code"
+    task = s.turn_text
+    await _cancel(s, announce=False)
+    edits = dict(runner_mod.TASK_EDITS.get(s.pet_id) or {}) if code else {}
+    change = getattr(voice, "last_change", None)
+    cad = bool(change and time.monotonic() - change[1] < 30.0) and not code
+    if not code and not cad:
+        return
+    s.stopped = {"task": task if code else None, "edits": edits, "cad": cad}
+    choices = (["undo"] if edits or cad else []) + (["continue"] if code else []) + ["leave"]
+    said = {("undo", "continue", "leave"): "Stopped. Want me to undo what I changed, pick up where I left off, or leave it?",
+            ("continue", "leave"): "Stopped. Want me to pick up where I left off, or leave it?",
+            ("undo", "leave"): "Stopped. Want me to undo that change, or leave it?"}[tuple(choices)]
+    card = ev.Card(title="Stopped", actions=[ev.CardAction(label=STOP_CHOICES[c], action_id=f"stop:{c}") for c in choices])
+    await Emitter(s.pet_id)(ev.pet_say(s.pet_id, said, card))
+    voice.choice_until = time.monotonic() + STOP_CHOICE_S
+    say = getattr(voice, "say", None)
+    if say is not None:
+        s.spawn(say(said))  # after this turn's final: say() waits for it
+
+
+async def _stop_choice(s: Session, answer: str) -> None:
+    """Undo / Continue / Leave it, spoken ("undo") or tapped (stop:undo on the card)."""
+    stopped, s.stopped = s.stopped, None
+    if s.voice is not None:
+        s.voice.choice_until = 0.0
+    if stopped is None:
+        return
+    if answer == "undo":
+        restored = await asyncio.to_thread(_restore, stopped["edits"])
+        if stopped["cad"]:
+            await tools.call("cad_undo", {}, s.pet_id)
+        said = "Undone." if restored or stopped["cad"] else "There was nothing to undo."
+    elif answer == "continue" and stopped["task"]:
+        said = "Picking up where I left off."
+        task = stopped["task"] + "\n\nYou were stopped partway through this task. Some files may already have your changes: continue from there."
+        s.spawn(_on_ask(s, AgentAsk(pet_id=s.pet_id, text=task, mode="code")))
+    else:
+        said = "Okay, I'll leave it."
+    log.info("stop choice %s: %s", answer, said)
+    await Emitter(s.pet_id)(ev.pet_say(s.pet_id, said))
+    say = getattr(s.voice, "say", None)
+    if say is not None:
+        s.spawn(say(said))
+
+
+def _restore(edits: dict[str, str | None]) -> int:
+    """Put back what the stopped task changed: original contents, and files it created removed."""
+    done = 0
+    for path, original in edits.items():
+        p = Path(path)
+        try:
+            if original is None:
+                if p.exists():
+                    p.unlink()
+            else:
+                p.write_text(original)
+            done += 1
+        except OSError:
+            log.exception("undo: could not restore %s", p.name)
+    return done
+
+
 async def _on_card_action(s: Session, tap: PetCardAction) -> None:
-    """Fix it on a proactive card: the same code fix a spoken "yes" starts, run as a typed ask. Not now: forgotten."""
+    """Fix it on a proactive card: the same code fix a spoken "yes" starts, run as a typed ask. Not now: forgotten.
+    stop:undo / stop:continue / stop:leave answer "Stopped. Want me to undo ...?" """
+    if tap.action_id.startswith("stop:"):
+        await _stop_choice(s, tap.action_id.removeprefix("stop:"))
+        return
     handler = card_handlers.get(tap.action_id.partition(":")[0])
     if handler is not None:  # another module's card (ML proposal: Apply / Not now)
         await handler(s, tap.action_id)
@@ -323,10 +403,13 @@ async def _open_voice(s: Session, h: Hello) -> None:
     if voice is None:
         return
     voice.wake_router = s.wake
-    async def stop_task() -> None:  # "Albie, stop": his running code / Q&A task ends too
-        await _cancel(s, announce=False)
+    async def stop_task() -> None:  # "Albie, stop": his running task ends too, then he asks what to do with it
+        s.spawn(_stop_and_ask(s, voice))  # in the background: ending a runner can take a few seconds
 
-    voice.on_stop = stop_task
+    async def choice(answer: str) -> None:
+        await _stop_choice(s, answer)
+
+    voice.on_stop, voice.on_choice = stop_task, choice
     judge = getattr(voice, "addressed", None)  # unnamed facing / follow-up turns: judged with Albie's last line
     if s.wake is not None and judge is not None:
         s.wake.judge = judge
@@ -359,7 +442,7 @@ async def _run_delegate(s: Session, task: str, mode: str) -> str:
         return str(exc)
     concrete = classify_mode(task, mode or project.default_mode)
     s.control = TurnControl()
-    s.turn_mode = concrete
+    s.turn_mode, s.turn_text = concrete, task
     emit = _QuietSteps(Emitter(s.pet_id, redact=[str(project.path)]), s.pet_id)
     coro = get_runner()(project, task, concrete, emit, pet_id=s.pet_id, control=s.control)
     s.turn = asyncio.create_task(_guarded(coro, emit, s.pet_id))
