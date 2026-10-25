@@ -279,12 +279,12 @@ gator and a WhistleButton with Poke/Ray interactables to the open scene (idempot
   (`Resources/PetFonts/Fredoka-Medium.ttf`, OFL, dynamic TMP font).
 - **Cartoon voice:** `StreamedPcmTextToSpeech.pitch` (default 1.2) plays speech higher and faster; hub `GROK_VOICE_SPEED` ≈ 1/pitch keeps the pace.
 
-## Addendum D (2026-10-24): Bit's crew (extra gators, one per agent type), areas, restful idling
+## Addendum D (2026-10-24): Albie's crew (extra gators, one per agent type), areas, restful idling
 
 **Agent types** (ids are pet_ids; at most one gator per type). The hub owns the prompt and tools
 (`hub/agent/crew.py` `TYPES`), Unity the look (`Crew/GatorAgentTypes.cs`). Keep ids, names and roles in sync.
 
-| id | role | kit | size vs Bit | hat |
+| id | role | kit | size vs Albie | hat |
 |---|---|---|---|---|
 | scout | maps the codebase and finds where things live | read-only | 0.88 | antenna, teal |
 | builder | builds new features end to end | code | 1.12 | hard hat, orange |
@@ -301,12 +301,12 @@ gator and a WhistleButton with Poke/Ray interactables to the open scene (idempot
 | direction | type | payload |
 |---|---|---|
 | client → hub | `crew.roster` | `{members: [{pet_id, agent_type}]}`: every crew gator in Unity, sent after each change and on every (re)connect |
-| hub → clients | `crew.spawn` | `{agent_type}`: hatch it (Bit's `spawn_agent` / `assign_task`) |
-| hub → clients | `crew.dismiss` | `{pet_id}`: send it home (Bit's `dismiss_agent`) |
+| hub → clients | `crew.spawn` | `{agent_type}`: hatch it (Albie's `spawn_agent` / `assign_task`) |
+| hub → clients | `crew.dismiss` | `{pet_id}`: send it home (Albie's `dismiss_agent`) |
 
-* `agent.ask` / `agent.cancel` with a crew `pet_id` run or stop **that member's** background turn. Bit's turn is never
+* `agent.ask` / `agent.cancel` with a crew `pet_id` run or stop **that member's** background turn. Albie's turn is never
   touched. All `agent.*` / `pet.state` events of that turn carry the member's `pet_id`.
-* Every `GatorAgentBridge` now ignores events whose `pet_id` isn't its own (Bit = `pet_config.json` petId).
+* Every `GatorAgentBridge` now ignores events whose `pet_id` isn't its own (Albie = `pet_config.json` petId).
 * Crew code tasks run in a git worktree (`<repo>-crew/<agent>-<id>`, branch `pet/<agent>/<slug>-<id>`) and are
   committed there; `git push`, `checkout`, `switch`, `reset`, `merge`, `rebase`, `stash` and `worktree` are denied.
   The worktree starts from the main checkout as it is (`git stash create`, so Albie's uncommitted edits are in it).
@@ -319,41 +319,41 @@ gator and a WhistleButton with Poke/Ray interactables to the open scene (idempot
 **Unity** (`Forge/Pet/7. Add Agent Crew To Open Scene`):
 
 * `GatorCrew`: `Spawn(type, at?)`, `Dismiss(petIdOrName)`, `DismissLast()`, `Members`, `Changed`. A crew gator is a
-  copy of `crewPrefab` (GatorAssistant) with the Bit-only parts stripped before any Awake runs (mic, whistle, voice,
-  AgentClient, MRUK adapter...). Its bridge shares Bit's event source (`UseSharedSource`). Keys: N hatch, X send
+  copy of `crewPrefab` (GatorAssistant) with the Albie-only parts stripped before any Awake runs (mic, whistle, voice,
+  AgentClient, MRUK adapter...). Its bridge shares Albie's event source (`UseSharedSource`). Keys: N hatch, X send
   the last one home.
 * `GatorHatchery`: egg on the desk's near-left corner (the whistle has the right one). Press the egg to hatch the
   type on the label, or to send it home if it's already out; press the arrow for the next type.
-* Areas: with a crew, every gator (Bit included) owns a strip of the desk with **equal walkable area** (the
-  keep-out doesn't count; `GatorTerritories.Split`), nearest the user first: Bit, then the crew in hatch order.
+* Areas: with a crew, every gator (Albie included) owns a strip of the desk with **equal walkable area** (the
+  keep-out doesn't count; `GatorTerritories.Split`), nearest the user first: Albie, then the crew in hatch order.
   Strips narrower than `minStripWidth` (0.16 m) overflow onto the floor. `scope = Floor` splits the floor instead.
   `GatorController.SetTerritory` / `ClearTerritory`: wander points and WanderAway stay inside it, and a gator
   elsewhere walks or hops back. Crew gators think and work at the front of their own area
-  (`StayInTerritoryWhenBusy`); Bit still comes to the user. Solo Bit (no crew) behaves exactly as before.
+  (`StayInTerritoryWhenBusy`); Albie still comes to the user. Solo Albie (no crew) behaves exactly as before.
 * Restful idling while a crew exists (all gators): long rests 85 % of pauses for 6-16 s, runs 8 %, short pauses
-  2.5-6 s (`GatorController.SetIdleProfile`). Bit's own profile comes back when the crew is gone.
+  2.5-6 s (`GatorController.SetIdleProfile`). Albie's own profile comes back when the crew is gone.
 
 ## Addendum E (2026-10-24): say a gator's name and it listens (always-on VAD)
 
-* Unity `WakeListener` (on Bit, added by `Forge/Pet/7`): the mic stays on and an energy VAD (adaptive noise floor)
+* Unity `WakeListener` (on Albie, added by `Forge/Pet/7`): the mic stays on and an energy VAD (adaptive noise floor)
   cuts speech into segments. Each segment is a normal turn marked `stt.start {wake: true, pet_id?}`: 0.5 s of
   pre-roll, PCM16 16 kHz, then `stt.stop`. A segment with less than 0.35 s of speech gets `stt.cancel` before
   `stt.stop`. The listener pauses and releases the mic while push-to-talk or hands-free owns it
-  (`HubSpeechToText.MicNeeded`), while Bit is speaking (so he can't wake his crew by saying their names) and while
+  (`HubSpeechToText.MicNeeded`), while Albie is speaking (so he can't wake his crew by saying their names) and while
   the hub is offline.
 * Hub (`agent/wake.py`): a wake turn's `stt.*` is held back until the transcript names a gator, either at the start
-  (after an optional "hey / ok / hi / yo") or at the end after a comma ("thanks, Bit"). "wait a bit" wakes nobody.
-  * `"Hey Bit, <request>"` → Bit's `stt.final`, then Bit answers (voice: Grok responds to the turn; text: agent.ask).
+  (after an optional "hey / ok / hi / yo") or at the end after a comma ("thanks, Albie"). "wait a bit" wakes nobody.
+  * `"Hey Albie, <request>"` → Albie's `stt.final`, then Albie answers (voice: Grok responds to the turn; text: agent.ask).
   * `"<Crew name>, <request>"` → that gator's `stt.final` + `crew.assign` (hatched first if needed).
-  * `"Hey <name>"` alone → **`wake.listen {pet_id}`** (hub → that socket only). Bit: Unity opens a hands-free turn.
+  * `"Hey <name>"` alone → **`wake.listen {pet_id}`** (hub → that socket only). Albie: Unity opens a hands-free turn.
     A crew gator turns to Listening, and the next segment is sent with `pet_id` = that gator and needs no name (8 s).
   * nobody named → nothing is emitted. In voice mode the committed item is deleted (`conversation.item.delete`), so
-    room chatter never reaches Bit's conversation. A wake turn never barges in on Bit's speech.
+    room chatter never reaches Albie's conversation. A wake turn never barges in on Albie's speech.
 * Privacy and cost: in voice mode (`VOICE_PROVIDER=grok`) every speech segment the headset hears is sent to xAI to
   be transcribed, so the Grok session stays open while people talk. With `VOICE_PROVIDER=none` and
   `STT_PROVIDER=whisper` the segments are transcribed locally instead.
 
-## Addendum F (2026-10-24): one hub process, workspace view, "Reply with Bit", screen status
+## Addendum F (2026-10-24): one hub process, workspace view, "Reply with Albie", screen status
 
 **One process.** `uvicorn main:app` is everything on the laptop: CAD worker, Slack Socket Mode, the pet, and now
 the screen bridge (`hub/screens/`), which the hub spawns as `npm start` in `screen-bridge/` (VS Code extension
@@ -368,28 +368,28 @@ is missing), `SCREEN_BRIDGE_DIR`. `GET /health` has `screen {enabled, state, sou
 | direction | type | payload |
 |---|---|---|
 | client → hub | `workspace.mode` | `{pet_id, mode}`: the workspace view Unity shows, `"code"`, `"cad"`, `"ml"`, `"messages"`, or `""` when closed. Send on every change. |
-| client → hub | `messages.focus` | `{pet_id, channel, ts}`: "Reply with Bit" on a message card (also `POST /messages/focus {pet_id, channel, ts}` → the `SlackMessage`, 404 if it isn't one of the last 50). |
+| client → hub | `messages.focus` | `{pet_id, channel, ts}`: "Reply with Albie" on a message card (also `POST /messages/focus {pet_id, channel, ts}` → the `SlackMessage`, 404 if it isn't one of the last 50). |
 | client → hub | `pet.card_action` | proposed: `{pet_id?, action_id}`: a button on a `pet.say` card. Albie's fix offers carry `Fix it` (`fix:N`, runs the code fix as `agent.ask` mode code) and `Not now` (`dismiss:N`). |
 | hub → clients | `screen.status` | `{state: "starting"\|"sharing"\|"stopped"\|"error", source?, detail?}`: the screen bridge. **Sticky**: replayed on connect like `cad.model_updated`. `source` is what Chrome shares, `detail` the last status line (`signaling: connected`, `video: connected h264`, the error when restarts are exhausted). |
 
 * `workspace.mode`: kept on the hub session. The Grok voice session gets a one-line system note ("The user
-  switched to the CAD view ..."; no reply is triggered). Bit's crew tools (`spawn_agent`, `assign_task`,
+  switched to the CAD view ..."; no reply is triggered). Albie's crew tools (`spawn_agent`, `assign_task`,
   `dismiss_agent`, `crew_status`) stay in Grok's tool list but answer
   `{"error": "crew tools are only available on the code screen; ask the user to open CODE"}` unless the mode is
   `"code"`. Chosen over editing the tool list mid-session: it is one branch in the tool-call path and does not depend on
   Grok re-reading `session.update`. A client that never sends `workspace.mode` keeps them available. `delegate` and the
   Claude runner are unaffected.
-* `messages.focus`: the hub finds the message, Bit says `"<user_name> in <#channel | a DM> says: <text, ~200 chars>.
+* `messages.focus`: the hub finds the message, Albie says `"<user_name> in <#channel | a DM> says: <text, ~200 chars>.
   Want me to answer?"` through the live voice session (`pet.say` with the same line when there is none), the voice
   session gets a one-line note naming the message, and the next `messages_send` that names no `reply_to_ts`,
   `thread_ts` or `channel` replies in that thread. The focus is spent once that reply is sent, or replaced by the next focus.
-* Bit's read-only Slack tools, next to `messages_read_latest`: `messages_list_channels {}` (every conversation the
+* Albie's read-only Slack tools, next to `messages_read_latest`: `messages_list_channels {}` (every conversation the
   user is in, with unread / mention counts and the last line; DMs named after the person) and
   `messages_read_channel {channel, n?}` (the last n of one conversation, oldest first, the user's own posts included as
   `is_me`; `channel` is a `#name`, an id, or a person's name for their DM). `messages_send`'s `channel` takes a person's
-  name too ("tell Hudson ...") and drafts into their DM. All `messages_*`, so Bit walks to the `messages` panel.
-* Crew runners (every agent type except Bit) now get only `vscode_*` hub tools, plus `cad_*` for the Designer whose
-  kit is the CAD tools; never `messages_*` or the crew tools. Bit keeps everything.
+  name too ("tell Hudson ...") and drafts into their DM. All `messages_*`, so Albie walks to the `messages` panel.
+* Crew runners (every agent type except Albie) now get only `vscode_*` hub tools, plus `cad_*` for the Designer whose
+  kit is the CAD tools; never `messages_*` or the crew tools. Albie keeps everything.
 * Slack: on connect the hub backfills every conversation the user is in (since `last_seen_ts`, else the last two
   hours; 20 per conversation) into the store **without** `notify.message`, so the sit-down digest counts what arrived
   while the hub was off and Unity gets no flood.
@@ -434,15 +434,15 @@ below; play-tested in desktop mode against the real hub (CAD worker, Slack on st
 
 | direction | type | payload |
 |---|---|---|
-| hub → clients | `ui.open_mode` | `{mode}`: open that workspace view, `"cad"`, `"code"`, `"ml"`, `"messages"`; `""` closes the open one. Not sticky. |
-| client → hub | `workspace.mode` | unchanged, plus optional `reason`: when answering `ui.open_mode`, why `mode` (what is open now) isn't the view asked for. `"not_at_desk"` (Workspace refuses away from a desk), `"unknown_mode"`. |
+| hub → clients | `ui.mode` | `{mode}`: open that workspace view, `"cad"`, `"code"`, `"ml"`, `"messages"`; `""` closes the open one. Not sticky. |
+| client → hub | `workspace.mode` | unchanged, plus optional `reason`: when answering `ui.mode`, why `mode` (what is open now) isn't the view asked for. `"not_at_desk"` (Workspace refuses away from a desk), `"unknown_mode"`. |
 | hub → clients | `cad.action` | `{action, on?, tab?, part, version, seq}`: Bit pressing a CAD button. `action`: `expand` (Inspect: the model big in front of the user; `on` false puts it back), `demo` (the design's Fly / Hover / Run; `on` false stops it), `markers`, `dimensions` (the analysis overlays, `on`), `tab` (`tab`: overview \| parameters \| analysis \| history), `reassemble` (snap pulled-off parts back). `version`: the version it is for. `seq` increases per hub run. Not sticky. |
 | hub → clients | `notify.draft` | `Draft` gains `attachments: [{id, name, title, kind, bytes, source}]` (`kind`: step \| stl \| drawing \| parts \| file). `[]` for plain drafts. The hub keeps the files; Send uploads them with the text. |
 
 **Hub behaviour.**
-* `ui_open_mode {mode}` (Bit's tool) publishes `ui.open_mode` and waits up to 1.5 s for a `workspace.mode` naming that view
+* `ui_open_view {view}` (Bit's tool) publishes `ui.mode` and waits up to 1.5 s for a `workspace.mode` naming that view
   or carrying a `reason`; the tool answers `{ok, view}` or `{error, view}` ("sit down at the desk first"). Already open:
-  no `ui.open_mode`. A Unity build without the handler never answers: after one 1.5 s timeout the hub waits only 0.4 s until
+  no `ui.mode`. A Unity build without the handler never answers: after one 1.5 s timeout the hub waits only 0.4 s until
   a client reports a mode again.
 * CAD tools that change what is on screen open the CAD view first (`cad_set_params`, presets, undo, reset,
   `cad_view`, `cad_demo`, `cad_restore_version`; `cad_open_part` opens the design first, then the view, so the view comes
@@ -462,7 +462,7 @@ below; play-tested in desktop mode against the real hub (CAD worker, Slack on st
   "Back to vN"; another design's version opens that design first), `cad_export_files`. `cad_open_part` resolves what
   people say ("the drone", "gear box").
 * `messages_send` gains `attach: [all|step|stl|drawing|parts]` (the open design's current version: `GET /cad/files`)
-  and `open_messenger` (default: true when files are attached). With it, the hub sends `ui.open_mode messages` **before**
+  and `open_messenger` (default: true when files are attached). With it, the hub sends `ui.mode messages` **before**
   `notify.draft`, so the open Slack panel's composer takes the draft. `messages_edit_draft {text}` rewords the open
   draft in place (= `PATCH /messages/drafts/{id}`: same `draft_id`, `edited: true`, files kept). Sending a draft with
   files is one `files_upload_v2` as the user (text = its comment, in the thread if it has one), needs the `files:write`
@@ -473,7 +473,7 @@ below; play-tested in desktop mode against the real hub (CAD worker, Slack on st
 
 **Unity (done; no scene or prefab changes):**
 * Core: `Core/Scripts/WorkspaceRemote.cs` installs itself on the scene's `Workspace` when Play starts (a scene without
-  one gets nothing). `ui.open_mode`: `""` → `Close()`, a known mode → `Open(mode)` (not `Toggle`: asking for the open view
+  one gets nothing). `ui.mode`: `""` → `Close()`, a known mode → `Open(mode)` (not `Toggle`: asking for the open view
   keeps it open); then it sends `workspace.mode {pet_id, mode: ActiveMode ?? "", reason?}` at once, `reason:
   "not_at_desk"` when `presence.AtDesk` is false, `"unknown_mode"` for an id `modes` doesn't have. (`ArrivalDirector`
   still sends its own `workspace.mode` on every change; the duplicate is harmless.) `ForgeEvents.cs`: `UiMode`,

@@ -2,12 +2,12 @@
 
 Only Unity knows whether a view can open (the user has to be at the desk), so opening is a round trip:
 
-    hub -> clients   ui.open_mode {mode}                 open that view ("" closes the open one)
+    hub -> clients   ui.mode {mode}                      open that view ("" closes the open one)
     client -> hub    workspace.mode {mode, reason?}      what is open now; reason = why it isn't what was asked
 
-``workspace.open(mode)`` publishes ``ui.open_mode`` and waits up to ``ACK_S`` for a ``workspace.mode`` that names the mode
+``workspace.open(mode)`` publishes ``ui.mode`` and waits up to ``ACK_S`` for a ``workspace.mode`` that names the mode
 asked for (or carries a reason), so Bit's tool result says what really happened. Unity already sends
-``workspace.mode`` on every view change (ArrivalDirector), so a client without the reason field (BitUiDirector alone) still confirms a
+``workspace.mode`` on every view change (ArrivalDirector), so a client without the reason field still confirms a
 successful open; it only times out on a refusal. ws.py feeds every ``workspace.mode`` here through ``report``; main.py
 sets ``publish`` to the EventBus. One state for the hub: the last view any Unity client reported.
 """
@@ -21,14 +21,14 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from events import UiOpenMode
+from events import UiMode
 
 from .bus import bus
 
 log = logging.getLogger(__name__)
 
-ACK_S = 1.5        # Unity answers ui.open_mode in the same frame; this covers a slow Quest Wi-Fi round trip
-QUIET_ACK_S = 0.4  # after a ui.open_mode went unanswered (a Unity build without the handler): don't stall every tool
+ACK_S = 1.5        # Unity answers ui.mode in the same frame; this covers a slow Quest Wi-Fi round trip
+QUIET_ACK_S = 0.4  # after a ui.mode went unanswered (a Unity build without the handler): don't stall every tool
 VIEWS = ("cad", "code", "ml", "messages")
 ALIASES = {
     "": "", "none": "", "close": "", "closed": "", "off": "",
@@ -62,7 +62,7 @@ class Workspace:
         self.reason: str | None = None
         self.publish: Publish | None = None
         self._waiters: list[tuple[str, asyncio.Future[tuple[str, str | None]]]] = []
-        self._unanswered = False  # the last ui.open_mode got no answer: wait QUIET_ACK_S until a client reports again
+        self._unanswered = False  # the last ui.mode got no answer: wait QUIET_ACK_S until a client reports again
 
     def report(self, mode: str, reason: str | None = None) -> None:
         """A client's workspace.mode: remember it and wake whoever waits for that view (or any reason)."""
@@ -91,12 +91,12 @@ class Workspace:
         entry = (mode, fut)
         self._waiters.append(entry)
         try:
-            await self.publish("ui.open_mode", UiOpenMode(mode=mode))
+            await self.publish("ui.mode", UiMode(mode=mode))
             try:
                 shown, reason = await asyncio.wait_for(fut, timeout_s)
             except asyncio.TimeoutError:
                 self._unanswered = True
-                log.warning("ui.open_mode %s: no workspace.mode answer within %.1f s", mode or "(close)", timeout_s)
+                log.warning("ui.mode %s: no workspace.mode answer within %.1f s", mode or "(close)", timeout_s)
                 what = f"The {TITLES[mode]} view didn't open" if mode else "The open view didn't close"
                 return {"error": f"{what} (the headset app didn't confirm). The user may need to sit down at their desk."}
         finally:
@@ -116,21 +116,21 @@ class Workspace:
 
 workspace = Workspace()
 
-# Bit's view tool (agent/tools.py registers it; ui_tools.py keeps ui_highlight). CAD and messaging tools open their own view through `ensure`.
+# Bit's view tool (agent/tools.py registers it). CAD and messaging tools open their own view through `ensure`.
 TOOLS: list[dict[str, Any]] = [
-    {"name": "ui_open_mode",
+    {"name": "ui_open_view",
      "description": "Open one of the workspace views at the user's desk; one view shows at a time. cad = 3D modeling "
                     "(the CAD design on the desk, its drawing, panel and versions), code = VS Code, ml = machine "
                     "learning (training data and runs), messages = the Slack messenger; none closes the open view. "
                     "CAD and Slack tools open their view themselves, so call this only when the user asks for a view. "
                     "If it returns an error, tell the user (usually: sit down at the desk first).",
      "parameters": {"type": "object", "properties": {
-         "mode": {"type": "string", "enum": ["cad", "code", "ml", "messages", "none"]}},
-         "required": ["mode"]}},
+         "view": {"type": "string", "enum": ["cad", "code", "ml", "messages", "none"]}},
+         "required": ["view"]}},
 ]
 
 
 async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
-    if name == "ui_open_mode":
-        return await workspace.open(str(args.get("mode", "")))
+    if name == "ui_open_view":
+        return await workspace.open(str(args.get("view", "")))
     return {"error": f"Unknown view tool {name!r}"}

@@ -1,5 +1,5 @@
 """The whole spoken flow through Bit's tool path (agent/tools.call, what Grok and the Claude runner call), on the real
-hub app: CAD worker for real, Slack stubbed, Unity faked at the workspace boundary (it answers ui.open_mode like Core's
+hub app: CAD worker for real, Slack stubbed, Unity faked at the workspace boundary (it answers ui.mode like Core's
 handler: opens the view at the desk, says why not elsewhere).
 
     "Open 3D modeling and open the quadcopter"  -> cad_open_part (opens the CAD view itself)
@@ -107,7 +107,7 @@ def test_the_whole_script(world):
     assert flying["demo"] == "Fly" and flying["flight"]["apogee_m"] > 100
     demo = of(events, "cad.action")[-1]
     assert (demo["action"], demo["on"], demo["part"], demo["version"]) == ("demo", True, "rocket", cad.head)
-    assert unity.asked == ["cad"]  # the CAD view stayed open: no more ui.open_mode
+    assert unity.asked == ["cad"]  # the CAD view stayed open: no more ui.mode
 
     # "Let's make the shaft 10% larger."
     body = next(p for p in say(hub, "cad_get_params")["params"] if p["name"] == "body_length")
@@ -148,13 +148,13 @@ def test_away_from_the_desk_bit_still_works_and_says_so(world):
     out = hub.portal.call(tools.call, "cad_open_part", {"part": "gearbox"}, "bit")
     assert out["part"] == "gearbox" and "sit down" in out["view_error"]
     assert "sit down" in hub.portal.call(tools.call, "cad_view", {"expand": True}, "bit")["error"]
-    assert "sit down" in hub.portal.call(tools.call, "ui_open_mode", {"mode": "messages"}, "bit")["error"]
+    assert "sit down" in hub.portal.call(tools.call, "ui_open_view", {"view": "messages"}, "bit")["error"]
     say(hub, "cad_open_part", part="rocket")
 
 
 def test_every_tool_has_a_description_bit_can_use():
     names = {d["name"] for d in tools.definitions()}
-    assert {"ui_open_mode", "cad_open_part", "cad_view", "cad_demo", "cad_list_versions", "cad_restore_version",
+    assert {"ui_open_view", "cad_open_part", "cad_view", "cad_demo", "cad_list_versions", "cad_restore_version",
             "cad_export_files", "messages_send", "messages_edit_draft", "messages_confirm"} <= names
     for d in tools.definitions():
         assert len(d["description"]) >= 30 and d["parameters"]["type"] == "object"

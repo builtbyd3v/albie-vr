@@ -867,7 +867,7 @@ class SlackService:
             self.focused = None  # answered
         await self.bus.publish("notify.sent", NotifySent(draft_id=draft.draft_id, channel=draft.channel,
                                                          channel_name=draft.channel_name, text=draft.text, ts=ts))
-        log.info("sent draft %s as %s, ts=%s%s", draft.draft_id, "you" if self.as_user else "Bit", ts,
+        log.info("sent draft %s as %s, ts=%s%s", draft.draft_id, "you" if self.as_user else DISPLAY_NAME, ts,
                  f", {len(draft.attachments)} files" if draft.attachments else "")
         return ts
 

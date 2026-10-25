@@ -182,7 +182,7 @@ def test_focus_is_one_message_across_both_providers(tmp_path: Path) -> None:
 
     async def reply() -> dict[str, Any]:
         # A bare "reply to that" goes to the message tapped last, here the iMessage.
-        out = await mtools.call_tool("messages_send", {"text": "yes!"}, slack, imessage=svc)
+        out = await mtools.call_tool("messages_send", {"text": "yes!"}, slack, svc)
         await svc.cancel_draft()
         return out
 

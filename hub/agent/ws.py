@@ -195,7 +195,7 @@ async def _on_text(s: Session, raw: str) -> None:
 
 
 async def _on_mode(s: Session, wm: WorkspaceMode) -> None:
-    """Unity switched workspace view (or answered ui.open_mode): remember it, tell the voice model in one line (no reply),
+    """Unity switched workspace view (or answered ui.mode): remember it, tell the voice model in one line (no reply),
     gate crew tools. Every report also goes to agent/workspace.py, which may be waiting for it."""
     mode = wm.mode.strip().lower()
     workspace.report(mode, wm.reason)

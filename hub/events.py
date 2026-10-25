@@ -2,9 +2,9 @@
 
 Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
 the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated, movie.state)
-and Bit driving the views: ui.open_mode, cad.action, draft attachments (Addendum H). The ML and pet models from
-section 7 still belong to their owners; add them next to these.
+docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated, movie.state),
+and Albie driving the views: ui.mode, cad.action, draft attachments (Addendum H).
+The ML and pet models from section 7 still belong to their owners; add them next to these.
 """
 from __future__ import annotations
 
@@ -218,16 +218,15 @@ class ScreenStatus(BaseModel):
     detail: str | None = None         # last status line ("signaling: connected", "video: connected h264", an error)
 
 
+class UiMode(BaseModel):
+    """hub -> clients: Bit opens a workspace view (Addendum H). Unity answers with workspace.mode {mode, reason?}."""
+    mode: str                         # cad | code | ml | messages; "" closes the open view
+
+
 class UiHighlight(BaseModel):
     panel: str
     item_ids: list[str] | None = None
     class_idx: int | None = None
-
-
-class UiOpenMode(BaseModel):
-    """ui.open_mode (proposed): Bit opens a workspace mode (Unity BitUiDirector -> Workspace.Open). Unity's
-    WorkspaceRemote answers with workspace.mode {mode, reason?} (Addendum H; agent/workspace.py waits for it)."""
-    mode: Literal["code", "cad", "ml", "messages", ""]  # "" closes the open mode
 
 
 class SlackMessage(BaseModel):

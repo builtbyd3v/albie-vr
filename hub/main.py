@@ -4,7 +4,7 @@ Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-
 runs, datasets and results for the ML desk; `ml/router.py`), desk (timers, notes, movie).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
 the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
-ui.open_mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
+ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
 Run from hub/:  uvicorn main:app --host 0.0.0.0 --port 8000   (no --reload: it would restart the CAD worker)
 
 Env: FORGE_DATA_DIR (default hub/.data), FORGE_CAD_SCRIPT (default hub/cad/parts/rocket.py), SLACK_* (messaging/settings.py),
@@ -58,7 +58,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         bus = EventBus()
         cad = CadService(data_dir / "cad", cad_script, bus)
         app.state.bus, app.state.cad = bus, cad
-        views.publish = bus.publish  # Bit opens workspace views (ui.open_mode); Unity answers with workspace.mode
+        views.publish = bus.publish  # Bit opens workspace views (ui.mode); Unity answers with workspace.mode
         agent_tools.register_cad(cad, bus)  # Bit's CAD tools for Grok and the Claude runner
         slack = SlackService(SlackSettings.from_env(), MessageStore(data_dir / "messages"), bus, speech.speak, speech.note)
         app.state.slack = slack
@@ -84,8 +84,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
 
         agent_ws.client_handlers["messages.focus"] = messages_focus  # reply flow from either provider
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(
-            name, args, slack, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure,
-            imessage=imessage))
+            name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
         app.state.ml = getattr(app.state, "ml", None) or MLService()  # one MLService for /ml and Bit's ml_* tools
         agent_tools.register(ml_tools.TOOLS, lambda name, args: ml_tools.call_tool(name, args, app.state.ml, bus))
         agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))
@@ -110,9 +109,9 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
                 watcher.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await watcher
-            desk.stop()
             if views.publish == bus.publish:
                 views.publish = None
+            desk.stop()
             await screens.stop()
             if imessage_start is not None:
                 imessage_start.cancel()

@@ -1,5 +1,5 @@
 """Bit's workspace tools: point at a panel. Registered from main.py; it only broadcasts on /ws (Unity's BitUiDirector
-acts on it). Event: ui.highlight {panel, item_ids?, class_idx?}. ui_open_mode (ui.open_mode {mode}, waits for Unity's
+acts on it). Event: ui.highlight {panel, item_ids?, class_idx?}. ui_open_view (ui.mode {mode}, waits for Unity's
 workspace.mode) lives in agent/workspace.py.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ PANEL_IDS = ("screen-main", "ml-datastack", "ml-model3d", "ml-results", "ml-trai
 
 TOOLS: list[dict[str, Any]] = [
     {"name": "ui_highlight",
-     "description": "Point the user at a panel: its frame pulses. Its mode must be open (ui_open_mode first). On "
+     "description": "Point the user at a panel: its frame pulses. Its mode must be open (ui_open_view first). On "
                     "ml-results, item_ids selects that sample and class_idx shows that class's mistakes.",
      "parameters": {"type": "object", "properties": {
          "panel": {"type": "string", "enum": list(PANEL_IDS)},

@@ -1,4 +1,4 @@
-"""Bit opens workspace views (Addendum H): ui.open_mode out, workspace.mode back, and the ui_open_mode tool."""
+"""Bit opens workspace views (Addendum H): ui.mode out, workspace.mode back, and the ui_open_view tool."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from agent.workspace import ACK_S, QUIET_ACK_S, Workspace, resolve
 
 
 class Unity:
-    """A Unity client as the workspace sees it: answers ui.open_mode the way Core's handler does (or stays silent)."""
+    """A Unity client as the workspace sees it: answers ui.mode the way Core's handler does (or stays silent)."""
 
     def __init__(self, ws: Workspace, *, at_desk: bool = True, answers: bool = True) -> None:
         self.ws, self.at_desk, self.answers = ws, at_desk, answers
@@ -24,7 +24,7 @@ class Unity:
         self.shown = ""
 
     async def publish(self, type_: str, payload: Any) -> None:
-        assert type_ == "ui.open_mode"
+        assert type_ == "ui.mode"
         self.asked.append(payload.mode)
         if not self.answers:
             return
@@ -51,7 +51,7 @@ def test_open_waits_for_unity_to_confirm() -> None:
         unity = Unity(ws)
         ws.publish = unity.publish
         assert await ws.open("3d modeling") == {"ok": True, "view": "cad"}
-        assert await ws.open("cad") == {"ok": True, "view": "cad", "already_open": True}  # no second ui.open_mode
+        assert await ws.open("cad") == {"ok": True, "view": "cad", "already_open": True}  # no second ui.mode
         assert await ws.open("slack") == {"ok": True, "view": "messages"}
         assert await ws.open("none") == {"ok": True, "view": ""}
         assert unity.asked == ["cad", "messages", ""]
@@ -102,10 +102,10 @@ def test_no_client_or_no_hub_is_an_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_the_view_tool_is_registered_for_bit_only() -> None:
-    assert tools.has("ui_open_mode")
-    tool = next(d for d in tools.definitions() if d["name"] == "ui_open_mode")
-    assert tool["parameters"]["properties"]["mode"]["enum"] == ["cad", "code", "ml", "messages", "none"]
-    assert "ui_open_mode" not in [d["name"] for d in tools.definitions(lead=False, allow=("vscode_", "cad_"))]
+    assert tools.has("ui_open_view")
+    tool = next(d for d in tools.definitions() if d["name"] == "ui_open_view")
+    assert tool["parameters"]["properties"]["view"]["enum"] == ["cad", "code", "ml", "messages", "none"]
+    assert "ui_open_view" not in [d["name"] for d in tools.definitions(lead=False, allow=("vscode_", "cad_"))]
 
 
 def wait_for_mode(mode: str, timeout: float = 3.0) -> None:
@@ -116,7 +116,7 @@ def wait_for_mode(mode: str, timeout: float = 3.0) -> None:
 
 
 def test_ui_mode_round_trip_over_the_socket(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The hub's ui.open_mode reaches the Unity socket; Unity's workspace.mode (with a reason) answers the tool call."""
+    """The hub's ui.mode reaches the Unity socket; Unity's workspace.mode (with a reason) answers the tool call."""
     async def publish(type_: str, payload: Any) -> None:  # main.py uses the EventBus; this app only has the agent bus
         await bus.broadcast(Event(type=type_, payload=payload.model_dump()))
 
@@ -124,16 +124,16 @@ def test_ui_mode_round_trip_over_the_socket(client: TestClient, monkeypatch: pyt
     with client.websocket_connect("/ws") as ws:
         ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "code"}})
         wait_for_mode("code")
-        pending = client.portal.start_task_soon(tools.call, "ui_open_mode", {"mode": "cad"}, "bit")
-        while (m := ws.receive_json())["type"] != "ui.open_mode":
+        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "bit")
+        while (m := ws.receive_json())["type"] != "ui.mode":
             pass
         assert m["payload"] == {"mode": "cad"}
         ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "code", "reason": "not_at_desk"}})
         out = pending.result(timeout=5)
         assert out["view"] == "code" and "sit down" in out["error"]
 
-        pending = client.portal.start_task_soon(tools.call, "ui_open_mode", {"mode": "cad"}, "bit")
-        while ws.receive_json()["type"] != "ui.open_mode":
+        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "bit")
+        while ws.receive_json()["type"] != "ui.mode":
             pass
         ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "cad"}})
         assert pending.result(timeout=5) == {"ok": True, "view": "cad"}

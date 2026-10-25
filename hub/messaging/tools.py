@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from agent.events import DISPLAY_NAME
+
 from events import Attachment
 
 from .slack_client import SlackService
@@ -44,17 +45,17 @@ TOOLS: list[dict[str, Any]] = [
          "n": {"type": "integer", "minimum": 1, "maximum": 50, "description": "how many (default 10)"}},
          "required": ["channel"]}},
     {"name": "messages_send",
-     "description": "Write a Slack or iMessage message on the user's behalf. This only WRITES A DRAFT: nothing is "
-                    "sent. The text appears with Send / Cancel buttons. After calling, tell the user in one short line "
-                    "what you wrote (and which files are on it) and ask them to tap Send or say 'send it'. NEVER say "
-                    "the message was sent. It posts under the USER's own name, so write in their voice (first person, "
-                    "their tone). To answer someone, pass that message's ts as reply_to_ts; the reply then goes to "
-                    "their channel, in thread. To message a person directly ('message Adrian ...') pass their name as "
-                    "channel: it becomes their DM. For a new iMessage draft, set via='imessage' and pass an existing "
-                    "contact/chat name or im:<chat-guid> as channel. attach puts the open CAD design's files on it (for "
-                    "a supplier, a teammate or a print shop; 'with all the files' = all; Slack only). To change the "
-                    "wording afterwards use messages_edit_draft; calling this again starts a new draft and drops the "
-                    "old one and its files.",
+     "description": "Write a Slack or iMessage reply on the user's behalf. This only WRITES A DRAFT: nothing is sent. The "
+                    "text appears with Send / Cancel buttons. After calling, tell the user in one short line what you "
+                    "wrote (and which files are on it) and ask them to tap Send or say 'send it'. NEVER say the message "
+                    "was sent. It posts under the USER's own name, so write in their voice (first person, their tone). To "
+                    "answer someone, pass that message's ts as reply_to_ts; the reply then goes to their channel, in "
+                    "thread. To message a person directly ('message Adrian ...') pass their name as channel: it becomes "
+                    "their DM. For an iMessage reply, pass its ts as reply_to_ts; for a new iMessage draft, set "
+                    "via='imessage' and pass an existing contact/chat name or im:<chat-guid> as channel. attach puts the "
+                    "open CAD design's files on a Slack draft (for a supplier, a teammate or a print shop; 'with all the "
+                    "files' = all). To change the wording afterwards use messages_edit_draft; calling this again starts a "
+                    "new draft and drops the old one and its files.",
      "parameters": {"type": "object", "properties": {
          "text": {"type": "string", "description": "the message, as the user would write it"},
          "reply_to_ts": {"type": "string", "description": "ts of the message being answered (optional)"},
@@ -65,14 +66,14 @@ TOOLS: list[dict[str, Any]] = [
          "attach": {"type": "array", "items": {"type": "string", "enum": FILE_KINDS},
                     "description": "files of the CAD design open on the desk, current version: step = the CAD model, "
                                    "stl = mesh for 3D printing, drawing = engineering drawing PDF, parts = parts list "
-                                   "CSV, all = all four"},
+                                   "CSV, all = all four (Slack only)"},
          "open_messenger": {"type": "boolean",
                             "description": "show the draft in the Slack messenger view (default: true with files, "
                                            "else it pops up as a card next to you)"}},
          "required": ["text"]}},
     {"name": "messages_edit_draft",
-     "description": "Reword the open draft ('rephrase it', 'make it shorter', 'say we need them by Friday'): pass the "
-                    "whole new text. Keeps the recipient, the thread and the files; the card updates. Still NOT sent: "
+     "description": "Reword the open Slack draft ('rephrase it', 'make it shorter', 'say we need them by Friday'): pass "
+                    "the whole new text. Keeps the recipient, the thread and the files; the card updates. Still NOT sent: "
                     "say what changed and ask them to tap Send or say 'send it'.",
      "parameters": {"type": "object", "properties": {
          "text": {"type": "string", "description": "the full new message, in the user's voice"}},
@@ -96,8 +97,8 @@ def _files(draft: Any) -> list[str]:
     return [a.name for a in draft.attachments]
 
 
-async def call_tool(name: str, args: dict[str, Any], svc: SlackService, attach: Attach | None = None,
-                    show: Show | None = None, imessage: IMessageService | None = None) -> dict[str, Any]:
+async def call_tool(name: str, args: dict[str, Any], svc: SlackService, imessage: IMessageService | None = None,
+                    attach: Attach | None = None, show: Show | None = None) -> dict[str, Any]:
     """Run one tool. Errors come back as {"error": ...} so the model can explain them. `attach` makes the CAD files,
     `show(view)` opens a workspace view (agent/workspace.py); without them those options answer an error / do nothing."""
     if not svc.enabled and (imessage is None or not imessage.available):
@@ -157,6 +158,8 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, attach: 
             use_imessage = (args.get("via") == "imessage" or str(requested_channel or "").startswith("im:")
                             or bool(reply_to and reply_to.source == "imessage") or focused_imessage)
             if use_imessage:
+                if files:
+                    return {"error": "Files can only go on a Slack message, not an iMessage"}
                 if imessage is None or not imessage.available:
                     return {"error": "iMessage is unavailable on this Mac"}
                 if svc.open_draft is not None:
@@ -168,7 +171,7 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, attach: 
                         "next": "Tell the user what you wrote and ask them to tap Send or say 'send it'. Not sent yet.",
                         **view}
             if not (reply_to_ts or args.get("thread_ts") or requested_channel) and svc.focused is not None:
-                reply_to_ts = svc.focused.ts  # "Reply with Bit": no target named -> the message in focus
+                reply_to_ts = svc.focused.ts  # reply from a message card: no target named -> the message in focus
             if not svc.enabled:
                 return {"error": "Slack is not configured on this hub"}
             if imessage is not None and imessage.open_draft is not None:
@@ -202,8 +205,8 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, attach: 
                 use_imessage = True
             if bool(args.get("send")):
                 draft, ts = await (imessage.send_draft(draft_id) if use_imessage else svc.send_draft(draft_id))
-                return {"status": "sent", "source": draft.source, "ts": ts, "channel_name": draft.channel_name,
-                        "text": draft.text, "files": _files(draft)}
+                return {"status": "sent", "source": draft.source, "ts": ts,
+                        "channel_name": draft.channel_name, "text": draft.text, "files": _files(draft)}
             draft = await (imessage.cancel_draft(draft_id) if use_imessage else svc.cancel_draft(draft_id))
             return {"status": "cancelled", "draft_id": draft.draft_id}
     except (LookupError, ValueError) as e:  # DraftError is a LookupError

@@ -268,7 +268,7 @@ public class UiHighlight
     [JsonProperty("class_idx")] public int? classIdx;
 }
 
-/// <summary>Bit opens a workspace view (ui.open_mode, Addendum H; BitUiDirector also opens it); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
+/// <summary>Bit opens a workspace view (ui.mode, Addendum H); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
 public class UiMode
 {
     [JsonProperty("mode")] public string mode;  // ml | cad | code | messages; "" closes the open one
@@ -440,7 +440,7 @@ public static class ForgeEvents
     public const string CadRegenFailedType = "cad.regen_failed";
     public const string CadViewType = "cad.view";
     public const string CadActionType = "cad.action";
-    public const string UiModeType = "ui.open_mode";
+    public const string UiModeType = "ui.mode";
     public const string PetStateType = "pet.state";
     public const string PetSayType = "pet.say";
     public const string UiHighlightType = "ui.highlight";

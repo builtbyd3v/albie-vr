@@ -3,14 +3,13 @@ using UnityEngine;
 
 /// <summary>
 /// Bit opens and closes the workspace views (docs/PET_AGENT_CONTRACT.md Addendum H). The hub's
-/// <c>ui.open_mode {mode}</c> opens that mode (<c>""</c> closes the open one), then this answers at once with
+/// <c>ui.mode {mode}</c> opens that mode (<c>""</c> closes the open one), then this answers at once with
 /// <c>workspace.mode {pet_id, mode, reason?}</c>, so Bit's tool result says what really happened: <c>mode</c> is
 /// what is open now, <c>reason</c> why it isn't what was asked (<c>not_at_desk</c>: DeskPresence is Away, so
 /// <see cref="Workspace.Open"/> would refuse; <c>unknown_mode</c>: no such mode). Asking for the open mode keeps it open
 /// (Open, not Toggle). Installs itself on the scene's Workspace when Play starts, so neither Main nor a prefab needs
 /// setting up; a scene without a Workspace (the module sandboxes) gets nothing. ArrivalDirector still sends its own
-/// workspace.mode on every change; the hub takes either. BitUiDirector handles the same event; ForgeEvents raises
-/// before ForgeNet.On handlers, so this opens first and BitUiDirector's Open is a no-op.
+/// workspace.mode on every change; the hub takes either.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Workspace))]

@@ -140,7 +140,7 @@ def test_registry_walks_bit_to_the_ml_panel():
     assert agent_tools.PANELS["ml"] == "ml-results"
     names = {d["name"] for d in ml_tools.TOOLS + ui_tools.TOOLS}
     assert names == {"ml_get_run_summary", "ml_relabel", "ml_remove", "ml_start_training", "ml_confirm",
-                     "ui_highlight"}  # ui_open_mode: agent/workspace.py
+                     "ui_highlight"}  # ui_open_view: agent/workspace.py
 
 
 def test_hub_registers_the_tools(tmp_path, monkeypatch):
@@ -152,5 +152,5 @@ def test_hub_registers_the_tools(tmp_path, monkeypatch):
     from main import create_app
 
     with TestClient(create_app(data_dir=tmp_path, watch=False)) as client:
-        assert agent_tools.has("ml_get_run_summary") and agent_tools.has("ui_open_mode")
+        assert agent_tools.has("ml_get_run_summary") and agent_tools.has("ui_open_view")
         assert client.app.state.ml is not None
