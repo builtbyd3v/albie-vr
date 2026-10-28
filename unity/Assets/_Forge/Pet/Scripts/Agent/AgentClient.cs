@@ -32,9 +32,11 @@ namespace Forge.Pet
         /// handlers must copy what they need before returning. Valid bytes = [0, length).</summary>
         public event Action<byte[], int> BinaryReceived;
 
-        public bool IsConnected => _active && ForgeNet.Status == ForgeNetStatus.Live;
+        /// <summary>The hub, or with the hub off Albie's on-device voice (ForgeNet.LocalPeer).</summary>
+        public bool IsConnected => _active && ForgeNet.Connected;
         /// <summary>Human-readable connection status for UI.</summary>
-        public string Status => !_active ? "disconnected" : ForgeNet.Status == ForgeNetStatus.Live ? "connected" : ForgeNet.Status.ToString().ToLowerInvariant();
+        public string Status => !_active ? "disconnected" : ForgeNet.Status == ForgeNetStatus.Live ? "connected"
+            : ForgeNet.Connected ? "on device" : ForgeNet.Status.ToString().ToLowerInvariant();
         /// <summary>The hub announced a speech-to-speech session for this socket (voice.ready); replies come as tts.* + audio.</summary>
         public bool VoiceActive { get; private set; }
         /// <summary>Sample rate from voice.ready (0 until then).</summary>
@@ -43,6 +45,7 @@ namespace Forge.Pet
         readonly List<IDisposable> _subscriptions = new List<IDisposable>(EventTypes.Length);
         PetConfig _cfg;
         bool _active, _lastReportedConnected, _warnedDrop;
+        string _peer;  // "hub" / "device" that got our hello, or null
         int _audioOutRate;
 
         // ---------------- public API ----------------
@@ -61,7 +64,7 @@ namespace Forge.Pet
             ForgeNet.StatusChanged += OnStatusChanged;
             ForgeNet.BinaryReceived += OnBinary;
             _active = true;
-            if (ForgeNet.Status == ForgeNetStatus.Live) SendHello();
+            _peer = null;  // Update says hello to whoever answers
         }
 
         public void Disconnect()
@@ -98,7 +101,15 @@ namespace Forge.Pet
 
         void Update()
         {
-            bool connected = IsConnected;
+            // Who answers: the hub's socket, the on-device voice, or nobody. A new one needs hello (first connect, every
+            // reconnect, and the switch between hub and device).
+            string peer = !IsConnected ? null : ForgeNet.Status == ForgeNetStatus.Live ? "hub" : "device";
+            if (peer != _peer)
+            {
+                _peer = peer;
+                if (peer != null) SendHello();
+            }
+            bool connected = peer != null;
             if (_lastReportedConnected == connected) return;
             _lastReportedConnected = connected;
             if (!connected) { VoiceActive = false; VoiceSampleRate = 0; }
@@ -109,8 +120,7 @@ namespace Forge.Pet
 
         void OnStatusChanged(ForgeNetStatus status)
         {
-            if (status == ForgeNetStatus.Live) SendHello();   // new socket: the hub needs hello again
-            else { VoiceActive = false; VoiceSampleRate = 0; }
+            if (status != ForgeNetStatus.Live && !ForgeNet.Connected) { VoiceActive = false; VoiceSampleRate = 0; }
         }
 
         void OnHubEvent(string type, JToken payload)
@@ -128,7 +138,7 @@ namespace Forge.Pet
             _warnedDrop = false;
             ForgeNet.Send("hello", new JObject
             { ["client"] = "unity", ["pet_id"] = _cfg.petId, ["project_id"] = _cfg.projectId, ["audio_out_rate"] = _audioOutRate });
-            Debug.Log("[AgentClient] hello sent over ForgeNet (" + ForgeNet.Url("/ws") + ")");
+            Debug.Log("[AgentClient] hello sent " + (_peer == "device" ? "to the on-device voice" : "over ForgeNet (" + ForgeNet.Url("/ws") + ")"));
         }
 
         void WarnDrop(string type)

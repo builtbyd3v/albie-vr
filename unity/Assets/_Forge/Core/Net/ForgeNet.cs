@@ -107,20 +107,64 @@ public class ForgeNet : MonoBehaviour
         return true;
     }
 
-    /// <summary>Send a JSON event <c>{"type", "payload"}</c> to the hub over <c>/ws</c>. Dropped (returns false) unless Live.</summary>
+    /// <summary>
+    /// Hub off: something on the device that stands in for the hub's socket (Albie's on-device voice). It gets what
+    /// <see cref="Send"/> / <see cref="SendBinary"/> would have sent, and answers with <see cref="Inject"/> /
+    /// <see cref="InjectBinary"/>, which queue like socket frames (from any thread, kept in order).
+    /// </summary>
+    public interface ILocalPeer
+    {
+        void OnEvent(string type, JToken payload);
+        void OnBinary(byte[] data, int offset, int count);
+    }
+
+    public static ILocalPeer LocalPeer { get; set; }
+
+    /// <summary>Hub live, or hub off with a <see cref="LocalPeer"/> answering in its place.</summary>
+    public static bool Connected => Status == ForgeNetStatus.Live || (Status == ForgeNetStatus.Mock && LocalPeer != null);
+
+    /// <summary>Queue an event as if the hub had sent it on the socket (any thread). Dropped when there is no ForgeNet.</summary>
+    public static void Inject(string type, object payload)
+    {
+        var message = new JObject { ["type"] = type, ["payload"] = payload as JToken ?? (payload == null ? new JObject() : JToken.FromObject(payload)) };
+        instance?.inbox.Enqueue(new Frame { text = message.ToString(Formatting.None) });
+    }
+
+    /// <summary>Queue a binary frame as if the hub had sent it (any thread; copied).</summary>
+    public static void InjectBinary(byte[] data, int offset, int count)
+    {
+        var net = instance;
+        if (net == null || data == null || count <= 0) return;
+        byte[] copy = ArrayPool<byte>.Shared.Rent(count);
+        Buffer.BlockCopy(data, offset, copy, 0, count);
+        net.inbox.Enqueue(new Frame { binary = true, data = copy, length = count });
+    }
+
+    /// <summary>Send a JSON event <c>{"type", "payload"}</c> to the hub over <c>/ws</c> (hub off: to the <see cref="LocalPeer"/>). Dropped (returns false) unless <see cref="Connected"/>.</summary>
     public static bool Send(string type, object payload)
     {
-        if (Status != ForgeNetStatus.Live || string.IsNullOrEmpty(type)) return false;
-        var message = new JObject { ["type"] = type, ["payload"] = payload as JToken ?? (payload == null ? new JObject() : JToken.FromObject(payload)) };
+        if (!Connected || string.IsNullOrEmpty(type)) return false;
+        var token = payload as JToken ?? (payload == null ? new JObject() : JToken.FromObject(payload));
+        if (Status != ForgeNetStatus.Live)
+        {
+            LocalPeer.OnEvent(type, token);
+            return true;
+        }
+        var message = new JObject { ["type"] = type, ["payload"] = token };
         byte[] bytes = Encoding.UTF8.GetBytes(message.ToString(Formatting.None));
         Instance.Enqueue(new Frame { data = bytes, length = bytes.Length });
         return true;
     }
 
-    /// <summary>Send raw bytes as one binary frame (copied, so the caller may reuse the buffer). Dropped unless Live.</summary>
+    /// <summary>Send raw bytes as one binary frame (copied, so the caller may reuse the buffer). Dropped unless <see cref="Connected"/>.</summary>
     public static bool SendBinary(byte[] data, int offset, int count)
     {
-        if (Status != ForgeNetStatus.Live || data == null || count <= 0) return false;
+        if (!Connected || data == null || count <= 0) return false;
+        if (Status != ForgeNetStatus.Live)
+        {
+            LocalPeer.OnBinary(data, offset, count);
+            return true;
+        }
         byte[] copy = ArrayPool<byte>.Shared.Rent(count);
         Buffer.BlockCopy(data, offset, copy, 0, count);
         Instance.Enqueue(new Frame { binary = true, data = copy, length = count });

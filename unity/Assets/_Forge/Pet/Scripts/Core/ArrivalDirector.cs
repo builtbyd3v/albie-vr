@@ -135,7 +135,7 @@ namespace Forge.Pet
             if (w == null) return;
             _workspace = w;
             w.modeChanged.AddListener(OnModeChanged);
-            if (ForgeNet.Status == ForgeNetStatus.Live) SendWorkspaceMode(w.ActiveMode);
+            if (ForgeNet.Connected) SendWorkspaceMode(w.ActiveMode);
             // The first arrival is still ahead: keep the dock back from the moment the Workspace exists.
             if (greetOnFirstArrival && !_greeted) PetWorkspace.HoldDock(true);
         }
@@ -392,7 +392,7 @@ namespace Forge.Pet
 
         void SendWorkspaceMode(string modeId)
         {
-            if (!sendWorkspaceMode || _workspace == null || ForgeNet.Status != ForgeNetStatus.Live) return;
+            if (!sendWorkspaceMode || _workspace == null || !ForgeNet.Connected) return;
             ForgeNet.Send(WorkspaceModeType, new JObject { ["pet_id"] = PetId, ["mode"] = modeId ?? "" });
         }
 
