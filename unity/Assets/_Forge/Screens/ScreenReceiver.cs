@@ -12,6 +12,8 @@ using UnityEngine;
 /// we reply with an answer. ICE candidates ride inside the SDP, so there are no candidate messages.
 /// Exception to "go through ForgeNet": video and JPEG frames aren't hub events, so the stream keeps its own
 /// sockets to the screen-bridge servers. Only the address is shared (see <see cref="OnHubHost"/>).
+/// The screen is an optional companion: with no computer connected (ForgeNet not Live) it doesn't dial at all, and
+/// the panel shows <see cref="ScreenSurface"/>'s "connect a computer" state. A failed connection is logged once.
 /// ponytail: signaling could move onto the hub's /ws later; the video itself can't.
 /// </summary>
 public class ScreenReceiver : MonoBehaviour
@@ -32,7 +34,7 @@ public class ScreenReceiver : MonoBehaviour
     ClientWebSocket ws;
     RTCPeerConnection pc;
     ScreenSurface surface;
-    bool destroyed, receiving;
+    bool destroyed, receiving, warned;
 
     // Workspace modes hide and show the panel, which stops coroutines and drops the pending Invoke,
     // and Start never runs again. So the frame loop and the fallback timer restart on every show.
@@ -48,9 +50,14 @@ public class ScreenReceiver : MonoBehaviour
     {
         surface = GetComponent<ScreenSurface>();
 
-        // Reconnect forever, so the panel recovers when signaling.py restarts.
+        // Reconnect forever, so the panel recovers when signaling.py restarts; only while a computer is connected.
         while (!destroyed)
         {
+            if (ForgeNet.Status != ForgeNetStatus.Live)
+            {
+                await Task.Delay(2000);
+                continue;
+            }
             using (ws = new ClientWebSocket())
             {
                 try
@@ -63,7 +70,8 @@ public class ScreenReceiver : MonoBehaviour
                 }
                 catch (Exception e)
                 {
-                    if (!destroyed) Debug.LogWarning("[ScreenReceiver] Signaling: " + e.Message);
+                    if (!destroyed && !warned) Debug.Log("[ScreenReceiver] No screen sharing on the computer yet (" + e.Message + "); retrying quietly");
+                    warned = true;
                 }
             }
             await Task.Delay(2000);
@@ -140,6 +148,11 @@ public class ScreenReceiver : MonoBehaviour
     // For the Quest: if WebRTC video fails (for example on Vulkan), the JPEG path still shows the screen.
     void FallBackToJpeg()
     {
+        if (ForgeNet.Status != ForgeNetStatus.Live)  // no computer: nothing to fall back from yet
+        {
+            Invoke(nameof(FallBackToJpeg), jpegFallbackSeconds);
+            return;
+        }
         if (!TryGetComponent(out JpegScreenReceiver jpeg)) return;
         Debug.LogWarning($"[ScreenReceiver] No WebRTC video after {jpegFallbackSeconds} s, switching to JPEG frames");
         jpeg.enabled = true;

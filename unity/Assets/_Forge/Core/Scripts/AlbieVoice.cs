@@ -43,7 +43,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     const string ToolRules =
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
-        "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
+        "Set focus timers, keep the user's notes and run the movie (movie_ tools) with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
         "If a tool returns an error, say it plainly. Changing 3D designs and training models in the machine learning view " +
         "aren't on the headset yet: if asked, say that part isn't available here yet.";
     const string Brevity =
