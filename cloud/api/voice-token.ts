@@ -1,11 +1,11 @@
 // Short-lived voice token for the headset, so the xAI key never ships in the APK.
 // Env: XAI_API_KEY (required), ALBIE_APP_KEY (if set, the app must send it as x-albie-key).
-// ponytail: the app key lives in the APK, so it only stops casual scraping; add a rate limit before a public release.
+// ponytail: the app key lives in the APK, so it only stops casual scraping; the rate limit (lib/guard.ts) is per instance.
+import { guard } from '../lib/guard.js';
+
 export async function POST(request: Request) {
-  const appKey = process.env.ALBIE_APP_KEY;
-  if (appKey && request.headers.get('x-albie-key') !== appKey) {
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const blocked = guard(request, 10);
+  if (blocked) return blocked;
   const answer = await fetch('https://api.x.ai/v1/realtime/client_secrets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
