@@ -21,7 +21,10 @@ export async function POST(request: Request) {
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return Response.json({ error: 'messages is required' }, { status: 400 });
   }
-  const model = typeof body.model === 'string' && MODELS.includes(body.model) ? body.model : MODELS[0];
+  if (body.model !== undefined && !(typeof body.model === 'string' && MODELS.includes(body.model))) {
+    return Response.json({ error: `model must be one of ${MODELS.join(', ')}` }, { status: 400 });
+  }
+  const model = typeof body.model === 'string' ? body.model : MODELS[0];
   const asked = typeof body.max_tokens === 'number' && body.max_tokens > 0 ? Math.floor(body.max_tokens) : 1024;
   const out: Record<string, unknown> = { model, max_tokens: Math.min(asked, MAX_TOKENS) };
   for (const key of FIELDS) if (body[key] !== undefined) out[key] = body[key];
