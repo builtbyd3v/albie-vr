@@ -1,0 +1,15 @@
+# Docker build context for cloud-py/Dockerfile (the repo root): only what the cloud image copies.
+*
+!cloud-py
+!hub/cad
+!hub/ml
+!hub/events.py
+!hub/agent/events.py
+!forge-sdk/forge
+!ml-examples/text-classification
+**/__pycache__
+**/.data
+**/.pytest_cache
+ml-examples/text-classification/data
+ml-examples/text-classification/checkpoints
+ml-examples/text-classification/.forge/runs
