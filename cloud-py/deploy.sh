@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One-command deploy of Albie's cloud to a free Hugging Face Docker Space (CPU basic, $0). A free Space sleeps after
-# 48 h with no traffic; the daily Vercel cron (cloud/vercel.json -> /api/ping-space) keeps it awake.
+# One-command deploy of Albie's cloud to a Hugging Face Docker Space (CPU upgrade, $0.03/h while awake). See the create line for sleep.
+#
 # Run from anywhere:  cloud-py/deploy.sh      Deploys the committed HEAD, not the working tree.
 # Needs (once): brew install hf, then hf auth login (a write token from huggingface.co/settings/tokens).
 set -euo pipefail
@@ -13,7 +13,9 @@ STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
 # Public, so the headset reaches it without an HF token; every request still needs the app key.
-hf repos create "$SPACE" --type space --sdk docker --flavor cpu-basic --no-private --exist-ok
+# cpu-upgrade ($0.03/h, from account credits) because free cpu-basic Docker Spaces need PRO; billed only while awake,
+# and it sleeps after 1 h with no requests (the first request after that waits for a cold start).
+hf repos create "$SPACE" --type space --sdk docker --flavor cpu-upgrade --sleep-time 3600 --no-private --exist-ok
 # The key goes in on stdin, never on the command line or in the log.
 printf 'ALBIE_APP_KEY=%s\n' "$(tr -d '\r\n' < "$KEY_FILE")" | hf spaces secrets add "$SPACE" --secrets-file -
 
