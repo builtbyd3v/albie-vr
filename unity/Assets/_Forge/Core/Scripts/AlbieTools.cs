@@ -7,19 +7,34 @@ using UnityEngine;
 /// Albie's tools on the headset, so he can act with no hub. Same shape as hub/agent/tools.py: each tool is
 /// {name, description, parameters (JSON schema)} plus a handler. Modules register theirs from a JSON file in
 /// <c>Resources/AlbieTools/</c> when Play starts. <see cref="Call"/> never throws: errors come back as
-/// <c>{"error": ...}</c> so the model can explain them.
+/// <c>{"error": ...}</c> so the model can explain them. A slow tool (a network call) registers an
+/// <see cref="AsyncHandler"/> and answers later; <see cref="CallAsync"/> waits for it.
 /// </summary>
 public static class AlbieTools
 {
     public delegate JObject Handler(JObject args);
+    /// <summary>Calls <c>done</c> once, now or later (on the main thread), with the tool's result.</summary>
+    public delegate void AsyncHandler(JObject args, Action<JObject> done);
 
-    static readonly Dictionary<string, (JObject def, Handler run)> tools = new Dictionary<string, (JObject, Handler)>();
+    static readonly Dictionary<string, (JObject def, AsyncHandler run)> tools = new Dictionary<string, (JObject, AsyncHandler)>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() => tools.Clear();
 
     /// <summary>Add the tools in <c>Resources/AlbieTools/&lt;file&gt;.json</c> (an array of definitions); each needs a handler.</summary>
     public static void Register(string file, Dictionary<string, Handler> handlers)
+    {
+        var wrapped = new Dictionary<string, AsyncHandler>();
+        foreach (var pair in handlers)
+        {
+            var run = pair.Value;
+            wrapped[pair.Key] = (args, done) => done(run(args));
+        }
+        Register(file, wrapped);
+    }
+
+    /// <summary><see cref="Register(string, Dictionary{string, Handler})"/> for slow tools.</summary>
+    public static void Register(string file, Dictionary<string, AsyncHandler> handlers)
     {
         var asset = Resources.Load<TextAsset>("AlbieTools/" + file);
         if (asset == null)
@@ -48,21 +63,41 @@ public static class AlbieTools
         return all;
     }
 
+    /// <summary>Run a tool now. A slow tool that hasn't answered yet returns {"ok", "pending"}; use <see cref="CallAsync"/>.</summary>
     public static JObject Call(string name, JObject args)
     {
-        if (!tools.TryGetValue(name, out var tool)) return Error($"Unknown tool '{name}'");
+        JObject result = null;
+        CallAsync(name, args, r => result = r);
+        return result ?? new JObject { ["ok"] = true, ["pending"] = true };
+    }
+
+    /// <summary>Run a tool; <paramref name="done"/> gets its result exactly once (an error too).</summary>
+    public static void CallAsync(string name, JObject args, Action<JObject> done)
+    {
+        if (!tools.TryGetValue(name, out var tool))
+        {
+            done(Error($"Unknown tool '{name}'"));
+            return;
+        }
+        bool answered = false;
+        void Answer(JObject result)
+        {
+            if (answered) return;
+            answered = true;
+            done(result ?? new JObject { ["ok"] = true });
+        }
         try
         {
-            return tool.run(args ?? new JObject()) ?? new JObject { ["ok"] = true };
+            tool.run(args ?? new JObject(), Answer);
         }
         catch (ArgumentException e)  // a tool's own "can't do that": no stack trace needed
         {
-            return Error(e.Message);
+            Answer(Error(e.Message));
         }
         catch (Exception e)
         {
             Debug.LogException(e);
-            return Error(e.Message);
+            Answer(Error(e.Message));
         }
     }
 

@@ -78,7 +78,7 @@ namespace Forge.ML
         public string OverfitReason { get; private set; }
         public string RunStatus { get; private set; } = "idle";
         public bool UsesGeneratedMocks => timeline != null;
-        public bool IsLive => useLiveEvents && ForgeNet.Status == ForgeNetStatus.Live;
+        public bool IsLive => useLiveEvents && ForgeCloud.Serves("/ml/");  // the hub, or Albie's cloud with the hub off
         public bool HubData { get; private set; }
         public string RunId { get; private set; }
         public string GitHubImportId { get; private set; }
@@ -117,7 +117,7 @@ namespace Forge.ML
         string atlasUrl;
         IDisposable epochPreds, metricsEvents;
         IDisposable classAccEvents;
-        IDisposable probeEvents, projectEvents;
+        IDisposable probeEvents, projectEvents, cloudEvents;
         public const int AtlasColumns = 8;
         public bool HasReplayLiveGraphs => timeline != null && Array.Exists(timeline, e => e != null && (e.type == "ml.class_acc" || e.type == "ml.probe"));
 
@@ -145,6 +145,7 @@ namespace Forge.ML
             classAccEvents = ForgeNet.On("ml.class_acc", OnLiveClassAccuracy);
             probeEvents = ForgeNet.On("ml.probe", OnLiveProbe);
             projectEvents = ForgeNet.On("ml.project_state", OnProjectState);
+            cloudEvents = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNetStatus.Live));  // same start as the hub's
         }
         void Start() { if (IsLive) OnNetStatus(ForgeNetStatus.Live); }
         void OnDisable()
@@ -158,6 +159,7 @@ namespace Forge.ML
             ForgeNet.StatusChanged -= OnNetStatus;
             epochPreds?.Dispose(); epochPreds = null;
             classAccEvents?.Dispose(); classAccEvents = null;
+            cloudEvents?.Dispose(); cloudEvents = null;
             probeEvents?.Dispose(); probeEvents = null;
             projectEvents?.Dispose(); projectEvents = null;
         }
@@ -616,7 +618,7 @@ namespace Forge.ML
         }
         void OnLiveMetrics(Newtonsoft.Json.Linq.JToken payload)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || payload == null) return;
+            if (!IsLive || payload == null) return;
             MLMetrics tick;
             try { tick = ReadMetrics(payload); }
             catch (Exception e) { Debug.LogWarning("[ML] Unreadable ml.metrics: " + e.Message); return; }
@@ -626,12 +628,12 @@ namespace Forge.ML
         public static MLMetrics ReadMetrics(Newtonsoft.Json.Linq.JToken payload) => payload.ToObject<MLMetrics>();
         void OnLiveOverfit(global::MlOverfitAlert alert)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || alert == null) return;
+            if (!IsLive || alert == null) return;
             replay = false; Overfit = true; OverfitReason = alert.reason; Changed?.Invoke();
         }
         void OnLiveSampleUpdated(global::MlSampleUpdated sample)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || sample == null) return;
+            if (!IsLive || sample == null) return;
             replay = false; ApplySampleUpdate(sample.id, sample.labelIdx, sample.removed);
         }
         void OnDestroy() { if (ownsAtlas && Atlas != null) Destroy(Atlas); }

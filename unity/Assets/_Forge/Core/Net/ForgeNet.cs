@@ -177,7 +177,13 @@ public class ForgeNet : MonoBehaviour
 
     // ---- REST -----------------------------------------------------------------------------------------------
 
-    public static string Url(string path) => Instance.BaseUrl + (path.StartsWith("/") ? path : "/" + path);
+    /// <summary>The URL for a hub path: the hub, or Albie's cloud for the paths it serves with the hub off (<see cref="ForgeCloud"/>).
+    /// A request to it needs <see cref="ForgeCloud.Authorize"/>.</summary>
+    public static string Url(string path)
+    {
+        path = path.StartsWith("/") ? path : "/" + path;
+        return (ForgeCloud.Routes(path) ? ForgeCloud.BaseUrl : Instance.BaseUrl) + path;
+    }
 
     public static Coroutine Get(string path, Action<string> ok, Action<string> fail = null) =>
         Instance.StartCoroutine(Instance.Request("GET", path, null, false, (text, _) => ok?.Invoke(text), fail));
@@ -399,7 +405,7 @@ public class ForgeNet : MonoBehaviour
     {
         fail = fail ?? (error => Debug.LogWarning($"[ForgeNet] {method} {path} failed: {error}"));
 
-        if (IsMock)
+        if (IsMock && !ForgeCloud.Routes(path))
         {
             yield return null;  // keep callbacks asynchronous, like a real request
             if (method != "GET")
@@ -427,6 +433,7 @@ public class ForgeNet : MonoBehaviour
                 request.SetRequestHeader("Content-Type", "application/json");
             }
             request.timeout = requestTimeout;
+            ForgeCloud.Authorize(request);
             yield return request.SendWebRequest();
 
             if (request.result == UnityWebRequest.Result.Success) ok(request.downloadHandler.text, request.downloadHandler.data);

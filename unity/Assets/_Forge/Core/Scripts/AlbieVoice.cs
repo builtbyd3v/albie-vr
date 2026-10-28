@@ -44,8 +44,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
-        "If a tool returns an error, say it plainly. Changing 3D designs and training models in the machine learning view " +
-        "aren't on the headset yet: if asked, say that part isn't available here yet.";
+        "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
+        "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now.";
     const string Brevity =
         " Most important rule: every reply is one or two short sentences, 20 words at most, under eight seconds out " +
         "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give " +
@@ -82,6 +82,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     bool responseActive, audioStarted, answerDone;
     string utterance, answer = "", petMode;
     readonly List<JObject> pendingOutputs = new List<JObject>();
+    int toolsRunning;   // slow tools (the cloud's) still working: their results go back with the others
     string pendingSay;  // an albie.say that came in while a reply was running
 
     /// <summary>Editor only: EditorPrefs bool; true keeps the voice off in Play, so tests spend no voice credits.</summary>
@@ -179,6 +180,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                         ["content"] = new JArray(new JObject { ["type"] = "input_text", ["text"] = (string)payload["text"] }),
                     } });
                 break;
+            case "pet.speak":  // a line from Albie's cloud (ForgeCloud: an ML proposal, a finished run)
             case "albie.say":  // a slow tool finished (code_ask, code_edit, a crew task): say its result now
                 string say = (string)payload?["text"];
                 if (string.IsNullOrEmpty(say)) break;
@@ -297,12 +299,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                     if (answer.Length > 0) AnswerDone(answer);
                 }
                 responseActive = audioStarted = false;
-                if (pendingOutputs.Count > 0)  // tool results go back after the calling reply, then ONE response.create
-                {
-                    foreach (var output in pendingOutputs) Send(output);
-                    pendingOutputs.Clear();
-                    RequestResponse();
-                }
+                if (toolsRunning > 0) { }  // the last slow tool to answer sends them all
+                else if (pendingOutputs.Count > 0) SendToolOutputs();  // after the calling reply, then ONE response.create
                 else if (pendingSay != null)
                 {
                     RequestResponse(pendingSay);
@@ -335,13 +333,27 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         try { args = string.IsNullOrWhiteSpace(arguments) ? new JObject() : JObject.Parse(arguments); }
         catch (JsonException) { args = new JObject(); }
         Emit("agent.tool_call", new JObject { ["call_id"] = callId, ["name"] = name, ["args"] = args }, "thinking");
-        var result = AlbieTools.Call(name, args);
-        Debug.Log($"[AlbieVoice] tool {name} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
-        pendingOutputs.Add(new JObject
+        int seq = turnSeq;
+        toolsRunning++;
+        AlbieTools.CallAsync(name, args, result =>
         {
-            ["type"] = "conversation.item.create",
-            ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = callId, ["output"] = result.ToString(Formatting.None) },
+            toolsRunning--;
+            Debug.Log($"[AlbieVoice] tool {name} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
+            if (seq != turnSeq) return;  // the user moved on to a new turn
+            pendingOutputs.Add(new JObject
+            {
+                ["type"] = "conversation.item.create",
+                ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = callId, ["output"] = result.ToString(Formatting.None) },
+            });
+            if (!responseActive && toolsRunning == 0) SendToolOutputs();  // a slow tool, after its reply ended
         });
+    }
+
+    void SendToolOutputs()
+    {
+        foreach (var output in pendingOutputs) Send(output);
+        pendingOutputs.Clear();
+        RequestResponse();
     }
 
     void Transcript(string text)
