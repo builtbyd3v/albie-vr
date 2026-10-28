@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 KEY_FILE=unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt
 [ -s "$KEY_FILE" ] || { echo "missing $KEY_FILE (the app key the headset sends)"; exit 1; }
-HF_USER=$(hf auth whoami | head -1 | awk '{print $NF}')
+HF_USER=$(hf auth whoami | head -1 | sed 's/.*[= ]//')  # first line is user=<name>
 SPACE="$HF_USER/albie-cloud"
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
