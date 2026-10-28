@@ -340,6 +340,13 @@ namespace Forge.Pet
             float x = Mathf.Min(afterStartSpot.x, half - 0.15f);
             float z = Mathf.Min(afterStartSpot.z, Mathf.Max(0.15f, _presence.FrameDepth - 0.12f));
             Vector3 p = frame.TransformPoint(new Vector3(x, 0f, z));
+            Transform head = PetUser.Head;  // not behind the view's panels: pull in toward the user
+            if (head != null)
+            {
+                Vector3 d = p - head.position; d.y = 0f;
+                float reach = GatorController.NearDeskReach - 0.1f;
+                if (d.magnitude > reach) p = head.position + d * (reach / d.magnitude) + Vector3.up * (p.y - head.position.y);
+            }
             GatorNavSurface desk = GatorNavSurface.Desk;
             return desk != null && desk.IsBuilt ? desk.ClosestPoint(p, 0.08f) : p;
         }
@@ -388,6 +395,8 @@ namespace Forge.Pet
         {
             Log("Workspace mode -> '" + (modeId ?? "") + "'.");
             SendWorkspaceMode(modeId);
+            // A view opened before START (by voice or the dock): the card and START would sit over its panels, so fold them.
+            if (_greetingUp && !string.IsNullOrEmpty(modeId)) OnStartPressed();
         }
 
         void SendWorkspaceMode(string modeId)
