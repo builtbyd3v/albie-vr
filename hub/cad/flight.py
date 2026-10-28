@@ -1,4 +1,4 @@
-"""'How high will it go?': a built rocket's flight on an Estes C6, from the pad to landing. GET /cad/flight.
+"""'How high will it go?': a built rocket's flight on a C6 motor, from the pad to landing. GET /cad/flight.
 
 The climb is RocketPy's 6-DOF simulation, launch to apogee: it sets apogee_m, time_to_apogee_s, max_speed_mps, the
 rail numbers and trajectory_m. The way down is a quick point-mass model: the rocket falls until the motor's ejection
@@ -28,7 +28,7 @@ SAMPLE_DT_S, MAX_SAMPLES = 0.05, 400
 STEP_S, G = 0.01, 9.80665                # descent integration step (RK4); standard gravity
 
 ASSUMPTIONS = [
-    f"Estes C6 thrust curve (NAR certification), constant drag coefficient {DRAG_CD}.",
+    f"C6 motor thrust curve (NAR certification), constant drag coefficient {DRAG_CD}.",
     f"{RAIL_M} m launch rod at {INCLINATION_DEG:g} deg, no wind, standard atmosphere at sea level.",
     "Inertia from a slender-rod approximation of the airframe.",
     f"Way down: the parachute opens when the ejection charge fires (the motor's delay after burnout), not before "

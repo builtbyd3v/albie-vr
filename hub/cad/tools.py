@@ -95,7 +95,7 @@ TOOLS: list[dict[str, Any]] = [
                     "metres, speeds, landing): mention one. If the demo is blocked, say why.",
      "parameters": {"type": "object", "properties": {"run": {"type": "boolean", "description": "default true"}}}},
     {"name": "cad_simulate_flight",
-     "description": "Rocket designs only: the flight numbers on an Estes C6-5 without showing anything: apogee in "
+     "description": "Rocket designs only: the flight numbers on a C6-5 motor without showing anything: apogee in "
                     "metres, time to apogee, speeds, when the parachute opens, descent rate and landing time and "
                     "distance (events). To show it flying, use cad_demo. If the result has a warning, mention it.",
      "parameters": NO_ARGS},

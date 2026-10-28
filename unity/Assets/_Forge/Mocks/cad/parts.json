@@ -4,7 +4,7 @@
     {
       "part": "rocket",
       "title": "Model rocket",
-      "description": "Estes C6 model rocket: nose cone, body tube, motor mount, fins. Live Barrowman stability.",
+      "description": "Model rocket on a C6 motor: nose cone, body tube, motor mount, fins. Live Barrowman stability.",
       "presets": [
         {
           "name": "Smaller fins",
@@ -129,7 +129,7 @@
     {
       "part": "humanoid",
       "title": "Humanoid robot",
-      "description": "Unitree G1 humanoid (BSD-3, unitree_ros): 29 joints and two 3-finger hands, posed by its joints. Will it stand? Walk plays Unitree's own trained gait.",
+      "description": "Open-source humanoid (BSD-3): 29 joints and two 3-finger hands, posed by its joints. Will it stand? Walk plays its maker's trained gait.",
       "presets": [
         {
           "name": "Stand",
