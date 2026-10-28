@@ -95,7 +95,7 @@ namespace Forge.ML
             foreach (var item in mode.items)
                 if (item.prefab != null && !assigned.ContainsKey(item.id)) assigned[item.id] = item.prefab;
             var items = mode.items.FindAll(m => !m.id.StartsWith("ml-"));
-            if (items.Count == 0) items.Add(new WorkspaceItem("screen-main", "VS Code", WorkspaceSlot.Main));
+            if (items.Count == 0) items.Add(new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main));
             string[] defaults = { "ml-datastack", "ml-model3d", "ml-results", "ml-training" };
             for (int i = 0; i < Supported.Length; i++)
             {

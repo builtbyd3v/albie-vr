@@ -58,7 +58,7 @@ namespace Forge.ML
 
             // Import a public GitHub repository (POST /ml/github/import): the CIFAR-10 preset trains our checked-in copy,
             // anything else is cloned and set up on the laptop (progress in the banner), then Train runs its own code.
-            githubUrl = MLUI.Input(root, "Public GitHub repository", "https://github.com/owner/repository", 0, ImportY, width - 110, 28);
+            githubUrl = MLUI.Input(root, "Public code repository", "Paste the repository link", 0, ImportY, width - 110, 28);
             MLUI.Button(root, "Import", width - 100, ImportY, 100, 28, () => session.ImportGitHub(githubUrl.text));
             // Preset repos from the hub (GET /ml/github/presets): one press fills the URL and imports, no typing in the headset.
             presetRow = MLUI.Rect("GitHub presets", root, 0, PresetY, width - 170, 24);

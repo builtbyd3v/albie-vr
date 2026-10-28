@@ -273,10 +273,10 @@ namespace Forge.ML
         {
             if (!IsLive)
             {
-                Notice = "GitHub import needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
+                Notice = "Repository import needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
                 Changed?.Invoke(); return;
             }
-            if (string.IsNullOrWhiteSpace(url)) { Notice = "Paste a public GitHub repository URL first."; Changed?.Invoke(); return; }
+            if (string.IsNullOrWhiteSpace(url)) { Notice = "Paste a public repository link first."; Changed?.Invoke(); return; }
             if (ProjectSettingUp)
             {
                 Notice = ProjectStatus == "needs_approval" ? $"{ProjectRepository} is waiting for Accept or Skip first."
@@ -285,12 +285,12 @@ namespace Forge.ML
             }
             if (importPending) return;  // a second press before the hub answered the first
             importPending = true;
-            Notice = "Reading the public GitHub repository..."; Changed?.Invoke();
+            Notice = "Reading the public repository..."; Changed?.Invoke();
             ForgeNet.Post<MLGitHubImport>("/ml/github/import", new { url = url.Trim() }, result =>
             {
                 importPending = false;
                 GitHubImportId = result != null && result.supported ? result.import_id : null;
-                if (result == null) Notice = "GitHub import returned no result.";
+                if (result == null) Notice = "The import returned no result.";
                 else if (!result.supported) Notice = $"Unsupported repository: {result.reason}";
                 else if (result.mode == "clone")
                 {
@@ -310,7 +310,7 @@ namespace Forge.ML
                 importPending = false;
                 // 409: something else is running (setup, training); the import already there stays the one Train uses.
                 if (error == null || !error.StartsWith("409")) GitHubImportId = null;
-                Notice = "GitHub import failed: " + HubDetail(error); Changed?.Invoke();
+                Notice = "Import failed: " + HubDetail(error); Changed?.Invoke();
             });
         }
         // ml.project_state {path, status, archetype?, candidates?, summary?, error?, repository?}: one line per setup step.
@@ -344,7 +344,7 @@ namespace Forge.ML
                 bool opened = false; int files = 0;
                 try { var o = Newtonsoft.Json.Linq.JObject.Parse(text); opened = o.Value<bool>("opened"); files = (o["files"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0; }
                 catch (Exception) { }
-                Notice = opened ? "The patch is open in VS Code on the laptop (the CODE screen)." : $"No VS Code on the laptop: the patch adds forge calls to {files} file(s).";
+                Notice = opened ? "The patch is open in the code editor on the laptop (the CODE screen)." : $"No code editor on the laptop: the patch adds forge calls to {files} file(s).";
                 Changed?.Invoke();
             }, e => { Notice = "Couldn't open the patch: " + HubDetail(e); Changed?.Invoke(); });
         // The user's confirmation step (PROJECT_CONTEXT 12): only Accept writes the patch into the repo.
