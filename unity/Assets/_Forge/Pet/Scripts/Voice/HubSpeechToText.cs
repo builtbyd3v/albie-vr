@@ -68,7 +68,7 @@ namespace Forge.Pet
         {
             if (IsListening) return;
             ResolveClient();
-            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("hub not connected"); return; }
+            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now"); return; }  // the caption shows this
             if (!IsMonitoring && !StartMic()) return;
 
             var start = new JObject { ["pet_id"] = petId, ["sample_rate"] = TargetRate, ["encoding"] = "pcm16" };
