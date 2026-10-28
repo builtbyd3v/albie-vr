@@ -44,7 +44,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
-        "If a tool returns an error, say it plainly. Changing designs, training models, reading the user's code and sending messages " +
+        "If a tool returns an error, say it plainly. Changing designs, training models and reading the user's code " +
         "aren't on the headset yet: if asked, say that part isn't available here yet.";
     const string Brevity =
         " Most important rule: every reply is one or two short sentences, 20 words at most, under eight seconds out " +
@@ -168,7 +168,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 if (responseActive || audioStarted) StopSpeech("barge_in");
                 // In this reply's own instructions: as a system note alone, Grok answered with a greeting instead.
                 RequestResponse($" Right now the user tapped Ask Albie on this message from {(string)payload["user_name"] ?? "someone"}: \"{text}\". " +
-                                "Say who it's from and what they want, in one short sentence. Don't offer to reply: sending isn't on the headset yet.");
+                                $"Say who it's from and what they want, in one short sentence, and ask if they want to reply. If they do, call messages_send with reply_to_ts \"{(string)payload["ts"]}\" and their words.");
                 break;
             case "workspace.mode":
                 if (ws != null && ws.State == WebSocketState.Open && ViewNotes.TryGetValue((string)payload?["mode"] ?? "", out string note))

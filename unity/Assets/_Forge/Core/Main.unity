@@ -826,7 +826,7 @@ MonoBehaviour:
     color: {r: 0.654902, g: 0.48235294, b: 1, a: 1}
     items:
     - id: messages
-      title: Slack
+      title: Messages
       slot: 0
       kind: 0
       prefab: {fileID: 8694658991597928827, guid: 829eee93c33564e2da6baa8ffd22f8fa, type: 3}

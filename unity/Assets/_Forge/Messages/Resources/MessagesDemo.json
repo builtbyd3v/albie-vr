@@ -25,5 +25,6 @@
       {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Sending you the flight log from Saturday's test.", "ago_min": 2900},
       {"user": "U0ME", "user_name": "You", "text": "Got it, apogee looks right on target.", "ago_min": 2880, "is_me": true}
     ]}
-  ]
+  ],
+  "incoming": {"channel": "D0JORDAN", "user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Wind is down to 8 mph for Saturday. Can you send me the final fin span by tonight?", "after_s": 180}
 }

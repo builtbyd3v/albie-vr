@@ -76,7 +76,7 @@ public class DraftCard : MonoBehaviour
         else
         {
             recipient = string.IsNullOrEmpty(d.channelName) ? null : $"#{SlackText.Bare(d.channelName)}";
-            header.text = recipient ?? "Slack";
+            header.text = recipient ?? "Message";
         }
 
         bool hasReply = to != null && !string.IsNullOrEmpty(to.text);
@@ -120,6 +120,7 @@ public class DraftCard : MonoBehaviour
         if (Draft == null || Closing) return;
         SetButtons(false);
         status.text = "Sending…";
+        if (SlackStore.Demo) { Demo(() => MessagesDemo.SendDraft(Draft.draftId)); return; }  // notify.sent closes the card
         ForgeNet.Post($"/messages/drafts/{Draft.draftId}/send", null, null, Fail);  // confirmation arrives as notify.sent
     }
 
@@ -128,7 +129,15 @@ public class DraftCard : MonoBehaviour
         if (Draft == null || Closing) return;
         SetButtons(false);
         status.text = "Cancelling…";
+        if (SlackStore.Demo) { Demo(() => MessagesDemo.CancelDraft(Draft.draftId)); return; }
         ForgeNet.Post($"/messages/drafts/{Draft.draftId}/cancel", null, null, Fail);  // arrives as notify.draft_cancelled
+    }
+
+    // Hub off: the device's own drafts (MessagesDemo); its events close the card like the hub's.
+    void Demo(System.Action act)
+    {
+        try { act(); }
+        catch (System.ArgumentException e) { Close(e.Message); }
     }
 
     void Fail(string error)

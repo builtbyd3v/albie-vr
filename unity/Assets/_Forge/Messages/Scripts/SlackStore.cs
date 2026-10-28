@@ -219,6 +219,7 @@ public static class SlackStore
         bool changed = c != null && (c.unread != 0 || c.mentions != 0);
         if (c != null) { c.unread = 0; c.mentions = 0; }
         if (changed) ChannelsChanged?.Invoke();
+        if (Demo) MessagesDemo.Seen(channelId);
         if (ForgeNet.Status == ForgeNetStatus.Live && !string.IsNullOrEmpty(channelId))
             ForgeNet.Post($"/messages/channels/{channelId}/seen", null, null, error => Debug.LogWarning($"[SlackStore] seen {channelId}: {error}"));
     }

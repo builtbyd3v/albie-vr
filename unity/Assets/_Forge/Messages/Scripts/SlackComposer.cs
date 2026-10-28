@@ -93,7 +93,7 @@ public class SlackComposer
         text.richText = false;
         SlackUi.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
         placeholder = SlackUi.Text(area, "Placeholder", TextSize, SlackUi.SkMuted, align: TextAlignmentOptions.TopLeft, wrap: true);
-        placeholder.text = imessage ? "iMessage" : "Message";
+        placeholder.text = imessage ? "Text message" : "Message";
         placeholder.overflowMode = TextOverflowModes.Ellipsis;
         SlackUi.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
 
@@ -164,7 +164,7 @@ public class SlackComposer
     public void SetChannel(SlackChannel c)
     {
         channel = c;
-        placeholder.text = imessage ? "iMessage" : c == null ? "Pick a conversation" : "Message " + SlackText.DisplayName(c);
+        placeholder.text = imessage ? "Text message" : c == null ? "Pick a conversation" : "Message " + SlackText.DisplayName(c);
         RefreshButtons();
     }
 
@@ -210,9 +210,9 @@ public class SlackComposer
         if (sending) return;
         string body = field.text != null ? field.text.Trim() : "";
         if (body.Length == 0) { Status("Nothing to send yet"); return; }
-        if (SlackStore.Demo) { Status("Demo: sending isn't on the headset yet"); return; }
-        if (ForgeNet.Status != ForgeNetStatus.Live) { Status("Connecting…"); return; }
         string target = draftId != null ? draftChannel : channel?.id;
+        if (SlackStore.Demo && !string.IsNullOrEmpty(target)) { DemoSend(target, body); return; }
+        if (ForgeNet.Status != ForgeNetStatus.Live) { Status("Connecting…"); return; }
         if (string.IsNullOrEmpty(target)) { Status("Pick a conversation first"); return; }
 
         sending = true;
@@ -237,6 +237,29 @@ public class SlackComposer
                 PostSend(d.draftId, target, body, null);
             }, Fail);
         }
+    }
+
+    // Hub off: the message stays on the device (MessagesDemo's conversation), as the user's own.
+    void DemoSend(string target, string body)
+    {
+        string thread = draftThread, ts;
+        try
+        {
+            if (draftId != null)
+            {
+                if (body != draftText) MessagesDemo.EditDraft(body, echo: false);
+                ts = MessagesDemo.SendDraft(draftId);
+            }
+            else ts = MessagesDemo.Post(target, body);
+        }
+        catch (System.ArgumentException e)
+        {
+            Status(e.Message);
+            return;
+        }
+        sending = true;  // so Sent() runs for a typed message too
+        SlackStore.AddOwn(target, body, ts, thread);
+        Sent();
     }
 
     // The hub answers with the post's ts: the message goes into the conversation right away (notify.sent follows).
@@ -271,7 +294,12 @@ public class SlackComposer
     {
         if (draftId == null) return;
         string id = draftId;
-        ForgeNet.Post($"/messages/drafts/{id}/cancel", null, null, Fail);  // notify.draft_cancelled follows
+        if (SlackStore.Demo)
+        {
+            try { MessagesDemo.CancelDraft(id); }
+            catch (System.ArgumentException) { }  // already gone: clearing the field is all that's left
+        }
+        else ForgeNet.Post($"/messages/drafts/{id}/cancel", null, null, Fail);  // notify.draft_cancelled follows
         field.SetTextWithoutNotify("");
         ClearDraft();
         Status("Cancelled");
@@ -383,14 +411,14 @@ public class SlackComposer
         if (draftId != null)
         {
             var c = SlackStore.Find(draftChannel);
-            string to = c != null ? SlackText.DisplayName(c) : string.IsNullOrEmpty(draftName) ? "Slack" : draftName;
+            string to = c != null ? SlackText.DisplayName(c) : string.IsNullOrEmpty(draftName) ? "this conversation" : draftName;
             bannerLabel.text = SlackText.BoldOpen + "Albie drafted this" + SlackText.BoldClose + " for " + to + ". Edit it, then Send.";
         }
     }
 
     void RefreshButtons()
     {
-        bool live = ForgeNet.Status == ForgeNetStatus.Live;
+        bool live = ForgeNet.Status == ForgeNetStatus.Live || SlackStore.Demo;
         bool can = live && !sending && (channel != null || draftId != null) && !string.IsNullOrWhiteSpace(field.text);
         if (can != canSend)
         {

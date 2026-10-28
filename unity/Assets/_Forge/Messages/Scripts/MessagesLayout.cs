@@ -79,7 +79,7 @@ public static class MessagesLayout
                     Debug.LogWarning("[MessagesLayout] Resources/IMessagePanel.prefab missing (Forge > Messages > Build Prefabs); MSG stays Slack-only.");
                     return;
                 }
-                iMessageItem = new WorkspaceItem(IMessageId, "iMessage", WorkspaceSlot.Main) { prefab = prefab };
+                iMessageItem = new WorkspaceItem(IMessageId, "Texts", WorkspaceSlot.Main) { prefab = prefab };
             }
             if (!mode.items.Contains(iMessageItem)) mode.items.Add(iMessageItem);
             if (slack != null) slack.slot = WorkspaceSlot.Right;

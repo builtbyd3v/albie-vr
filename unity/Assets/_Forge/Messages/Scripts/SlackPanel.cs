@@ -377,7 +377,7 @@ public class SlackPanel : MonoBehaviour
 
         // Sidebar. Slack: the workspace, channels A-Z, then DMs in the hub's order (unread first, then most recent).
         // iMessage: "Messages", every chat in the hub's order, no sections.
-        team.text = iMessagePanel ? "Messages" : string.IsNullOrEmpty(SlackStore.TeamName) ? "Slack" : SlackStore.TeamName;
+        team.text = iMessagePanel ? "Texts" : string.IsNullOrEmpty(SlackStore.TeamName) ? "Messages" : SlackStore.TeamName;
         order.Clear();
         if (!iMessagePanel)
         {
@@ -413,7 +413,7 @@ public class SlackPanel : MonoBehaviour
         bool dm = channel != null && SlackText.IsDmKind(channel.kind);
         bool locked = channel != null && channel.kind == "private";
         headName.text = channel != null ? SlackText.PlainName(channel) : "";
-        headTopic.text = channel == null ? "" : iMessagePanel ? "iMessage" : !string.IsNullOrEmpty(channel.topic) ? channel.topic : "";
+        headTopic.text = channel == null ? "" : iMessagePanel ? "Text messages" : !string.IsNullOrEmpty(channel.topic) ? channel.topic : "";
         SlackUi.Show(headGlyph, channel != null && !dm && !locked && !iMessagePanel);
         SlackUi.Show(headLock, locked);
         bool avatar = dm || (iMessagePanel && channel != null);
@@ -601,7 +601,7 @@ public class SlackPanel : MonoBehaviour
             var history = SlackStore.History(c.id);
             var latest = history != null && history.Count > 0 ? history[history.Count - 1] : null;
             string last = latest != null ? (latest.isMe ? "You: " : "") + latest.text : c.lastText;
-            r.preview.text = string.IsNullOrEmpty(last) ? "iMessage" : last.Replace('\n', ' ');
+            r.preview.text = string.IsNullOrEmpty(last) ? "Text message" : last.Replace('\n', ' ');
             r.preview.color = on ? SlackUi.White(0.8f) : SlackUi.SkMuted;
         }
         // Like Slack: a count for DMs and for mentions; a channel that is only unread just goes bold.

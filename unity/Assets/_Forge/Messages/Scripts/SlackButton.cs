@@ -33,8 +33,8 @@ public class SlackButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     /// <summary>Apple blue primary action used by the iMessage composer.</summary>
     public static readonly Look IMessagePrimary = new Look
     {
-        rest = SlackUi.IMessageBlue, hover = new Color(0.12f, 0.56f, 1f), on = SlackUi.IMessageBlue,
-        onHover = new Color(0.12f, 0.56f, 1f), ink = Color.white, onInk = Color.white, bold = true,
+        rest = SlackUi.IMessageBlue, hover = new Color(0.58f, 0.42f, 0.97f), on = SlackUi.IMessageBlue,
+        onHover = new Color(0.58f, 0.42f, 0.97f), ink = Color.white, onInk = Color.white, bold = true,
     };
     /// <summary>Conversation and mention rows: the module's card fill, lighter when pointed at, solid when selected.</summary>
     public static readonly Look Row = new Look
@@ -54,7 +54,7 @@ public class SlackButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     /// <summary>An iMessage panel conversation: no fill until pointed at, Apple's blue when open.</summary>
     public static readonly Look IMessageRow = new Look
     {
-        rest = SlackUi.Clear, hover = SlackUi.White(0.07f), on = SlackUi.IMessageBlue, onHover = new Color(0.12f, 0.56f, 1f),
+        rest = SlackUi.Clear, hover = SlackUi.White(0.07f), on = SlackUi.IMessageBlue, onHover = new Color(0.58f, 0.42f, 0.97f),
         ink = SlackUi.SkSideText, onInk = Color.white,
     };
     /// <summary>A quiet text button in the conversation (Ask Albie, Cancel, Load earlier).</summary>

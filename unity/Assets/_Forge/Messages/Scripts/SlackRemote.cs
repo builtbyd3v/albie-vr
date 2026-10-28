@@ -34,21 +34,7 @@ public class SlackRemote : MonoBehaviour
     void OnOpen(SlackOpenRequest req)
     {
         if (req == null || string.IsNullOrEmpty(req.channel)) return;
-        SlackStore.Provisional(req.channel, req.channelName, req.kind);
-        string reason = null;
-        var ws = Workspace.Current;
-        var panel = SlackPanel.ForChannel(req.channel);
-        if (panel != null) panel.Open(req.channel);
-        else if (ws == null) reason = "no_workspace";
-        else if (ws.presence == null || !ws.presence.AtDesk) reason = "not_at_desk";
-        else
-        {
-            SlackPanel.PendingChannel = req.channel;  // the panel opens it as it comes up
-            ws.Open(MessagesMode);
-            if (ws.ActiveMode != MessagesMode) reason = "not_at_desk";
-        }
-
-        if (reason != null && panel == null) SlackPanel.PendingChannel = null;
+        string reason = Show(req.channel, req.channelName, req.kind);
         ForgeNet.Send(OpenedType, new SlackOpened
         {
             petId = string.IsNullOrEmpty(req.petId) ? "bit" : req.petId,
@@ -58,5 +44,28 @@ public class SlackRemote : MonoBehaviour
             reason = reason,
         });
         Debug.Log($"[SlackRemote] Albie opened {req.channelName ?? req.channel}: {(reason ?? "ok")}.");
+    }
+
+    /// <summary>
+    /// Show a conversation on its panel, opening MSG mode when it is closed. Null when it shows, else why not:
+    /// <c>not_at_desk</c> or <c>no_workspace</c>. Also used by Albie's on-device messages_open (<see cref="MessagesTools"/>).
+    /// </summary>
+    public static string Show(string channel, string channelName, string kind)
+    {
+        SlackStore.Provisional(channel, channelName, kind);
+        string reason = null;
+        var ws = Workspace.Current;
+        var panel = SlackPanel.ForChannel(channel);
+        if (panel != null) panel.Open(channel);
+        else if (ws == null) reason = "no_workspace";
+        else if (ws.presence == null || !ws.presence.AtDesk) reason = "not_at_desk";
+        else
+        {
+            SlackPanel.PendingChannel = channel;  // the panel opens it as it comes up
+            ws.Open(MessagesMode);
+            if (ws.ActiveMode != MessagesMode) reason = "not_at_desk";
+        }
+        if (reason != null && panel == null) SlackPanel.PendingChannel = null;
+        return reason;
     }
 }
