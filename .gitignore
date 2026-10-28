@@ -74,3 +74,6 @@ unity/Assets/_Forge/Pet/ThirdParty/Quirky Series.meta
 art/gator/gator_anims.blend
 art/gator/Gator_Model.fbx
 unity/Assets/_Forge/Pet/Models/Gator_Model.fbx
+
+# Voice token server app key (Vercel ALBIE_APP_KEY); ships in the APK, never in git
+unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt*

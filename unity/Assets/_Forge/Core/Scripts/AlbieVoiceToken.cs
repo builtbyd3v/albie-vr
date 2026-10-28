@@ -17,8 +17,21 @@ public static class AlbieVoiceToken
     const string ClientSecretsUrl = "https://api.x.ai/v1/realtime/client_secrets";
     const int LifetimeS = 300;
 
-    /// <summary>The token server; a PlayerPrefs value under <see cref="TokenUrlPref"/> overrides the built-in one.</summary>
-    public static string TokenUrl => PlayerPrefs.GetString(TokenUrlPref, "");
+    const string DefaultTokenUrl = "https://albie-cloud.vercel.app/api/voice-token";
+
+    /// <summary>The token server; a PlayerPrefs value under <see cref="TokenUrlPref"/> overrides the built-in one
+    /// (the Editor has none built in: it mints from hub/.env).</summary>
+    public static string TokenUrl => PlayerPrefs.GetString(TokenUrlPref, Application.isEditor ? "" : DefaultTokenUrl);
+
+    // The token server's app key: PlayerPrefs, else Resources/AlbieAppKey.txt (git-ignored; the value is in Vercel's
+    // ALBIE_APP_KEY). A build without it gets 401 from the server and Albie stays quiet.
+    static string AppKey()
+    {
+        string key = PlayerPrefs.GetString(AppKeyPref, "");
+        if (key.Length > 0) return key;
+        var asset = Resources.Load<TextAsset>("AlbieAppKey");
+        return asset != null ? asset.text.Trim() : "";
+    }
 
     /// <summary>A fresh token, or an exception saying why there is none.</summary>
     public static async Task<string> Fetch()
@@ -32,7 +45,7 @@ public static class AlbieVoiceToken
             throw new InvalidOperationException($"no voice token server set (PlayerPrefs {TokenUrlPref})");
 #endif
         }
-        return Parse(await Send(url, "POST", "{}", null, PlayerPrefs.GetString(AppKeyPref, "")));
+        return Parse(await Send(url, "POST", "{}", null, AppKey()));
     }
 
     /// <summary>Sent as <c>x-albie-key</c> to the token server (cloud/api/voice-token.ts, ALBIE_APP_KEY).</summary>
