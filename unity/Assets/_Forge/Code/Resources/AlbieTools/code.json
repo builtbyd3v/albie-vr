@@ -1,0 +1,42 @@
+[
+  {"name": "code_list_files",
+   "description": "The files of the sample project in the code view (rocket.py, train.py, model.py, README.md), with line counts, which one is open and how many problems each has. Call it when the user asks what's in the project.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "code_open_file",
+   "description": "Open a project file in the code view at a line (opens the code view if needed). The user sees it on the main screen.",
+   "parameters": {"type": "object", "properties": {
+     "path": {"type": "string", "description": "file name, e.g. rocket.py"},
+     "line": {"type": "integer", "minimum": 1}},
+     "required": ["path"]}},
+  {"name": "code_highlight",
+   "description": "Point at code: lines glow in the code view with an optional short note, e.g. 'lr is 10x too high'. Use it whenever you talk about specific lines.",
+   "parameters": {"type": "object", "properties": {
+     "path": {"type": "string", "description": "file name; omit for the open file"},
+     "start": {"type": "integer", "minimum": 1},
+     "end": {"type": "integer", "minimum": 1},
+     "note": {"type": "string", "maxLength": 60}},
+     "required": ["start"]}},
+  {"name": "code_get_errors",
+   "description": "Problems the built-in check finds (unmatched brackets, a missing colon, mixed tabs), with file, line and message. Omit path for the whole project. Call it when the user asks what's wrong or about errors.",
+   "parameters": {"type": "object", "properties": {
+     "path": {"type": "string", "description": "file name; omit for all files"}}}},
+  {"name": "code_ask",
+   "description": "Ask Claude a question about a project file: what it does, why a line is there, how to change something. Takes a few seconds: it returns status working at once; say in a few words that you're reading the file, then a system note brings the answer to say out loud (the lines it is about light up).",
+   "parameters": {"type": "object", "properties": {
+     "question": {"type": "string", "description": "the user's question, self-contained"},
+     "path": {"type": "string", "description": "file name; omit for the open file"}},
+     "required": ["question"]}},
+  {"name": "code_edit",
+   "description": "Change a project file as the user asks (fix the error, rename a variable, add a function, make the fins bigger). Claude writes the change; it is saved on the headset, the changed lines light up and code_undo takes it back. Takes several seconds: it returns status working at once; say in a few words that you're on it, then a system note says what changed.",
+   "parameters": {"type": "object", "properties": {
+     "instruction": {"type": "string", "description": "what to change, self-contained"},
+     "path": {"type": "string", "description": "file name; omit for the open file"}},
+     "required": ["instruction"]}},
+  {"name": "code_undo",
+   "description": "Take back the last change to a file (yours or the user's).",
+   "parameters": {"type": "object", "properties": {
+     "path": {"type": "string", "description": "file name; omit for the open file"}}}},
+  {"name": "code_reset",
+   "description": "Put every project file back to the original sample. Deletes all saved changes: only when the user clearly asks to reset or start over.",
+   "parameters": {"type": "object", "properties": {}}}
+]
