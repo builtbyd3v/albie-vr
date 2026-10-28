@@ -83,9 +83,19 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     string utterance, answer = "", petMode;
     readonly List<JObject> pendingOutputs = new List<JObject>();
 
+    /// <summary>Editor only: EditorPrefs bool; true keeps the voice off in Play, so tests spend no voice credits.</summary>
+    public const string EditorOffPref = "Albie.VoiceOffInEditor";
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
+#if UNITY_EDITOR
+        if (UnityEditor.EditorPrefs.GetBool(EditorOffPref, false))
+        {
+            Debug.Log($"[AlbieVoice] off in the Editor (EditorPrefs {EditorOffPref}).");
+            return;
+        }
+#endif
         if (!Application.isEditor && string.IsNullOrEmpty(AlbieVoiceToken.TokenUrl))
         {
             Debug.Log($"[AlbieVoice] off: no voice token server (PlayerPrefs {AlbieVoiceToken.TokenUrlPref}).");
