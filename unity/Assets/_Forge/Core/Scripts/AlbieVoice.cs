@@ -183,7 +183,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 string say = (string)payload?["text"];
                 if (string.IsNullOrEmpty(say)) break;
                 string now = $" Right now, without being asked, tell the user this result in your own words, in one or two short sentences: \"{say}\"";
-                if (responseActive) pendingSay = now;  // after the reply in progress
+                if (responseActive || turnOpen) pendingSay = now;  // after the reply in progress, or the user's turn
                 else RequestResponse(now);
                 break;
             case "workspace.mode":
@@ -213,6 +213,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         {
             Send(new JObject { ["type"] = "input_audio_buffer.clear" });
             Final("");
+            if (pendingSay != null) { RequestResponse(pendingSay); pendingSay = null; }  // an empty turn gets no reply to wait for
             return;
         }
         // Grok answers every commit by itself: no response.create here (a second one is rejected or answers twice).
