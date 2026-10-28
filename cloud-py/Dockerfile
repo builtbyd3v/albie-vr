@@ -1,5 +1,5 @@
 # Albie cloud: CAD + small ML training for headsets with no laptop. Build context: the repo root
-# (cloud-py/deploy.sh runs `fly deploy . --config cloud-py/fly.toml --dockerfile cloud-py/Dockerfile`).
+# layout (cloud-py/deploy.sh copies these paths into a Hugging Face Docker Space with this file at its root).
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -23,9 +23,11 @@ COPY cloud-py cloud-py
 RUN cd ml-examples/text-classification \
     && PYTHONPATH=/app/forge-sdk python data.py \
     && FORGE_OFFLINE=1 PYTHONPATH=/app/forge-sdk python train.py --epochs 4 > /dev/null \
-    && rm -rf checkpoints .forge/__pycache__ && mkdir -p /data
+    && rm -rf checkpoints .forge/__pycache__ && mkdir -p /data \
+    && chmod -R a+w /app /data  # HF Spaces run the container as uid 1000, not root
 
-ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data PORT=8080 \
+# ponytail: HOME=/tmp gives library caches (torch, matplotlib) a writable home under uid 1000.
+ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data PORT=8080 HOME=/tmp \
     CLAUDE_PROXY_URL=https://albie-cloud.vercel.app/api/claude
 EXPOSE 8080
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
