@@ -368,7 +368,12 @@ public static class DeskApi
 
     // ---------------------------------------------------------------- movie
 
-    public static void MoviePlay(MovieInfo info)
+    /// <summary>Hub off: the local copy (read only) and where it is now.</summary>
+    public static MovieState Movie => movie;
+    public static float MovieNow => MoviePosition();
+
+    /// <summary>Hub off, <paramref name="start"/>: play from there (default: 0 for another movie, where it was for this one).</summary>
+    public static void MoviePlay(MovieInfo info, float? start = null)
     {
         if (Live)
         {
@@ -382,7 +387,13 @@ public static class DeskApi
             movie.seekRev++;
         }
         if (movie.movie == null) return;
-        if (movie.status == "closed") movie.seekRev++;  // back where it was
+        if (start.HasValue)
+        {
+            movie.positionS = Mathf.Clamp(start.Value, 0f, movie.movie.durationS ?? float.MaxValue);
+            movieAt = Now;
+            movie.seekRev++;
+        }
+        else if (movie.status == "closed") movie.seekRev++;  // back where it was
         MovieSet("playing");
     }
 
@@ -416,6 +427,7 @@ public static class DeskApi
         if (movie.status == "closed") return;
         movie.positionS = position;
         movieAt = Now;
+        MovieTools.Keep(movie, position);
         if (ended && movie.status == "playing") MovieSet("paused");
     }
 
@@ -450,5 +462,9 @@ public static class DeskApi
 
     static float MoviePosition() => movie.positionS + (movie.status == "playing" ? Now - movieAt : 0f);
 
-    static void EmitMovie() => ForgeNet.Emit(ForgeEvents.MovieStateType, movie);
+    static void EmitMovie()
+    {
+        MovieTools.Keep(movie, MoviePosition());
+        ForgeNet.Emit(ForgeEvents.MovieStateType, movie);
+    }
 }
