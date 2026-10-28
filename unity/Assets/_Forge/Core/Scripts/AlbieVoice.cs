@@ -44,6 +44,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
+        "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
         "If a tool returns an error, say it plainly. Changing 3D designs and training models in the machine learning view " +
         "aren't on the headset yet: if asked, say that part isn't available here yet.";
     const string Brevity =
