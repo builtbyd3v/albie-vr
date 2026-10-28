@@ -170,6 +170,14 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 RequestResponse($" Right now the user tapped Ask Albie on this message from {(string)payload["user_name"] ?? "someone"}: \"{text}\". " +
                                 $"Say who it's from and what they want, in one short sentence, and ask if they want to reply. If they do, call messages_send with reply_to_ts \"{(string)payload["ts"]}\" and their words.");
                 break;
+            case "albie.note":  // a module's context for the voice model (the hub's note()), e.g. the Neural Net Lab's fix offer
+                if (ws != null && ws.State == WebSocketState.Open && !string.IsNullOrEmpty((string)payload?["text"]))
+                    Send(new JObject { ["type"] = "conversation.item.create", ["item"] = new JObject
+                    {
+                        ["type"] = "message", ["role"] = "system",
+                        ["content"] = new JArray(new JObject { ["type"] = "input_text", ["text"] = (string)payload["text"] }),
+                    } });
+                break;
             case "workspace.mode":
                 if (ws != null && ws.State == WebSocketState.Open && ViewNotes.TryGetValue((string)payload?["mode"] ?? "", out string note))
                     Send(new JObject { ["type"] = "conversation.item.create", ["item"] = new JObject
