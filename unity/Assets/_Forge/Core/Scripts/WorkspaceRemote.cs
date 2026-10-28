@@ -33,14 +33,41 @@ public class WorkspaceRemote : MonoBehaviour
 
     void OnDisable() => ForgeEvents.OnUiMode -= OnUiMode;
 
+    // Hub off: Albie's ui_open_view runs here instead of the hub's agent/workspace.py.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void RegisterTools() =>
+        AlbieTools.Register("view", new System.Collections.Generic.Dictionary<string, AlbieTools.Handler> { ["ui_open_view"] = OpenViewTool });
+
+    static JObject OpenViewTool(JObject args)
+    {
+        var ws = Workspace.Current != null ? Workspace.Current : FindAnyObjectByType<Workspace>();
+        if (ws == null) return AlbieTools.Error("There's no workspace here, so no view can open.");
+        string view = ((string)args["view"] ?? "").Trim().ToLowerInvariant();
+        string reason = Apply(ws, view == "none" ? "" : view);
+        if (reason == null) return new JObject { ["ok"] = true, ["view"] = ws.ActiveMode ?? "" };
+        return new JObject
+        {
+            ["error"] = reason == "not_at_desk"
+                ? "The user isn't at their desk, so the workspace can't open; ask them to sit down at it first."
+                : $"No view '{view}'; the views are cad, code, ml, messages (or none to close).",
+            ["view"] = ws.ActiveMode ?? "",
+        };
+    }
+
+    // Open a mode ("" closes the open one). Returns why it isn't open (not_at_desk / unknown_mode), or null.
+    static string Apply(Workspace workspace, string want)
+    {
+        if (want.Length == 0) workspace.Close();
+        else if (workspace.modes.Find(x => x.id == want) == null) return "unknown_mode";
+        else if (workspace.presence == null || !workspace.presence.AtDesk) return "not_at_desk";
+        else if (workspace.ActiveMode != want) workspace.Open(want);
+        return null;
+    }
+
     void OnUiMode(UiMode m)
     {
         string want = (m?.mode ?? "").Trim().ToLowerInvariant();
-        string reason = null;
-        if (want.Length == 0) workspace.Close();
-        else if (workspace.modes.Find(x => x.id == want) == null) reason = "unknown_mode";
-        else if (workspace.presence == null || !workspace.presence.AtDesk) reason = "not_at_desk";
-        else if (workspace.ActiveMode != want) workspace.Open(want);
+        string reason = Apply(workspace, want);
 
         var answer = new JObject { ["pet_id"] = PetId, ["mode"] = workspace.ActiveMode ?? "" };
         if (reason != null) answer["reason"] = reason;
