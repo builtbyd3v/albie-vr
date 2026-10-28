@@ -59,7 +59,13 @@ public static class SlackStore
         MessageAdded = null;
     }
 
-    /// <summary>Hook the hub events (once) and ask for the list and "me" if the hub is live. Panels call it in OnEnable.</summary>
+    /// <summary>The hub is live, or it's off and the panels show <see cref="MessagesDemo"/>'s conversations.</summary>
+    public static bool Available => ForgeNet.Status == ForgeNetStatus.Live || Demo;
+
+    /// <summary>Hub off: demo conversations, nothing is sent.</summary>
+    public static bool Demo => ForgeNet.Status == ForgeNetStatus.Mock;
+
+    /// <summary>Hook the hub events (once) and ask for the list and "me" if the hub is live (or the demo's). Panels call it in OnEnable.</summary>
     public static void Ensure()
     {
         if (!hooked)
@@ -72,7 +78,7 @@ public static class SlackStore
             ForgeNet.StatusChanged += OnStatus;
             if (ForgeNet.TryGetLast(ForgeEvents.NotifyChannelsType, out NotifyChannels sticky)) OnChannels(sticky);
         }
-        if (ForgeNet.Status == ForgeNetStatus.Live) Fetch();
+        if (Available) Fetch();
     }
 
     static void Unhook()
@@ -88,7 +94,7 @@ public static class SlackStore
 
     static void OnStatus(ForgeNetStatus status)
     {
-        if (status != ForgeNetStatus.Live) return;
+        if (status == ForgeNetStatus.Connecting) return;
         // Reconnected: the cached histories may have gaps, so they reload on the next open.
         history.Clear();
         hasMore.Clear();
@@ -99,6 +105,7 @@ public static class SlackStore
 
     static void Fetch()
     {
+        if (Demo) MessagesDemo.Install();
         if (!channelsRequested)
         {
             channelsRequested = true;
@@ -134,7 +141,7 @@ public static class SlackStore
     public static void RefreshChannels()
     {
         channelsRequested = false;
-        if (ForgeNet.Status == ForgeNetStatus.Live) Fetch();
+        if (Available) Fetch();
     }
 
     // ---- Channels ----
@@ -231,7 +238,7 @@ public static class SlackStore
     /// </summary>
     public static void LoadHistory(string channelId, bool earlier = false)
     {
-        if (string.IsNullOrEmpty(channelId) || loading.Contains(channelId) || ForgeNet.Status != ForgeNetStatus.Live) return;
+        if (string.IsNullOrEmpty(channelId) || loading.Contains(channelId) || !Available) return;
         string path = "/messages/history?channel=" + Uri.EscapeDataString(channelId) + "&limit=50";
         if (earlier)
         {

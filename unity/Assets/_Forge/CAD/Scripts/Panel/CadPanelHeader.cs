@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// The design panel's header (CAD UX spec 2.1), over Core's: the design's glyph on the mode tile (Core's badge, its
 /// "CAD" text hidden: the orange tile already says CAD), the title as the Designs menu button with a chevron, and the
-/// subtitle's hub dot ("v4 · 4 versions · Live"; amber "Offline, stored versions"; a pulsing orange dot while
+/// subtitle's hub dot ("v4 · 4 versions · Live"; amber "Demo designs"; a pulsing orange dot while
 /// "Building v5…"). Core keeps the title and subtitle text (<see cref="ForgePanel.Title"/> / Subtitle) and the
 /// Straight / Face me pills; this draws on a layer above them, so no Core file changes.
 /// The Designs menu: a 360 mm popover listing the hub's library (refreshed each time it opens).
@@ -118,12 +118,12 @@ public sealed class CadPanelHeader
         }
 
         string line;
-        if (!s.ready) line = "Connecting to the hub…";
+        if (!s.ready) line = "Connecting…";
         else if (s.building) line = "Building v" + s.buildingVersion + "…";
         else
         {
             int count = s.versions.Count;
-            string where = s.mock ? "Offline, stored versions" : s.live ? "Live" : "Hub lost, retrying";
+            string where = s.mock ? "Demo designs" : s.live ? "Live" : "Hub lost, retrying";
             line = "v" + s.version + (count > 0 ? " · " + count + (count == 1 ? " version" : " versions") : "") + " · " + where;
         }
         busy = s.building;

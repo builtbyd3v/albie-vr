@@ -152,6 +152,14 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             case "tts.stop":
                 StopSpeech("cancel");
                 break;
+            case "messages.focus":  // "Ask Albie" on a message (the demo conversations send its text along)
+                string text = (string)payload?["text"];
+                if (string.IsNullOrEmpty(text)) break;
+                if (responseActive || audioStarted) StopSpeech("barge_in");
+                // In this reply's own instructions: as a system note alone, Grok answered with a greeting instead.
+                RequestResponse($" Right now the user tapped Ask Albie on this message from {(string)payload["user_name"] ?? "someone"}: \"{text}\". " +
+                                "Say who it's from and what they want, in one short sentence. Don't offer to reply: sending isn't on the headset yet.");
+                break;
             case "workspace.mode":
                 if (ws != null && ws.State == WebSocketState.Open && ViewNotes.TryGetValue((string)payload?["mode"] ?? "", out string note))
                     Send(new JObject { ["type"] = "conversation.item.create", ["item"] = new JObject
@@ -205,8 +213,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         pendingOutputs.Clear();
     }
 
-    void RequestResponse() =>
-        Send(new JObject { ["type"] = "response.create", ["response"] = new JObject { ["instructions"] = Instructions + BrevityNow } });
+    void RequestResponse(string now = BrevityNow) =>
+        Send(new JObject { ["type"] = "response.create", ["response"] = new JObject { ["instructions"] = Instructions + now } });
 
     // ---------------------------------------------------------------- from Grok
 

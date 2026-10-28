@@ -69,7 +69,7 @@ namespace Forge.Pet
         string fallbackModeId = "screens";
 
         const string WorkspaceModeType = "workspace.mode";
-        const string HubOfflineLine = "Hub offline.";
+        const string HubOfflineLine = "Welcome back.";  // no hub digest (hub off: the headset on its own)
 
         DeskPresence _presence;
         Workspace _workspace;

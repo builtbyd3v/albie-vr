@@ -210,7 +210,8 @@ public class SlackComposer
         if (sending) return;
         string body = field.text != null ? field.text.Trim() : "";
         if (body.Length == 0) { Status("Nothing to send yet"); return; }
-        if (ForgeNet.Status != ForgeNetStatus.Live) { Status("Hub offline"); return; }
+        if (SlackStore.Demo) { Status("Demo: sending isn't on the headset yet"); return; }
+        if (ForgeNet.Status != ForgeNetStatus.Live) { Status("Connecting…"); return; }
         string target = draftId != null ? draftChannel : channel?.id;
         if (string.IsNullOrEmpty(target)) { Status("Pick a conversation first"); return; }
 
@@ -282,7 +283,7 @@ public class SlackComposer
     {
         var m = owner.LatestMessage();
         if (m == null || string.IsNullOrEmpty(m.ts)) { Status("Nothing here for Albie to read yet"); return; }
-        if (!owner.FocusBit(m)) Status("Hub offline");
+        if (!owner.FocusBit(m)) Status("Albie can't hear right now");
         else Status("Albie is reading it…");
     }
 

@@ -330,7 +330,13 @@ public class SlackPanel : MonoBehaviour
     public bool FocusBit(NotifyMessage m)
     {
         if (m == null || string.IsNullOrEmpty(m.ts)) return false;
-        bool sent = ForgeNet.Send(FocusType, new JObject { ["pet_id"] = LeadPetId, ["ts"] = m.ts, ["channel"] = m.channel ?? selected ?? "" });
+        var focus = new JObject { ["pet_id"] = LeadPetId, ["ts"] = m.ts, ["channel"] = m.channel ?? selected ?? "" };
+        if (SlackStore.Demo)  // no hub to look the message up: Albie's on-device voice gets the message itself
+        {
+            focus["text"] = m.text;
+            focus["user_name"] = m.userName;
+        }
+        bool sent = ForgeNet.Send(FocusType, focus);
         if (!sent) Debug.LogWarning($"[SlackPanel] Hub not live; {FocusType} for ts {m.ts} dropped.");
         return sent;
     }
@@ -360,7 +366,7 @@ public class SlackPanel : MonoBehaviour
     {
         dataDirty = false;
         layoutDirty = true;
-        bool live = ForgeNet.Status == ForgeNetStatus.Live;
+        bool live = SlackStore.Available;
 
         if (selected == null)
         {
@@ -401,7 +407,7 @@ public class SlackPanel : MonoBehaviour
         SlackUi.Show(dmsCaret, !iMessagePanel && shownSide > channelSide);
         bool noList = shownSide == 0;
         SlackUi.Show(leftEmpty, noList);
-        if (noList) leftEmpty.text = !live ? "Hub offline" : SlackStore.ChannelsKnown ? "No conversations" : "Loading…";
+        if (noList) leftEmpty.text = !live ? "Connecting…" : SlackStore.ChannelsKnown ? "No conversations" : "Loading…";
 
         // Header + the frame's subtitle.
         bool dm = channel != null && SlackText.IsDmKind(channel.kind);
@@ -423,7 +429,7 @@ public class SlackPanel : MonoBehaviour
             int unread = 0;
             for (int i = 0; i < SlackStore.Channels.Count; i++)
                 if (SlackStore.IsProvider(SlackStore.Channels[i], iMessagePanel)) unread += SlackStore.Channels[i].unread;
-            Panel.Subtitle = channel == null ? (live ? "" : "Hub offline")
+            Panel.Subtitle = channel == null ? (SlackStore.Demo ? "Demo conversations" : live ? "" : "Connecting…")
                 : SlackText.DisplayName(channel) + " · " + (unread == 0 ? "all read" : unread == 1 ? "1 unread" : unread + " unread");
         }
 
@@ -504,7 +510,7 @@ public class SlackPanel : MonoBehaviour
         SlackUi.Show(rightEmpty, empty);
         if (empty)
         {
-            rightEmpty.text = !live ? "Hub offline\n<size=85%><alpha=#AA>Start the hub (uvicorn main:app) and this connects by itself."
+            rightEmpty.text = !live ? "Connecting…"
                 : selected == null ? "Pick a conversation"
                 : loading || list == null ? "Loading…"
                 : iMessagePanel ? "No messages here yet"
@@ -619,7 +625,7 @@ public class SlackPanel : MonoBehaviour
 
     void AskAlbie(NotifyMessage m)
     {
-        if (!FocusBit(m)) composer.ShowStatus("Hub offline");
+        if (!FocusBit(m)) composer.ShowStatus("Albie can't hear right now");
         else composer.ShowStatus("Albie is reading it…");
     }
 

@@ -1,0 +1,29 @@
+{
+  "me": {"user_id": "U0ME", "name": "you", "display_name": "You", "team": "Orbit Works"},
+  "channels": [
+    {"id": "C0GENERAL", "name": "general", "kind": "channel", "topic": "Company-wide news", "is_default": true, "messages": [
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Design review moved to Thursday 2 PM. Bring your latest rocket numbers.", "ago_min": 300},
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "The 3D printer in the lab is back up. New nozzle, prints are clean again.", "ago_min": 140},
+      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Lunch is on the team today. Pizza at noon in the big room.", "ago_min": 50}
+    ]},
+    {"id": "C0ROCKET", "name": "rocket-team", "kind": "channel", "topic": "Launch on Saturday", "unread": 2, "mentions": 1, "messages": [
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Static margin came out at 1.4 calibers on the last sim. A bit low for the windy forecast.", "ago_min": 95},
+      {"user": "U0ME", "user_name": "You", "text": "I can lengthen the body tube 10% tonight and rerun it.", "ago_min": 80, "is_me": true},
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Perfect. Also check the fin span, the new motor is heavier.", "ago_min": 30},
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "@You can you send the updated STEP file before the review?", "ago_min": 12, "mentions_me": true}
+    ]},
+    {"id": "C0HARDWARE", "name": "hardware", "kind": "channel", "topic": "Parts, suppliers, the lab", "unread": 1, "messages": [
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "Quadcopter props arrived. Two of them are chipped, sending them back.", "ago_min": 200},
+      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Gearbox pinion is out of stock until next week. I ordered the steel one instead.", "ago_min": 25}
+    ]},
+    {"id": "D0MAYA", "name": "Maya Chen", "kind": "dm", "unread": 1, "mentions": 1, "messages": [
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Nice work on the rocket demo yesterday.", "ago_min": 1500},
+      {"user": "U0ME", "user_name": "You", "text": "Thanks! Albie did most of the talking.", "ago_min": 1490, "is_me": true},
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Can you walk the new interns through the workspace tomorrow at 10?", "ago_min": 8}
+    ]},
+    {"id": "D0JORDAN", "name": "Jordan Lee", "kind": "dm", "messages": [
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Sending you the flight log from Saturday's test.", "ago_min": 2900},
+      {"user": "U0ME", "user_name": "You", "text": "Got it, apogee looks right on target.", "ago_min": 2880, "is_me": true}
+    ]}
+  ]
+}
