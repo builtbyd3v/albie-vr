@@ -1,0 +1,31 @@
+# Albie cloud: CAD + small ML training for headsets with no laptop. Build context: the repo root
+# (cloud-py/deploy.sh runs `fly deploy . --config cloud-py/fly.toml --dockerfile cloud-py/Dockerfile`).
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+# ponytail: GL/glib/Xrender are what OCP wheels usually want on slim images; drop them if the build proves otherwise.
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY cloud-py/requirements.txt cloud-py/requirements.txt
+RUN pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install -r cloud-py/requirements.txt
+
+COPY hub/cad hub/cad
+COPY hub/ml hub/ml
+COPY hub/events.py hub/events.py
+COPY hub/agent/events.py hub/agent/events.py
+COPY forge-sdk/forge forge-sdk/forge
+COPY ml-examples/text-classification ml-examples/text-classification
+COPY cloud-py cloud-py
+
+# The shared AG News subset (~30 MB) and a first 4-epoch run, so "open my ML project" has a score at once.
+RUN cd ml-examples/text-classification \
+    && PYTHONPATH=/app/forge-sdk python data.py \
+    && FORGE_OFFLINE=1 PYTHONPATH=/app/forge-sdk python train.py --epochs 4 > /dev/null \
+    && rm -rf checkpoints .forge/__pycache__ && mkdir -p /data
+
+ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data PORT=8080 \
+    CLAUDE_PROXY_URL=https://albie-cloud.vercel.app/api/claude
+EXPOSE 8080
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

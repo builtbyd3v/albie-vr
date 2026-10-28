@@ -1,0 +1,12 @@
+# Albie cloud (cloud-py/app.py): the hub's CAD and ML only. torch comes from the CPU index (Dockerfile).
+# Never install cadquery here: its OCP build breaks build123d's imports.
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+build123d==0.13.0
+rocketpy==1.13.0
+matplotlib==3.11.2
+pillow==13.0.0
+scipy==1.18.1
+numpy==2.5.4
+httpx==0.28.1  # forge SDK: training runs post their live events back
