@@ -6,7 +6,7 @@
   "rail_exit_speed_mps": 16.0,
   "rail_exit_margin_cal": 0.94,
   "liftoff_mass_g": 74.9,
-  "motor": "Estes C6",
+  "motor": "C6",
   "trajectory_m": [
     [
       0.0,
@@ -250,7 +250,7 @@
     ]
   ],
   "assumptions": [
-    "Estes C6 thrust curve (NAR certification), constant drag coefficient 0.6.",
+    "C6 motor thrust curve (NAR certification), constant drag coefficient 0.6.",
     "0.9 m launch rod at 85 deg, no wind, standard atmosphere at sea level.",
     "Inertia from a slender-rod approximation of the airframe.",
     "Way down: the parachute opens when the ejection charge fires (the motor's delay after burnout), not before apogee, and fills in 0.5 s. Point mass with drag: body Cd 0.6, parachute Cd 0.75 on its flat diameter."

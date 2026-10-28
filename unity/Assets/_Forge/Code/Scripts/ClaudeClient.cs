@@ -46,18 +46,18 @@ public static class ClaudeClient
         };
         string text = Stub != null ? Stub(body) : TextOf(JObject.Parse(await Post(body.ToString(Formatting.None))));
         try { return JObject.Parse(text); }
-        catch (JsonException) { throw new InvalidOperationException("Claude's answer wasn't valid JSON"); }
+        catch (JsonException) { throw new InvalidOperationException("the answer wasn't readable"); }
     }
 
     static string TextOf(JObject answer)
     {
         string stop = (string)answer["stop_reason"];
-        if (stop == "refusal") throw new InvalidOperationException("Claude declined that one");
-        if (stop == "max_tokens") throw new InvalidOperationException("Claude's answer was too long and got cut off");
+        if (stop == "refusal") throw new InvalidOperationException("the assistant declined that one");
+        if (stop == "max_tokens") throw new InvalidOperationException("the answer was too long and got cut off");
         var text = new StringBuilder();
         foreach (var block in answer["content"] ?? new JArray())
             if ((string)block["type"] == "text") text.Append((string)block["text"]);
-        if (text.Length == 0) throw new InvalidOperationException("Claude sent no text");
+        if (text.Length == 0) throw new InvalidOperationException("the answer was empty");
         return text.ToString();
     }
 
@@ -90,7 +90,7 @@ public static class ClaudeClient
                     : request.responseCode == 401 ? "the app key was refused"
                     : $"{request.responseCode} {request.error}";
                 Debug.LogWarning($"[ClaudeClient] {why}: {Trim(request.downloadHandler?.text)}");
-                done.SetException(new InvalidOperationException("can't reach Claude: " + why));
+                done.SetException(new InvalidOperationException("can't reach the assistant: " + why));
             }
             request.Dispose();
         };

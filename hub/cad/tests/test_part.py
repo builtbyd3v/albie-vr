@@ -80,7 +80,7 @@ def test_masses_are_plausible():
     assert 5 < masses["nose_cone"] < 25          # hollow shell, not a solid plastic plug
     assert 15 < masses["body_tube"] < 40
     total = analyze(result, mass_properties(result))["mass_g"]
-    assert 60 < total < 113                        # Estes C6 max liftoff weight is 113 g
+    assert 60 < total < 113                        # C6 motor max liftoff weight is 113 g
 
 
 def test_export_is_cadvision_valid_in_metres_and_y_up(tmp_path):

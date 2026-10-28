@@ -136,7 +136,7 @@
       "stable": true,
       "stability": "marginal",
       "cna_per_rad": 8.88,
-      "motor": "Estes C6",
+      "motor": "C6",
       "markers_gltf": {
         "cg": [
           0.0,
@@ -187,7 +187,7 @@
           "mass_g": 0.58
         },
         {
-          "name": "Estes C6 (loaded)",
+          "name": "C6 motor (loaded)",
           "mass_g": 24.1
         },
         {
@@ -426,7 +426,7 @@
         },
         {
           "id": "ESTES_C6_LOADED",
-          "label": "Estes C6 (loaded)",
+          "label": "C6 motor (loaded)",
           "mass_g": 24.1,
           "share": 0.3153,
           "part_ids": []
@@ -442,7 +442,7 @@
       "demo": {
         "kind": "launch",
         "label": "Fly",
-        "note": "Launches on an Estes C6-5 and comes down on a 305 mm parachute.",
+        "note": "Launches on a C6-5 motor and comes down on a 305 mm parachute.",
         "source": "/cad/flight",
         "axis": {
           "origin": [
@@ -477,7 +477,7 @@
       "constants": [
         {
           "label": "Motor",
-          "value": "Estes C6-5",
+          "value": "C6-5",
           "note": "24.1 g loaded \u00b7 fixed in rocket.py"
         },
         {

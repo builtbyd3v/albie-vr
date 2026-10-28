@@ -1,4 +1,4 @@
-"""Model rocket for an Estes C6 motor. Save this file and the rocket regenerates in the headset.
+"""Model rocket for a C6 motor motor. Save this file and the rocket regenerates in the headset.
 
 Millimetres. Tail at z=0, nose tip at +z. Every part needs a unique label: it becomes the GLB node
 name and the object ID Unity selects, explodes and highlights.
@@ -16,7 +16,7 @@ from cad.part_api import (Analysis, BuildResult, Constant, Dimension, Explode, E
 
 PART = "rocket"
 TITLE = "Model rocket"
-DESCRIPTION = "Estes C6 model rocket: nose cone, body tube, motor mount, fins. Live Barrowman stability."
+DESCRIPTION = "Model rocket on a C6 motor: nose cone, body tube, motor mount, fins. Live Barrowman stability."
 GLYPH = "rocket"
 
 # parts: the parts a parameter shapes (lit on the model when you point at its row); dimension: the callout it changes.
@@ -57,7 +57,7 @@ MOUNT_ID, MOUNT_WALL, MOUNT_LENGTH = 18.3, 0.5, 76.0
 RING_THICKNESS = 3.0
 
 DENSITY = {"paper": 0.70, "polystyrene": 1.05, "balsa": 0.16, "plywood": 0.68}  # g/cm^3
-MOTOR = ("Estes C6 (loaded)", 24.1, 70.0)  # name, g, length mm: thrustcurve.org / NAR certification
+MOTOR = ("C6 motor (loaded)", 24.1, 70.0)  # name, g, length mm: thrustcurve.org / NAR certification
 EJECTION_DELAY_S = 5.0                     # a C6-5: the ejection charge fires 5 s after burnout
 RECOVERY_G, PARACHUTE_MM = 12.0, 305.0     # 12" parachute, shock cord, wadding
 
@@ -135,7 +135,7 @@ def build(p) -> BuildResult:
         point_masses=[PointMass(motor_name, motor_g, motor_len / 2, is_motor=True),
                       PointMass("recovery (parachute, shock cord, wadding)", RECOVERY_G, body_len - 50)],
         rocket=RocketSpec(length_mm=body_len + nose_len, diameter_mm=2 * r, nose_length_mm=nose_len,
-                          nose_shape=p["nose_shape"], fins=fins, motor="Estes C6", parachute_mm=PARACHUTE_MM,
+                          nose_shape=p["nose_shape"], fins=fins, motor="C6", parachute_mm=PARACHUTE_MM,
                           ejection_delay_s=EJECTION_DELAY_S),
     )
 

@@ -227,7 +227,10 @@ namespace Forge.ML
         }
         public void SetRunState(string status, int totalEpochs)
         {
+            bool finished = status == "done" && !Done;
             TotalEpochs = totalEpochs > 0 ? totalEpochs : Data.metrics.Length; RunStatus = status; Done = status == "done"; Changed?.Invoke();
+            var last = EpochIndex >= 0 && EpochIndex < Data.metrics.Length ? Data.metrics[EpochIndex] : null;
+            if (finished) AlbieTips.RunFinished(last != null && !float.IsNaN(last.val_acc) ? $"Validation accuracy is {last.val_acc:0%} after {TotalEpochs} epochs." : "");
         }
         // Live hub: replay the run on /ws (ML_PLAN 7.4 /ml/replay); the curves restart from its ml.run_state.
         public void Restart()

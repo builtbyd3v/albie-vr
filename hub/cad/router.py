@@ -211,7 +211,7 @@ async def file_download(name: str, v: int | None = None, cad: CadService = Depen
 
 @router.get("/flight")
 async def flight(v: int | None = None, cad: CadService = Depends(service)):
-    """Simulated flight on an Estes C6 (rocket designs): apogee, speeds, a trajectory for the room arc, and the
+    """Simulated flight on a C6 motor (rocket designs): apogee, speeds, a trajectory for the room arc, and the
     whole flight to landing as fixed-rate samples plus events (liftoff ... landing) for the Fly animation."""
     r = record(cad, v)
     try:

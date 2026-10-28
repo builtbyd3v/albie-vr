@@ -1278,7 +1278,7 @@ public sealed class CadDemoPlayer
         var inv = CultureInfo.InvariantCulture;
         walkTitle = walkSpeed > 0f ? "Walking  ·  " + walkSpeed.ToString("0.00", inv) + " m/s" : "Walking";
         float steps = Value("step_rate_hz", 0f);
-        walkSub = steps > 0f ? (steps * 60f).ToString("0", inv) + " steps a minute  ·  Unitree's trained gait" : "Unitree's trained gait";
+        walkSub = steps > 0f ? (steps * 60f).ToString("0", inv) + " steps a minute  ·  trained gait" : "trained gait";
         tag1.SetStyle(CadLabel.Style.Event);
         shownA = float.NaN;
         frame.phase = "Stepping out";

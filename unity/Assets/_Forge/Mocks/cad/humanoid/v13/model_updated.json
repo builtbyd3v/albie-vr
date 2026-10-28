@@ -599,7 +599,7 @@
         }
       ],
       "assumptions": [
-        "Static: the pose held still, gravity only. Masses, centres of mass and joint axes from Unitree's URDF.",
+        "Static: the pose held still, gravity only. Masses, centres of mass and joint axes from the robot's URDF.",
         "Motor ratings are the URDF's peak torques; holding a pose for long takes less (motors heat up).",
         "Both feet on the ground share the weight by the lever rule; the hips stay over the feet when it leans.",
         "Held at its limit: left_ankle_pitch_joint, right_ankle_pitch_joint."
@@ -1730,7 +1730,7 @@
       "demo": {
         "kind": "walk",
         "label": "Walk",
-        "note": "Walks a 0.67 m circle with Unitree's own trained gait, recorded in MuJoCo.",
+        "note": "Walks a 0.67 m circle with its maker's trained gait, recorded in a physics sim.",
         "source": "/cad/motion",
         "axis": null,
         "values": {
@@ -1793,7 +1793,7 @@
           }
         ],
         "assumptions": [
-          "Legs from Unitree's walking policy (unitree_rl_gym), recorded once in MuJoCo; the arms swing opposite the legs; the rest holds this version's pose.",
+          "Legs from the maker's open walking policy, recorded once in a physics sim; the arms swing opposite the legs; the rest holds this version's pose.",
           "Leg torques from that simulation (32.1 kg robot), scaled by this version's weight with its load; upper-body loads static, as posed."
         ],
         "blocked": null,
@@ -1808,12 +1808,12 @@
       "constants": [
         {
           "label": "Robot",
-          "value": "Unitree G1, 29 joints",
+          "value": "Humanoid, 29 joints",
           "note": "URDF masses and ratings \u00b7 BSD-3"
         },
         {
           "label": "Hands",
-          "value": "Dex3-1, 7 joints each",
+          "value": "7 joints each",
           "note": "3 fingers"
         },
         {

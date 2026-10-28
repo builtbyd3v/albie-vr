@@ -116,7 +116,7 @@ public static class CodeTools
         if (question.Length == 0) throw new ArgumentException("the question is empty");
         var f = CodeProject.Find((string)args["path"]);
         Start($"Reading {f.path}...", () => AskAsync(f, question));
-        return new JObject { ["status"] = "working", ["file"] = f.path, ["note"] = "Claude is reading the file; the answer arrives as a system note in a few seconds." };
+        return new JObject { ["status"] = "working", ["file"] = f.path, ["note"] = "Reading the file; the answer arrives as a system note in a few seconds." };
     }
 
     static JObject Edit(JObject args)
@@ -125,7 +125,7 @@ public static class CodeTools
         if (instruction.Length == 0) throw new ArgumentException("the instruction is empty");
         var f = CodeProject.Find((string)args["path"]);
         Start($"Editing {f.path}...", () => EditAsync(f, instruction));
-        return new JObject { ["status"] = "working", ["file"] = f.path, ["note"] = "Claude is making the change; a system note says what changed in a few seconds." };
+        return new JObject { ["status"] = "working", ["file"] = f.path, ["note"] = "Making the change; a system note says what changed in a few seconds." };
     }
 
     static void Start(string status, Func<Task<JObject>> work)
@@ -167,10 +167,10 @@ public static class CodeTools
         string before = f.text;
         var answer = await ClaudeClient.Json(EditSystem, Prompt(f) + "\nChange: " + instruction, EditSchema, 4096);
         string text = (string)answer["text"];
-        if (string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("Claude sent back an empty file");
-        if (f.text != before) throw new InvalidOperationException($"{f.path} changed while Claude worked; ask again");
+        if (string.IsNullOrWhiteSpace(text)) throw new InvalidOperationException("the edit came back empty");
+        if (f.text != before) throw new InvalidOperationException($"{f.path} changed while I worked; ask again");
         var (start, end) = CodeProject.Write(f, text, "changed by Albie");
-        string say = start == 0 ? "Claude didn't change anything." : ((string)answer["summary"] ?? "Done.").Trim();
+        string say = start == 0 ? "Nothing needed to change." : ((string)answer["summary"] ?? "Done.").Trim();
         return new JObject
         {
             ["tool"] = "code_edit", ["ok"] = start > 0, ["file"] = f.path, ["say"] = say, ["start"] = start, ["end"] = end,
