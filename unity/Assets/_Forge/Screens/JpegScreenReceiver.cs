@@ -17,16 +17,21 @@ public class JpegScreenReceiver : MonoBehaviour
     ClientWebSocket ws;
     Texture2D texture;
     ScreenSurface surface;
-    bool destroyed;
+    bool destroyed, warned;
 
     async void Start()
     {
         surface = GetComponent<ScreenSurface>();
         texture = new Texture2D(2, 2);
 
-        // Reconnect forever, so the panel recovers when stream.py restarts.
+        // Reconnect forever, so the panel recovers when stream.py restarts; only while a computer is connected.
         while (!destroyed)
         {
+            if (ForgeNet.Status != ForgeNetStatus.Live)
+            {
+                await Task.Delay(2000);
+                continue;
+            }
             using (ws = new ClientWebSocket())
             {
                 try
@@ -38,7 +43,8 @@ public class JpegScreenReceiver : MonoBehaviour
                 }
                 catch (Exception e)
                 {
-                    if (!destroyed) Debug.LogWarning("[JpegScreenReceiver] " + e.Message);
+                    if (!destroyed && !warned) Debug.Log("[JpegScreenReceiver] No screen stream on the computer yet (" + e.Message + "); retrying quietly");
+                    warned = true;
                 }
             }
             await Task.Delay(2000);
