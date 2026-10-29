@@ -703,7 +703,7 @@ public class Workspace : MonoBehaviour
             case "ml-model3d": return "The model's layers, as blocks";
             case "cad-timeline": return "Every version of the design, newest first.";
             case "cad-drawing": return "The design's engineering drawing: views, dimensions, parts list.";
-            case "messages": return "Slack messages land here, with replies Albie drafts for you.";
+            case "messages": return "Messages land here, with replies Albie drafts for you.";
             case "screen-left":
             case "screen-right": return "Share a window from Screen Bridge to see it here.";
             default: return "Shows up here once its module is plugged in.";
@@ -860,7 +860,7 @@ public class Workspace : MonoBehaviour
             id = "ml", label = "ML", color = ForgeTheme.ML,
             items =
             {
-                new WorkspaceItem("screen-main", "VS Code", WorkspaceSlot.Main),
+                new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main),
                 new WorkspaceItem("ml-training", "Training", WorkspaceSlot.Above),
                 // Panels, like the ML prefabs (ML/Resources/MLPanels, all ForgePanel variants); ids per section 7.
                 new WorkspaceItem("ml-datastack", "Dataset", WorkspaceSlot.FarLeft),
@@ -883,7 +883,7 @@ public class Workspace : MonoBehaviour
         new WorkspaceMode
         {
             id = "code", label = "CODE", color = ForgeTheme.Code,
-            items = { new WorkspaceItem("screen-main", "VS Code", WorkspaceSlot.Main) },
+            items = { new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main) },
         },
         new WorkspaceMode
         {
@@ -892,7 +892,7 @@ public class Workspace : MonoBehaviour
             {
                 // The Slack panel (conversations, messages, composer) and the "New for you" list beside it
                 // (Messages/Resources/SlackPanel.prefab, MentionsPanel.prefab; ids per section 7).
-                new WorkspaceItem("messages", "Slack", WorkspaceSlot.Main),
+                new WorkspaceItem("messages", "Messages", WorkspaceSlot.Main),
                 new WorkspaceItem("messages-mentions", "Mentions", WorkspaceSlot.Left),
             },
         },

@@ -1,10 +1,10 @@
 [
   {
-    "movie_id": "obsession",
-    "title": "Obsession",
-    "year": 2025,
-    "duration_s": 6519.8,
-    "url": "/movie/files/obsession.mp4",
-    "subtitles_url": "/movie/files/obsession.en.srt"
+    "movie_id": "his_girl_friday",
+    "title": "His Girl Friday",
+    "year": 1940,
+    "duration_s": 5504.6,
+    "url": "https://archive.org/download/his_girl_friday/his_girl_friday.mp4",
+    "subtitles_url": "https://archive.org/download/his_girl_friday/his_girl_friday.asr.srt"
   }
 ]

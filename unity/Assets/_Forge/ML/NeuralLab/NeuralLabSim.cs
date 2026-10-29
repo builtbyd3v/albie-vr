@@ -102,7 +102,7 @@ namespace Forge.ML
             if (instance != null && instance != this) { Destroy(gameObject); return; }
             instance = this;
             EnsureReady();
-            commands = ForgeNet.On("ml.nn_command", OnCommand);
+            commands = ForgeNet.On("ml.nn_command", ApplyCommand);
             ForgeNet.StatusChanged += OnNetStatus;
         }
         void OnDestroy() { commands?.Dispose(); ForgeNet.StatusChanged -= OnNetStatus; if (instance == this) instance = null; }
@@ -332,7 +332,8 @@ namespace Forge.ML
 
         // ---- Albie: commands in, state out ----------------------------------------------------------------
 
-        void OnCommand(JToken c)
+        /// <summary>One <c>ml.nn_command</c>: from the hub, or with the hub off from Albie's nn_ tools (<see cref="NeuralLabTools"/>).</summary>
+        public void ApplyCommand(JToken c)
         {
             EnsureReady();
             inCommand = true;

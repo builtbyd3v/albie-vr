@@ -69,7 +69,7 @@ def test_files_and_caching(client):
     assert client.get("/cad/model.glb").headers["cache-control"] == "no-store"
     meta = client.get("/cad/metadata.json", params={"v": 1}).json()
     assert meta["project"]["rootObjectId"] == "ROCKET"
-    assert client.get("/cad/analysis", params={"v": 1}).json()["motor"] == "Estes C6"
+    assert client.get("/cad/analysis", params={"v": 1}).json()["motor"] == "C6"
     assert client.get("/cad/model.glb", params={"v": 999}).status_code == 404
 
 

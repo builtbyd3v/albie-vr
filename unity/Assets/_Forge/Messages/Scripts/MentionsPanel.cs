@@ -126,8 +126,8 @@ public class MentionsPanel : MonoBehaviour
         SlackUi.Show(empty, none);
         if (none)
         {
-            bool live = ForgeNet.Status == ForgeNetStatus.Live;
-            empty.text = !live ? "Hub offline" : SlackStore.ChannelsKnown ? "You're all caught up" : "Loading…";
+            bool live = SlackStore.Available;
+            empty.text = !live ? "Connecting…" : SlackStore.ChannelsKnown ? "You're all caught up" : "Loading…";
         }
         if (Panel != null)
         {

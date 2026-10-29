@@ -19,9 +19,9 @@ public static class SlackUi
     public static readonly Color CardFillOn = new Color(0.17f, 0.20f, 0.28f, 1f);
     // Native Messages uses a near-black conversation surface with Apple's blue outgoing bubbles.
     public static readonly Color IMessageIncoming = new Color(0.17f, 0.17f, 0.18f, 1f);
-    public static readonly Color IMessageOutgoing = new Color(0.0f, 0.48f, 0.98f, 1f);
+    public static readonly Color IMessageOutgoing = new Color(0.50f, 0.34f, 0.90f, 1f);
     public static readonly Color IMessageComposer = new Color(0.13f, 0.13f, 0.14f, 1f);
-    public static readonly Color IMessageBlue = new Color(0.0f, 0.48f, 0.98f, 1f);
+    public static readonly Color IMessageBlue = new Color(0.50f, 0.34f, 0.90f, 1f);
     public static readonly Color Shadow = new Color(0f, 0f, 0f, 0.28f);
     public static Color TextColor => ForgeTheme.PanelText;                          // white 95%
     public static Color Subtext => ForgeTheme.PanelSubtext;                    // white 50%
@@ -40,27 +40,27 @@ public static class SlackUi
     };
     public static Color BubbleColor(string key) => BubbleColors[SlackText.StableHash(key) % BubbleColors.Length];
 
-    // ---- Slack (the Slack panel inside the graphite frame: Slack's dark aubergine theme, simplified) ----
+    // ---- Messenger (the conversations panel inside the graphite frame: Forge's own look, graphite with the MSG violet) ----
 
-    public static readonly Color SkWindow = new Color(0.235f, 0.110f, 0.251f);      // aubergine: sidebar and window
-    public static readonly Color SkSideText = new Color(0.90f, 0.84f, 0.91f, 0.74f); // read conversations
-    public static readonly Color SkSideHover = new Color(1f, 1f, 1f, 0.08f);
-    public static readonly Color SkSideOn = new Color(0.455f, 0.275f, 0.494f);      // the open conversation
-    public static readonly Color SkSideOnHover = new Color(0.50f, 0.31f, 0.54f);
-    public static readonly Color SkBadge = new Color(0.62f, 0.39f, 0.67f);           // unread count pill
-    public static readonly Color SkPane = new Color(0.102f, 0.114f, 0.129f);        // #1A1D21, the conversation
-    public static readonly Color SkPaneHover = new Color(0.133f, 0.145f, 0.161f);   // #222529, a pointed-at message
-    public static readonly Color SkText = new Color(0.82f, 0.824f, 0.827f);         // #D1D2D3
+    public static readonly Color SkWindow = new Color(0.125f, 0.122f, 0.157f);      // graphite with a violet cast: sidebar and window
+    public static readonly Color SkSideText = new Color(0.88f, 0.87f, 0.93f, 0.74f); // read conversations
+    public static readonly Color SkSideHover = new Color(1f, 1f, 1f, 0.07f);
+    public static readonly Color SkSideOn = new Color(0.267f, 0.212f, 0.392f);      // the open conversation: MSG violet, dimmed
+    public static readonly Color SkSideOnHover = new Color(0.31f, 0.245f, 0.45f);
+    public static readonly Color SkBadge = new Color(0.655f, 0.482f, 1f);            // unread count pill: #A77BFF
+    public static readonly Color SkPane = new Color(0.082f, 0.086f, 0.102f);        // the conversation
+    public static readonly Color SkPaneHover = new Color(0.115f, 0.118f, 0.14f);    // a pointed-at message
+    public static readonly Color SkText = new Color(0.84f, 0.84f, 0.86f);
     public static readonly Color SkName = new Color(0.973f, 0.973f, 0.973f);
-    public static readonly Color SkMuted = new Color(0.671f, 0.671f, 0.678f);       // #ABABAD
-    public static readonly Color SkLine = new Color(1f, 1f, 1f, 0.11f);
-    public static readonly Color SkLink = new Color(0.114f, 0.608f, 0.82f);         // #1D9BD1
-    public static readonly Color SkNew = new Color(0.878f, 0.118f, 0.353f);         // #E01E5A, the "New" line
-    public static readonly Color SkGreen = new Color(0f, 0.478f, 0.353f);           // #007A5A, Send
-    public static readonly Color SkGreenHover = new Color(0.07f, 0.55f, 0.42f);
-    public static readonly Color SkBorder = new Color(0.337f, 0.345f, 0.337f);      // #565856, the composer's edge
-    public static readonly Color SkBorderFocus = new Color(0.55f, 0.56f, 0.56f);
-    public static readonly Color SkField = new Color(0.133f, 0.145f, 0.161f);       // #222529
+    public static readonly Color SkMuted = new Color(0.66f, 0.66f, 0.70f);
+    public static readonly Color SkLine = new Color(1f, 1f, 1f, 0.09f);
+    public static readonly Color SkLink = new Color(0.78f, 0.66f, 1f);              // #C7A8FF, links and #channels
+    public static readonly Color SkNew = new Color(1f, 0.48f, 0.42f);               // #FF7A6B, the "New" line
+    public static readonly Color SkGreen = new Color(0.50f, 0.34f, 0.90f);          // Send: deep MSG violet
+    public static readonly Color SkGreenHover = new Color(0.58f, 0.42f, 0.97f);
+    public static readonly Color SkBorder = new Color(1f, 1f, 1f, 0.16f);           // the composer's edge
+    public static readonly Color SkBorderFocus = new Color(0.655f, 0.482f, 1f, 0.75f);
+    public static readonly Color SkField = new Color(0.115f, 0.118f, 0.14f);
     public static Color Clear => new Color(1f, 1f, 1f, 0f);
 
     // ---- Icons (Resources/SlackIcons/*.svg, imported as sprites; white, tinted by Image.color) ----

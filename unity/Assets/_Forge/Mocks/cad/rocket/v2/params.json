@@ -1,7 +1,7 @@
 {
   "part": "rocket",
   "title": "Model rocket",
-  "description": "Estes C6 model rocket: nose cone, body tube, motor mount, fins. Live Barrowman stability.",
+  "description": "Model rocket on a C6 motor: nose cone, body tube, motor mount, fins. Live Barrowman stability.",
   "version": 2,
   "params": [
     {

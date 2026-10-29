@@ -38,6 +38,10 @@ namespace Forge.Pet
 
         public event Action Poked;
 
+        /// <summary>Enabled gators, for hand touch (Core's GatorHandPoke: a fingertip entering <see cref="Body"/> pokes).</summary>
+        public static readonly System.Collections.Generic.List<GatorInteraction> All = new System.Collections.Generic.List<GatorInteraction>();
+        public Collider Body => ownCollider;
+
         GatorController controller;
         GatorExpressions expressions;
         Collider ownCollider;
@@ -52,8 +56,8 @@ namespace Forge.Pet
             if (ownCollider == null) ownCollider = AddFittedCollider();
         }
 
-        void OnEnable() { if (fallbackInput) xrSelect.Enable(); }
-        void OnDisable() => xrSelect.Disable();
+        void OnEnable() { All.Add(this); if (fallbackInput) xrSelect.Enable(); }
+        void OnDisable() { All.Remove(this); xrSelect.Disable(); }
 
         /// <summary>Poke the gator (call from UnityEvents, Interaction SDK wrappers, hotkeys...).</summary>
         public void Poke()

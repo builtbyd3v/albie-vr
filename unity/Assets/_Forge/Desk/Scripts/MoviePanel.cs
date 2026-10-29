@@ -1,8 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityEngine.Video;
 
@@ -13,8 +15,9 @@ using UnityEngine.Video;
 /// The hub keeps the state (movie.state): the player plays or pauses with it and seeks only when seek_rev changes;
 /// it reports where it is every few seconds so the hub can pick up there next time. The sound dips while the pet's
 /// voice plays (its StreamedPcmTextToSpeech; pet.state speaking only when there's no voice, since the hub leaves
-/// speaking on after the answer). Hub off: plays <see cref="mockFile"/> (default: the hub's own media folder, if it's
-/// on this machine). Built at runtime (Desk/Prefabs/MoviePanel.prefab, a ForgePanel variant without a title bar).
+/// speaking on after the answer). A movie whose url is absolute (http/https, the hub-off library) streams from there,
+/// its redirect resolved first; otherwise hub off plays <see cref="mockFile"/> (default: the hub's own media folder, if
+/// it's on this machine). Built at runtime (Desk/Prefabs/MoviePanel.prefab, a ForgePanel variant without a title bar).
 /// </summary>
 [RequireComponent(typeof(VideoPlayer), typeof(AudioSource))]
 public class MoviePanel : MonoBehaviour
@@ -145,8 +148,12 @@ public class MoviePanel : MonoBehaviour
             loadedUrl = url;
             prepared = false;
             seekRev = int.MinValue;
-            player.url = url;
-            player.Prepare();
+            if (IsWeb(url)) StartCoroutine(Open(url));
+            else
+            {
+                player.url = url;
+                player.Prepare();
+            }
             placeholder.text = "Loading…";
             placeholder.gameObject.SetActive(true);
             LoadSubtitles(movie);
@@ -171,8 +178,33 @@ public class MoviePanel : MonoBehaviour
         if (!volumeTrack.Dragging) volumeTrack.Value = state.volume;
     }
 
+    static bool IsWeb(string url) => url != null && (url.StartsWith("https://") || url.StartsWith("http://"));
+
+    // The player gets the file's real address: archive.org answers with a 302 to a mirror, which the Android player
+    // may not follow. A HEAD that doesn't follow redirects gives it (Location), at most 3 hops.
+    IEnumerator Open(string url)
+    {
+        string target = url;
+        for (int hop = 0; hop < 3; hop++)
+        {
+            using (var head = UnityWebRequest.Head(target))
+            {
+                head.redirectLimit = 0;
+                head.timeout = 15;
+                yield return head.SendWebRequest();
+                string next = head.responseCode >= 300 && head.responseCode < 400 ? head.GetResponseHeader("Location") : null;
+                if (string.IsNullOrEmpty(next)) break;
+                target = next;
+            }
+        }
+        if (loadedUrl != url) yield break;  // another movie came in meanwhile
+        player.url = target;
+        player.Prepare();
+    }
+
     string Source(MovieInfo movie)
     {
+        if (IsWeb(movie.url)) return movie.url;
         if (ForgeNet.Status == ForgeNetStatus.Live) return ForgeNet.Url(movie.url);
         string path = string.IsNullOrEmpty(mockFile)
             ? Path.Combine(Application.dataPath, "..", "..", "hub", ".data", "media", movie.movieId + ".mp4")
@@ -263,7 +295,8 @@ public class MoviePanel : MonoBehaviour
         cue = -1;
         subtitlesFor = movie.movieId;
         if (string.IsNullOrEmpty(movie.subtitlesUrl)) return;
-        if (ForgeNet.Status == ForgeNetStatus.Live)
+        if (IsWeb(movie.subtitlesUrl)) StartCoroutine(GetSubtitles(movie.movieId, movie.subtitlesUrl));
+        else if (ForgeNet.Status == ForgeNetStatus.Live)
         {
             string id = movie.movieId;
             ForgeNet.Get(movie.subtitlesUrl, text => { if (subtitlesFor == id) ParseSrt(text); }, _ => { });
@@ -272,6 +305,16 @@ public class MoviePanel : MonoBehaviour
         {
             string path = loadedUrl != null ? Path.ChangeExtension(loadedUrl, null) + ".en.srt" : null;
             if (path != null && File.Exists(path)) ParseSrt(File.ReadAllText(path));
+        }
+    }
+
+    IEnumerator GetSubtitles(string id, string url)
+    {
+        using (var get = UnityWebRequest.Get(url))
+        {
+            get.timeout = 30;
+            yield return get.SendWebRequest();
+            if (get.result == UnityWebRequest.Result.Success && subtitlesFor == id) ParseSrt(get.downloadHandler.text);
         }
     }
 

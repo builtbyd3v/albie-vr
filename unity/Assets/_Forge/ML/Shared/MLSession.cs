@@ -78,7 +78,7 @@ namespace Forge.ML
         public string OverfitReason { get; private set; }
         public string RunStatus { get; private set; } = "idle";
         public bool UsesGeneratedMocks => timeline != null;
-        public bool IsLive => useLiveEvents && ForgeNet.Status == ForgeNetStatus.Live;
+        public bool IsLive => useLiveEvents && ForgeCloud.Serves("/ml/");  // the hub, or Albie's cloud with the hub off
         public bool HubData { get; private set; }
         public string RunId { get; private set; }
         public string GitHubImportId { get; private set; }
@@ -117,7 +117,7 @@ namespace Forge.ML
         string atlasUrl;
         IDisposable epochPreds, metricsEvents;
         IDisposable classAccEvents;
-        IDisposable probeEvents, projectEvents;
+        IDisposable probeEvents, projectEvents, cloudEvents;
         public const int AtlasColumns = 8;
         public bool HasReplayLiveGraphs => timeline != null && Array.Exists(timeline, e => e != null && (e.type == "ml.class_acc" || e.type == "ml.probe"));
 
@@ -145,6 +145,7 @@ namespace Forge.ML
             classAccEvents = ForgeNet.On("ml.class_acc", OnLiveClassAccuracy);
             probeEvents = ForgeNet.On("ml.probe", OnLiveProbe);
             projectEvents = ForgeNet.On("ml.project_state", OnProjectState);
+            cloudEvents = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNetStatus.Live));  // same start as the hub's
         }
         void Start() { if (IsLive) OnNetStatus(ForgeNetStatus.Live); }
         void OnDisable()
@@ -158,6 +159,7 @@ namespace Forge.ML
             ForgeNet.StatusChanged -= OnNetStatus;
             epochPreds?.Dispose(); epochPreds = null;
             classAccEvents?.Dispose(); classAccEvents = null;
+            cloudEvents?.Dispose(); cloudEvents = null;
             probeEvents?.Dispose(); probeEvents = null;
             projectEvents?.Dispose(); projectEvents = null;
         }
@@ -227,7 +229,10 @@ namespace Forge.ML
         }
         public void SetRunState(string status, int totalEpochs)
         {
+            bool finished = status == "done" && !Done;
             TotalEpochs = totalEpochs > 0 ? totalEpochs : Data.metrics.Length; RunStatus = status; Done = status == "done"; Changed?.Invoke();
+            var last = EpochIndex >= 0 && EpochIndex < Data.metrics.Length ? Data.metrics[EpochIndex] : null;
+            if (finished) AlbieTips.RunFinished(last != null && !float.IsNaN(last.val_acc) ? $"Validation accuracy is {last.val_acc:0%} after {TotalEpochs} epochs." : "");
         }
         // Live hub: replay the run on /ws (ML_PLAN 7.4 /ml/replay); the curves restart from its ml.run_state.
         public void Restart()
@@ -273,10 +278,10 @@ namespace Forge.ML
         {
             if (!IsLive)
             {
-                Notice = "GitHub import needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
+                Notice = "Repository import needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
                 Changed?.Invoke(); return;
             }
-            if (string.IsNullOrWhiteSpace(url)) { Notice = "Paste a public GitHub repository URL first."; Changed?.Invoke(); return; }
+            if (string.IsNullOrWhiteSpace(url)) { Notice = "Paste a public repository link first."; Changed?.Invoke(); return; }
             if (ProjectSettingUp)
             {
                 Notice = ProjectStatus == "needs_approval" ? $"{ProjectRepository} is waiting for Accept or Skip first."
@@ -285,12 +290,12 @@ namespace Forge.ML
             }
             if (importPending) return;  // a second press before the hub answered the first
             importPending = true;
-            Notice = "Reading the public GitHub repository..."; Changed?.Invoke();
+            Notice = "Reading the public repository..."; Changed?.Invoke();
             ForgeNet.Post<MLGitHubImport>("/ml/github/import", new { url = url.Trim() }, result =>
             {
                 importPending = false;
                 GitHubImportId = result != null && result.supported ? result.import_id : null;
-                if (result == null) Notice = "GitHub import returned no result.";
+                if (result == null) Notice = "The import returned no result.";
                 else if (!result.supported) Notice = $"Unsupported repository: {result.reason}";
                 else if (result.mode == "clone")
                 {
@@ -310,7 +315,7 @@ namespace Forge.ML
                 importPending = false;
                 // 409: something else is running (setup, training); the import already there stays the one Train uses.
                 if (error == null || !error.StartsWith("409")) GitHubImportId = null;
-                Notice = "GitHub import failed: " + HubDetail(error); Changed?.Invoke();
+                Notice = "Import failed: " + HubDetail(error); Changed?.Invoke();
             });
         }
         // ml.project_state {path, status, archetype?, candidates?, summary?, error?, repository?}: one line per setup step.
@@ -344,7 +349,7 @@ namespace Forge.ML
                 bool opened = false; int files = 0;
                 try { var o = Newtonsoft.Json.Linq.JObject.Parse(text); opened = o.Value<bool>("opened"); files = (o["files"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0; }
                 catch (Exception) { }
-                Notice = opened ? "The patch is open in VS Code on the laptop (the CODE screen)." : $"No VS Code on the laptop: the patch adds forge calls to {files} file(s).";
+                Notice = opened ? "The patch is open in the code editor on the laptop (the CODE screen)." : $"No code editor on the laptop: the patch adds forge calls to {files} file(s).";
                 Changed?.Invoke();
             }, e => { Notice = "Couldn't open the patch: " + HubDetail(e); Changed?.Invoke(); });
         // The user's confirmation step (PROJECT_CONTEXT 12): only Accept writes the patch into the repo.
@@ -616,7 +621,7 @@ namespace Forge.ML
         }
         void OnLiveMetrics(Newtonsoft.Json.Linq.JToken payload)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || payload == null) return;
+            if (!IsLive || payload == null) return;
             MLMetrics tick;
             try { tick = ReadMetrics(payload); }
             catch (Exception e) { Debug.LogWarning("[ML] Unreadable ml.metrics: " + e.Message); return; }
@@ -626,12 +631,12 @@ namespace Forge.ML
         public static MLMetrics ReadMetrics(Newtonsoft.Json.Linq.JToken payload) => payload.ToObject<MLMetrics>();
         void OnLiveOverfit(global::MlOverfitAlert alert)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || alert == null) return;
+            if (!IsLive || alert == null) return;
             replay = false; Overfit = true; OverfitReason = alert.reason; Changed?.Invoke();
         }
         void OnLiveSampleUpdated(global::MlSampleUpdated sample)
         {
-            if (!useLiveEvents || ForgeNet.Status != ForgeNetStatus.Live || sample == null) return;
+            if (!IsLive || sample == null) return;
             replay = false; ApplySampleUpdate(sample.id, sample.labelIdx, sample.removed);
         }
         void OnDestroy() { if (ownsAtlas && Atlas != null) Destroy(Atlas); }

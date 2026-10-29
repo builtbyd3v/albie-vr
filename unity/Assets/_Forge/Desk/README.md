@@ -28,8 +28,8 @@ where you left the dot. Where you move things is kept for the session.
 ## Try it
 
 - **Sandbox, hub off:** `DeskSandbox.unity`, Play. The mock events (`Mocks/desk/sequence.json`) start a focus and a
-  tea timer, bring notes in and shrink them to a dot, put the movie on (it plays `hub/.data/media/obsession.mp4` if
-  the hub's media folder is on this machine, else says so), and ring the tea timer. Keys: 1 a 25 s tea timer, 2 an
+  tea timer, bring notes in and shrink them to a dot, put the movie on (His Girl Friday, 1940, public domain, streamed
+  from archive.org), and ring the tea timer. Keys: 1 a 25 s tea timer, 2 an
   hour of focus, 3 a note, 4 notes open / closed, 5 notes to a dot, 6 movie on / off, 0 all timers off. Mouse: the
   desktop rig (Esc frees the cursor).
 - **Main, hub live:** sit at the desk and ask Bit, or straight to the hub:

@@ -1,0 +1,35 @@
+[
+  {"name": "messages_list_channels",
+   "description": "The user's conversations in the messenger: channels and direct messages, each with its unread and mention counts and the last message. Use it for 'anything new?', 'who messaged me?' or to find the right conversation before messages_read_channel or messages_send.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "messages_read_channel",
+   "description": "The last n messages of ONE conversation, oldest to newest, including the user's own (is_me). Each has a ts: pass it as reply_to_ts to answer that message.",
+   "parameters": {"type": "object", "properties": {
+     "channel": {"type": "string", "description": "#name, id, or a person's name (their direct messages)"},
+     "n": {"type": "integer", "minimum": 1, "maximum": 50, "description": "how many (default 10)"}},
+     "required": ["channel"]}},
+  {"name": "messages_open",
+   "description": "Show a conversation in the messages view (it opens if it isn't already): a channel ('#general') or a person's name for the user's direct messages with them ('Maya'). Use it for 'open my chat with Maya', 'pull up #general'. It only shows it; nothing is sent. The user has to be at their desk. Then say in a few words what you opened.",
+   "parameters": {"type": "object", "properties": {
+     "channel": {"type": "string", "description": "#name, channel id, or a person's name"}},
+     "required": ["channel"]}},
+  {"name": "messages_send",
+   "description": "Write a message on the user's behalf. This only WRITES A DRAFT: nothing is sent. The text appears with Send and Cancel buttons. After calling, tell the user in one short line what you wrote and ask them to tap Send or say 'send it'. NEVER say the message was sent. It goes out under the USER's own name, so write in their voice (first person, their tone). To answer someone, pass that message's ts as reply_to_ts. To message a person directly ('message Maya ...') pass their name as channel. With no channel and no reply_to_ts it goes to the conversation open in the messages view. To change the wording afterwards use messages_edit_draft; calling this again replaces the old draft.",
+   "parameters": {"type": "object", "properties": {
+     "text": {"type": "string", "description": "the message, as the user would write it"},
+     "channel": {"type": "string", "description": "#name, channel id, or a person's name (optional)"},
+     "reply_to_ts": {"type": "string", "description": "ts of the message being answered (optional)"},
+     "open_messenger": {"type": "boolean", "description": "show the draft in the messages view (default: only if it is already open; otherwise it pops up as a card next to you)"}},
+     "required": ["text"]}},
+  {"name": "messages_edit_draft",
+   "description": "Reword the open draft ('rephrase it', 'make it shorter', 'say we need them by Friday'): pass the whole new text. Keeps the recipient; the draft updates where it shows. Still NOT sent: say what changed and ask them to tap Send or say 'send it'.",
+   "parameters": {"type": "object", "properties": {
+     "text": {"type": "string", "description": "the full new message, in the user's voice"}},
+     "required": ["text"]}},
+  {"name": "messages_confirm",
+   "description": "The user's decision on the open draft. send=true when they say 'send it' / 'yes' / 'go ahead' (it goes out under their name), send=false when they say 'cancel' / 'never mind' / 'don't send'. Only call this after the user clearly decided; a tap on Send or Cancel does the same thing.",
+   "parameters": {"type": "object", "properties": {
+     "send": {"type": "boolean", "description": "true = send it, false = discard it"},
+     "draft_id": {"type": "string", "description": "optional; defaults to the open draft"}},
+     "required": ["send"]}}
+]

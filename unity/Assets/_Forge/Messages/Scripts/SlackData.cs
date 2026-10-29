@@ -243,7 +243,7 @@ public static class SlackText
 
     // Slack's dark theme: links and other people's mentions blue on a faint blue, the user's own mentions and @here
     // yellow on a faint yellow, inline code orange on a faint white.
-    const string SlackBlue = "#1D9BD1", SlackBlueBg = "#1D9BD126", SlackYellow = "#F2C744", SlackYellowBg = "#F2C74438";
+    const string SlackBlue = "#C7A8FF", SlackBlueBg = "#A77BFF26", SlackYellow = "#F2C744", SlackYellowBg = "#F2C74438";
     const string CodeOpen = "<color=#E8912D><mark=#FFFFFF12>", CodeClose = "</mark></color>";
     // Bold without most of TMP's faux-bold letter spacing (SlackUi.SetBold does the same for whole texts).
     public const string BoldOpen = "<b><cspace=-0.055em>", BoldClose = "</cspace></b>";

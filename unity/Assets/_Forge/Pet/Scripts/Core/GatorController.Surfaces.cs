@@ -167,18 +167,34 @@ namespace Forge.Pet
             return (2f * apex - d + 2f * Mathf.Sqrt(Mathf.Max(0f, apex * (apex - d)))) * 0.25f;
         }
 
+        // Desk views put their panels Workspace.panelRadius (0.8 m) from the head: keep the gator in front of them.
+        public const float NearDeskReach = 0.68f;  // m from the head, flat
+
+        static float FlatLength(Vector3 d) => Mathf.Sqrt(d.x * d.x + d.z * d.z);
+
         // Uniform point inside the surface's rectangle, projected onto its NavMesh.
         bool TryPickSurfacePoint(GatorNavSurface s, out Vector3 point)
         {
             NavMeshQueryFilter f = navFilter; f.areaMask = WalkableMask;
             Vector2 size = s.Size;
             float minTrip = Mathf.Min(0.8f, 0.3f * Mathf.Min(size.x, size.y));
+            // A desk view is open: stay on the strip of desk in front of its panels (NearDeskReach)...
+            Transform head = s == GatorNavSurface.Desk && PetWorkspace.ActiveMode != null ? PetUser.Head : null;
+            // ...and on his own side of the dock: the way around its keep-out runs behind the panels.
+            float side = head != null ? Vector3.Dot(transform.position - head.position, head.right) : 0f;
             for (int i = 0; i < 8; i++)
             {
                 Vector3 l = new Vector3((UnityEngine.Random.value - 0.5f) * size.x, 0f, (UnityEngine.Random.value - 0.5f) * size.y);
                 Vector3 p = s.TopCenter + s.Rotation * l;
+                if (head != null)  // only the strip of desk in front of the panels counts: pick around the head
+                {
+                    Vector2 c = UnityEngine.Random.insideUnitCircle * NearDeskReach;
+                    p = new Vector3(head.position.x + c.x, s.TopCenter.y, head.position.z + c.y);
+                }
                 if (NavMesh.SamplePosition(p, out NavMeshHit hit, 0.3f, f) && FlatDistance(hit.position) > minTrip
-                    && !s.IsInsideHole(hit.position, out _))      // the snap radius can land on a hole's edge
+                    && !s.IsInsideHole(hit.position, out _)       // the snap radius can land on a hole's edge
+                    && (head == null || (FlatLength(hit.position - head.position) < NearDeskReach
+                                         && Vector3.Dot(hit.position - head.position, head.right) * side > 0f)))
                 {
                     point = hit.position;
                     return true;

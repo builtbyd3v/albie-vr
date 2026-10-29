@@ -58,7 +58,8 @@ public class DeskExtras : MonoBehaviour
         if (status == ForgeNetStatus.Mock && fetched) return;
         fetched = true;
         ForgeNet.Get<TimersUpdated>("/timers", OnTimers, _ => { });
-        ForgeNet.Get<NotesUpdated>("/notes", OnNotes, _ => { });
+        if (status == ForgeNetStatus.Mock && DeskApi.LoadSavedNotes(out var saved)) OnNotes(saved);  // hub off: this device's notes
+        else ForgeNet.Get<NotesUpdated>("/notes", OnNotes, _ => { });
         ForgeNet.Get<MovieState>("/movie", OnMovie, _ => { });
         ForgeNet.Get<UiWidgets>("/ui/widgets", OnWidgets, _ => { });
     }

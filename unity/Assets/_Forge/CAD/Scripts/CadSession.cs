@@ -128,7 +128,8 @@ public class CadSession : MonoBehaviour
     bool fetching;
     CadModelUpdated pending;  // newest version announced while a fetch was running
 
-    static string HubLabel => "Hub " + ForgeNet.Url("").TrimEnd('/');
+    static string HubLabel => ForgeCloud.Routes("/cad/") ? "Albie's cloud" : "Hub " + ForgeNet.Url("").TrimEnd('/');
+    IDisposable cloudReady;
     List<CadMockSet.Version> MockVersions => mocks.parts[mockPart].versions;
 
     /// <summary>The scene's session; created on first use, falling back to these mocks.</summary>
@@ -158,6 +159,7 @@ public class CadSession : MonoBehaviour
         ForgeEvents.OnCadRegenFailed += OnRegenFailed;
         ForgeEvents.OnCadAction += OnCadAction;
         ForgeNet.StatusChanged += OnNetStatus;
+        cloudReady = ForgeNet.On("cloud.ready", _ => { if (Ready && IsMock && mode == Mode.Auto) StartHub(); });  // the cloud came up later
     }
 
     void OnDisable()
@@ -167,6 +169,8 @@ public class CadSession : MonoBehaviour
         ForgeEvents.OnCadRegenFailed -= OnRegenFailed;
         ForgeEvents.OnCadAction -= OnCadAction;
         ForgeNet.StatusChanged -= OnNetStatus;
+        cloudReady?.Dispose();
+        cloudReady = null;
     }
 
     // This project enters Play mode without a domain reload: statics, and static subscriptions, outlive a session.
@@ -192,8 +196,8 @@ public class CadSession : MonoBehaviour
         {
             // ForgeNet decides within its fallback time whether a hub is there.
             _ = ForgeNet.Instance;  // created on first use if the scene has none (sandboxes)
-            while (ForgeNet.Status == ForgeNetStatus.Connecting) yield return null;
-            IsMock = ForgeNet.IsMock;
+            while (ForgeNet.Status == ForgeNetStatus.Connecting || (ForgeNet.IsMock && !ForgeCloud.Probed)) yield return null;
+            IsMock = ForgeNet.IsMock && !ForgeCloud.Serves("/cad/");  // hub off: Albie's cloud, else the mocks
         }
         Ready = true;
         if (IsMock)
@@ -788,6 +792,7 @@ public class CadSession : MonoBehaviour
             req.downloadHandler = new DownloadHandlerBuffer();
             req.SetRequestHeader("Content-Type", "application/json");
             req.timeout = 30;
+            ForgeCloud.Authorize(req);
             yield return req.SendWebRequest();
             if (req.result != UnityWebRequest.Result.Success)
             {
@@ -816,6 +821,7 @@ public class CadSession : MonoBehaviour
         using (var req = UnityWebRequest.Get(ForgeNet.Url(path)))
         {
             req.timeout = timeout;
+            ForgeCloud.Authorize(req);
             yield return req.SendWebRequest();
             done(req.result == UnityWebRequest.Result.Success ? req.downloadHandler.text : null);
         }
@@ -826,6 +832,7 @@ public class CadSession : MonoBehaviour
         using (var req = UnityWebRequest.Get(ForgeNet.Url(path)))
         {
             req.timeout = timeout;
+            ForgeCloud.Authorize(req);
             yield return req.SendWebRequest();
             done(req.result == UnityWebRequest.Result.Success ? req.downloadHandler.data : null);
         }

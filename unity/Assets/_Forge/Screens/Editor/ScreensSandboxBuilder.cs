@@ -30,7 +30,7 @@ public static class ScreensSandboxBuilder
         var root = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(ForgePanelPath));
         var panel = root.GetComponent<ForgePanel>();
         panel.panelId = "screen-main";
-        panel.Title = "VS Code";
+        panel.Title = "Code";
         panel.SizeMeters = new Vector2(0.9f, 0.55f); // Workspace's Main slot; the width then follows the stream
         var placeholder = panel.Content.Find("Placeholder");
         if (placeholder != null) placeholder.gameObject.SetActive(false);

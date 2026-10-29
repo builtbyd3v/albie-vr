@@ -122,17 +122,18 @@ public static class DeskApi
     }
 
     /// <summary>A new timer (the sandbox's keys; Bit starts them through the hub).</summary>
-    public static void TimerStart(float seconds, string label)
+    public static DeskTimer TimerStart(float seconds, string label)
     {
         if (Live)
         {
             ForgeNet.Post("/timers", new { seconds, label });
-            return;
+            return null;
         }
         Advance();
-        string name = string.IsNullOrEmpty(label) ? "Focus" : label;
-        timers.Add(new DeskTimer { timerId = "m" + (++mockIds), label = name, status = "running", durationS = seconds, remainingS = seconds });
+        var timer = new DeskTimer { timerId = "m" + (++mockIds), label = TimerName(label), status = "running", durationS = seconds, remainingS = seconds };
+        timers.Add(timer);
         EmitTimers();
+        return Copy(timer);
     }
 
     static void Timer(string id, string action, System.Func<DeskTimer, bool> change, object body = null)
@@ -212,7 +213,7 @@ public static class DeskApi
         var note = notes.notes.Find(n => n.id == id);
         if (note == null) return;
         note.done = done;
-        ForgeNet.Emit(ForgeEvents.NotesUpdatedType, notes);
+        NotesChanged();
     }
 
     public static void NoteRemove(string id)
@@ -226,7 +227,7 @@ public static class DeskApi
         if (note == null) return;
         notes.notes.Remove(note);
         notes.lastRemoved = note;
-        ForgeNet.Emit(ForgeEvents.NotesUpdatedType, notes);
+        NotesChanged();
     }
 
     public static void NoteUndo()
@@ -240,7 +241,7 @@ public static class DeskApi
         notes.notes.Add(notes.lastRemoved);
         notes.notes.Sort((a, b) => b.createdAt.CompareTo(a.createdAt));
         notes.lastRemoved = null;
-        ForgeNet.Emit(ForgeEvents.NotesUpdatedType, notes);
+        NotesChanged();
     }
 
     /// <summary>A new note (the sandbox's keys; Bit writes them through the hub).</summary>
@@ -252,14 +253,127 @@ public static class DeskApi
             return;
         }
         double now = (System.DateTime.UtcNow - new System.DateTime(1970, 1, 1)).TotalSeconds;
-        notes.notes.Insert(0, new DeskNote { id = "m" + (++mockIds), text = text, createdAt = now, updatedAt = now });
-        ForgeNet.Emit(ForgeEvents.NotesUpdatedType, notes);
+        // Unique across restarts: saved notes come back with their ids (LoadSavedNotes).
+        notes.notes.Insert(0, new DeskNote { id = System.Guid.NewGuid().ToString("N").Substring(0, 8), text = text, createdAt = now, updatedAt = now });
+        NotesChanged();
         if (widgets.notes == "closed") SetWidget("notes", "open");
+    }
+
+    // Hub off, the notes live on the device: saved on every change, read back by DeskExtras at start.
+    static string NotesFile => System.IO.Path.Combine(Application.persistentDataPath, "notes.json");
+
+    static void NotesChanged()
+    {
+        ForgeNet.Emit(ForgeEvents.NotesUpdatedType, notes);
+        try { System.IO.File.WriteAllText(NotesFile, Newtonsoft.Json.JsonConvert.SerializeObject(notes)); }
+        catch (System.Exception e) { Debug.LogWarning($"[DeskApi] couldn't save the notes: {e.Message}"); }
+    }
+
+    public static bool LoadSavedNotes(out NotesUpdated saved)
+    {
+        saved = null;
+        try
+        {
+            if (System.IO.File.Exists(NotesFile))
+                saved = Newtonsoft.Json.JsonConvert.DeserializeObject<NotesUpdated>(System.IO.File.ReadAllText(NotesFile));
+        }
+        catch (System.Exception e) { Debug.LogWarning($"[DeskApi] couldn't read the saved notes: {e.Message}"); }
+        return saved != null;
+    }
+
+    // ---------------------------------------------------------------- hub off: what Albie's tools read (DeskTools)
+
+    public const int MaxTimers = 5;
+    public const float MaxTimerSeconds = 10 * 3600;
+
+    public static List<DeskTimer> TimerStates()
+    {
+        Advance();
+        return timers.ConvertAll(Copy);
+    }
+
+    /// <summary>A timer by id or name (or part of one), as the hub's desk/timer.py finds it.</summary>
+    public static DeskTimer TimerFind(string reference)
+    {
+        string r = (reference ?? "").Trim();
+        var byId = timers.Find(t => t.timerId == r);
+        if (byId != null) return byId;
+        string words = r.ToLowerInvariant();
+        var hits = timers.FindAll(t => t.label.ToLowerInvariant() == words);
+        if (hits.Count == 0 && words.Length > 0) hits = timers.FindAll(t => t.label.ToLowerInvariant().Contains(words));
+        if (hits.Count == 1) return hits[0];
+        if (timers.Count == 0) throw new System.ArgumentException("no timer is set");
+        if (hits.Count == 0) throw new System.ArgumentException($"no timer called '{r}'");
+        throw new System.ArgumentException("which one? " + TimerNames(hits));
+    }
+
+    /// <summary>The timers an action means: by name, "all", or with none the only one it can apply to (stop: the ringing ones).</summary>
+    public static List<DeskTimer> TimerPick(string reference, string action)
+    {
+        Advance();
+        if (!string.IsNullOrWhiteSpace(reference))
+            return reference.Trim().ToLowerInvariant() == "all" ? new List<DeskTimer>(timers) : new List<DeskTimer> { TimerFind(reference) };
+        string[] fits = action == "pause" ? new[] { "running" } : action == "resume" ? new[] { "paused" }
+            : action == "stop" ? new[] { "ringing" } : new[] { "running", "paused", "ringing" };
+        var hits = timers.FindAll(t => System.Array.IndexOf(fits, t.status) >= 0);
+        if (action == "stop" && hits.Count > 0) return hits;
+        if (action == "stop") hits = new List<DeskTimer>(timers);
+        if (hits.Count == 1) return hits;
+        if (timers.Count == 0) throw new System.ArgumentException("no timer is set");
+        if (hits.Count == 0) throw new System.ArgumentException($"no timer to {action}");
+        throw new System.ArgumentException("which one? " + TimerNames(hits));
+    }
+
+    /// <summary>The label as given ("Focus" if none), made unique: a second "tea" is "tea 2".</summary>
+    public static string TimerName(string label)
+    {
+        string trimmed = string.Join(" ", (label ?? "").Split((char[])null, System.StringSplitOptions.RemoveEmptyEntries));
+        string name = trimmed.Length == 0 ? "Focus" : trimmed.Length > 40 ? trimmed.Substring(0, 40) : trimmed;
+        string unique = name;
+        for (int n = 2; timers.Exists(t => t.label.ToLowerInvariant() == unique.ToLowerInvariant()); n++) unique = $"{name} {n}";
+        return unique;
+    }
+
+    static string TimerNames(List<DeskTimer> list) =>
+        string.Join(", ", list.ConvertAll(t => $"{t.label} ({DeskUi.Human(t.remainingS)} left)"));
+
+    public static List<DeskNote> Notes => notes.notes;
+
+    public static string NotesWidget => widgets.notes;
+
+    public static DeskNote LastRemovedNote => notes.lastRemoved;
+
+    /// <summary>A note by id, or by a few words of its text ("the one about the demo").</summary>
+    public static DeskNote NoteFind(string reference)
+    {
+        string r = (reference ?? "").Trim();
+        var byId = notes.notes.Find(n => n.id == r);
+        if (byId != null) return byId;
+        string words = r.ToLowerInvariant();
+        var hits = words.Length == 0 ? new List<DeskNote>() : notes.notes.FindAll(n => n.text.ToLowerInvariant().Contains(words));
+        if (hits.Count == 1) return hits[0];
+        if (hits.Count == 0) throw new System.ArgumentException($"no note matches '{r}'");
+        throw new System.ArgumentException($"{hits.Count} notes match '{r}': " +
+            string.Join("; ", hits.GetRange(0, Mathf.Min(5, hits.Count)).ConvertAll(n => n.text.Length > 40 ? n.text.Substring(0, 40) : n.text)));
+    }
+
+    public static void NoteEdit(string id, string text)
+    {
+        var note = notes.notes.Find(n => n.id == id);
+        if (note == null || string.IsNullOrWhiteSpace(text)) return;
+        note.text = text.Trim();
+        note.updatedAt = (System.DateTime.UtcNow - new System.DateTime(1970, 1, 1)).TotalSeconds;
+        NotesChanged();
     }
 
     // ---------------------------------------------------------------- movie
 
-    public static void MoviePlay(MovieInfo info)
+    /// <summary>Hub off: the local copy (read only) and where it is now.</summary>
+    public static MovieState Movie => movie;
+    public static float MovieNow => MoviePosition();
+
+    /// <summary>Hub off, <paramref name="start"/>: play from there (default: 0 for another movie, where it was for this one).</summary>
+    public static void MoviePlay(MovieInfo info, float? start = null)
     {
         if (Live)
         {
@@ -273,7 +387,13 @@ public static class DeskApi
             movie.seekRev++;
         }
         if (movie.movie == null) return;
-        if (movie.status == "closed") movie.seekRev++;  // back where it was
+        if (start.HasValue)
+        {
+            movie.positionS = Mathf.Clamp(start.Value, 0f, movie.movie.durationS ?? float.MaxValue);
+            movieAt = Now;
+            movie.seekRev++;
+        }
+        else if (movie.status == "closed") movie.seekRev++;  // back where it was
         MovieSet("playing");
     }
 
@@ -307,6 +427,7 @@ public static class DeskApi
         if (movie.status == "closed") return;
         movie.positionS = position;
         movieAt = Now;
+        MovieTools.Keep(movie, position);
         if (ended && movie.status == "playing") MovieSet("paused");
     }
 
@@ -341,5 +462,9 @@ public static class DeskApi
 
     static float MoviePosition() => movie.positionS + (movie.status == "playing" ? Now - movieAt : 0f);
 
-    static void EmitMovie() => ForgeNet.Emit(ForgeEvents.MovieStateType, movie);
+    static void EmitMovie()
+    {
+        MovieTools.Keep(movie, MoviePosition());
+        ForgeNet.Emit(ForgeEvents.MovieStateType, movie);
+    }
 }

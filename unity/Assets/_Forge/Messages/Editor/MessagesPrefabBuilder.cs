@@ -36,8 +36,8 @@ public static class MessagesPrefabBuilder
         if (!ForgePrefabBuilder.Exist()) ForgePrefabBuilder.BuildAll();
         ForgeLookBuilder.Build();  // Inter + the PanelSurface material the cards draw with (idempotent)
         BuildCard();
-        BuildPanel(SlackPanelPath, "SlackPanel", "messages", "Slack", SlackPanelSize, go => go.AddComponent<SlackPanel>());
-        BuildPanel(IMessagePanelPath, "IMessagePanel", "messages-imessage", "iMessage", SlackPanelSize, go =>
+        BuildPanel(SlackPanelPath, "SlackPanel", "messages", "Messages", SlackPanelSize, go => go.AddComponent<SlackPanel>());
+        BuildPanel(IMessagePanelPath, "IMessagePanel", "messages-imessage", "Texts", SlackPanelSize, go =>
         {
             var panel = go.AddComponent<SlackPanel>();
             panel.iMessagePanel = true;

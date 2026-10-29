@@ -121,6 +121,7 @@ namespace Forge.Pet
 
         void Tap(string actionId)
         {
+            if (ForgeNet.Status != ForgeNetStatus.Live && AlbieCards.Tap(actionId)) { Hide(); return; }  // hub off: the device's own cards
             if (client != null) client.Send("pet.card_action", new JObject { ["pet_id"] = petId, ["action_id"] = actionId });
             Hide();
         }

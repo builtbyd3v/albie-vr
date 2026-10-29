@@ -582,7 +582,7 @@ def test_generic_verdict_speaks_for_the_worst_metric(built):
 
 def test_constants_name_the_fixed_inputs(built):
     rocket = {c["label"]: c for c in built["rocket"][0]["analysis"]["constants"]}
-    assert rocket["Motor"]["value"] == "Estes C6-5" and "24.1 g loaded" in rocket["Motor"]["note"]
+    assert rocket["Motor"]["value"] == "C6-5" and "24.1 g loaded" in rocket["Motor"]["note"]
     assert rocket["Recovery"]["value"] == "12 in parachute"
     quad = {c["label"]: c for c in built["quadcopter"][0]["analysis"]["constants"]}
     assert quad["Power system"]["value"] == "4S LiPo, 14.8 V"

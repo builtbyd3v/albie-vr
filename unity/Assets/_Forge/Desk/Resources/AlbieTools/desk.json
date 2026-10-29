@@ -1,0 +1,43 @@
+[
+  {"name": "timer_start",
+   "description": "Start a focus timer. Up to 5 run at once, each with its own name; they show as pills above the screens and each rings when its time is up. Give it a name when the user says what it's for ('tea', 'standup'). Then say in a few words what you set.",
+   "parameters": {"type": "object", "properties": {
+     "minutes": {"type": "number", "description": "length in minutes (0.5 = 30 seconds, 90 = an hour and a half)"},
+     "label": {"type": "string", "description": "what it's for, if the user said (e.g. 'tea'); default Focus"}},
+     "required": ["minutes"]}},
+  {"name": "timer_control",
+   "description": "Change a timer. pause / resume; add: `minutes` more (negative takes time off; on a timer that already rang it runs again for that long); stop: cancels it AND turns off its ring, so use it for 'turn it off', 'stop the timer', 'I'm done'. `timer` is its name (or 'all'); leave it out when there's only one it can mean (stop without one turns off whichever are ringing).",
+   "parameters": {"type": "object", "properties": {
+     "action": {"type": "string", "enum": ["pause", "resume", "add", "stop"]},
+     "timer": {"type": "string", "description": "which one: its name, or 'all' (optional)"},
+     "minutes": {"type": "number", "description": "add only"}},
+     "required": ["action"]}},
+  {"name": "timer_status",
+   "description": "Every timer: its name, how much time is left, and whether it's running, paused or ringing.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "notes_add",
+   "description": "Write something down in the user's notes, one note per call; the notes panel opens to show it. Keep the user's words, minus filler.",
+   "parameters": {"type": "object", "properties": {
+     "text": {"type": "string", "description": "the note"}},
+     "required": ["text"]}},
+  {"name": "notes_list",
+   "description": "The user's notes, newest first (id, text, done). Use it to read them back or to find one to change.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "notes_edit",
+   "description": "Change one note: check it off (done=true), un-check it (done=false) or rewrite its text.",
+   "parameters": {"type": "object", "properties": {
+     "note": {"type": "string", "description": "the note's id, or a few words of its text"},
+     "text": {"type": "string", "description": "new text (optional)"},
+     "done": {"type": "boolean", "description": "checked off or not (optional)"}},
+     "required": ["note"]}},
+  {"name": "notes_remove",
+   "description": "Remove one note. It can be brought back: undo=true restores the last note removed.",
+   "parameters": {"type": "object", "properties": {
+     "note": {"type": "string", "description": "the note's id, or a few words of its text"},
+     "undo": {"type": "boolean", "description": "true = bring back the last removed note instead"}}}},
+  {"name": "notes_view",
+   "description": "Show or hide the notes panel: open ('pull up my notes'), minimized (it shrinks into a small dot the user can move and tap to open again), closed.",
+   "parameters": {"type": "object", "properties": {
+     "state": {"type": "string", "enum": ["open", "minimized", "closed"]}},
+     "required": ["state"]}}
+]

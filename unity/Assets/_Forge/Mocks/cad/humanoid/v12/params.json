@@ -1,7 +1,7 @@
 {
   "part": "humanoid",
   "title": "Humanoid robot",
-  "description": "Unitree G1 humanoid (BSD-3, unitree_ros): 29 joints and two 3-finger hands, posed by its joints. Will it stand? Walk plays Unitree's own trained gait.",
+  "description": "Open-source humanoid (BSD-3): 29 joints and two 3-finger hands, posed by its joints. Will it stand? Walk plays its maker's trained gait.",
   "version": 12,
   "params": [
     {

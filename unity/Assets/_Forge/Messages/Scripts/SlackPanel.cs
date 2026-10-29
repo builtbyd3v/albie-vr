@@ -330,7 +330,13 @@ public class SlackPanel : MonoBehaviour
     public bool FocusBit(NotifyMessage m)
     {
         if (m == null || string.IsNullOrEmpty(m.ts)) return false;
-        bool sent = ForgeNet.Send(FocusType, new JObject { ["pet_id"] = LeadPetId, ["ts"] = m.ts, ["channel"] = m.channel ?? selected ?? "" });
+        var focus = new JObject { ["pet_id"] = LeadPetId, ["ts"] = m.ts, ["channel"] = m.channel ?? selected ?? "" };
+        if (SlackStore.Demo)  // no hub to look the message up: Albie's on-device voice gets the message itself
+        {
+            focus["text"] = m.text;
+            focus["user_name"] = m.userName;
+        }
+        bool sent = ForgeNet.Send(FocusType, focus);
         if (!sent) Debug.LogWarning($"[SlackPanel] Hub not live; {FocusType} for ts {m.ts} dropped.");
         return sent;
     }
@@ -360,7 +366,7 @@ public class SlackPanel : MonoBehaviour
     {
         dataDirty = false;
         layoutDirty = true;
-        bool live = ForgeNet.Status == ForgeNetStatus.Live;
+        bool live = SlackStore.Available;
 
         if (selected == null)
         {
@@ -371,7 +377,7 @@ public class SlackPanel : MonoBehaviour
 
         // Sidebar. Slack: the workspace, channels A-Z, then DMs in the hub's order (unread first, then most recent).
         // iMessage: "Messages", every chat in the hub's order, no sections.
-        team.text = iMessagePanel ? "Messages" : string.IsNullOrEmpty(SlackStore.TeamName) ? "Slack" : SlackStore.TeamName;
+        team.text = iMessagePanel ? "Texts" : string.IsNullOrEmpty(SlackStore.TeamName) ? "Messages" : SlackStore.TeamName;
         order.Clear();
         if (!iMessagePanel)
         {
@@ -401,13 +407,13 @@ public class SlackPanel : MonoBehaviour
         SlackUi.Show(dmsCaret, !iMessagePanel && shownSide > channelSide);
         bool noList = shownSide == 0;
         SlackUi.Show(leftEmpty, noList);
-        if (noList) leftEmpty.text = !live ? "Hub offline" : SlackStore.ChannelsKnown ? "No conversations" : "Loading…";
+        if (noList) leftEmpty.text = !live ? "Connecting…" : SlackStore.ChannelsKnown ? "No conversations" : "Loading…";
 
         // Header + the frame's subtitle.
         bool dm = channel != null && SlackText.IsDmKind(channel.kind);
         bool locked = channel != null && channel.kind == "private";
         headName.text = channel != null ? SlackText.PlainName(channel) : "";
-        headTopic.text = channel == null ? "" : iMessagePanel ? "iMessage" : !string.IsNullOrEmpty(channel.topic) ? channel.topic : "";
+        headTopic.text = channel == null ? "" : iMessagePanel ? "Text messages" : !string.IsNullOrEmpty(channel.topic) ? channel.topic : "";
         SlackUi.Show(headGlyph, channel != null && !dm && !locked && !iMessagePanel);
         SlackUi.Show(headLock, locked);
         bool avatar = dm || (iMessagePanel && channel != null);
@@ -423,7 +429,7 @@ public class SlackPanel : MonoBehaviour
             int unread = 0;
             for (int i = 0; i < SlackStore.Channels.Count; i++)
                 if (SlackStore.IsProvider(SlackStore.Channels[i], iMessagePanel)) unread += SlackStore.Channels[i].unread;
-            Panel.Subtitle = channel == null ? (live ? "" : "Hub offline")
+            Panel.Subtitle = channel == null ? (SlackStore.Demo ? "Demo conversations" : live ? "" : "Connecting…")
                 : SlackText.DisplayName(channel) + " · " + (unread == 0 ? "all read" : unread == 1 ? "1 unread" : unread + " unread");
         }
 
@@ -504,7 +510,7 @@ public class SlackPanel : MonoBehaviour
         SlackUi.Show(rightEmpty, empty);
         if (empty)
         {
-            rightEmpty.text = !live ? "Hub offline\n<size=85%><alpha=#AA>Start the hub (uvicorn main:app) and this connects by itself."
+            rightEmpty.text = !live ? "Connecting…"
                 : selected == null ? "Pick a conversation"
                 : loading || list == null ? "Loading…"
                 : iMessagePanel ? "No messages here yet"
@@ -595,7 +601,7 @@ public class SlackPanel : MonoBehaviour
             var history = SlackStore.History(c.id);
             var latest = history != null && history.Count > 0 ? history[history.Count - 1] : null;
             string last = latest != null ? (latest.isMe ? "You: " : "") + latest.text : c.lastText;
-            r.preview.text = string.IsNullOrEmpty(last) ? "iMessage" : last.Replace('\n', ' ');
+            r.preview.text = string.IsNullOrEmpty(last) ? "Text message" : last.Replace('\n', ' ');
             r.preview.color = on ? SlackUi.White(0.8f) : SlackUi.SkMuted;
         }
         // Like Slack: a count for DMs and for mentions; a channel that is only unread just goes bold.
@@ -619,7 +625,7 @@ public class SlackPanel : MonoBehaviour
 
     void AskAlbie(NotifyMessage m)
     {
-        if (!FocusBit(m)) composer.ShowStatus("Hub offline");
+        if (!FocusBit(m)) composer.ShowStatus("Albie can't hear right now");
         else composer.ShowStatus("Albie is reading it…");
     }
 

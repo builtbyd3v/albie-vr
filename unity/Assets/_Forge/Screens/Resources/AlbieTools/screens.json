@@ -1,0 +1,5 @@
+[
+  {"name": "screen_status",
+   "description": "Whether a computer's screen can show here: a computer connected, and its screen streaming to the panel. Use it when the user asks to see their laptop or computer screen, or asks what's on it. Seeing a computer's screen is optional: with none connected, say so plainly and how to connect one (the `how` field); never pretend to see it.",
+   "parameters": {"type": "object", "properties": {}}}
+]

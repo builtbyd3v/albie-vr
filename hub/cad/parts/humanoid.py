@@ -24,8 +24,8 @@ from cad.part_api import (Analysis, BuildResult, Constant, Demo, Dimension, Expl
                           Metric, Motion, MotionJoint, Param, Verdict, band)
 
 TITLE = "Humanoid robot"
-DESCRIPTION = ("Unitree G1 humanoid (BSD-3, unitree_ros): 29 joints and two 3-finger hands, posed by its joints. "
-               "Will it stand? Walk plays Unitree's own trained gait.")
+DESCRIPTION = ("Open-source humanoid (BSD-3): 29 joints and two 3-finger hands, posed by its joints. "
+               "Will it stand? Walk plays its maker's trained gait.")
 GLYPH = "robot"
 
 LEGS = ("*hip_*", "*thigh*", "*shin*", "*ankle*", "*foot*")
@@ -97,7 +97,7 @@ ARM_SWING = 3.0                 # Walk: shoulder pitch swing per radian of same-
 BALANCE_BANDS = ((0.0, "bad"), (25.0, "warn"), (120.0, "ok"))
 LOAD_BANDS = ((60.0, "ok"), (90.0, "warn"), (150.0, "bad"))
 ASSUMPTIONS = [
-    "Static: the pose held still, gravity only. Masses, centres of mass and joint axes from Unitree's URDF.",
+    "Static: the pose held still, gravity only. Masses, centres of mass and joint axes from the robot's URDF.",
     "Motor ratings are the URDF's peak torques; holding a pose for long takes less (motors heat up).",
     "Both feet on the ground share the weight by the lever rule; the hips stay over the feet when it leans.",
 ]
@@ -444,8 +444,8 @@ def analyze(result: BuildResult, masses) -> Analysis:
         demo=walk,
         mass_groups=mass_groups(result),
         verdict=verdict(st),
-        constants=[Constant("Robot", "Unitree G1, 29 joints", "URDF masses and ratings · BSD-3"),
-                   Constant("Hands", "Dex3-1, 7 joints each", "3 fingers"),
+        constants=[Constant("Robot", "Humanoid, 29 joints", "URDF masses and ratings · BSD-3"),
+                   Constant("Hands", "7 joints each", "3 fingers"),
                    Constant("Joint motors", "25–139 N·m peak", "shoulders 25 · waist 35 · knees 139")],
         extra={"assumptions": ASSUMPTIONS + ([f"Held at its limit: {', '.join(s.clamped)}."] if s.clamped else [])})
 
@@ -614,7 +614,7 @@ def walk_summary(p: dict, st: Statics) -> Demo:
     load = WalkLoad(st)
     return Demo(
         kind="walk", label="Walk", source="/cad/motion",
-        note=f"Walks a {lap['radius_m']:.2f} m circle with Unitree's own trained gait, recorded in MuJoCo.",
+        note=f"Walks a {lap['radius_m']:.2f} m circle with its maker's trained gait, recorded in a physics sim.",
         readouts=[Metric("speed", "Speed", lap["mean_speed_m_s"], "m/s", digits=2),
                   Metric("steps", "Step rate", lap["step_rate_hz"] * 60, "steps/min"),
                   Metric("walk_load", "Peak joint load", load.peak, "%", band(load.peak, LOAD_BANDS), 0.0, 150.0,
@@ -622,7 +622,7 @@ def walk_summary(p: dict, st: Statics) -> Demo:
                          display=f"{load.peak:.0f}% · {load.words.split(' (')[0].split()[-1]}")],
         values={"speed_m_s": lap["mean_speed_m_s"], "step_rate_hz": lap["step_rate_hz"], "lap_s": lap["duration_s"],
                 "radius_mm": lap["radius_m"] * 1000, "peak_load_pct": load.peak},
-        assumptions=["Legs from Unitree's walking policy (unitree_rl_gym), recorded once in MuJoCo; the arms "
+        assumptions=["Legs from the maker's open walking policy, recorded once in a physics sim; the arms "
                      "swing opposite the legs; the rest holds this version's pose.",
                      f"Leg torques from that simulation ({clip()['model_mass_kg']:.1f} kg robot), scaled by this "
                      "version's weight with its load; upper-body loads static, as posed."],

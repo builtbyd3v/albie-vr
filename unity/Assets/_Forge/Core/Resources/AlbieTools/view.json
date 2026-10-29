@@ -1,0 +1,7 @@
+[
+  {"name": "ui_open_view",
+   "description": "Open one of the workspace views at the user's desk; one view shows at a time. cad = 3D modeling (the CAD design on the desk, its drawing, panel and versions), code = the code editor, ml = machine learning (training data and runs), messages = the messenger; none closes the open view. Call this only when the user asks for a view. If it returns an error, tell the user (usually: sit down at the desk first).",
+   "parameters": {"type": "object", "properties": {
+     "view": {"type": "string", "enum": ["cad", "code", "ml", "messages", "none"]}},
+     "required": ["view"]}}
+]

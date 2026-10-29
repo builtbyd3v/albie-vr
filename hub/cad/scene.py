@@ -206,9 +206,9 @@ def default_demo(result: BuildResult, features: Iterable[str]) -> Demo:
     spec = result.rocket
     if "flight" not in features or spec is None:
         return Demo()
-    motor = f"{spec.motor}-{spec.ejection_delay_s:g}" if spec.motor else "its motor"
+    motor = f"a {spec.motor}-{spec.ejection_delay_s:g} motor" if spec.motor else "its motor"
     return Demo(kind="launch", label="Fly", source="/cad/flight", axis=((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
-                note=f"Launches on an {motor} and comes down on a {spec.parachute_mm:g} mm parachute.",
+                note=f"Launches on {motor} and comes down on a {spec.parachute_mm:g} mm parachute.",
                 values={"rail_m": RAIL_M, "inclination_deg": INCLINATION_DEG,
                         "ejection_delay_s": spec.ejection_delay_s, "parachute_mm": spec.parachute_mm})
 
