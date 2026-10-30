@@ -1,10 +1,18 @@
 # CLAUDE.md
 
-Read `docs/PROJECT_CONTEXT.md` first. It's the source of truth: the pitch, demo script, module owners, contracts (section 7), and current status (section 0).
+Read `PROJECT_CONTEXT.md` (repo root) first. It's the source of truth for the next Albie:
+- status and the Meta VR Start competition rules (section 0)
+- verified facts about Meta's Muse models (section 1)
+- decisions (section 2)
+- the build-anything plan and the competition cut (section 15)
+- contract proposals (section 13)
+- the migration and team rules (section 14)
 
-## Rules (from PROJECT_CONTEXT section 12)
-- Work only inside your module folder (section 6) unless told otherwise.
-- Contracts in section 7 are law. Propose changes, never silently change them.
+`docs/PROJECT_CONTEXT.md` is the record of the Gator Hack build: the module specs and the contracts that are live today (its section 7).
+
+## Rules (from PROJECT_CONTEXT section 14.6)
+- Work only inside your module folder (`unity/Assets/_Forge/<Module>/`, `hub/<module>/`) unless told otherwise.
+- Contracts are law: the live ones in `docs/PROJECT_CONTEXT.md` section 7, plus the proposals in `PROJECT_CONTEXT.md` section 13 once the Core owner accepts them. Propose changes, never silently change them.
 - Mock first. Every Unity module runs in its own sandbox scene with mocks from `Assets/_Forge/Mocks/` with the hub off.
 - Never edit `Main.unity`, `Packages/manifest.json`, or Project Settings unless you are the Core owner (Hudson).
 - Ship features as prefabs. No scene-only setup that someone else has to recreate.
