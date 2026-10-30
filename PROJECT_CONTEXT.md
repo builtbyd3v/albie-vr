@@ -10,7 +10,7 @@
 
 **How to read this file**
 - Sections 1 and 2 are authoritative. When a later section disagrees with them, sections 1 and 2 win.
-- Sections 5 to 11 are the specs for each part of the product.
+- Sections 5 to 11 are the specs for each part of the product. Section 15 (build anything: the Thing runtime, notebook, code mode as cockpit, competition cut) supersedes the drone-only demo in sections 4 and 8.4.
 - Section 12 lists gaps the plan still has to cover. Section 13 lists every proposed contract in one place. Section 14 is the migration from Albie.
 - Labels on facts:
   - **(verified)**: confirmed by a primary or reputable source and a fact-check pass.
@@ -1635,6 +1635,8 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 | C-13 | CAD design `source` provenance: name, creator, URL, licence, licence version, download time, hash, generated-by tier. Also a region-map file. | 11.5 | `hub/cad/service.py`, `cad.model_updated` |
 | C-14 | Neutral tool names: `cad_*`, `ml_*`, `nn_*` and the new `code_*`, `project_*`, `artifact_*`, `github_*`, `hf_*`, `sketchfab_*`, `sim_*`. The `AlbieTools` JSON format is kept as the registry format. | 10 | All `Resources/AlbieTools/*.json`, `hub/*/tools.py` |
 | C-15 | Headers: keep `x-albie-key` and `x-albie-device` until per-user tokens replace the shared app key (PR-18). | 14.3 | `cloud/lib/guard.ts`, `cloud-py/app.py`, `ForgeCloud.cs` |
+| C-16 | Thing spec `thing.spec/1`, `thing.updated`, and the `thing_*` tools: any physical object built from a parts kit on the device. | 15.2 | New Thing runtime (Unity), agent tools |
+| C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. | 15.8 | Project module |
 
 ---
 
@@ -1830,6 +1832,10 @@ Adapted from the CLAUDE.md rules. These apply to humans and to coding agents.
 | D-03 | Keep the gator for the competition. Roadmap: an original bean-style avatar of our own, generated from a concept image. No Meta avatar dependency. | Decided (2026-10-30) | Avatar owner |
 | D-04 | Git operations run in the per-user cloud workspace, not in the Quest build. Device uses REST and cloud calls. | Proposed | Code owner |
 | D-05 | Contract changes go through a proposal PR and need Core owner acceptance. | Decided (CLAUDE.md) | Core owner |
+| D-32 | **Build anything:**<br>- Projects are about any object, made from an on-device parts kit (the Thing runtime) that the agent composes and the user edits.<br>- The rocket, quadcopter, droid, gearbox and ML template are starters on that same runtime, and the demo's RC truck is composed live.<br>- Play physics runs on the device; engineering physics runs in the cloud. | Section 15. |
+| D-33 | **On device first, cloud as "Albie Pro".** Design, play physics, small-model training, artifacts and the notebook work on the Quest. Exact CAD, GPU training, cloud agents and integrations are the future subscription. Judges get everything free. | Rules: take-it-away test, free for judges. |
+| D-34 | **Every project keeps a lab notebook.** Attempts, outcomes and lessons are logged; "that didn't work" triggers a lesson and a revised plan, and lessons carry into new projects. | Section 15.8. |
+| D-35 | Electrical, PCB, firmware export and BOM are roadmap items, after the competition. | Section 15.9. |
 | D-06 | Keep the `Forge*` prefix, `_Forge/` and the `Albie*` class names. | Proposed | Core owner |
 | D-07 | Modes become CODE, PROJECT, ARTIFACTS. Messages becomes a connector in CODE MODE. | Decided (vision) | Product |
 | D-08 | Agent teams run on our own orchestrator (N sessions with worktrees or sandboxes), not Claude Agent Teams. | Proposed | Code owner |
@@ -1893,6 +1899,202 @@ The aim is one PR that deletes the feature completely and leaves timers and note
    - The hub tests pass (`BIT_VSCODE_PORT=9`).
    - `DeskSandbox.unity` runs with the hub off and shows timers and notes.
    - The device tool count drops from 59 to 55.
+
+## 15. Build anything: the Thing runtime, the lab notebook and code mode as the cockpit
+
+> Added 2026-10-30 from the product owner's direction. The drone in section 8.4 is **one** trajectory, not the design. A project can be about **any object**, built from scratch or from a starter. The user designs it, plays with it in their real room, gives it a brain (code or ML), tests it in artifacts, and keeps a record of what worked. Electrical and PCB design come later (15.9).
+
+### 15.1 Principles
+
+- **On device first.** Design, physics play, small-model training, artifacts and the notebook all run on the Quest. The cloud is for the LLM brain (Muse Spark or Claude through the gateway), exact CAD (build123d), big training jobs and integrations.
+  - The rules only *discourage* "thin wrappers around existing platforms or services", with the "take it away test": remove the third-party service, and there should still be a Project.
+  - With this design, take the LLM away and the user can still build, drive, test and train on the device.
+- **Nothing is hard-coded per object.** The rocket, quadcopter, gearbox, droid and the ML template are **starter projects** made from the same parts kit and the same project format a new project uses. The RC truck in the demo is **not built in**: Albie composes it live.
+- **Two kinds of physics, labelled honestly:**
+  - **Play physics**: PhysX on the device, instant and approximate. Every on-device result carries an "approximate" badge.
+  - **Engineering physics**: cloud, slower and more exact. Examples: RocketPy, MuJoCo, build123d mass properties.
+- **Everything runs well.** At least 72 fps on Quest 3 (the rules ask for 60):
+  - fixed physics timestep, a capped body count per Thing, procedural meshes built once per version;
+  - no allocations or LINQ in `Update`, textures 2048 max.
+- **Hands-first.** Build, grab, place, drive, review and approve all work with hands only (the contest's Stage 1 pass/fail).
+- **Subscription story.** In the future plans, the cloud tier is "Albie Pro" for engineers: exact CAD, GPU training, cloud agents, integrations. For the competition, judges get everything free (rule: "made available free of charge"), and we pay the cloud costs.
+
+### 15.2 The Thing runtime (new, on device): any object, from a parts kit
+
+A **Thing** is a project's physical object. It is described by a **Thing spec**, plain JSON that the agent writes and a person can edit. A fixed Unity runtime builds it in under a second.
+
+| Part kit (v1) | Parameters | Physics on device |
+|---|---|---|
+| `body` (box, cylinder, capsule, shell from glTF) | size, mass, centre-of-mass offset, material | Rigidbody, compound colliders |
+| `wheel` | radius, width, grip, suspension travel and stiffness, driven or steered | WheelCollider (or ArticulationBody) |
+| `motor` | max torque, rpm, response | drives wheels, rotors, joints |
+| `servo` / `joint` | axis, range, stiffness, speed | ArticulationBody joint drive |
+| `rotor` | diameter, max thrust, spin direction | force and torque at the mount |
+| `thruster` | thrust curve, burn time | force over time (the rocket motor) |
+| `fin` / `wing` | area, angle | simple lift and drag |
+| `battery` | mass, capacity | drain from motor load (the basis of the 15.9 power budget) |
+| `sensor` | range ray, IMU, speed, contact, simple camera (depth rays) | feeds the brain |
+| `payload` / `ballast` | mass, position | |
+
+- **Composition rules (validated):**
+  - vehicles = body + wheels + motor + servo steering
+  - multirotors = body + rotors (+ an attitude controller)
+  - rockets = body + thruster + fins
+  - arms and robots = bodies + joints + servos
+  - mechanisms = joints + gears (kinematic)
+- **Building it.**
+  - The validator rejects impossible specs (a wheel off the body, zero mass) and returns the reason to the agent.
+  - Meshes are procedural (rounded boxes, tyres, props) or glTF from the CAD service or a Sketchfab import (section 11). An imported mesh is only the look; the colliders and mass come from the spec.
+- **Scale.**
+  - A Thing can show at desk scale (on the desk, beside the gator) or at true scale on the floor.
+  - Physics runs at true scale; the desk view is a scaled mirror, so the numbers stay real.
+- **CAD link.** A Thing's dimensions can come from a CAD design (section 11) and flow back to it. Changing the wheel radius updates the build123d part next time the cloud is reachable, and exports (STEP, STL, BOM) come from there.
+- **New contract (proposal, C-16):**
+  - `thing.spec/1` schema plus `thing.updated {project_id, version}`.
+  - Tools: `thing_create`, `thing_set`, `thing_add_part`, `thing_remove_part`, `thing_spawn {place: desk|floor|hand}`, `thing_reset`, `thing_telemetry`.
+
+### 15.3 Your room is the test track (passthrough with a purpose)
+
+- **Real room as collision.** MRUK's scene (floor, walls, couch, table, storage boxes) becomes colliders. The truck drives on your real floor, bumps into your real couch, and can't go through walls. A drone can't fly through your ceiling.
+  - This is exactly what the judging asks for: "the player's real room meaningfully changes the experience", and "holding up in rooms the developer never tested".
+- **Grab and place.** Pinch to pick a Thing up off the desk, then drop it on the floor (MRUK floor anchor). It lands with physics.
+- **Room-aware arenas.**
+  - An artifact can generate a course from *your* room: slalom cones placed in free floor space, a hoop course under the ceiling height, a ramp against a wall.
+  - The arena is saved relative to room anchors, so reruns use the same layout (persistent spatial anchors, another judged feature).
+- **Shadows, contact dust and sound** sell it on passthrough (Polish).
+
+### 15.4 Controllers: drive it with your hands, then give it a brain
+
+Three controller types, all swappable on the same Thing:
+
+1. **Manual, hands-first.**
+   - A virtual RC transmitter appears in your hand. A pinch-drag thumb stick does throttle, and hand roll steers.
+   - Or an on-desk joystick you poke. Voice works too ("go left", "stop").
+   - For drones: two virtual sticks, plus an "assist" toggle (altitude hold).
+2. **Code.**
+   - A controller is a file in the project's repo (`controllers/truck_autopilot.json` in Phase 1: a rule and PID graph; Phase 2: a sandboxed script, D-18).
+   - It reads sensors and writes actuators each physics tick.
+   - **Edit a gain in code mode and the truck changes behaviour live** (15.7).
+3. **Learned (ML).**
+   - **On device, in minutes: behaviour cloning.** Drive two laps yourself. Albie records (sensor rays, speed) → (steer, throttle) and trains a small MLP on the headset, using the Neural Net Lab trainer (`NeuralLabSim`, which already trains on device). You watch it learn in the NN view, then hit "Autopilot".
+   - **Cloud, longer: RL** (PPO in a cloud sim, Pro tier) for harder skills: drone racing, a droid's balance.
+     - Policies come back as ONNX and run on the device with Unity's Inference Engine package.
+     - That is a `Packages/manifest.json` change, which needs the Core owner, and the package must be verified on Quest IL2CPP. Fallback: our own C# MLP forward pass, which is enough for small policies.
+   - **ML brain in code.** The learned policy is just another controller file (weights plus input and output mapping), so code mode can diff it, version it and roll it back.
+
+### 15.5 Starter projects (out of the box, all on the same runtime)
+
+| Starter | Exists today | Next on the Thing runtime |
+|---|---|---|
+| **Rocket** | build123d design, RocketPy flight sim (cloud), a canned Fly demo, stability analysis | Play-physics flight on the device (thruster + fins), so you can launch it in your room at any version. RocketPy stays the "exact" check. A Launch Range artifact compares apogee and stability across versions. |
+| **Quadcopter** | design, a canned Hover demo | 4 rotors + PID attitude hold you can fly by hand. A Hoop Course artifact. A learned controller (behaviour cloning on device; RL in the cloud). |
+| **Droid** (humanoid) | Unitree G1 model, recorded walking gait, balance and torque analysis | Joint-level play physics for poses and pushes ("will it stay standing if I push it?"); the walk stays the recorded gait. RL walking is roadmap. A Push Test artifact. |
+| **Gearbox** | design, a canned Run demo at the true ratio | Kinematic drive with a load: torque and speed readouts. A Load Test artifact (find the stall). |
+| **ML template** | text classifier / CIFAR repos, train, improve | Unchanged as a pure-ML project. It also becomes "train a model, then plug it into a Thing" (for example a small classifier turning sensor rays into "obstacle ahead"). |
+| **Neural Net Lab** | on-device training sandbox | Becomes the brain trainer UI for any learned controller. |
+| **RC truck** | **nothing** | **Composed live in the demo** from the parts kit (15.6). Proves "any object". |
+
+### 15.6 Demo spine v2: "build an RC truck and drive it around my room" (about 3 minutes, hands only)
+
+1. **Sit down.** The gator hops onto the desk. "What are we building today?"
+2. **Plan (20 s).** "Let's build an RC truck that can do a slalom around my couch." Albie asks two questions (size, speed), then writes a short plan card: goal, parts, test, milestones.
+3. **Compose (15 s).** Albie writes the Thing spec, and the truck assembles itself on the desk at desk scale, part by part (chassis, wheels, motor, servo, battery, shell).
+4. **Drop and drive (30 s).** Pinch it up and drop it on the real floor. The RC transmitter appears in your hand. Drive it, and it bumps into the couch.
+5. **Fail and learn (20 s).** Take a sharp turn and it flips. "It rolled over. Want me to lower the centre of mass and widen the track?" The **notebook** logs attempt v1 as failed, with a cause.
+6. **Iterate (15 s).** "Yes." v2 rebuilds in under a second. The ghost of v1 stays visible beside it.
+7. **Artifact (25 s).** "Make me a slalom around the couch." Cones appear in free floor space, sized to your room. Run v1's numbers against v2: v2 completes it, v1 flipped.
+8. **Brain (35 s).** "Drive it yourself twice, and I'll learn it." Two laps → the NN view trains on the desk (about 10 s) → Autopilot drives the slalom alone.
+9. **Code (15 s).** Code mode shows `truck_autopilot` as a file. Turn its `max_speed` up and the truck drives faster on its next lap. The diff becomes commit v3.
+10. **Close.** "Every engineer gets a desk that understands their work." The truck, its arena and its notebook stay in the project library.
+
+Fallbacks:
+- No network: steps 2, 3 and 7 use a cached spec and arena from the project library.
+- Behaviour cloning is too slow on the day: load the pretrained controller from v2.
+
+### 15.7 Code mode, re-ideated: less bland, and tied to real objects
+
+On device first. It works out of the box on the **project's own repo**: every project is a local git repo in the cloud workspace (D-25), with its Thing specs, controllers, artifacts and notes. GitHub is optional, plus the judges' demo account (D-30).
+
+**The cockpit:**
+1. **Live controller editing.** Open a controller and the Thing it drives is pinned beside the code panel, with live telemetry. Change a value or a rule and it hot-reloads onto the running Thing; a sparkline shows the effect. The diff is a commit.
+2. **Point and ask.** Use gaze plus pinch (Interaction SDK v207 gaze, a judged feature) to pick a line of code **or a part of the 3D object**: "why does this wheel slip?" Albie answers with both the code path and the physics reason (grip vs torque).
+3. **Code ↔ object links.**
+   - Selecting a part highlights the code that reads or drives it.
+   - Selecting a line lights up the part it touches.
+   - Telemetry values appear next to the variables that produced them.
+
+**The agent team, made visible:**
+4. **The crew walks the code.**
+   - The repo is a small spatial map on the desk: folders are islands, files are tiles.
+   - Each agent is a little gator crew member (the existing crew visuals) that walks to the file it's editing, carries a diff and drops it in your review tray.
+   - Hands: pinch-swipe a hunk right to accept, left to reject.
+   - This targets **Best Agentic Interaction**.
+5. **Overnight agents and the morning desk.**
+   - Before you leave, assign tasks ("make the autopilot handle the doorway", "write tests for the steering").
+   - When you sit down next time, the desk shows what each agent did, with results already run in the arena.
+   - This targets **Best Reason to Come Back**.
+
+**Testing, visual:**
+6. **Test wall.** Every test is a tile that glows pass or fail. Tap a red one: Albie reproduces it, shows the failing assertion and the Thing state at failure, and offers a fix.
+7. **Arena tests are tests.** An artifact run (the slalom) can be a regression test: "v5 must finish under 12 s". CI runs it headless in the cloud (Pro), or the device runs it while you watch.
+8. **History you can pull.** Git history and project versions on one ribbon. Pull it back and the Thing, its controller and its arena results all rewind together, using unified versions (D-28).
+9. **Bisect corridor.** "It used to do the slalom." Albie bisects the versions visually; each step runs the arena.
+
+**For pure software repos (no Thing):**
+10. **Run it beside the code:** a web app in the floating Playwright panel, or a CLI's output as a live log panel.
+11. **Architecture map:** the call graph as islands and bridges, with hot paths glowing from test runs.
+12. **PR and CI visuals** (sections 7.7 and 7.8), with the same gesture review.
+
+### 15.8 The lab notebook: projects that learn from failure
+
+Every project has a **notebook**: the engineering log Albie keeps while you work. It works fully on the device and syncs later.
+
+- **Attempt record.** Each version change logs: what changed, why (your words or Albie's), what we expected, what happened (arena metrics, telemetry, your verdict), the outcome (worked / partly / failed) and a **lesson**.
+  - Example: v1 failed, "rolled over on a sharp turn at 2.1 m/s". Lesson: "track width under 1.6× the CoG height rolls at this speed".
+- **"That didn't work."** Saying it (or tapping ✗ on a run) marks the attempt failed. Albie asks one question about why, writes a lesson, and proposes the next attempt.
+  - When a whole **plan** doesn't work, Albie writes a short postmortem and revises the plan (version bump), keeping the old one.
+- **Memory that carries over.** Lessons are tagged (vehicle, stability, control, ML) and stored per user, so a new project starts with relevant ones: "Last time your truck rolled at a track under 1.6× CoG height; I've started wider."
+  - Albie reads the notebook at session start (as with the plan doc).
+- **Visible progress.**
+  - A version trail of ghost Things on the desk; a "failure wall" of what broke and why (engineers love it, and it's honest).
+  - Milestones from the plan tick off, and the project shows a progress ring on its card.
+- **Contract (proposal, C-17):** `notebook.entry {project_id, version, change, rationale, expected, observed, outcome, lesson, tags}` and `notebook.updated`. Tools: `notebook_log`, `notebook_mark {outcome}`, `notebook_lessons {tags}`, `plan_revise`.
+
+### 15.9 Roadmap: electrical, PCB and real hardware (after the competition)
+
+So a project can become a real, complete engineering project.
+
+1. **Power budget** (first, and it's already physics): battery capacity vs motor and servo draw from the play sim gives run time, current peaks and heat warnings. This lives on the Thing's battery part.
+2. **Wiring view.** A component graph (battery → ESC → motor, MCU → servo, sensors), drawn as glowing wires routed on the 3D Thing, with connector and gauge checks.
+3. **Schematic from code.** The component graph is written as code (SKiDL or atopile style) in the repo and rendered as a schematic panel. ERC checks give honest errors.
+4. **PCB.** Board outline fitted to the chassis in 3D. KiCad export for layout, with placement shown on the real Thing. Autorouting is a cloud job (Pro).
+5. **Firmware export.** Turn a controller (rules, PID, or the MLP weights as a C header) into firmware for a microcontroller (ESP32 or Arduino class). Sim-to-real: flash a real RC car with the policy trained in your room.
+6. **BOM and sourcing.** From parts and electronics to a parts list with quantities. Supplier links come later. Send it to a person only after a confirm step (the existing draft-then-send pattern).
+7. **Fabrication handoff.** STEP and STL for printing, the drawing PDF and the PCB Gerbers, as one "build pack".
+
+### 15.10 Competition cut (by 2026-11-18): what to build, in order
+
+Each step is mock-first and runs with the hub off.
+
+1. **Thing runtime v1:** `body`, `wheel`, `motor`, `servo`, `battery`, `sensor(ray)`, `rotor`. Procedural meshes, MRUK colliders, grab and place, desk-scale mirror. Starts the C-16 contract.
+2. **Hands RC transmitter** plus voice drive commands.
+3. **Agent composes Thing specs** (LLM through the gateway): validator, tools from 15.2, build animation.
+4. **Room-aware arena artifact** (slalom, hoops) with saved layouts and run records (Phase 1 data-driven artifacts, D-18).
+5. **Notebook v1:** attempt records, "that didn't work", lessons shown at session start.
+6. **Behaviour cloning on device** through the Neural Net Lab trainer → Autopilot controller.
+7. **Code mode v1:** the project repo with a controller file, live edit and hot reload, diff to commit. The crew walking to files, and gesture review.
+8. **Starters on the runtime:** the quadcopter (hand-flyable with PID hold) and the rocket (play-physics launch), alongside the existing CAD viewers. The droid and gearbox keep today's demos.
+9. **Polish:** under 10 minutes to the first "wow", FoV-aware layout (fits about 70°), 72 fps, sound, a clean pause and resume.
+
+Cut from the competition build: PR and CI visuals with real GitHub (beyond the demo account), Playwright panel, Hugging Face fine-tuning, AWS and Datadog artifacts, Sketchfab auto-parameters beyond Tier 0, the bean avatar, electrical and PCB. All stay on the roadmap.
+
+### 15.11 Risks
+
+- **The physics feel decides the demo.** Tune the WheelCollider and rotor models early, on a real Quest, with hands.
+- **LLM spec quality.** Constrain the agent with the part kit, the validator and 3 to 4 worked example specs. Cache good specs per project.
+- **Behaviour cloning quality from two laps.** Use data augmentation (mirrored laps), a small network, and a fallback pretrained controller.
+- **MRUK rooms vary.** Arena generation must handle small rooms (shrink the course and say so) and missing furniture labels.
+- **Scope.** 15.10 is still a lot for 19 days. Cut from the bottom, not the middle.
 
 ---
 
