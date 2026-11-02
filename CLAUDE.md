@@ -3,7 +3,8 @@
 Read `PROJECT_CONTEXT.md` (repo root) first. It's the source of truth for the next Albie:
 - status and the Meta VR Start competition rules (section 0)
 - verified facts about Meta's Muse models (section 1)
-- decisions (section 2)
+- overall decisions and decisions by person (section 2)
+- who builds what, and when (section 16)
 - the build-anything plan and the competition cut (section 15)
 - contract proposals (section 13)
 - the migration and team rules (section 14)

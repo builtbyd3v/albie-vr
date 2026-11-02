@@ -7,11 +7,13 @@
 > This file is the single source of truth for the next Albie. Every human and every coding agent reads it first. The hackathon-era file (`docs/PROJECT_CONTEXT.md`) stays as the record of what exists today.
 >
 > **Draft 1, 2026-10-29.** A team of 52 Claude Haiku 5.5 agents researched it, fact-checked it and drafted it. 20 researchers worked on the web, 8 mapped the existing repo, 14 skeptics checked the claims about Meta, 9 wrote the sections and 1 critic reviewed the draft. The lead session then merged the drafts and resolved the conflicts. Treat every contract here as a **proposal** until its owner accepts it.
+>
+> **Revised 2026-11-01:** artifacts work with any connected service (D-36), messages run on a Meta service and are in the demo (D-37), Meta services come first (D-38), and the work is split across five people (sections 2.2 and 16, D-39).
 
 **How to read this file**
 - Sections 1 and 2 are authoritative. When a later section disagrees with them, sections 1 and 2 win.
 - Sections 5 to 11 are the specs for each part of the product. Section 15 (build anything: the Thing runtime, notebook, code mode as cockpit, competition cut) supersedes the drone-only demo in sections 4 and 8.4.
-- Section 12 lists gaps the plan still has to cover. Section 13 lists every proposed contract in one place. Section 14 is the migration from Albie.
+- Section 12 lists gaps the plan still has to cover. Section 13 lists every proposed contract in one place. Section 14 is the migration from Albie. Section 16 says who builds what, and when.
 - Labels on facts:
   - **(verified)**: confirmed by a primary or reputable source and a fact-check pass.
   - **(secondary)**: reported only by third parties.
@@ -110,9 +112,9 @@
   - Unreleased features don't, for example Muse Realtime Avatar.
   - Third-party tools (Claude, Grok, Meshy) are fine if their terms allow the use.
 - **Name and brands.** The Project must not "create or imply any association between Sponsor and any individual, entity...", and must not contain "brand names... recognizable branded products", or infringe a trademark.
-  - **So the app can't be called "Muse" or show "Muse", "Claude" or other brand names in its UI.** Name the technologies in the Devpost description instead.
+  - **So the app can't be called "Muse" or show "Muse", "Claude" or other brand names in its UI.** Name the technologies in the Devpost description instead. This covers connectors too: the UI says "source control", not the vendor's name.
   - Resolved: the app stays **Albie** (D-01).
-- **People.** "Projects may not mention or depict any identifiable person other than Entrants." Demo contacts must be fictional (today's demo messenger uses fictional names) or Entrants. The movie screen streamed a public-domain film showing real actors; it is removed (D-29).
+- **People.** "Projects may not mention or depict any identifiable person other than Entrants." Sample data, including the sample connector's, must be fictional or use Entrants. The movie screen streamed a public-domain film showing real actors; it is removed (D-29).
 - **Originality.** The Project must be "ORIGINAL to each Entrant". Covered: the whole Albie team is the Team. Third-party assets still need licences that allow the use. Albie stays the Quirky Series gator for the competition (D-03). It is a paid Unity Asset Store pack, so confirm its licence covers every Team member who builds with it (Asset Store art packs are licensed per seat or per entity) and use in a free app. It stays out of git, as today.
 - **Division:**
   - *New Experience*: "conceived of and built within the competition window (starting September 24, 2026). No pre-existing codebases, no shipped titles, no early access builds repurposed."
@@ -150,7 +152,15 @@ These facts shape the whole plan. Re-check them on `dev.meta.ai` and `developers
 | **Calling Meta AI or Muse from a Quest app** | No Horizon OS or Meta XR SDK API found that lets an app call the system assistant. | not found |
 | **Meta Voice SDK** (Unity, v85, Feb 2026) | Maintained. Wit.ai intent matching, public dictation classes (`DictationListener`, `AppDictationExperience`), and Wit-backed TTS. Not an LLM. | verified (package version and classes); Wit.ai's 2026 status unconfirmed |
 | **Wearables Device Access Toolkit 1.0** | For the **AI glasses**, not Quest. Apps can be launched with "Hey Meta". Meta AI connectors are in early access. | verified (Connect recap) |
-| **Muse Connectors developer platform** | Drew 1,500+ applications in under a week (TechCrunch). Portal terms unknown. | verified (it exists); terms unknown |
+| **Muse Connectors** | Meta's Help Center describes them only as links between the **consumer Muse app** and other services. Submitting one means Meta's functional, security and legal review, then a directory listing. | verified (Help Center; platform text quoted by a third party) |
+| **Connector list** | Gmail, Google Calendar, Outlook, Google Docs, Plaid, OpenTable, Spotify and others at launch. Asana, Box, Canva, Dropbox, Figma, Granola, Notion, Shopify, Slack, Stripe, Zoom and others added on Sep 29. Meta publishes no full list; it lives in the app's settings. | secondary (Meta posts quoted by a third-party tracker) |
+| **Using a user's connectors from the Model API** | **Not found.** Nothing says a third-party app can reach them. | not found |
+| **MCP with Muse** | Sources conflict. One says Muse has no "add MCP server" setting and builds its own client; another quotes MCP onboarding in a developer program. | unverified |
+| **Muse Connectors developer portal** | Drew 1,500+ applications in under a week (TechCrunch). Third parties report business verification and onboarding in waves. No review timeline found. | verified (it exists); terms secondary |
+| **Meta messaging APIs** | WhatsApp Cloud API and the Messenger Platform send from a **business number or a Page**, never from a person's account. The recipient must message first, which opens a 24-hour window; outside it, only approved templates or opt-ins. WhatsApp has a test number with registered recipients. | verified (Meta developer docs, 2026-11-01) |
+| **WhatsApp ban on general-purpose assistants** | From 2026-01-15 the Business API bars AI assistants as a main service; support and booking bots stay allowed. An open-ended assistant like Albie would likely fall under the ban. | secondary (Meta's policy text not read) |
+| **Muse's own messaging** | Messenger and Instagram are reported as connectors "only available to Muse". WhatsApp is a place to talk to Muse, not a connector. No developer access. | secondary |
+| **Messenger files and access** | Files can be sent by URL. **In development mode, only people with a role on the app** trigger webhooks and receive; anyone else needs Advanced Access through App Review, with no timeline found. The recipient ID comes from a `messages` webhook on an HTTPS endpoint. Size limits and rules for .glb, .stl or .zip: not found, so test them. | verified (Meta docs, 2026-11-01); limits not found |
 | **Muse Gadgets SDK** | Open-source hardware SDK (ESP32 and Linux, Apache 2.0). Not for Quest. | verified |
 | **Meta VR Glasses** | Announced at Connect 2026. $1,299, ships spring 2027, tethers to PC or Mac. Same OS and SDK family as Quest. Device Readiness Check, Meta VR CLI. Unity 6000.0.66f2 or later. About 70° horizontal FOV. Muse comes to Meta's glasses with a wake word "in the coming months". | verified (core facts); "Project Phoenix" name, weight, RAM and vertical FOV unverified |
 
@@ -169,76 +179,175 @@ These facts shape the whole plan. Re-check them on `dev.meta.ai` and `developers
    - Roadmap: an original bean-style avatar, generated as a rigged glTF from a concept image (section 5.5).
    - Keep the avatar behind an interface, so the gator, the bean or a future Meta asset can be swapped in.
 4. **Apply for early access now.**
-   - Muse Connectors, Meta realtime voice, and Muse Realtime Avatar developer access.
+   - Meta realtime voice and Muse Realtime Avatar developer access.
+   - Connector access from the Model API, if it's ever offered. Publishing Albie as a Muse connector is a roadmap idea, since review needs business verification and has no stated timeline.
    - The Meta Data Use Checkup is needed before any production platform API (user ID, entitlements).
 5. **Muse Code is a candidate for CODE MODE**, next to Claude: Meta already ties it to Quest and glasses tooling. Evaluate it (D-16) rather than assume either.
 6. **Glasses-ready from day one.** Keep passing the Device Readiness Check.
    - Assume tethered PC or Mac use and the glasses' narrower FOV: panels must fit about 70° horizontally.
    - Input is hands, a virtual keyboard and a trackpad.
 7. **Naming.** "Muse" is Meta's own brand family, so it is never our product name or shown in the UI. The product stays **Albie** (D-01).
+8. **We can't inherit a user's Muse connectors.** As far as we can find, they work only inside Meta's app. Albie's "works with whatever is connected" runs on its own connector host, with a slot for Muse connectors if Meta opens them (section 9.6).
+9. **Meta messaging can't send as you, but it can send to you.** A Page can message anyone who messaged it first, so "send me the updated model" fits. "Tell a teammate yes" as you doesn't (D-37).
+
+### 1.3 Meta first: which service does which job (D-38)
+
+A non-Meta row needs a reason. Person 3 owns the Brain rows and records test results here. Person 2 owns the headset rows.
+
+| Job | Service | Why not Meta, if not |
+|---|---|---|
+| Voice turns, planning, Thing specs, artifact generation, notebook lessons | Muse Spark through the gateway | |
+| Small code edits, explaining a diff | Muse Spark | |
+| Hard planning only, if Spark falls short | Muse Wonder (about 3 to 5 times the price, so not the default) | |
+| Long agentic coding, agent-team runs, ML repo adapters | **Claude** | Not yet proven on Spark. Muse Code is evaluated after the competition (D-16). |
+| Speech to text | Muse Voice Transcribe | |
+| Text to speech | Meta Voice SDK TTS first (Wit.ai's 2026 status is unconfirmed) | A third-party streaming TTS only if Meta's fails the latency test. Meta has no other TTS. |
+| Fallback voice | **Grok** | Only until the Muse pipeline passes on a Quest 3 (D-02). |
+| Hands, gaze, poke, grab | Interaction SDK | |
+| Room, floor, walls, furniture, anchors | MRUK and spatial anchors | |
+| Mouth movement | Movement SDK audio-to-visemes, if confirmed on a Quest 3 | Falls back to TTS timings or audio level, with no other vendor. |
+| User ID and entitlements | Platform SDK (needs the Data Use Checkup) | |
+| Readiness, scaffolding, release | Device Readiness Check, Meta VR CLI, Developer Dashboard | |
+| On-device training and physics | Our own trainer and Unity PhysX | Meta has no such service. |
+| Sending the user a file or update | Messenger Platform, through a Page (D-37) | |
+| Repo hosting | **GitHub** | Meta has no such service. |
+
+All Spark and Claude calls go through one gateway with one routing table (task type to model), so a task can move between models by changing config.
 
 ---
 
 ## 2. Decisions
 
-### 2.1 Settled by the product vision (the user, 2026-10-29)
+Section 2.1 is the one list of decisions. Section 2.2 gives each person the decisions they own and what they must decide next. Section 2.3 lists what needs the whole team.
 
-| ID | Decision |
-|---|---|
-| D-07 | Three top-level modes: **CODE MODE**, **PROJECT MODE**, **ARTIFACTS**. ML, CAD, the NN Lab and simulation become core tools used inside projects and artifacts. Messages and the desk extras (timers and notes) stay as connectors and extras available in any mode. |
-| D-20 | The agent's brain and voice come from **Meta's Muse**, replacing Grok. In practice that means the pipeline in section 1.2. |
-| D-21 | Avatar: a Meta Muse avatar if Meta ships a developer 3D model. **It doesn't, so Albie stays the gator for now, and an original avatar of our own is on the roadmap** (D-03, section 5.5). |
-| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `GatorNavSurface` and `GatorController.Surfaces`). Away from a desk it floats around the room on a small cloud. |
-| D-23 | On device where possible, with an app cloud for files that aren't on the device. |
-| D-24 | Repos: clone the user's GitHub repo into their cloud workspace. Switching repos clears it only when the work is safe (D-25). A project can start with no integrations and be pushed to GitHub later. |
-| D-26 | CAD: browse Sketchfab (or similar) and turn a downloaded model into parts and parameters in the existing CAD part, parameter and version system. |
-| D-27 | Core tools: everything built here becomes a reusable tool set for any engineering project, used to build the exact visuals and tooling the user needs. |
+- **Decided**: the product direction. Change it only as a team.
+- **Proposed**: the plan's recommendation. It stands unless its owner changes it. The owner records the change here in the same PR.
 
-### 2.2 Recommended by the plan (needs your OK)
+### 2.1 Overall decisions
 
-These resolve the conflicts the critic found between the drafted sections. Later sections were edited to match.
+| ID | Decision | Status | Owner |
+|---|---|---|---|
+| D-01 | Product name stays **Albie**. "Muse" is never the product name or in the UI. | Decided | Person 1 |
+| D-02 | **Voice = `VoiceBackend` interface.**<br>- Muse pipeline: Voice Transcribe, then Spark, then TTS.<br>- Grok adapter kept as the fallback and current default until the Muse path passes latency and quality tests on a Quest 3.<br>- TTS candidates: Meta Voice SDK TTS (Wit-backed) first, then a third-party streaming TTS with under 300 ms to first audio and word timings.<br>*Why:* No Meta speech-to-speech exists (section 1.1). | Decided | Person 3 |
+| D-03 | **Avatar (decided 2026-10-30):** **keep the gator for the competition.** A new avatar is on the roadmap: an original, soft, rounded **bean-shaped** character with stubby limbs and a big expressive face, in the playful toy-like style of party-game beans. It must be our own design: no copying Fall Guys' or Meta's Muse character designs, since copyrighted and sponsor-associated looks are both out (section 0.4).<br>**Roadmap pipeline** (section 5.5):<br>- Concept image, then image-to-3D (Meshy API for mesh, rig and animations; or TRELLIS.2, MIT, self-hosted on a 24 GB+ GPU), then a custom non-biped rig (the cloud form isn't a biped, so Mixamo is out), then glTF at under about 30k triangles and 2048 textures.<br>- Visemes come from the Movement SDK if confirmed on a Quest 3, else from TTS word timings, else from audio amplitude.<br>- No Hunyuan3D (it excludes the EU, UK and South Korea).<br>*Why:* No Meta 3D asset. Licence-safe options. | Decided | Person 1 |
+| D-04 | **Git runs only in the cloud workspace.** The headset uses REST through the cloud. No LibGit2Sharp in the APK.<br>*Why:* No verified Android build. Tokens stay off the device. | Proposed | Person 3 |
+| D-05 | Contract changes go through a proposal PR and need Core owner acceptance. | Decided | Person 2 |
+| D-06 | Keep the `Forge*` code prefix, the `_Forge/` folder and the `Albie*` class names. Rename only "Bit", "gator" and "crew" strings and ids.<br>*Why:* Renaming `Forge` touches every file, and the product is still Albie. | Proposed | Person 2 |
+| D-07 | Three top-level modes: **CODE MODE**, **PROJECT MODE**, **ARTIFACTS**. ML, CAD, the NN Lab and simulation become core tools used inside projects and artifacts. Timers and notes stay as desk extras in any mode. Messages is no longer a mode. Sending is a tool available in any mode (D-37). | Decided | Person 1 |
+| D-08 | **Agent team** = our own orchestrator running one session per role (Lead, Builder×N, Tester, Reviewer, optional Docs). Builders get their own worktrees from a named base commit. Each file has one writer at a time. Concurrency starts at 3. Claude Code's experimental Agent Teams aren't used: they are interactive-only.<br>*Why:* Section 7.6. | Proposed | Person 3 |
+| D-09 | **Agent host:** start with the Agent SDK in our own containers (it extends `hub/agent/runner.py`). Evaluate Claude Managed Agents with a self-hosted sandbox for private repos.<br>*Why:* Managed Agents is beta and not ZDR-eligible. | Proposed | Person 3 |
+| D-10 | Agent-written code (CAD parts, CODE MODE commands, artifact build checks) runs **only in a sandbox**: no network by default, an import or command allowlist, CPU, memory and time caps. Nothing agent-written runs in the hub or worker process.<br>*Why:* `worker.py` and `CODE_DENY` aren't sandboxes. | Proposed | Person 3 |
+| D-11 | **3D model sources:**<br>- **Sketchfab is the primary browse source** (the user's ask). The user signs in with OAuth, and the cloud holds the token.<br>- **Poly Haven** (CC0, no account) is the no-login fallback.<br>- A licence gate allows CC0 and CC-BY by default; NC, ND and SA need confirmation; attribution is stored and shown.<br>- Get a legal read on shipping CC-BY assets before launch.<br>*Why:* Follows the vision; keeps a no-login path. | Proposed | Person 2 |
+| D-12 | **Cloud:**<br>- Identity: the Horizon OS per-app user ID, linked to our `User` record.<br>- Blobs: Cloudflare R2. Metadata: Postgres.<br>- Per-user or per-install tokens replace the shared APK key.<br>- Meta Cloud Backup isn't used for project data.<br>*Why:* Section 6.4. | Proposed | Person 3 |
+| D-13 | **Brain, Meta first (D-38).** Muse Spark (pinned in config: 1.3 if Meta's page confirms it, else 1.1) handles voice turns, planning, Thing specs, artifacts, notebook lessons and small code edits. **Claude handles long agentic coding** (multi-file changes, agent-team runs, ML repo adapters) through the existing proxy and Agent SDK, until Muse Code is evaluated (D-16). If Spark fails the tool-calling test on 2026-11-04, Claude takes the failed task types too, and the fallback is written down, not silent.<br>*Why:* the user's direction is to get the most from Meta's services while being realistic about code work. Spark's tool calling isn't confirmed in Meta's own docs. Claude's is proven in this repo. | Proposed | Person 3 |
+| D-14 | **Mesh to parameters is tiered, with a human in the loop:**<br>- Tier 0 (transform only) and Tier 1 (PartField regions) are committed.<br>- Tier 2 (primitive fits) is for mechanical parts.<br>- Tier 3 (an LLM-written build123d script checked by rendering) is best-effort and sandboxed.<br>- Fully automatic, faithful parameters (Tier 4) aren't promised.<br>*Why:* Research says Tier 4 isn't solved. | Proposed | Person 2 |
+| D-15 | Drop LibGit2Sharp on device. It has no verified Android build. | Proposed | Person 3 |
+| D-16 | Evaluate **Muse Code** as a CODE MODE agent runtime, next to the Claude Agent SDK. Pick per task type after a bake-off.<br>*Why:* Meta lists Muse Code in its VR tooling. | Proposed | Person 3 |
+| D-17 | **Data policy.** Never send user code, voice or integration data to a `-contributor` model tier (those train on content). Use standard tiers only. Say so in the privacy notice.<br>*Why:* Contributor tiers train on prompts and outputs. | Proposed | Person 3 |
+| D-18 | **Artifact runtime:**<br>- **Phase 1** is a data-driven scene (`manifest.json` + `scene.json` + glTF, with declared rules for animation, input and metrics). No script engine ships.<br>- **Phase 2** adds sandboxed QuickJS (directly or through PuerTS's QuickJS backend) only after a Quest IL2CPP spike passes.<br>- WebView or three.js panels are unproven on Quest and stay a later experiment.<br>*Why:* Avoids the IL2CPP and JIT risk. Ships sooner. | Proposed | Person 5 |
+| D-19 | **One REST namespace:** `/v1/{code,projects,jobs,artifacts,integrations,voice,model,events}`. Existing `/cad`, `/ml`, `/tools`, `/events` and `ui.mode`, `stt.*`, `tts.*`, `pet.state` stay as they are until a contract PR replaces them (section 13).<br>*Why:* The drafts used three namespaces. | Proposed | Person 3 |
+| D-20 | The agent's brain and voice come from **Meta's Muse**, replacing Grok. In practice that means the pipeline in section 1.2. | Decided | Person 3 |
+| D-21 | Avatar: a Meta Muse avatar if Meta ships a developer 3D model. **It doesn't, so Albie stays the gator for now, and an original avatar of our own is on the roadmap** (D-03, section 5.5). | Decided | Person 1 |
+| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `GatorNavSurface` and `GatorController.Surfaces`). Away from a desk it floats around the room on a small cloud. | Decided | Person 1 |
+| D-23 | On device where possible, with an app cloud for files that aren't on the device. | Decided | Person 3 |
+| D-24 | Repos: clone the user's GitHub repo into their cloud workspace. Switching repos clears it only when the work is safe (D-25). A project can start with no integrations and be pushed to GitHub later. | Decided | Person 3 |
+| D-25 | **Repo switch rule (canonical):**<br>1. If the workspace has uncommitted or untracked changes, the switch stops and lists them, with one-tap **Commit** or **Stash (with untracked files)**.<br>2. Before any clear, the cloud always saves a `git bundle` of all refs plus the stash, so it's recoverable from the repo list.<br>3. Then it clears.<br>Workspaces are keyed **per user per repo** (`workspaces/{userId}/{repoId}`). A project references zero or more repos.<br>*Why:* Merges three conflicting draft rules. | Proposed | Person 3 |
+| D-26 | CAD: browse Sketchfab (or similar) and turn a downloaded model into parts and parameters in the existing CAD part, parameter and version system. | Decided | Person 2 |
+| D-27 | Core tools: everything built here becomes a reusable tool set for any engineering project, used to build the exact visuals and tooling the user needs. | Decided | Person 2 |
+| D-28 | **Versions:**<br>- A project has a version counter (`v14`, `v15`).<br>- Each project version pins: the repo commit for each repo, the CAD design version for each design, the dataset and checkpoint IDs, and the artifact versions.<br>- Artifact run records store the project version they ran against.<br>- Git commits, CAD versions and artifact versions keep their own histories. The project version is the manifest that ties them together.<br>*Why:* Reconciles four version systems. | Proposed | Person 5 |
+| D-29 | **Cut the movie screen** (movie tools, panel, hub module, mocks). It is outside the three modes, and the archive.org film shows identifiable people (rule 4).<br>*Why:* Removal plan: section 14.11. | Decided | Person 2 |
+| D-30 | **Judge GitHub access:** an auto-signed-in demo GitHub account whose token stays in the cloud and is scoped to a demo org (section 0.4).<br>*Why:* Judges must be able to use CODE MODE with no setup. | Decided | Person 3 |
+| D-31 | **No Meta Muse avatar.** Meta ships none to developers, Muse Realtime Avatar is unreleased (banned by the "released tools only" rule), and a Meta likeness would imply sponsor association. The Meta Avatars SDK is released, but it gives user avatars, not a Muse character. Our own generated avatar stays (D-03).<br>*Why:* Section 1.1, section 0.4. | Decided | Person 1 |
+| D-32 | **Build anything:**<br>- Projects are about any object, made from an on-device parts kit (the Thing runtime) that the agent composes and the user edits.<br>- The rocket, quadcopter, droid, gearbox and ML template are starters on that same runtime, and the demo's RC truck is composed live.<br>- Play physics runs on the device; engineering physics runs in the cloud. | Decided | Person 2 |
+| D-33 | **On device first, cloud as "Albie Pro".** Design, play physics, small-model training, artifacts and the notebook work on the Quest. Exact CAD, GPU training, cloud agents and integrations are the future subscription. Judges get everything free. | Decided | Person 1 |
+| D-34 | **Every project keeps a lab notebook.** Attempts, outcomes and lessons are logged; "that didn't work" triggers a lesson and a revised plan, and lessons carry into new projects. | Decided | Person 5 |
+| D-35 | Electrical, PCB, firmware export and BOM are roadmap items, after the competition. | Decided | Person 1 |
+| D-36 | **Artifacts work with whatever is connected.** No artifact, tool or demo names a vendor in its design. The agent lists the connected tools, picks the ones that fit the user's idea, and builds from them (section 9.6). AWS and Datadog are no longer planned tools; they are examples of what a connector could provide. A user's connectors inside Meta's Muse app can't be reached from the Model API as far as we can find (section 1.1), so Albie runs its own connector host and keeps a backend slot for Muse connectors.<br>*Why:* the user's direction, and the rules discourage integration-heavy wrappers. | Decided | Person 3 |
+| D-37 | **Messages are in the demo, on a Meta service.** "Can you send me the updated model?" Albie drafts it, you confirm, and the file reaches your phone through a Messenger Page. The spike is due Nov 6. Slack and iMessage are removed once Messenger works on a Quest (PR-00b, section 14.12). If Messenger fails, try the WhatsApp test number, and then the existing Slack path through the laptop hub, for the video only.<br>*Why:* the user's direction. Sending to yourself is what these APIs allow: the recipient has already messaged the Page. Replying as you to other people isn't possible, so that goes. | Decided | Person 1 |
+| D-38 | **Meta first.** Use a Meta service for each job where a released one exists (section 1.3). A non-Meta service needs a written reason in that table. Today's reasons: Claude for long coding, a third-party TTS only if Meta's doesn't pass, and Grok as the voice fallback until the Muse pipeline passes.<br>*Why:* the user's direction, and the app is built for Meta's competition. | Decided | Person 3 |
+| D-39 | **Five chunks, one lead each, numbered and not named** (section 16). The team decides who takes which. Most people work across chunks; the lead is accountable and reviews.<br>*Why:* the competition cut has to run in parallel over 17 days. | Decided | Person 1 |
+| D-40 | **Controllers.** Every Thing takes three swappable controller types: manual, code (a rule and PID graph) and learned. For the competition, learning is behaviour cloning on the device, with no cloud needed and no ONNX unless Person 4 asks for it (section 15.4).<br>*Why:* it keeps the brain beat working with no network, which passes the take-it-away test. | Proposed | Person 4 |
 
-| ID | Recommendation | Why |
+### 2.2 Decisions by person
+
+Dates are in 2026 and are proposals. If a decision misses its date, the stated default applies, so nobody waits.
+
+#### Person 1 (product, Albie's presence, hands, code mode, submission)
+
+Owns D-01, D-03, D-07, D-21, D-22, D-31, D-33, D-35, D-37, D-39.
+
+| By | Decide | Default if undecided |
 |---|---|---|
-| D-02 | **Voice = `VoiceBackend` interface.**<br>- Muse pipeline: Voice Transcribe, then Spark, then TTS.<br>- Grok adapter kept as the fallback and current default until the Muse path passes latency and quality tests on a Quest 3.<br>- TTS candidates: Meta Voice SDK TTS (Wit-backed) first, then a third-party streaming TTS with under 300 ms to first audio and word timings. | No Meta speech-to-speech exists (section 1.1). |
-| D-13 | **Brain:**<br>- Voice turns and planning use **Muse Spark**, pinned in config (1.3 if Meta's page confirms it, else 1.1).<br>- Long agentic coding and ML runs use **Claude** (Agent SDK and the existing proxy) until Muse Code is evaluated (D-16).<br>- If Spark's tool calling fails our tests, Claude takes voice turns too. | Spark's tool calling is unverified. Claude's is proven in this repo. |
-| D-16 | Evaluate **Muse Code** as a CODE MODE agent runtime, next to the Claude Agent SDK. Pick per task type after a bake-off. | Meta lists Muse Code in its VR tooling. |
-| D-17 | **Data policy.** Never send user code, voice or integration data to a `-contributor` model tier (those train on content). Use standard tiers only. Say so in the privacy notice. | Contributor tiers train on prompts and outputs. |
-| D-03 | **Avatar (decided 2026-10-30):** **keep the gator for the competition.** A new avatar is on the roadmap: an original, soft, rounded **bean-shaped** character with stubby limbs and a big expressive face, in the playful toy-like style of party-game beans. It must be our own design: no copying Fall Guys' or Meta's Muse character designs, since copyrighted and sponsor-associated looks are both out (section 0.4).<br>**Roadmap pipeline** (section 5.5):<br>- Concept image, then image-to-3D (Meshy API for mesh, rig and animations; or TRELLIS.2, MIT, self-hosted on a 24 GB+ GPU), then a custom non-biped rig (the cloud form isn't a biped, so Mixamo is out), then glTF at under about 30k triangles and 2048 textures.<br>- Visemes come from the Movement SDK if confirmed on a Quest 3, else from TTS word timings, else from audio amplitude.<br>- No Hunyuan3D (it excludes the EU, UK and South Korea). | No Meta 3D asset. Licence-safe options. |
-| D-04 | **Git runs only in the cloud workspace.** The headset uses REST through the cloud. No LibGit2Sharp in the APK. | No verified Android build. Tokens stay off the device. |
-| D-25 | **Repo switch rule (canonical):**<br>1. If the workspace has uncommitted or untracked changes, the switch stops and lists them, with one-tap **Commit** or **Stash (with untracked files)**.<br>2. Before any clear, the cloud always saves a `git bundle` of all refs plus the stash, so it's recoverable from the repo list.<br>3. Then it clears.<br>Workspaces are keyed **per user per repo** (`workspaces/{userId}/{repoId}`). A project references zero or more repos. | Merges three conflicting draft rules. |
-| D-08 | **Agent team** = our own orchestrator running one session per role (Lead, Builder×N, Tester, Reviewer, optional Docs). Builders get their own worktrees from a named base commit. Each file has one writer at a time. Concurrency starts at 3. Claude Code's experimental Agent Teams aren't used: they are interactive-only. | Section 7.6. |
-| D-09 | **Agent host:** start with the Agent SDK in our own containers (it extends `hub/agent/runner.py`). Evaluate Claude Managed Agents with a self-hosted sandbox for private repos. | Managed Agents is beta and not ZDR-eligible. |
-| D-10 | Agent-written code (CAD parts, CODE MODE commands, artifact build checks) runs **only in a sandbox**: no network by default, an import or command allowlist, CPU, memory and time caps. Nothing agent-written runs in the hub or worker process. | `worker.py` and `CODE_DENY` aren't sandboxes. |
-| D-18 | **Artifact runtime:**<br>- **Phase 1** is a data-driven scene (`manifest.json` + `scene.json` + glTF, with declared rules for animation, input and metrics). No script engine ships.<br>- **Phase 2** adds sandboxed QuickJS (directly or through PuerTS's QuickJS backend) only after a Quest IL2CPP spike passes.<br>- WebView or three.js panels are unproven on Quest and stay a later experiment. | Avoids the IL2CPP and JIT risk. Ships sooner. |
-| D-11 | **3D model sources:**<br>- **Sketchfab is the primary browse source** (the user's ask). The user signs in with OAuth, and the cloud holds the token.<br>- **Poly Haven** (CC0, no account) is the no-login fallback.<br>- A licence gate allows CC0 and CC-BY by default; NC, ND and SA need confirmation; attribution is stored and shown.<br>- Get a legal read on shipping CC-BY assets before launch. | Follows the vision; keeps a no-login path. |
-| D-14 | **Mesh to parameters is tiered, with a human in the loop:**<br>- Tier 0 (transform only) and Tier 1 (PartField regions) are committed.<br>- Tier 2 (primitive fits) is for mechanical parts.<br>- Tier 3 (an LLM-written build123d script checked by rendering) is best-effort and sandboxed.<br>- Fully automatic, faithful parameters (Tier 4) aren't promised. | Research says Tier 4 isn't solved. |
-| D-12 | **Cloud:**<br>- Identity: the Horizon OS per-app user ID, linked to our `User` record.<br>- Blobs: Cloudflare R2. Metadata: Postgres.<br>- Per-user or per-install tokens replace the shared APK key.<br>- Meta Cloud Backup isn't used for project data. | Section 6.4. |
-| D-19 | **One REST namespace:** `/v1/{code,projects,jobs,artifacts,integrations,voice,model,events}`. Existing `/cad`, `/ml`, `/tools`, `/events` and `ui.mode`, `stt.*`, `tts.*`, `pet.state` stay as they are until a contract PR replaces them (section 13). | The drafts used three namespaces. |
-| D-28 | **Versions:**<br>- A project has a version counter (`v14`, `v15`).<br>- Each project version pins: the repo commit for each repo, the CAD design version for each design, the dataset and checkpoint IDs, and the artifact versions.<br>- Artifact run records store the project version they ran against.<br>- Git commits, CAD versions and artifact versions keep their own histories. The project version is the manifest that ties them together. | Reconciles four version systems. |
-| D-29 | **Cut the movie screen** (movie tools, panel, hub module, mocks). It is outside the three modes, and the archive.org film shows identifiable people (rule 4). | Removal plan: section 14.11. |
-| D-30 | **Judge GitHub access:** an auto-signed-in demo GitHub account whose token stays in the cloud and is scoped to a demo org (section 0.4). | Judges must be able to use CODE MODE with no setup. |
-| D-31 | **No Meta Muse avatar.** Meta ships none to developers, Muse Realtime Avatar is unreleased (banned by the "released tools only" rule), and a Meta likeness would imply sponsor association. The Meta Avatars SDK is released, but it gives user avatars, not a Muse character. Our own generated avatar stays (D-03). | Section 1.1, section 0.4. |
-| D-06 | Keep the `Forge*` code prefix, the `_Forge/` folder and the `Albie*` class names. Rename only "Bit", "gator" and "crew" strings and ids. | Renaming `Forge` touches every file, and the product is still Albie. |
+| Nov 3 | The team picks who takes which chunk (D-39). | No default: this one has to happen. |
+| Nov 5 | Does the Quirky Series licence cover every team member who builds with it, and a free app (section 0.4)? | Only licensed seats build with the pack. Others use a placeholder. |
+| Nov 7 | Division: New or Adapted. Ask the organizers, and say plainly what came from Gator Hack V (section 0.4). | Enter Adapted. |
+| Nov 7 | If the Messenger spike failed, which fallback (D-37). | The WhatsApp test number. |
+| Nov 12 | Final video script. Does the connector beat (15.6, step 7b) stay? | Left out of the video. It's in the live demo only. |
+| Nov 12 | How the phone appears in the video, since brand names and logos are a risk (section 0.4). | Show only the received file, with no app name or logo in frame. |
+| Nov 14 | What to cut at feature freeze. Cut from the bottom of 15.10, not the middle. | Anything not hands-only by this date is cut. |
+| After Nov 18 | Bean avatar: who draws the concept art, and when. Albie Pro pricing. | Not started. |
 
-### 2.3 Open: you decide
+#### Person 2 (Core, Thing runtime)
 
-1. ~~Product name~~: decided. It stays **Albie** (D-01).
-2. **Voice demo path.** Ship the Muse pipeline for the first demo, or demo on Grok while the Muse path matures?
-3. **Repo home.** A new `muse/` tree in this repo, or a new repo (section 6.8)? When does the rename happen?
-4. **Demo scope and date.**
-   - Does the drone train live or is the run precomputed?
-   - Does CODE MODE or PROJECT MODE come first?
-5. **Who pays** for GPU jobs (Hugging Face Jobs or Modal) and model API tokens? What spend cap does a user see? Is there a user pricing model?
-6. **Sandbox provider** for agent runs and builds: Modal, Daytona (licence status conflicts), E2B, Codespaces, or Managed Agents self-hosted sandboxes.
-7. **Core and contract approvals** from the Core owner (Hudson):
-   - new mode ids,
-   - splitting `ForgeEvents.cs`,
-   - a binary channel for browser frames,
-   - an away mode in `Workspace.Open`.
-8. **Bean avatar (roadmap).** Who draws the concept art, and when does it start after Nov 18? It must be original: no Fall Guys or Muse likeness.
-9. **Hardware-only projects.** How far does PROJECT MODE go: BOM, sourcing, print or fab handoff (section 12)?
-10. **Non-US users.** Muse Spark's preview is US-only. Is Claude acceptable as the brain outside the US?
+Owns D-05, D-06, D-11, D-14, D-26, D-27, D-29, D-32. As Core owner, accepts or rejects every contract proposal.
+
+| By | Decide | Default if undecided |
+|---|---|---|
+| Nov 3 | Accept or change C-16 (Thing spec), C-01 (mode ids) and C-04 (open away from the desk). | Build against the proposals as written. |
+| Nov 4 | Accept or change C-12, C-17, C-18 and C-19, within a day of each owner's proposal. | Same. |
+| Nov 5 | Wheels: `WheelCollider` or `ArticulationBody`, after a feel test on a Quest with hands. | `WheelCollider`. |
+| Nov 8 | Does the Inference Engine package go in `Packages/manifest.json` (15.4)? | No. Use our own C# MLP. |
+| Nov 12 | Do the droid and gearbox move to the Thing runtime, or keep today's demos? | Keep today's demos. |
+| After Nov 18 | How far hardware-only projects go: BOM, sourcing, fab handoff (section 12). The binary channel for browser frames (C-08). | Not started. |
+
+#### Person 3 (brain, voice, cloud, connectors, messaging backend)
+
+Owns D-02, D-04, D-08, D-09, D-10, D-12, D-13, D-15, D-16, D-17, D-19, D-20, D-23, D-24, D-25, D-30, D-36, D-38.
+
+| By | Decide | Default if undecided |
+|---|---|---|
+| Nov 4 | Does Spark pass the tool-calling test? Record the routing table result in section 1.3. | Claude takes the task types that failed. |
+| Nov 5 | Who pays for tokens and GPU minutes, and the daily spend cap for judges (the APK key is public until PR-18). | The team pays, with a hard daily cap in the gateway. |
+| Nov 7 | Demo voice path: the Muse pipeline or Grok. Which TTS. Needs a measured latency on a Quest 3. | Grok, if the Muse path is over 1.5 s to first audio. |
+| Nov 6 | Does the Messenger spike pass: a file from the cloud to a team member's phone (D-37)? | Tell Person 1 the same day, for the fallback call. |
+| Nov 10 | Judges' messages path: try App Review, or use the demo recipient (section 14.12). | Demo recipient. |
+| Nov 8 | Which connectors ship: the demo source-control account and the sample connector, or more? | Those two. |
+| Nov 8 | Repo home (section 6.8). | This repo. |
+| Nov 10 | Is the gateway's US-only preview a problem for judges? Read Meta's terms, and ask if unclear. | Host in the US. Claude takes over for a build where Spark is refused. |
+| After Nov 18 | Sandbox provider for cloud agents (D-10). Muse Code bake-off (D-16). Claude as the brain outside the US. | Not started. |
+
+#### Person 4 (controllers, ML)
+
+Owns D-40.
+
+| By | Decide | Default if undecided |
+|---|---|---|
+| Nov 4 | Propose C-19: the controller file format and the tick interface, agreed with Person 2. | A JSON rule and PID graph (15.4). |
+| Nov 8 | Behaviour cloning: network size, inputs, mirrored-lap augmentation. Needs a timed run on a Quest 3. | Small MLP, about 10 s to train on the headset. |
+| Nov 8 | Tell Person 2 whether ONNX is needed for the competition. | Not needed. Use our own C# forward pass. |
+| Nov 12 | Is the pretrained fallback needed on the day? If it's used in the video, the Devpost text says so. | Keep it ready. Use live training if it works 5 times in a row. |
+| Nov 14 | Which ML template repos work with no network. | One bundled on-device template. Repo import needs the cloud. |
+
+#### Person 5 (artifacts, notebook)
+
+Owns D-18, D-28, D-34.
+
+| By | Decide | Default if undecided |
+|---|---|---|
+| Nov 4 | Propose C-12 and C-17: freeze the Phase 1 `scene.json` node kinds and rules, and the notebook record. | Section 9.3 and section 15.8 as written. |
+| Nov 6 | Where the notebook and project versions live on the device, and the sync rule. | JSON in `persistentDataPath`. The device is the source until a cloud copy exists. |
+| Nov 8 | Arena generation in small rooms and rooms with missing labels: how it shrinks and what it says. | Shrink to free floor space and say so. Never fail silently. |
+| Nov 10 | The snapshot table format that connects connector data to scenes, agreed with Person 3 (C-18). | Rows of named numbers and strings, with a fetched-at time. |
+| Nov 12 | Which starter artifacts ship: slalom, hoop course, launch range, push test, load test. | Slalom and hoop course. |
+
+### 2.3 Decisions for the whole team
+
+| By | Decision | Who runs it |
+|---|---|---|
+| Nov 3 | Daily 15-minute check-in time, and who holds the Quest when there are fewer headsets than people. | Person 1 |
+| Nov 10 | Is the end-to-end truck demo good enough to keep building on, or do we cut scope now? | Person 1, with all owners |
+| Nov 14 | Feature freeze. After this, only fixes. | Person 1 and Person 2 |
+| Nov 16 | Is the Competition build the one we submit? Everyone does a hands-only pass first. | Everyone |
 
 ---
 
@@ -454,7 +563,7 @@ Facts marked "(unverified)" came from secondary sources or were not confirmed by
 
 - The headset runs what a user must see or touch with no latency: desk logic, UI, the avatar, locomotion, the artifact runtime, and a local cache.
 - The app cloud runs anything that needs secrets, long jobs, git repos, GPUs, or always-on connections.
-- The headset never holds a long-lived key. GitHub, Hugging Face, AWS, Datadog, the Meta Model API and any voice key live in the cloud only.
+- The headset never holds a long-lived key. Connector credentials, Hugging Face, the Meta Model API and any voice key live in the cloud only.
 - The headset never opens its own sockets. All hub and cloud traffic goes through ForgeNet (`ForgeNet.On`, `Send`, `Get`, `Post`). Any exception, such as a WebRTC or CDP stream, needs Core owner sign-off.
 - One event envelope and one REST surface. Modules add payloads; they do not add transports.
 - Mock first. Each module runs with the cloud off.
@@ -495,7 +604,7 @@ flowchart LR
     RUN["Agent runner<br/>Managed Agents or SDK session"]
     WS["Repo workspace<br/>worktree or sandbox"]
     GPU["GPU jobs<br/>HF Jobs or Modal"]
-    INT["Integration broker<br/>GitHub App, AWS, Datadog"]
+    INT["Connector host<br/>built-in, GitHub App, MCP servers"]
     MG["Model gateway<br/>Claude, Muse Model API"]
     VG["Voice gateway<br/>STT, TTS"]
   end
@@ -564,11 +673,10 @@ flowchart LR
 
 #### 6.4.6 Integrations broker
 
-Every third-party credential sits behind the broker. The headset gets results, never tokens.
+Every third-party credential sits behind the broker, which is the cloud half of the connector host (section 9.6). The headset gets results, never tokens.
 
 - GitHub: GitHub App install per user. Logs from workflow run and job endpoints are 302 redirects that expire after 1 minute. Fetch and summarize server-side. Check-run annotations are capped at 50 per request.
-- AWS: a cloud broker reads EC2 `DescribeInstances` (paginated, per region) and CloudWatch metrics. Target a read-only role. Proposal: `AssumeRoleWithWebIdentity` from our own OIDC token. Unverified: the exact minimal IAM policy and the link to device sign-in. GPU metrics need the CloudWatch agent `nvidia_gpu` collector or DCGM Exporter per instance. Show "no GPU metrics" rather than zero.
-- Datadog: the span search and aggregate endpoints are capped at about 300 requests per hour (third-party mirror). Cache and pre-aggregate in the cloud. The official remote MCP server uses OAuth with dynamic client registration. Endpoint URL conflicts across sources; verify.
+- Any other service: an MCP server added to the host. The broker holds its credentials, caches its results, and respects its rate limits. No service gets its own built-in tool.
 - Sketchfab: a download needs a signed-in Sketchfab user. Each download is a fresh GET; never cache the signed URL, only the file. License is per model. Filter for CC0 or CC-BY and store attribution. Sketchfab is the primary browse source; Poly Haven (CC0, no key, credit required when using the live API) is the no-login fallback (D-11).
 - Thingiverse: developer API under a license agreement. Printables and GrabCAD: no verified API. Use manual file import.
 - MCP servers run in the cloud. Headsets cannot run stdio MCP servers.
@@ -623,7 +731,7 @@ Avatar:
 | `hub/cad/*` | `part_api` contract, versioned service, worker, analysis, export, drawing | Move into a CAD plugin. Per-design locks. Real sandbox for part scripts. Neutral tool names. | Bit-named tools and "Changed by Albie" source. |
 | `hub/ml/*` | Project-open pipeline, propose-apply-undo loop, archetypes, forge-sdk | Make the sink pluggable (hub, file, cloud). Archetypes become a registry. Model calls go through the gateway. | CIFAR-only demo path inside core. |
 | `hub/agent/runner.py`, `crew.py` | Git task worktrees, role allow-lists, Crew roster, event model | Split generic runner from Albie-specific event adapter. One registry of agent types (currently duplicated in Python and C#). | Hard-coded `pet/` branch prefix and `rocket-lab` project. |
-| `hub/messaging`, `hub/desk` | Draft-then-confirm send gate, floating panel host, timers, notes | Re-home messaging as connectors under integrations. Generic floating-panel host. Persist timers. | Mac-only iMessage as core (keep as optional local connector). |
+| `hub/messaging`, `hub/desk` | Draft-then-confirm send gate, floating panel host, timers, notes | Replace Slack and iMessage with a Messenger send (PR-00b); keep the confirm gate. Generic floating-panel host. Persist timers. | Slack and iMessage. |
 | `hub/vscode`, `vscode-bit/` | Localhost bridge, allowlisted commands | Generic editor bridge. Add CI and terminal status events. | Hackathon installer, port 8770 hard-code. |
 | `cloud/api/voice-token.ts` | Short-lived token pattern | Re-point to the voice gateway. Fix the `Bearer undefined` case when the key is missing. | xAI endpoint. |
 | `cloud/api/claude.ts` | Field allowlist, token cap, model allowlist | Becomes the model gateway. | Hard-coded model IDs. |
@@ -641,7 +749,7 @@ All records carry `id` (UUID), `created_at`, `updated_at`, and `owner_user_id`. 
 - **Project**: `name`, `kind` (`code`, `ml`, `cad`, `hardware`, `mixed`), `state` (`planning`, `active`, `archived`), `repo_id` (nullable), `plan_doc_uri`, `visual_profile` (which panels to show, per archetype).
 - **CodeProject / Repo**: `project_id`, `provider` (`github`), `owner`, `name`, `default_branch`, `workspace_ref`, `last_snapshot_ref`, `dirty_policy` (`commit`, `stash`, or `snapshot`), `clone_status`.
 - **Artifact**: `project_id` (nullable for standalone), `kind` (`viz`, `tool`, `sim`, `map`, `trace`), `title`, `manifest_uri` (JSON manifest, script, glTF refs), `schema_version`, `parameter_schema`, `created_by_run_id`, `source_hash`, `license` (for imported third-party assets).
-- **Integration**: `user_id`, `provider` (`github`, `aws`, `datadog`, `sketchfab`, `hf`), `auth_kind` (`github_app`, `oidc_role`, `api_key_ref`, `oauth`), `scopes`, `secret_ref` (pointer into the secret store, never the secret), `status`.
+- **Integration**: `user_id`, `provider` (`github`, `sketchfab`, `hf`, or an MCP server id), `auth_kind` (`github_app`, `api_key_ref`, `oauth`), `scopes`, `secret_ref` (pointer into the secret store, never the secret), `status`.
 - **AgentRun**: `project_id`, `parent_run_id` (nullable), `role` (planner, coder, tester, reviewer, and so on), `runtime` (`managed`, `sdk_session`), `workspace_ref`, `status`, `event_cursor`, `tokens_in`, `tokens_out`, `cost_usd`, `error`.
 - **GpuJob**: `run_id` or `project_id`, `provider` (`hf_jobs`, `modal`), `flavor`, `timeout_s` (required), `spend_cap_usd`, `status`, `checkpoint_uri`, `metrics_uri`.
 
@@ -707,8 +815,7 @@ Rules carried over from CLAUDE.md: work only inside your module folder, Unity fe
 | Cloud Backup coverage for `persistentDataPath` | Do not rely on it. App-owned sync to the object store. |
 | Managed Agents pricing and GitHub mount | Assume per-session cost from `session.usage`. Clone repos ourselves into the workspace. |
 | Daytona license | Use Managed Agents self-hosted sandboxes or Modal first. Decide Daytona after license check. |
-| Datadog MCP endpoint and v2 APIs | Cache data in the cloud. Use the v1 service dependency API for the service map. |
-| AWS device-to-role bridge | Cloud broker only. The device never holds AWS credentials. |
+| Access to a user's Muse connectors | Not available as far as we can find. Use Albie's own connector host. |
 | Quest latency for streamed browser frames | Measure on device. If too slow, show a snapshot or a hosted live view in a web panel (needs review). |
 | IL2CPP support for QuickJS on Android | Test early on a Quest IL2CPP build. Fallback: a fixed set of parametric artifact types with no script (data only). |
 | Sketchfab search filters | Verify `license` and `downloadable` filters against the v3 reference. Fallback: Poly Haven only. |
@@ -890,7 +997,7 @@ Events, using the ForgeEvents envelope:
 
 Error shapes: 401 (GitHub not connected), 409 (workspace dirty), 429 (rate limited).
 
-Contract changes go to the Core owner (Hudson) under CLAUDE.md section 12.
+Contract changes go to the Core owner under CLAUDE.md section 12.
 
 ### 7.11 Reuse from the existing repo
 
@@ -1086,7 +1193,6 @@ Indexed in section 13 as C-01 (P-2), C-06 (P-7), C-09 (P-1), C-10 (P-3, P-4), C-
 - **Scope.** Project mode touches every module. Build it one vertical slice at a time: the drone case, with one training run and one artifact.
 - **Desk gating.** Today, Workspace opens only at a desk and folds other items. Projects need several open contexts at once. This needs a design change in the core.
 - **One place for state.** The current CAD service has one global lock for all designs. Split it per design before running several projects.
-- **Hub-only providers.** iMessage and Slack Socket Mode do not fit the cloud. Do not put them in PROJECT MODE.
 - **Cost.** Training jobs bill while running. Every job needs a timeout and a cap. Cancel needs confirmation.
 - **Licenses.** Hunyuan3D 2.1 excludes the EU, UK and South Korea, and needs a separate license above 1M MAU. Do not use it for this product. TRELLIS.2 is MIT but needs 24 GB of GPU memory, so it runs in the cloud. Mixamo is biped-only.
 - **Naming.** Meta has "Muse Code," a terminal coding agent. Check naming before any public copy.
@@ -1123,7 +1229,7 @@ Each artifact is a folder, or one zip bundle, with a `manifest.json` at its root
 
 ```json
 {
-  "format": "muse.artifact/1",
+  "format": "albie.artifact/1",
   "id": "drone-obstacle-course",
   "title": "Drone obstacle course",
   "version": "1.2.0",
@@ -1139,14 +1245,15 @@ Each artifact is a folder, or one zip bundle, with a `manifest.json` at its root
     { "id": "course-a", "seed": 42, "params": { "gates": 12 } }
   ],
   "data": [
-    { "name": "flight_logs", "source": "project:proj_123/runs", "snapshot": null }
+    { "name": "flight_logs", "source": "project:proj_123/runs", "snapshot": null },
+    { "name": "repo_activity", "source": "connector:source_control/list_commits", "snapshot": "data/repo_activity.json" }
   ],
   "assets": [
     { "path": "assets/quad.glb", "sha256": "<hash>", "license": "CC0" }
   ],
   "permissions": {
     "network": [],
-    "connectors": [],
+    "connectors": ["source_control:read"],
     "storage": "artifact-local",
     "write_project": "confirm"
   },
@@ -1164,6 +1271,7 @@ Rules:
 - `scenarios` are fixed starting conditions (seed, layout, goal). Reruns use the same scenario.
 - `assets` are content-hashed. The runtime loads only hashes listed here.
 - `permissions` defaults to none. Anything else must be listed and shown to the user on first open.
+- `data` sources name a connector's id and tool, never a vendor API. An artifact with a saved `snapshot` still opens with no network.
 
 ### 9.3 Runtime choice
 
@@ -1199,7 +1307,7 @@ The Quest performance rules (CLAUDE.md) apply: no allocations or LINQ in `Update
 
 The agent never runs generated code on the device in phase 1. In phase 2, scripts pass the same validator first.
 
-Model for the agent loop: unresolved. Options are Claude through the cloud proxy (already in the app) or Meta Muse Spark through the Meta Model API. Muse Spark 1.1 is in US public preview. Its function-calling support is reported by third parties only. Check dev.meta.ai before choosing. Muse Spark 1.3 is current per Axios and Meta's models page.
+Model for the agent loop: Muse Spark, through the gateway (D-13, section 1.3). If it fails the tool-calling test, Claude takes this task. Muse Spark 1.3 is current per Axios and Meta's models page.
 
 ### 9.5 Running on device
 
@@ -1212,8 +1320,30 @@ Model for the agent loop: unresolved. Options are Claude through the cloud proxy
 
 - **Projects.** An artifact stores the project id and the project version it was built from. It reads that version's models and run logs through the cloud.
 - **Code projects.** The artifact can read repo state through the cloud: commits, CI status and PR data. It cannot push or change the repo without a user confirmation step (CLAUDE.md rule).
-- **Integrations.** Each integration is a named connector. The connector runs in the cloud. The headset only receives a compact snapshot. Tokens never reach the device.
+- **Integrations.** See below. Tokens never reach the device.
 - **Bringing an artifact back into a project.** Copy the manifest and assets into the project folder. Keep the artifact id. The project records which artifact versions it uses.
+
+**Any connector: the user suggests an idea, and Albie builds with what's already there (D-36).**
+
+1. The user says what they want: "show me where this request slows down", "map my servers", "what shipped this week?"
+2. The agent calls `connectors_list`. It gets every connected tool's name, description and input schema, whatever the service is.
+3. It picks the tools that fit, reads a small sample, and writes a manifest, a scene and a mapping from the tool's output to scene values.
+4. If nothing fits, it says what's missing and offers to connect a service or use sample data. It never invents data.
+5. Reads run in the cloud and come back as a snapshot, which the artifact caches. Rerun fetches a new snapshot and keeps the old one for comparison.
+6. Connectors are read-only by default. A write needs its own permission and a confirm step each time (section 9.10).
+
+**Connector backends, all behind one interface (contract C-18):**
+
+| Backend | Examples | Where it runs | Competition build |
+|---|---|---|---|
+| Built-in | Project, notebook, Thing telemetry, arena runs, the room | Device | Yes. Works with no network. |
+| Broker | Source control (the judges' demo account, D-30), model sources | Cloud | Yes |
+| MCP server | Any service that offers one | Cloud | One **sample connector** we host, with fictional data, labelled as sample data. It shows that a service Albie has never seen works with no new code. |
+| Muse connectors | Whatever the user has connected in Meta's app | Slot only | No. Not reachable today (section 1.1). The interface keeps a place for it. |
+
+**Take-it-away test.** Remove every external connector and the built-in backend still gives artifacts to build. So this adds to the product and isn't a wrapper.
+
+**Future story (Albie Pro).** Connect any service, or everything your Muse can reach once Meta allows it, and Albie builds the view or tool you asked for.
 
 ### 9.7 Re-running after a design change (drone obstacle course)
 
@@ -1236,16 +1366,19 @@ Compute note: RL training is cloud-side. Research gave a range of minutes (simpl
 
 ### 9.8 Examples
 
-**AWS EC2 3D map.**
-- Data source: a cloud broker, not the headset. Use `DescribeInstances` with pagination, per region, plus CloudWatch metrics.
-- Layout: regions as positions on a globe or grid. Instances as markers. Colour by a chosen resource (CPU, RAM, GPU). Hover shows the values.
-- GPU metrics are not emitted by CloudWatch by default. They need the CloudWatch agent `nvidia_gpu` collector or DCGM Exporter on each instance. The artifact shows "no GPU metrics" for instances without them, never zero.
-- Auth: a read-only role, assumed by the cloud broker. Minimal IAM policy is not yet written (open question).
+**Infrastructure map (any connector that lists hosts or services).**
+- Example request: "map my servers and colour them by load". AWS, a cloud host's API or a home lab would all work, if a connected tool returns them.
+- Layout: regions or groups as positions on a grid. Hosts as markers. Colour by a metric the user picks.
+- A metric the source doesn't report shows "no data", never zero.
 
-**Datadog trace path (3D).**
-- Data source: cloud broker. Datadog span search and aggregate endpoints are capped at about 300 requests per hour (third-party mirror, verify). The broker caches and pre-aggregates. The headset never polls Datadog.
-- Layout: services as nodes, the trace path as a line through them. Cached v1 service-dependency data supplies the graph. A v2 equivalent was not found.
-- Use case: find where a bug starts by walking the path back from the error.
+**Request trace path (any connector that returns traces or logs).**
+- Example request: "show me where this bug starts". Datadog or any other tracing service would work, if a connected tool returns traces.
+- Layout: services as nodes, the path as a line through them. The user walks back from the error.
+- The broker caches results, so the artifact doesn't spend the service's rate limit on every view.
+
+**Repo activity (the source-control connector, competition build).**
+- Commits as a growing city: size by lines changed, colour by author.
+- Runs with the judges' demo account, and with no setup.
 
 **Three-Body Problem visualizer (standalone).**
 - No integrations and no network. Pure simulation in the scene runtime (phase 1 can support it with scripted rules; a full integrator needs phase 2).
@@ -1275,9 +1408,9 @@ Current gap: `Workspace.cs` has one open mode at a time and folds other items on
 
 1. Does Quest 3 run QuickJS (PuerTS or direct) under IL2CPP? Needs a device spike. Phase 2 depends on it.
 2. Frame cost of the scene runtime with several hundred nodes and live data. Not measured.
-3. Which agent model drives generation: Claude via the cloud proxy, or Muse Spark? Function calling for Muse is unconfirmed.
-4. Minimal IAM policy for the EC2 and CloudWatch broker. Not written.
-5. Datadog v2 trace query and current endpoint. Not confirmed.
+3. Does Spark's tool calling pass our test (D-13)? It decides whether Spark or Claude drives generation.
+4. Can Albie ever reach a user's Muse connectors? Not as far as we can find. Re-check monthly.
+5. How good is Spark at mapping an unknown tool's output to a scene? Test with the sample connector before promising it.
 6. Whether a sandbox provider supports pause and restore for artifact builds on a budget.
 7. How the CAD module's `drawing.py` and `flight.py` map onto artifact outputs. Likely a plugin, not core.
 8. Whether `ForgeEvents.cs` needs an artifact event type, which would be a contract change.
@@ -1312,9 +1445,9 @@ A core tool is a named, reusable capability that the agent (Albie) and Artifacts
 ### Rules that apply to every tool
 
 - Tools return data (`{result, show}` or a typed error). They never throw into the agent loop. This matches `AlbieTools` and `cloud-py/app.py`.
-- A tool that sends, posts, pushes, deletes, or spends money needs a confirm step. Use the two-step draft pattern (see Messages). This is required by CLAUDE.md.
+- A tool that sends, posts, pushes, deletes, or spends money needs a confirm step. Use the two-step draft pattern (`confirm.request`, section 10.5). This is required by CLAUDE.md.
 - Heavy work (CAD builds, ML training, mesh segmentation, sim sweeps) runs in the cloud. The headset calls it through ForgeNet and never holds keys.
-- Keys (GitHub, AWS, Datadog, Hugging Face, Meta Model API) live only in the cloud. The headset never sees them.
+- Keys (connector credentials, Hugging Face, Meta Model API) live only in the cloud. The headset never sees them.
 
 ### 10.1 Platform tools (shared runtime)
 
@@ -1395,13 +1528,13 @@ Note: the on-device ML path is limited to visualization and small classifiers. Q
 | `editor.bridge` | Localhost bridge to an editor for open, highlight, errors, and allowlisted commands. | device-adjacent (Mac) | port | `hub/vscode/tools.py`, `vscode-bit/extension.js`. Not needed on a standalone Quest. |
 | `screen.stream` | Show a streamed window or browser panel. | device + cloud | exists | `ScreenSurface.cs`, `ScreenReceiver.cs`, `JpegScreenReceiver.cs`, `screen-bridge/stream.py`. |
 
-### 10.5 Messages and desk tools
+### 10.5 Confirm and desk tools
 
 | Tool | What it does | Run | Status | Notes |
 |---|---|---|---|---|
-| `messages.draft` / `messages.edit` / `messages.confirm` / `messages.cancel` | Two-step send. Draft, then user confirms. Draft TTL and expiry. Verified delivery. | cloud | exists (port) | `hub/messaging/tools.py`, `slack_client.py` (`create_draft`, `send_draft`, `_expire`), `imessage/service.py` (verifies in `chat.db`). Re-check TTL against the new confirm flow. |
-| `messages.inbox` | Unified inbox with provider adapters (Slack, iMessage, later GitHub PR comments, team chat). | cloud | port | `SlackService`, `IMessageService`, `MessageStore`. Slack Socket Mode and iMessage need an owner (Mac or Space). |
-| `messages.card` | Draft card with Send and Cancel. Floats beside the agent. | device | exists | `DraftCard.cs`, `DraftPresenter.cs`. `DigestTrigger.cs` for placement. |
+| `confirm.request` / `confirm.result` | Two-step action. Draft, then the user confirms, with an expiry. Used for pushes, merges, connector writes and spending. | device + cloud | port | Keep the pattern from `hub/messaging/tools.py` (`create_draft`, `send_draft`, `_expire`) and the `DraftCard` look. The messaging code itself goes (PR-00b). |
+| `messages.link` | Link the user's Messenger account to Albie: they message the Page a short code, and the webhook stores their recipient ID. | cloud | new | Works for app role holders until App Review. |
+| `messages.draft` / `messages.edit` / `messages.confirm` / `messages.cancel` | Draft a message with text and a file, then send after a confirm. Reports delivered or the reason it failed. | cloud | port | Keeps the two-step shape of `hub/messaging/tools.py`, on the Send API. The Page token stays in the cloud. Uses `confirm.request`. |
 | `desk.timer` | Named focus timers (cap 5) with ring events. | cloud + device | exists (port) | `hub/desk/timer.py`. Timers are not persisted; decide the rule. |
 | `desk.notes` | Undoable notes. | cloud + device | exists (port) | `hub/desk/notes.py`, `DeskApi.cs`. Two copies, no sync rule. |
 
@@ -1426,9 +1559,9 @@ Rule: all of these run in the cloud. Tokens never reach the device. The headset 
 | `github.pr.review` | PR file list, diffs, comments, and check runs for a PR. Visual review (CodeCity-style city layout, optional). | cloud | new | PR review endpoints not researched in detail. Checks annotations capped at 50 per request. |
 | `github.ci.jobs` | Workflow runs, jobs, and steps for a 3D pipeline view (jobs as nodes, `needs` as edges). Logs fetched on demand. | cloud | new | Jobs and steps endpoints give status without log scraping. Log redirect URLs expire in about 1 minute. |
 | `github.codespace` | Per-user cloud workspace for repo state. | cloud | new | `POST /user/codespaces` (needs `repository_id`). Alternative: Daytona or E2B. Daytona's license status conflicts across sources. |
-| `aws.ec2.snapshot` | Paginated `DescribeInstances` per region, plus CloudWatch metrics. Colors by load in a 3D map. | cloud | new | GPU metrics are not on CloudWatch by default. Needs the CloudWatch agent `nvidia_gpu` collector or DCGM Exporter. Show "no GPU metrics" instead of zeros. Minimal IAM policy not yet written. |
-| `aws.role` | Read-only role via `AssumeRoleWithWebIdentity` from an Albie-issued OIDC token. | cloud | new | Recommendation, not verified. |
-| `datadog.trace.search` | Trace search and service map, cached and pre-aggregated. | cloud | new | Span search and aggregate are rate-limited to 300 requests per hour. Cache the trace view. Service map uses v1 `service_dependencies`; no v2 equivalent confirmed. Auth via OAuth (remote MCP) or API keys. |
+| `connectors.list` | Every connected tool, with name, description, input schema and read or write. | device + cloud | new | The agent's starting point for any artifact built on outside data. C-18. |
+| `connector.call` | Call one tool through the host. Writes need `confirm.request`. | device (built-in) or cloud | new | Caching and rate limits live in the broker. MCP export already exists in `hub/agent/tools.py`; check whether it can be reused for clients. |
+| `connector.snapshot` | Save a tool result as a versioned table for an artifact. | cloud + device | new | Makes artifacts work offline, and lets reruns compare. |
 | `playwright.session` | Run a Playwright browser in the cloud and show frames as a floating panel. | cloud (run) + device (show) | new | Use `page.screencast` `onFrame` (Playwright 1.59+; verify signature) or CDP `Page.startScreencast`. Push JPEG frames, decode to a `Texture2D` (2048 cap, no allocations in `Update`). Hosted live views (Steel, Browserless, Browserbase) are the fallback. Interactive input must go through ForgeNet. |
 | `playwright.trace` | Ingest a trace file for a timeline (network, console, screencast). | cloud | new | Trace viewer is the UX reference. |
 | `hf.repo.fetch` | Pull a model or dataset from Hugging Face Hub for fine-tuning. | cloud | new | Token on cloud only. |
@@ -1467,8 +1600,6 @@ Rule: all of these run in the cloud. Tokens never reach the device. The headset 
 | Playwright `onFrame` exact signature in the pinned version | Use CDP `Page.startScreencast`, or a hosted live view (Steel, Browserless). |
 | Quest frame latency for screencast | Measure on device. The only figure found is one self-reported ~100 ms. |
 | HF Jobs H100 flavor | Use A10G-small or A100-large until the flavor list is checked. |
-| Datadog v2 service map and trace query | Use v1 service dependencies and cached trace search. |
-| AWS minimal IAM policy | Write it from the IAM action reference before enabling the tool. |
 | Managed Agents pricing | Budget from token usage (`session.usage`). Verify the official pricing page. |
 | GitHub remote MCP device flow | Use the GitHub device flow docs directly (not verified in GitHub's own pages in this pass). |
 | Meta Model API preview regions and terms | Treat as US-only and preview. Keep `model.gateway` as the fallback. |
@@ -1620,7 +1751,7 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 
 | ID | Proposal | Section | Touches |
 |---|---|---|---|
-| C-01 | `ui.mode` values `code`, `project`, `artifacts` (plus `none`). The old `ml`, `cad`, `code`, `messages` values are kept as aliases for one release. | 2, 14 | `hub/events.py` `UiMode`, `ForgeEvents.cs`, `Workspace.DefaultModes`, `hub/agent/workspace.py` |
+| C-01 | `ui.mode` values `code`, `project`, `artifacts` (plus `none`). The old `ml`, `cad` and `code` values are kept as aliases for one release. `messages` is no longer a mode (D-37). | 2, 14 | `hub/events.py` `UiMode`, `ForgeEvents.cs`, `Workspace.DefaultModes`, `hub/agent/workspace.py` |
 | C-02 | `VoiceBackend` interface (`Start`, `Stop`, `SendAudio`, `OnTranscript`, `OnToolCall`, `OnAudioOut`, `OnVisemes`), with Grok and Muse adapters. The existing `stt.*`, `tts.*` and `agent.*` events don't change. | 5.4 | `AlbieVoice.cs`, `hub/agent/voice.py` |
 | C-03 | Agent presence: `pet.state` gains `desk`, `away` and `floating` (renamed `agent.state` later). | 5.6 | Pet scripts, `ArrivalDirector` |
 | C-04 | `Workspace.Open` away mode: artifacts and projects can open without a desk. Several contexts can be open at once (an artifact host outside `FoldAll`). | 5.6, 9.5 | `Workspace.cs`, `WorkspaceExtras.cs` |
@@ -1631,18 +1762,21 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 | C-09 | Project record: `{id, name, goal, plan_doc_id, version, repos[], modules[code, ml, cad, sim, hardware, artifact], state}`. Modules list what a project uses; there is no single "kind". | 8.7 | New Project module |
 | C-10 | Jobs: `POST /v1/projects/{id}/jobs {kind: train, cad_build, sim, ci, import, spec_ref, timeout_s, max_cost_usd}`, events `job.status` and `job.metrics`. `ml.metrics` is reused for training. | 8.7 | Cloud, ML, CAD |
 | C-11 | Plan document: `plan.updated {project_id, version}`. | 8.7 | Project module |
-| C-12 | Artifact manifest `muse.artifact/1` (section 9.2):<br>- `kind`: `project`, `code`, `standalone`<br>- `category`: `viz`, `tool`, `sim`<br>- links to a project version<br>- Phase 1 runtime `scene`; Phase 2 `script` | 9.2 | New Artifacts module |
+| C-12 | Artifact manifest `albie.artifact/1` (section 9.2):<br>- `kind`: `project`, `code`, `standalone`<br>- `category`: `viz`, `tool`, `sim`<br>- links to a project version<br>- Phase 1 runtime `scene`; Phase 2 `script` | 9.2 | New Artifacts module |
 | C-13 | CAD design `source` provenance: name, creator, URL, licence, licence version, download time, hash, generated-by tier. Also a region-map file. | 11.5 | `hub/cad/service.py`, `cad.model_updated` |
 | C-14 | Neutral tool names: `cad_*`, `ml_*`, `nn_*` and the new `code_*`, `project_*`, `artifact_*`, `github_*`, `hf_*`, `sketchfab_*`, `sim_*`. The `AlbieTools` JSON format is kept as the registry format. | 10 | All `Resources/AlbieTools/*.json`, `hub/*/tools.py` |
 | C-15 | Headers: keep `x-albie-key` and `x-albie-device` until per-user tokens replace the shared app key (PR-18). | 14.3 | `cloud/lib/guard.ts`, `cloud-py/app.py`, `ForgeCloud.cs` |
 | C-16 | Thing spec `thing.spec/1`, `thing.updated`, and the `thing_*` tools: any physical object built from a parts kit on the device. | 15.2 | New Thing runtime (Unity), agent tools |
 | C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. | 15.8 | Project module |
+| C-18 | Connectors: one interface over the built-in, broker, MCP and future Muse backends. `connectors.list`, `connector.call`, `connector.snapshot`, permissions like `source_control:read`. | 9.6, 10.7 | New Connectors module, `cloud/`, `cloud-py/`, artifact manifest |
+| C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. | 15.4 | Thing runtime, ML, Code |
+| C-20 | Messages: `messages.link`, `messages.draft {text, file_ref}`, `messages.confirm`, and `messages.status {delivered, failed, reason}`. No provider name in the payload. | 10.5, 14.12 | `cloud/`, `Messages/`, `confirm.request` |
 
 ---
 
 ## 14. Migration: Gator Hack Albie to the next Albie
 
-Status: PROPOSAL, drafted 2026-10-29. Nothing here changes a contract until the Core owner accepts the matching contract PR (section 13). Core (ForgeNet, ForgeEvents, Workspace, `Main.unity`, Project Settings) stays with Hudson. Other module owners are assigned in P0.
+Status: PROPOSAL, drafted 2026-10-29. Nothing here changes a contract until the Core owner accepts the matching contract PR (section 13). Core (ForgeNet, ForgeEvents, Workspace, `Main.unity`, Project Settings) stays with Person 2. Other module owners are assigned in P0.
 
 ### 14.1 Starting point
 
@@ -1673,7 +1807,7 @@ Each phase ends with a demo that runs with the hub off (mock mode) and with the 
 | P4 Modes | CODE MODE, PROJECT MODE, ARTIFACTS v0 | Each mode has one mock-first sandbox scene and one prefab. Each runs with hub off. |
 | P5 Agent body | Desk walk and cloud float on the gator. Viseme lip sync. The bean avatar comes after the competition (roadmap). | Agent walks on a desk in the MRUK table and floats when away. Visemes drive mouth shapes on Quest 3 from TTS audio. |
 | P6 Cloud | Per-user auth, project-scoped storage, shared secrets | No shared app key in the APK. Project files survive device switch. |
-| P7 Integrations | GitHub App sign-in, CI status, PR visuals, messaging connectors | PR and CI data arrive through the cloud. Sends are draft-then-confirm. |
+| P7 Integrations | GitHub App sign-in, CI status, PR visuals, the connector host | PR and CI data arrive through the cloud. An artifact builds from a connector it has never seen. Writes are draft-then-confirm. |
 
 ### 14.3 Rename map
 
@@ -1682,7 +1816,7 @@ Each phase ends with a demo that runs with the hub off (mock mode) and with the 
 | Product "Albie" | Albie (unchanged) | D-01. |
 | Pet / "Bit" / gator | "agent" (config value `agentId`) | `PetId = "bit"` in AlbieTips.cs:16, AlbieVoice.cs:26, WorkspaceRemote.cs:19 becomes config. |
 | Gator crew, crew.json, CrewTools.cs | Agent team (`team.json`) | Keep the roster and tool-kit mechanism. Rename the vocabulary. |
-| ML / CAD / CODE / MESSAGES modes | CODE MODE, PROJECT MODE, ARTIFACTS | Mode list moves to data. Messages becomes a connector inside CODE MODE. |
+| ML / CAD / CODE / MESSAGES modes | CODE MODE, PROJECT MODE, ARTIFACTS | Mode list moves to data. Messages stops being a mode and becomes a tool (D-37). |
 | `ui.mode` view enum (hub/events.py UiMode) | New enum (C-01) | Contract change. Needs a PR and Unity update together. |
 | `DefaultModes` in Workspace.cs (~856-898) | Config list | P2. |
 | `AlbieVoice`, `AlbieVoiceToken`, `AlbieTools`, `AlbieTips` | Unchanged | The product is still Albie. `AlbieVoice` becomes the Grok `VoiceBackend` adapter, next to a new Muse one (P3). |
@@ -1713,13 +1847,11 @@ Delete (after the replacement is live, in PR-21). Sandbox scenes such as `CAD/CA
 - `run-demo.sh` hub-start steps (keep the health-wait loop).
 
 Move to a plugin (keep the code, change its home):
-- Slack parsing and rate-limit internals in `slack_client.py` become a Slack connector.
-- iMessage (`chat.db`, `imsg` CLI, Mac only) becomes an optional local connector.
 - `hub/cad/parts/rocket.py`, `flight.py` (RocketPy, Estes C6) become a rocket plugin. The `simulate_flight` hook stays in core.
 - `hub/cad/parts/humanoid.py`, `robot.py`, `meshes.py`, `data/unitree_g1` (BSD-3 attribution) become a robot-kinematics plugin.
 - `hub/ml/improve.py` CIFAR demo becomes an example pack. The propose, apply, undo loop stays in core.
 - `hub/ml/archetypes.py` fixed four types become a registry.
-- `hub/messaging/imessage/*` becomes an optional module. The movie feature is deleted (PR-00).
+- The movie feature (PR-00), Slack and iMessage (PR-00b) are deleted, not moved. Git history keeps them.
 
 Keep (core):
 - `hub/agent/tools.py` registry (allow-prefix filter, MCP export, errors as data).
@@ -1743,6 +1875,7 @@ Keep (core):
 Each PR is small, mock-first, and never breaks main. Gate means the PR waits for the named decision.
 
 0. PR-00 Remove the movie screen (section 14.11). Gate: none.
+   PR-00b Move messages to a Meta service, then remove Slack and iMessage (section 14.12). Gate: the Messenger spike passes.
 1. PR-01 Docs. Add this file (`PROJECT_CONTEXT.md` (repo root)). No code. Gate: none.
 2. PR-02 Fix the correctness bugs found in review. (a) `cloud-py/app.py` `DEVICES.popitem()` does not close `d.cad`, so workers and files leak. (b) `create_task_worktree` uses `git stash create`, which skips untracked files. Gate: none. These ship early and independent of the rename.
 3. PR-03 Config-driven ids. `agentId` replaces `PetId = "bit"`. Gate: none.
@@ -1762,7 +1895,7 @@ Each PR is small, mock-first, and never breaks main. Gate means the PR waits for
 17. PR-17 Locomotion: desk walk and cloud float. Add an away mode to `Workspace.Open`, which currently refuses when not AtDesk (C-04). Gate: PR-16.
 18. PR-18 Cloud auth: replace the app key shipped in the APK with per-install or per-user auth. Replace the in-memory rate limit with a shared store. Gate: D-12.
 19. PR-19 Project-scoped storage on R2 plus Postgres metadata, with content hashes. Gate: PR-18.
-20. PR-20 Integrations: GitHub App device-flow sign-in through the cloud, CI status via jobs endpoints, messaging connectors behind one provider interface. Draft-then-confirm for every send. Gate: D-08.
+20. PR-20 Integrations: GitHub App device-flow sign-in through the cloud, CI status via jobs endpoints, and the connector host (C-18) with an MCP backend. Draft-then-confirm for every write. Gate: D-08. The demo account and sample connector ship earlier, for the competition (section 16.5).
 21. PR-21 Delete pass (section 14.4). Gate: each replacement live.
 22. ~~PR-22 Repo, Vercel and Space rename~~: dropped. The product stays Albie (D-01).
 
@@ -1779,7 +1912,7 @@ Adapted from the CLAUDE.md rules. These apply to humans and to coding agents.
 - Quest performance: no allocations or LINQ in `Update`, instancing for repeated meshes, textures 2048 max, IL2CPP ARM64 only.
 - Networking goes through `ForgeNet`. No own sockets in Unity. The hub and the cloud are the only remote endpoints.
 - Python: FastAPI routers per module, type hints, pydantic models that mirror `events.py`.
-- Secrets never reach the device. Tokens for GitHub, Datadog, AWS, Meta and model providers live in the cloud. The device gets short-lived tokens or results only.
+- Secrets never reach the device. Connector tokens and tokens for Meta and model providers live in the cloud. The device gets short-lived tokens or results only.
 - Agents do not run destructive git commands (`reset --hard`, force push, branch delete) without a user confirmation. Pushes need confirmation.
 - Agent-written code runs only in a sandbox (decision D-10). It never runs in the hub process.
 - Anything that sends a message, posts a comment, merges, deletes or spends money needs a user confirmation step in the UI.
@@ -1803,7 +1936,7 @@ Adapted from the CLAUDE.md rules. These apply to humans and to coding agents.
 13. Meta platform gates. Production platform APIs need a Data Use Checkup. Calls fail or return user ID 0 without it. Plan the DUC before any Meta account features.
 14. Meta Cloud Backup does not reliably cover `persistentDataPath`. Do not use it for project data.
 15. Unity and Meta XR versions. Device Readiness Check needs Core SDK v207 or later. Avatars SDK compatibility with Unity 6 and SDK 207 is not documented. Do not depend on it.
-16. Vendor claims. Tripo, Rodin, Hyper3D and Datadog or AWS rate limits are secondary-sourced. Verify before budgeting.
+16. Vendor claims. Tripo, Rodin and Hyper3D figures are secondary-sourced. Verify before budgeting.
 17. Licensing of 3D inputs. Hunyuan3D 2.1 excludes the EU, UK and South Korea. Objaverse has mixed NC and SA licenses. Sketchfab with per-model licence checks and per-user login; Poly Haven (CC0) as the no-login fallback.
 18. Model-generated parts are not faithful. Mesh-to-parametric CAD reproduces envelopes and main features, not exact dimensions. Keep a human step to name and tune parameters.
 
@@ -1825,29 +1958,7 @@ Adapted from the CLAUDE.md rules. These apply to humans and to coding agents.
 
 ### 14.9 Decisions log
 
-| ID | Decision | Status | Owner |
-|---|---|---|---|
-| D-01 | Product name stays **Albie**. "Muse" is never the product name or in the UI. | Decided (2026-10-29) | Product |
-| D-02 | Keep Grok as default voice backend until a Muse pipeline passes latency and quality tests. | Decided (fallback) | Voice owner |
-| D-03 | Keep the gator for the competition. Roadmap: an original bean-style avatar of our own, generated from a concept image. No Meta avatar dependency. | Decided (2026-10-30) | Avatar owner |
-| D-04 | Git operations run in the per-user cloud workspace, not in the Quest build. Device uses REST and cloud calls. | Proposed | Code owner |
-| D-05 | Contract changes go through a proposal PR and need Core owner acceptance. | Decided (CLAUDE.md) | Core owner |
-| D-32 | **Build anything:**<br>- Projects are about any object, made from an on-device parts kit (the Thing runtime) that the agent composes and the user edits.<br>- The rocket, quadcopter, droid, gearbox and ML template are starters on that same runtime, and the demo's RC truck is composed live.<br>- Play physics runs on the device; engineering physics runs in the cloud. | Section 15. |
-| D-33 | **On device first, cloud as "Albie Pro".** Design, play physics, small-model training, artifacts and the notebook work on the Quest. Exact CAD, GPU training, cloud agents and integrations are the future subscription. Judges get everything free. | Rules: take-it-away test, free for judges. |
-| D-34 | **Every project keeps a lab notebook.** Attempts, outcomes and lessons are logged; "that didn't work" triggers a lesson and a revised plan, and lessons carry into new projects. | Section 15.8. |
-| D-35 | Electrical, PCB, firmware export and BOM are roadmap items, after the competition. | Section 15.9. |
-| D-06 | Keep the `Forge*` prefix, `_Forge/` and the `Albie*` class names. | Proposed | Core owner |
-| D-07 | Modes become CODE, PROJECT, ARTIFACTS. Messages becomes a connector in CODE MODE. | Decided (vision) | Product |
-| D-08 | Agent teams run on our own orchestrator (N sessions with worktrees or sandboxes), not Claude Agent Teams. | Proposed | Code owner |
-| D-09 | Cloud agent host: Agent SDK in our containers first; evaluate Managed Agents. | Proposed (section 2.2) | Cloud owner |
-| D-10 | Agent-written code (CAD parts, CODE MODE commands) runs only in a sandbox. | Proposed | Cloud owner |
-| D-11 | Model sources: Sketchfab primary with per-user login and per-model licence check; Poly Haven (CC0) as the no-login fallback. | Proposed (section 2.2) | Assets owner |
-| D-12 | Project storage: R2 for blobs, Postgres for metadata. Meta Cloud Backup is not used for projects. | Proposed | Cloud owner |
-| D-13 | Muse Spark (pinned version) for voice turns and planning; Claude for long coding and ML runs, and outside the US until Meta opens the API. | Proposed (section 2.2) | Cloud owner |
-| D-14 | Mesh-to-parametric CAD is a human-in-the-loop step (name and tune parameters). | Proposed | CAD owner |
-| D-15 | Drop LibGit2Sharp on device. It has no verified Android build. | Proposed | Code owner |
-
-Decisions D-16 to D-28 are in section 2.
+Moved to section 2. It's now the one list, with an owner for each decision.
 
 ### 14.10 Pet module carry-over (the gator body to the new agent body)
 
@@ -1900,13 +2011,63 @@ The aim is one PR that deletes the feature completely and leaves timers and note
    - `DeskSandbox.unity` runs with the hub off and shows timers and notes.
    - The device tool count drops from 59 to 55.
 
+### 14.12 Messages on a Meta service (PR-00b)
+
+The aim: "send me the updated model" works from the headset with no laptop, through a Messenger Page. Slack and iMessage go once it works.
+
+**How a send works**
+
+1. **Link, once.** The user messages the Page a short code shown in Albie. The cloud webhook stores their recipient ID. This also opens the 24-hour window.
+2. **Ask.** "Can you send me the updated model?" Albie finds the latest version.
+3. **Draft.** A card shows the file, its version and a short note, such as "Truck v3: wider track, passed the slalom".
+4. **Confirm.** Pinch Send or say "send it". Nothing goes out before this.
+5. **Send.** The cloud puts the file behind a short-lived URL and calls the Send API. Albie then says whether it was delivered, based on the API's real result.
+
+**What's unproven, and what the spike must show by Nov 6**
+
+- A `.glb` or `.stl` arrives and opens on a phone. Meta's size and type limits weren't found. If a type fails, send a `.zip`, then a text message with a download link.
+- A persistent Page token can be held in the cloud. Its lifetime wasn't found.
+- A cloud endpoint (`cloud/api/`) can answer the webhook within Meta's 5 seconds and check its signature.
+
+**Limits we design around**
+
+- **Sends go to people with a role on the app** until App Review passes. That covers the team, so it covers the video.
+- **Judges aren't role holders.** Their build sends to a team-owned **demo recipient**, and Albie shows "Sent to the demo phone" with the real delivery result. A team member messages the Page daily through Dec 11 to keep the window open. If the window closes, the file stays in an in-app outbox with a clear message, and the rest of the app is unaffected.
+- **Linking is optional.** No step of the experience requires a phone, so the hands-first test still passes.
+- **The UI says "your phone", with no service name** (section 0.4).
+- **Before recording:** message the Page, so the window is open.
+
+**Removal, once a send works on a Quest**
+
+1. **Unity, delete:** the Slack and Mentions panels and their scripts, `MessageCard`, `MessagesDemo`, `DigestTrigger`, and the prefab builder's Slack and iMessage parts. Check `ForgeInput.cs` and `MessagesLayout.cs` first: a search found no use outside `Messages/`, but confirm in the editor.
+2. **Unity, keep:** `DraftCard.cs`, its prefab, `DraftPresenter.cs`, `MessagesTools.cs` and `Resources/AlbieTools/messages.json`, trimmed to the tools in section 10.5. The card also serves `confirm.request` for pushes and merges.
+3. **Unity, edit:**
+   - `Pet/Scripts/Core/ArrivalDirector.cs`, `ArrivalGreeting.cs`: drop the digest step (`POST /messages/digest`, `notify.digest`). The greeting uses its existing no-hub line for now, and later the notebook summary. This changes a working sit-down flow, so test it on a Quest.
+   - `Pet/Scripts/Adapters/GatorMrukAdapter.cs`: replace its use of `MessagesDeskZone`.
+   - `Core/Scripts/Workspace.cs`, `Core/Editor/MainSceneBuilder.cs`: remove the MSG mode and the two panels. Core owner only, then rebuild `Main.unity`.
+   - `Core/Net/ForgeEvents.cs`: remove the `notify.*` events and add the C-20 ones (a contract change, so propose it).
+   - `Core/Scripts/AlbieVoice.cs`, `AlbieTips.cs`, `Core/Resources/AlbieTools/cloud.json`: update message lines and tools.
+4. **Hub, delete:** `hub/messaging/slack_client.py`, `hub/messaging/imessage/`, `hub/manifest.json`, `hub/.slack/`, `hub/scripts/slack_*.py`, `hub/tests/test_imessage.py`, `test_messaging_files.py`, `test_events_notify.py`. Keep the draft logic from `hub/messaging/tools.py` and its tests, moved onto the new backend.
+5. **Hub and cloud, edit:**
+   - `hub/main.py`, `hub/events.py`, `hub/.env.example`, `hub/requirements.txt`.
+   - `hub/agent/events.py`, `runner.py`, `speech.py`, `tools.py`, `voice.py`, `wake.py`, `watcher.py`, `workspace.py`, `ws.py`.
+   - `hub/cad/router.py`, `service.py`: only the comments. `GET /cad/files` stays, and supplies files to send.
+   - `hub/desk/tools.py`, `cloud-py/app.py`, `cloud-py/stubs/agent/__init__.py`, `dev-setup.sh`.
+6. **Tests:** update `hub/tests/agent/` (`conftest.py`, `test_agent_fake_flow.py`, `test_agent_views.py`, `test_agent_watcher.py`), `hub/tests/test_bit_script.py`, `hub/cad/tests/test_bit_control.py`, `hub/tests/test_messaging.py`.
+7. **Docs:** `README.md`, `hub/README.md`, `hub/ml/README.md`, `docs/SETUP.md`, `docs/DISCLOSURE.md`. `docs/PROJECT_CONTEXT.md` stays as the record.
+8. **Done-check:**
+   - `git grep -il 'slack\|imessage' -- ':!*.meta' ':!docs/PROJECT_CONTEXT.md' ':!PROJECT_CONTEXT.md'` prints nothing, or only reviewed leftovers.
+   - The hub tests pass (`BIT_VSCODE_PORT=9`).
+   - Sit-down on a Quest: the gator greets you with the hub off and on.
+   - From a Quest with no laptop: a file reaches a phone only after the confirm.
+
 ## 15. Build anything: the Thing runtime, the lab notebook and code mode as the cockpit
 
 > Added 2026-10-30 from the product owner's direction. The drone in section 8.4 is **one** trajectory, not the design. A project can be about **any object**, built from scratch or from a starter. The user designs it, plays with it in their real room, gives it a brain (code or ML), tests it in artifacts, and keeps a record of what worked. Electrical and PCB design come later (15.9).
 
 ### 15.1 Principles
 
-- **On device first.** Design, physics play, small-model training, artifacts and the notebook all run on the Quest. The cloud is for the LLM brain (Muse Spark or Claude through the gateway), exact CAD (build123d), big training jobs and integrations.
+- **On device first.** Design, physics play, small-model training, artifacts and the notebook all run on the Quest. The cloud is for the LLM brain (Muse Spark first, Claude for long coding, through the gateway), exact CAD (build123d), big training jobs and integrations.
   - The rules only *discourage* "thin wrappers around existing platforms or services", with the "take it away test": remove the third-party service, and there should still be a Project.
   - With this design, take the LLM away and the user can still build, drive, test and train on the device.
 - **Nothing is hard-coded per object.** The rocket, quadcopter, gearbox, droid and the ML template are **starter projects** made from the same parts kit and the same project format a new project uses. The RC truck in the demo is **not built in**: Albie composes it live.
@@ -1999,17 +2160,22 @@ Three controller types, all swappable on the same Thing:
 1. **Sit down.** The gator hops onto the desk. "What are we building today?"
 2. **Plan (20 s).** "Let's build an RC truck that can do a slalom around my couch." Albie asks two questions (size, speed), then writes a short plan card: goal, parts, test, milestones.
 3. **Compose (15 s).** Albie writes the Thing spec, and the truck assembles itself on the desk at desk scale, part by part (chassis, wheels, motor, servo, battery, shell).
-4. **Drop and drive (30 s).** Pinch it up and drop it on the real floor. The RC transmitter appears in your hand. Drive it, and it bumps into the couch.
+4. **Drop and drive (25 s).** Pinch it up and drop it on the real floor. The RC transmitter appears in your hand. Drive it, and it bumps into the couch.
 5. **Fail and learn (20 s).** Take a sharp turn and it flips. "It rolled over. Want me to lower the centre of mass and widen the track?" The **notebook** logs attempt v1 as failed, with a cause.
 6. **Iterate (15 s).** "Yes." v2 rebuilds in under a second. The ghost of v1 stays visible beside it.
-7. **Artifact (25 s).** "Make me a slalom around the couch." Cones appear in free floor space, sized to your room. Run v1's numbers against v2: v2 completes it, v1 flipped.
-8. **Brain (35 s).** "Drive it yourself twice, and I'll learn it." Two laps → the NN view trains on the desk (about 10 s) → Autopilot drives the slalom alone.
-9. **Code (15 s).** Code mode shows `truck_autopilot` as a file. Turn its `max_speed` up and the truck drives faster on its next lap. The diff becomes commit v3.
-10. **Close.** "Every engineer gets a desk that understands their work." The truck, its arena and its notebook stay in the project library.
+7. **Artifact (20 s).** "Make me a slalom around the couch." Cones appear in free floor space, sized to your room. Run v1's numbers against v2: v2 completes it, v1 flipped.
+   - **7b. Optional (15 s, live demo only; it doesn't fit in the video).** "What shipped this week?" Albie says what it can see, reads the demo source-control account and builds a repo-activity artifact it wasn't programmed with. This is the one on-camera hint of the future story (section 9.6).
+8. **Brain (25 s).** "Drive it yourself twice, and I'll learn it." Two laps → the NN view trains on the desk (about 10 s) → Autopilot drives the slalom alone.
+9. **Code (10 s).** Code mode shows `truck_autopilot` as a file. Turn its `max_speed` up and the truck drives faster on its next lap. The diff becomes commit v3.
+10. **Send (15 s).** "Can you send me the updated model?" A card shows truck v3 and a note. "Send it." The phone on the real desk buzzes with the file. This is also the safety beat: nothing goes out without a confirm.
+11. **Close.** "Every engineer gets a desk that understands their work." The truck, its arena and its notebook stay in the project library.
 
 Fallbacks:
 - No network: steps 2, 3 and 7 use a cached spec and arena from the project library.
 - Behaviour cloning is too slow on the day: load the pretrained controller from v2.
+- The send fails: the file stays in the outbox and Albie says so. Reshoot rather than fake a delivery.
+
+Timing: the beats add up to about 165 s, plus about 10 s for the sit-down and close. That leaves little room under the 3-minute limit, so time it early.
 
 ### 15.7 Code mode, re-ideated: less bland, and tied to real objects
 
@@ -2069,7 +2235,7 @@ So a project can become a real, complete engineering project.
 3. **Schematic from code.** The component graph is written as code (SKiDL or atopile style) in the repo and rendered as a schematic panel. ERC checks give honest errors.
 4. **PCB.** Board outline fitted to the chassis in 3D. KiCad export for layout, with placement shown on the real Thing. Autorouting is a cloud job (Pro).
 5. **Firmware export.** Turn a controller (rules, PID, or the MLP weights as a C header) into firmware for a microcontroller (ESP32 or Arduino class). Sim-to-real: flash a real RC car with the policy trained in your room.
-6. **BOM and sourcing.** From parts and electronics to a parts list with quantities. Supplier links come later. Send it to a person only after a confirm step (the existing draft-then-send pattern).
+6. **BOM and sourcing.** From parts and electronics to a parts list with quantities. Supplier links come later. Export it, or send it through a connector, only after a confirm step (`confirm.request`).
 7. **Fabrication handoff.** STEP and STL for printing, the drawing PDF and the PCB Gerbers, as one "build pack".
 
 ### 15.10 Competition cut (by 2026-11-18): what to build, in order
@@ -2083,10 +2249,11 @@ Each step is mock-first and runs with the hub off.
 5. **Notebook v1:** attempt records, "that didn't work", lessons shown at session start.
 6. **Behaviour cloning on device** through the Neural Net Lab trainer → Autopilot controller.
 7. **Code mode v1:** the project repo with a controller file, live edit and hot reload, diff to commit. The crew walking to files, and gesture review.
-8. **Starters on the runtime:** the quadcopter (hand-flyable with PID hold) and the rocket (play-physics launch), alongside the existing CAD viewers. The droid and gearbox keep today's demos.
-9. **Polish:** under 10 minutes to the first "wow", FoV-aware layout (fits about 70°), 72 fps, sound, a clean pause and resume.
+8. **Send the model:** Messenger link, draft, confirm, a real file on a phone (D-37, section 14.12).
+9. **Starters on the runtime:** the quadcopter (hand-flyable with PID hold) and the rocket (play-physics launch), alongside the existing CAD viewers. The droid and gearbox keep today's demos.
+10. **Polish:** under 10 minutes to the first "wow", FoV-aware layout (fits about 70°), 72 fps, sound, a clean pause and resume.
 
-Cut from the competition build: PR and CI visuals with real GitHub (beyond the demo account), Playwright panel, Hugging Face fine-tuning, AWS and Datadog artifacts, Sketchfab auto-parameters beyond Tier 0, the bean avatar, electrical and PCB. All stay on the roadmap.
+Cut from the competition build: PR and CI visuals with real GitHub (beyond the demo account), Playwright panel, Hugging Face fine-tuning, connectors beyond the demo source-control account and the sample connector, Sketchfab auto-parameters beyond Tier 0, the bean avatar, electrical and PCB. Replying to other people through messages is out (D-37). All stay on the roadmap.
 
 ### 15.11 Risks
 
@@ -2094,7 +2261,160 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 - **LLM spec quality.** Constrain the agent with the part kit, the validator and 3 to 4 worked example specs. Cache good specs per project.
 - **Behaviour cloning quality from two laps.** Use data augmentation (mirrored laps), a small network, and a fallback pretrained controller.
 - **MRUK rooms vary.** Arena generation must handle small rooms (shrink the course and say so) and missing furniture labels.
-- **Scope.** 15.10 is still a lot for 19 days. Cut from the bottom, not the middle.
+- **Scope.** 15.10 is still a lot for the 17 days left from 2026-11-01. Cut from the bottom, not the middle.
+
+---
+
+## 16. Team: five workstreams to the competition
+
+> Updated 2026-11-01. There are 17 days to the deadline. The people are numbered, not named: the team decides who takes which number. These are leads, not walls. Most people will work across streams (16.2).
+
+### 16.1 The five chunks
+
+| Person | Leads | 15.10 items | Folders |
+|---|---|---|---|
+| **Person 1** | Product, Albie's presence, hands, code mode, the submission | 2, 7, 8, 10 | `Pet/`, `Code/`, `Messages/` |
+| **Person 2** | Core and the Thing runtime | 1, 9 | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` |
+| **Person 3** | Brain, voice, cloud, connectors, the messaging backend | 3, 8 | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` |
+| **Person 4** | Controllers and ML | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
+| **Person 5** | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
+
+Folders are under `unity/Assets/_Forge/` unless they start with `hub/`, `cloud/` or `cloud-py/`.
+
+Person 2 should be the Core owner named in `CLAUDE.md`. If not, update that line.
+
+### 16.2 Double-dipping
+
+A lead is the person accountable for a stream's goals and its review. They aren't the only person working on it.
+
+- Anyone can take a task from another stream. Tell the lead, and the lead reviews the PR. That counts as being "told otherwise" under the module-folder rule.
+- One person works on a file at a time, so say what you're taking at the daily check-in.
+- Only the Core owner edits `Main.unity`, `Packages/manifest.json` and Project Settings. That doesn't change.
+
+Where overlap is most likely to help:
+
+| Task | Lead | Also useful |
+|---|---|---|
+| The truck's driving feel, on a Quest with hands | Person 2 | Person 1, Person 4 |
+| Voice to Thing spec: example specs and prompts | Person 3 | Person 2 |
+| "Send me the updated model", from voice to phone | Person 1 | Person 3, Person 2 |
+| Hot reload: code panel to running Thing | Person 4 | Person 1 |
+| Connector data in an artifact | Person 5 | Person 3 |
+| Hands-only passes, in rooms we haven't tested | Person 1 | Everyone |
+
+### 16.3 Major goals by person
+
+Each date is the day the goal works in that person's sandbox scene, unless it says Quest or APK. Dates are in November.
+
+**Person 1: product, presence, hands, code mode, submission**
+
+| By | Major goal |
+|---|---|
+| Nov 3 | Team has picked who takes which chunk. Check-in time set. Licence and division questions sent. |
+| Nov 6 | Hands RC transmitter drives a mock truck. |
+| Nov 8 | Transmitter drives Person 2's real truck on a Quest. |
+| Nov 9 | "Send me the updated model": confirm card, then a real send through Person 3's backend, on a Quest. |
+| Nov 11 | Code mode v1: controller panel, diff to commit, gesture review, crew walking to files. |
+| Nov 13 | First-run flow under 10 minutes. FoV-aware layout. Pause and resume. Full demo run end to end. |
+| Nov 15 | Hands-only passes done with people who haven't seen it. Video recorded by Nov 16. |
+| Nov 17 | **Submitted**: Competition channel, video, Devpost text. |
+
+**Person 2: Core and the Thing runtime**
+
+| By | Major goal |
+|---|---|
+| Nov 3 | PR-00 (movie) open. C-16, C-01 and C-04 accepted. A hand-written truck spec builds on the desk. |
+| Nov 5 | Wheel model chosen after a feel test on a Quest. |
+| Nov 8 | **The truck drops on a real floor and bumps a real couch, at 72 fps, in the APK.** Grab and place work with hands. |
+| Nov 10 | All v1 parts done. Desk-scale mirror. A Thing exports to a file that can be sent (GLB, or STL if it's simpler). |
+| Nov 12 | Quadcopter flies by hand with PID hold. Rocket launches with play physics. |
+| Nov 14 | All prefabs in `Main.unity`. Feature freeze. |
+| Nov 16 | Performance and bug fixes only. Competition build ready. |
+
+**Person 3: brain, voice, cloud, connectors, messaging backend**
+
+| By | Major goal |
+|---|---|
+| Nov 3 | Gateway with the routing table and a daily spend cap. PR-02 open. |
+| Nov 4 | **Spark tool-calling test done, and the result recorded in section 1.3.** |
+| Nov 6 | **Messenger spike: a file reaches a team member's phone from the cloud** (section 14.12, D-37). |
+| Nov 7 | **Voice decision made**, with a measured latency on a Quest. |
+| Nov 8 | "Build me an RC truck" by voice gives a valid spec. Agent tools call the Thing, artifact and notebook tools. |
+| Nov 10 | Connector host: built-in backend, demo source-control account, sample connector. |
+| Nov 13 | The cloud is stable for judges: spend cap tested, demo account resets, recipient window kept open. |
+| Nov 16 | Fixes only. Cloud stays up to about Dec 11. |
+
+**Person 4: controllers and ML**
+
+| By | Major goal |
+|---|---|
+| Nov 4 | C-19 proposed: controller file and tick interface. |
+| Nov 6 | Manual and rule or PID controllers run on a mock Thing. |
+| Nov 8 | Telemetry recording. A timed behaviour-cloning run on a Quest. |
+| Nov 10 | **Two laps train on a Quest in about 10 s, and the Autopilot drives the truck.** |
+| Nov 12 | Hot reload: a changed value applies to the running Thing. Pretrained fallback ready. The Autopilot finishes the slalom. |
+| Nov 14 | ML template works as a starter. Neural Net Lab is the trainer view. |
+| Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
+
+**Person 5: artifacts and the notebook**
+
+| By | Major goal |
+|---|---|
+| Nov 4 | C-12 and C-17 proposed. |
+| Nov 6 | Artifact host opens a hand-written `scene.json`, with permissions on first open. |
+| Nov 8 | Notebook v1: attempts saved, "that didn't work" logs a failure, and it survives a restart. |
+| Nov 10 | **"Make me a slalom" gives a course in free floor space on a Quest**, with run records. |
+| Nov 12 | v1 and v2 compared. Lessons shown at session start. Plan revision. Saved anchors. |
+| Nov 14 | Hoop course. Repo-activity artifact, if the connector host landed. Works in small rooms and rooms with missing labels. |
+| Nov 16 | Fixes only. |
+
+### 16.4 Team checkpoints
+
+| Date | Everyone can see | If not |
+|---|---|---|
+| Nov 3 | Chunks claimed. C-16 accepted. | Build against the proposals as written. |
+| Nov 8 | A truck, driven by hand on a real floor, in the APK. | Everyone helps Person 2 and Person 1 first. Nothing else matters until this works. |
+| Nov 10 | Scope check: what stays and what goes. | Cut from the bottom of 15.10, not the middle. |
+| Nov 13 | The whole 15.6 demo, end to end, once. | Cut beats until it does. |
+| Nov 14 | **Feature freeze.** | |
+| Nov 16 | Video recorded. Competition build passes a hands-only run. | |
+| Nov 17 | **Submitted**, a day early. | Nov 18 is the buffer. |
+| Nov 18, 12:00 PM PT | Hard deadline. Keep the cloud up until winners are announced (about Dec 11). | |
+
+### 16.5 Who needs what from whom
+
+Everyone starts against mocks (the mock-first rule), so no one waits for a real dependency.
+
+| Needs | From | By | Mock until then |
+|---|---|---|---|
+| Thing spec (C-16) | Person 2 | Nov 3 | A hand-written truck JSON file in `Mocks/` |
+| Controller tick interface (C-19) | Person 4 and Person 2 | Nov 4 | A fake Thing that echoes inputs |
+| Artifact and notebook records (C-12, C-17) | Person 5 | Nov 4 | Fixture files |
+| Messaging send endpoint (C-20) | Person 3 | Nov 6 | A fake send that returns "delivered" |
+| Agent tools that call all of the above | Person 3 | Nov 8 | Keyboard triggers in sandbox scenes |
+| Hands transmitter on a real truck | Person 1 and Person 2 | Nov 8 | Mouse and DesktopRig |
+| A Thing file to send | Person 2 | Nov 10 | An existing CAD export |
+| Connector interface (C-18) | Person 3 | Nov 10 | A local fixture "connector" |
+
+### 16.6 PRs needed for the competition
+
+| PR | Lead | | PR | Lead |
+|---|---|---|---|---|
+| PR-00 Movie | Person 2 | | PR-07, PR-09 Voice | Person 3 |
+| PR-00b Messages on a Meta service | Person 1 and Person 3 | | PR-15 Artifacts v0 | Person 5 |
+| PR-02 Correctness bugs | Person 3 | | New: Thing runtime, C-16 | Person 2 |
+| PR-05 Modes from config | Person 2 | | New: Controllers, C-19 | Person 4 |
+| PR-06 Contracts | Core owner accepts, each lead proposes | | New: Notebook, C-17 | Person 5 |
+| | | | New: Connector host, C-18 (subset of PR-20) | Person 3 |
+
+The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. In particular, PR-03, PR-04 (renames), PR-14 (the agent writes specs for the competition, not part scripts) and PR-17 (cloud float: the rules want seated play, so it's a stretch goal). PR-18 also comes later, so the spend cap protects the public APK key until then.
+
+### 16.7 Working rules for the 17 days
+
+- The section 14.6 rules apply, with the double-dipping rule above.
+- Before you merge: your sandbox scene runs with the hub off, and with hands, not only a mouse.
+- The nightly APK goes on a Quest. A broken main is the first thing fixed the next morning.
+- A smaller demo that runs well beats a bigger one that doesn't.
 
 ---
 
@@ -2284,7 +2604,17 @@ These are the sources the research agents cited, grouped by topic, with each age
 - [medium] Unity WebView options for Quest exist: 3D WebView for Android (Android System WebView, Quest example, mock webview in the Editor) and Vuplex 3D WebView (Quest 2/3/Pro example). TLabWebViewVR notes it works only on... <https://assetstore.unity.com/packages/tools/gui/3d-webview-for-android-137030>
 - [medium] A Quest store app must be 64-bit, which in Unity requires IL2CPP (ARM64). This is from a 2022 community reply, not official documentation. <https://communityforums.atmeta.com/discussions/dev-unity/applab-il2cpp-requirement-for-quest2/967798>
 
-**integrations**
+**connectors-and-messaging (read 2026-11-01)**
+- [high] Development mode limits features to role users; webhooks from other people need Advanced Access through App Review. <https://developers.facebook.com/docs/development/build-and-test/app-modes/> <https://developers.facebook.com/docs/messenger-platform/webhooks/>
+- [high] Meta's Help Center defines Connectors as links from Muse to Meta and third-party services, and describes only the consumer app. <https://www.meta.com/help/artificial-intelligence/1687253048996149/>
+- [medium] The muse.ai/platform submission flow and its functional, security and legal review, as quoted by a third party. <https://cellcog.ai/blog/muse-connector-platform/>
+- [medium] A tracker quoting Meta's posts for the connector list, and reporting verification steps and onboarding in waves. <https://postfa.st/blog/meta-muse-connectors-list>
+- [low] A claim that Muse has no add-MCP setting and builds its own client. <https://parallel.ai/articles/meta-muse-custom-integrations>
+- [high] WhatsApp Cloud API test setup, the 24-hour window, and business-number sending. <https://developers.facebook.com/docs/whatsapp/cloud-api/get-started> <https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-messages>
+- [high] Messenger Platform: Page sending, person-initiated conversations, and the 24-hour window. <https://developers.facebook.com/docs/messenger-platform/send-messages> <https://developers.facebook.com/docs/messenger-platform/getting-started>
+- [medium] WhatsApp's ban on general-purpose AI assistants from 2026-01-15. Meta's policy text wasn't read directly. <https://techcrunch.com/2025/10/18/whatssapp-changes-its-terms-to-bar-general-purpose-chatbots-from-its-platform> <https://respond.io/blog/whatsapp-chatbot-policy-2026>
+
+**integrations** (AWS and Datadog entries are kept as reference for what a connector could provide. They're no longer planned tools, per D-36.)
 
 - [high] EC2 DescribeInstances should be paginated; unpaginated calls can be throttled or time out with many resources. Use NextToken/MaxResults via the paginator. <https://docs.aws.amazon.com/ec2/latest/devguide/ec2-api-pagination.html>
 - [medium] DescribeInstances supports Filters and InstanceIds inputs, and the DryRun flag can check permissions without executing the call, which helps verify a read-only policy. <https://docs.aws.amazon.com/botocore/latest/reference/services/ec2/paginator/DescribeInstances.html>
