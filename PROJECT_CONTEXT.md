@@ -20,6 +20,19 @@
   - **(unverified)**: claimed somewhere, not confirmed.
   - **(not found)**: we looked and found nothing. That is an absence of evidence, not proof.
 
+**Who's working on what (names claimed so far)**
+
+Section 16 numbers the five chunks; a name goes here when someone claims one. The full task list for each person, with dates, is in the section linked from their row.
+
+| Name | Chunk | Role | Folders | Start here (by Nov 4) | Full task list |
+|---|---|---|---|---|---|
+| **Satyabrata** | Person 4: controllers and ML | **ML A** (lead): the learning engine and the controller runtime | `ML/`, new `Controllers/`, `hub/ml/` | Propose C-19 (controller file and tick interface) with Person 2. Commit a fake Thing and `Mocks/thing/laps_truck_v2.json`. Grow `NNNetwork` to N outputs (steer, throttle). | 16.8, "ML A (Satyabrata)" |
+| **Nandani** | Person 4: controllers and ML | **ML B**: the brain on the desk (trainer view, panels, tools) | `ML/` | Sketch the brain view against the mock laps: ray-sensor and speed inputs, steer and throttle outputs. | 16.8, "ML B (Nandani)" |
+| *unclaimed* | Person 1: product, presence, hands, code mode, submission | | `Pet/`, `Code/`, `Messages/` | | 16.3 |
+| *unclaimed* | Person 2: Core and the Thing runtime | | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` | | 16.3 |
+| *unclaimed* | Person 3: brain, voice, cloud, connectors | | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` | | 16.3 |
+| *unclaimed* | Person 5: artifacts and the notebook | | new `Artifacts/`, new `Notebook/` | | 16.3 |
+
 ---
 
 ## 0. Status (2026-10-29)
@@ -2268,6 +2281,8 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 ## 16. Team: five workstreams to the competition
 
 > Updated 2026-11-01. There are 17 days to the deadline. The people are numbered, not named: the team decides who takes which number. These are leads, not walls. Most people will work across streams (16.2).
+>
+> **Claimed so far (2026-11-03):** Person 4 is **Satyabrata (ML A)** and **Nandani (ML B)**; their task lists are in 16.8. The "Who's working on what" table at the top of this file lists every name as it's claimed.
 
 ### 16.1 The five chunks
 
