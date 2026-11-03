@@ -114,7 +114,7 @@ public static class MainSceneBuilder
         if (petPrefab != null) ((GameObject)PrefabUtility.InstantiatePrefab(petPrefab)).name = "PetRuntime";
         else Debug.LogWarning($"[MainSceneBuilder] {PetRuntimePath} not found; Main has no pet. Build it (Pet module) and build Main again.");
 
-        // Bit's desk extras (timers, notes, the movie), on top of any mode: the Desk module's prefab, hosted by
+        // Bit's desk extras (timers, notes), on top of any mode: the Desk module's prefab, hosted by
         // WorkspaceExtras (its host field set by name, so Core doesn't need the module's types).
         var extras = root.AddComponent<WorkspaceExtras>();
         extras.workspace = workspace;

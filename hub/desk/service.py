@@ -1,7 +1,7 @@
-"""DeskService: the focus timers, notes and movie screen, which Bit adds on top of any mode, and which of them show.
+"""DeskService: the focus timers and notes, which Bit adds on top of any mode, and which of them show.
 
-One per hub (main.py). Every change goes out on /ws (timers.updated, notes.updated, movie.state, ui.widgets), and all
-four replay fresh to a client that connects later. The router (Unity's buttons) and the tools (Bit) both come through
+One per hub (main.py). Every change goes out on /ws (timers.updated, notes.updated, ui.widgets), and all
+three replay fresh to a client that connects later. The router (Unity's buttons) and the tools (Bit) both come through
 here.
 """
 from __future__ import annotations
@@ -11,9 +11,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from events import EventBus, MovieState, Note, TimersUpdated, TimerState, UiWidgets, WidgetState
+from events import EventBus, Note, TimersUpdated, TimerState, UiWidgets, WidgetState
 
-from .movie import MovieService
 from .notes import NotesStore
 from .timer import TimerBoard, ring_line
 
@@ -28,43 +27,34 @@ class DeskService:
         self.widgets = UiWidgets()
         self.timers = TimerBoard(self._timers_changed, self._timer_rang)
         self.notes = NotesStore(Path(data_dir) / "desk" / "notes.json")
-        self.movie = MovieService(Path(data_dir) / "media", Path(data_dir) / "desk" / "movie.json", self._movie_changed)
         bus.sticky_fresh("ui.widgets", lambda: self.widgets)
         bus.sticky_fresh("timers.updated", self.timers.updated)
         bus.sticky_fresh("notes.updated", self.notes.updated)
-        bus.sticky_fresh("movie.state", self.movie.state)
 
     def stop(self) -> None:
         self.timers.close()
 
     def health(self) -> dict[str, Any]:
-        return {"timers": len(self.timers), "notes": len(self.notes), "movies": len(self.movie.library()),
-                "movie": self.movie.state().status, "widgets": self.widgets.model_dump()}
+        return {"timers": len(self.timers), "notes": len(self.notes), "widgets": self.widgets.model_dump()}
 
     # ------------------------------------------------------------------ widgets
-    async def show(self, timer: WidgetState | None = None, notes: WidgetState | None = None,
-                   movie: WidgetState | None = None) -> UiWidgets:
+    async def show(self, timer: WidgetState | None = None, notes: WidgetState | None = None) -> UiWidgets:
         """Set which extras show; ui.widgets goes out only when something changed."""
-        updates = {k: v for k, v in {"timer": timer, "notes": notes, "movie": movie}.items() if v is not None}
+        updates = {k: v for k, v in {"timer": timer, "notes": notes}.items() if v is not None}
         nxt = UiWidgets(**{**self.widgets.model_dump(), **updates})
         if nxt != self.widgets:
             self.widgets = nxt
             await self.bus.publish("ui.widgets", nxt)
         return self.widgets
 
-    async def set_widgets(self, timer: WidgetState | None = None, notes: WidgetState | None = None,
-                          movie: WidgetState | None = None) -> UiWidgets:
-        """Unity's buttons (minimize, expand, close) and Bit's notes_view. Closing the timers stops them all; closing
-        the movie closes it (its place is kept). The timers and the movie only open while they're on."""
+    async def set_widgets(self, timer: WidgetState | None = None, notes: WidgetState | None = None) -> UiWidgets:
+        """Unity's buttons (minimize, expand, close) and Bit's notes_view. Closing the timers stops them all. The
+        timers only open while one is set."""
         if timer in ("open", "minimized") and not len(self.timers):
             raise ValueError("no timer is set")
-        if movie in ("open", "minimized") and self.movie.state().status == "closed":
-            raise ValueError("the movie isn't on")
         if timer == "closed" and len(self.timers):
             await self.timers.stop_all()
-        if movie == "closed" and self.movie.state().status != "closed":
-            await self.movie.close()
-        return await self.show(timer=timer, notes=notes, movie=movie)
+        return await self.show(timer=timer, notes=notes)
 
     # ------------------------------------------------------------------ notes
     async def add_note(self, text: str) -> Note:
@@ -92,7 +82,7 @@ class DeskService:
         if open_panel and self.widgets.notes == "closed":  # minimized stays a dot; its count goes up
             await self.show(notes="open")
 
-    # ------------------------------------------------------------------ timer + movie events
+    # ------------------------------------------------------------------ timer events
     async def _timers_changed(self, updated: TimersUpdated) -> None:
         await self.bus.publish("timers.updated", updated)
         if not updated.timers:
@@ -109,10 +99,3 @@ class DeskService:
             await self.speak(self.pet_id, line)
         except Exception:  # noqa: BLE001 - the chime and the caption already went out
             log.exception("spoken timer line failed")
-
-    async def _movie_changed(self, state: MovieState) -> None:
-        await self.bus.publish("movie.state", state)
-        if state.status == "closed":
-            await self.show(movie="closed")
-        elif self.widgets.movie == "closed":
-            await self.show(movie="open")

@@ -104,7 +104,7 @@ BREVITY_NOW = (" If the user asked you to do something (open, play, pause, close
                "the tool for it in this reply first; never say it is done without the tool call. Then confirm in one "
                "short sentence, under 10 words. A question: at most 20 words; an in-depth question: the key point "
                "then 'Want the details?'. Reading a tool result: say only the one or two numbers that answer the "
-               "user, never a list of values.")  # live 03:34, 03:38, 03:43: "Pause the movie" got a reply and no tool
+               "user, never a list of values.")  # live 03:34, 03:38, 03:43: a request got a reply and no tool
 # Grok ignores max_output_tokens / max_response_output_tokens (probed 2026-10-24: 100 s answers either way), so the
 # hub cuts a reply after this much of its audio. Unity plays it 1.2x faster (pitch), and audio arrives in chunks
 # (a cut at 12 s landed at 13.4 s), so 10 s here is ~8.5-9.5 s heard. 0 = no cut (default since 2026-10-25: Dev
@@ -153,15 +153,15 @@ TOOL_RULES = (
     "'why is it bad', 'fix it' or 'improve it' there is nn_improve, and a yes after it is nn_apply. Opening the "
     "neural net (lab, playground, 'neural net training') is nn_open, never ui_open_view; going back to the ML "
     "project or the training dashboard from it is nn_close. "
-    "Set the focus timer, keep the user's notes (one notes_add call per item: 'add X and Y' is two calls), and play "
-    "the movie on the big screen with your desk tools. "
+    "Set the focus timer and keep the user's notes (one notes_add call per item: 'add X and Y' is two calls) with "
+    "your desk tools. "
     "Slack and iMessage replies go out under the user's own account and are never sent directly: messages_send only "
     "writes a draft that pops up for them to confirm, and its attach option puts the open design's files on a Slack "
     "draft (STEP model, STL, drawing PDF, parts list; never delegate that). messages_edit_draft rewords the open draft "
     "and keeps its files. Say what you wrote and ask them to tap Send or say 'send it'; messages_confirm is for "
     "their yes or no."
 )
-IGNORED_NOTE = ("The user's last message was not said to you (background audio, a film, or talk to someone else). "
+IGNORED_NOTE = ("The user's last message was not said to you (background audio, or talk to someone else). "
                 "Ignore it completely: never act on it, answer it or mention it.")
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
 VIEW_NOTES = {
@@ -343,10 +343,6 @@ class _Base:
     async def addressed(self, text: str, facing: bool = False) -> bool:
         """WakeRouter.judge: was this unnamed sentence said to Albie? His last line (and how long ago) is the context."""
         age = time.monotonic() - self.last_reply_t if self.last_reply_t else None
-        if wake_mod.name_needed() and time.monotonic() - getattr(self, "_held_t", 0.0) < HOLD_S + 3:
-            return True  # the rest of a half-thought he is holding
-        if wake_mod.name_needed():  # the movie is on: a desk request is for him; otherwise ask whether it was the film
-            return bool(wake_mod.DESK_REQUEST.search(text)) or await addressed.said_to_albie(text, self.last_reply or None)
         return await addressed.judge(text, self.last_reply or None, age, facing=facing)
 
     def _spoke(self, text: str) -> None:
@@ -612,8 +608,8 @@ class GrokVoiceSession(_Base):
 
     async def _forget(self, item: str) -> None:
         """Drop a turn that was not for Albie. Grok answers item.delete of a user audio item with "Item not found" and
-        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known), and in the lab Albie then
-        acted on the film's "I need a suit". So he is also told, in a system note, to ignore it."""
+        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known). So he is also told, in a
+        system note, to ignore it."""
         await self._send({"type": "conversation.item.delete", "item_id": item})
         await self._send(_note_item(IGNORED_NOTE))
 
@@ -819,7 +815,7 @@ class GrokVoiceSession(_Base):
         self._response_requested = True
         if self._dropping:
             # A reply Grok started on its own is still being cancelled: a create now is rejected ("active response")
-            # and the turn got no answer at all (lab 07:34, "Close everything" while the movie played). After its done.
+            # and the turn got no answer at all (lab 07:34, "Close everything"). After its done.
             self._create_after_drop = addressed
             return
         self._expected += 1
@@ -940,8 +936,7 @@ class GrokVoiceSession(_Base):
         # audio, and guessed wrong both times in the lab ("I'm Albie, not MegaGrok"), so it is dropped.
         drop = stop or (self._require_name and named == "no") or (text is not None and not final and not self._wake)
         held = None
-        if not drop and (not self._wake or wake_mod.name_needed()) and not wake_mod.NAME_REQUIRED:
-            # (movie on: wake turns are judged, and a half-thought is still held, lab 07:0x "Close the ... movie.")
+        if not drop and not self._wake and not wake_mod.NAME_REQUIRED:
             # Counted from when Unity finished playing it: Grok streams a 13 s offer in ~1 s, so "Yeah." after it was
             # 14 s "old" and held as filler (live 2026-10-25 11:06).
             end = max(self.last_reply_t, self._played_t, min(time.monotonic(), self._play_until))
@@ -965,7 +960,7 @@ class GrokVoiceSession(_Base):
         wake = self._wake
         gated = self._gated or (wake and bool(self.wake_router.gated))  # read before the router resets it in final()
         facing = wake and bool(self.wake_router.facing)  # read before the router resets it in final()
-        if stop and (not wake or named != "no" or facing or wake_mod.name_needed()):  # movie on: a bare "stop" still works
+        if stop and (not wake or named != "no" or facing):
             # A wake / gated turn never barges in by itself (side talk must not cut Albie off): only "Albie, stop"
             # or "stop" while looking at him does. A plain "stop" to a teammate leaves him talking. A stop also ends
             # the code task he is running (live 22:30: "Albie, stop" and the runner kept editing).
@@ -1088,8 +1083,8 @@ class FakeVoiceSession(_Base):
 
     async def _forget(self, item: str) -> None:
         """Drop a turn that was not for Albie. Grok answers item.delete of a user audio item with "Item not found" and
-        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known), and in the lab Albie then
-        acted on the film's "I need a suit". So he is also told, in a system note, to ignore it."""
+        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known). So he is also told, in a
+        system note, to ignore it."""
         await self._send({"type": "conversation.item.delete", "item_id": item})
         await self._send(_note_item(IGNORED_NOTE))
 

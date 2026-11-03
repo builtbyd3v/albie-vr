@@ -2,7 +2,7 @@
 
 Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
 the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated, movie.state),
+docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated),
 and Albie driving the views: ui.mode, cad.action, draft attachments (Addendum H).
 The ML and pet models from section 7 still belong to their owners; add them next to these.
 """
@@ -365,8 +365,8 @@ class NotifyDigest(BaseModel):
         )
 
 
-# Desk extras (hub/desk): the focus timer, notes and the movie screen. Bit adds them on top of any mode and they stay
-# open across mode switches. Proposed contract additions: hub/README "Desk (timer, notes, movie)".
+# Desk extras (hub/desk): the focus timer and notes. Bit adds them on top of any mode and they stay
+# open across mode switches. Proposed contract additions: hub/README "Desk (timers, notes)".
 
 WidgetState = Literal["open", "minimized", "closed"]
 
@@ -375,7 +375,6 @@ class UiWidgets(BaseModel):
     """Which desk extras are showing. Always the whole map, so a client that connects later gets the layout."""
     timer: WidgetState = "closed"     # the timers: minimized = one dot showing the one that ends soonest
     notes: WidgetState = "closed"     # minimized = the notes dot
-    movie: WidgetState = "closed"
 
 
 class TimerState(BaseModel):
@@ -407,26 +406,6 @@ class NotesUpdated(BaseModel):
     last_removed: Note | None = None
 
 
-class MovieInfo(BaseModel):
-    movie_id: str                     # file name in .data/media without .mp4
-    title: str
-    year: int | None = None
-    duration_s: float | None = None
-    url: str                          # hub path for ForgeNet.Url: /movie/files/<id>.mp4 (byte ranges, so seeking works)
-    subtitles_url: str | None = None  # /movie/files/<id>.en.srt when there is one
-
-
-class MovieState(BaseModel):
-    """The movie screen. Unity's VideoPlayer keeps time and reports it (POST /movie/position); the hub estimates
-    position_s in between. A deliberate jump (seek, skip, play from the start) bumps seek_rev: Unity seeks to
-    position_s when seek_rev changes and otherwise leaves the player alone."""
-    status: Literal["closed", "playing", "paused"] = "closed"
-    movie: MovieInfo | None = None
-    position_s: float = 0.0
-    volume: float = 0.8               # 0..1
-    seek_rev: int = 0
-
-
 def _body(payload: BaseModel | dict[str, Any]) -> dict[str, Any]:
     return payload.model_dump() if isinstance(payload, BaseModel) else payload
 
@@ -446,7 +425,7 @@ class EventBus:
 
     def sticky_fresh(self, type_: str, current: Callable[[], BaseModel | dict[str, Any]]) -> None:
         """Replay `type_` to clients that connect later from `current()`, not from the last payload sent: for state
-        that moves on its own, like the timers' remaining time or the movie's position."""
+        that moves on its own, like the timers' remaining time."""
         self._current[type_] = current
 
     def latest(self, prefix: str = "") -> dict[str, dict[str, Any]]:

@@ -168,7 +168,7 @@ async def _on_text(s: Session, raw: str) -> None:
             if start.sample_rate != 16000:
                 log.warning("stt.start sample_rate=%s; expected 16000", start.sample_rate)
             s.stt_cancelled = False
-            named = wake_mod.NAME_REQUIRED or wake_mod.name_needed()  # free speech (default): a plain turn for Albie
+            named = wake_mod.NAME_REQUIRED  # free speech (default): a plain turn for Albie
             s.wake_turn = start.wake and s.wake is not None and (named or start.pet_id not in (None, "", s.pet_id))
             require_name = start.require_name and named
             if s.wake_turn:

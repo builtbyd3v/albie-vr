@@ -2,7 +2,7 @@
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
 Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)) and **ML** (see [hub/ml](ml/README.md)).
-Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes, movie; see [Desk](#desk-timers-notes-movie)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
+Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
 
@@ -424,13 +424,13 @@ delivered twice (bot + user subscription, or `app_mention` + `message`, or histo
 group DM is `is_dm` and counts as a mention; thread replies are stored (for the digest and focus) but left out of
 history, where the parent's `reply_count` grows instead.
 
-## Desk (timers, notes, movie)
+## Desk (timers, notes)
 
-Extras Bit adds on top of any mode: named **focus timers**, the user's **notes** and a **movie screen** above the desk. They
+Extras Bit adds on top of any mode: named **focus timers** and the user's **notes**. They
 don't belong to ML / CAD / CODE / MSG and stay open across mode switches. `ui.widgets` says which ones are showing;
 the hub owns all of it (`desk/service.py`), Unity's buttons and Bit's tools both go through it, so they raise the
 same events. Every desk event replays fresh to a client that connects later (`EventBus.sticky_fresh`): the timers'
-remaining time and the movie's position are computed at that moment, not copied from the last message.
+remaining time is computed at that moment, not copied from the last message.
 
 **Proposed contract additions** (PROJECT_CONTEXT section 7; models in `events.py`, mirror them in `ForgeEvents.cs`):
 
@@ -442,41 +442,17 @@ remaining time and the movie's position are computed at that moment, not copied 
 | `GET /notes` | `NotesUpdated {notes: Note[] (newest first), last_removed?}`, `Note {id, text, done, created_at, updated_at}` |
 | `POST /notes {text}` · `POST /notes/{id}/edit {text?, done?}` | add (opens the panel unless it's a dot) · edit or check off |
 | `POST /notes/{id}/remove` · `POST /notes/undo` | remove (kept as `last_removed`) · bring it back |
-| `GET /movie` · `GET /movie/library` | `MovieState {status: closed\|playing\|paused, movie?, position_s, volume, seek_rev}` · `MovieInfo[] {movie_id, title, year, duration_s, url, subtitles_url}` |
-| `GET /movie/files/<id>.mp4` · `<id>.en.srt` | the file, with byte ranges (seeking); subtitles |
-| `POST /movie/play {movie_id?, from_start?}` | opens the screen; resumes where you stopped (a movie stopped in its last 2 min starts over) |
-| `POST /movie/pause` · `/resume` · `/close` · `/seek {position_s \| delta_s \| mark}` · `/volume {volume}` | close keeps your place; seek to a `mark` (id, label or its words) plays it, putting its movie on |
-| `GET /movie/marks?movie_id=` · `POST /movie/marks {label, position_s?, movie_id?}` · `POST /movie/marks/{mark_id}/remove` | `MovieMark {mark_id, label, position_s}`: named spots per movie, by time (hub only, nothing on `/ws`; model in `desk/movie.py`). No position = a few seconds before where it is now; a label that exists moves |
-| `POST /movie/position {position_s, duration_s?, ended?}` | Unity's player reports where it is (every few s, on pause, at the end). No event back: Unity is the clock |
-| `GET /ui/widgets` · `POST /ui/widgets {timer?, notes?, movie?}` | `UiWidgets`, each `open\|minimized\|closed` (minimized = the dot). Closing the timers stops them, closing the movie closes it |
-| `/ws` events | `ui.widgets`, `timers.updated`, `notes.updated`, `movie.state`; `pet.say` "Time's up! ..." when a timer rings (also spoken) |
-| Bit's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}`, `movie_play {title?, from_start?}`, `movie_control {action: pause\|resume\|seek\|skip\|volume\|close, seconds?, mark?, volume?, by?}`, `movie_marks {action: save\|list\|remove, label?, seconds?, title?}`, `movie_status`. `note` / `timer` is an id or a few words of its text or name; a timer action with no `timer` means the only one it can (stop: the ringing ones) |
+| `GET /ui/widgets` · `POST /ui/widgets {timer?, notes?}` | `UiWidgets`, each `open\|minimized\|closed` (minimized = the dot). Closing the timers stops them |
+| `/ws` events | `ui.widgets`, `timers.updated`, `notes.updated`; `pet.say` "Time's up! ..." when a timer rings (also spoken) |
+| Bit's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}` |
 
 Unity, for the panels: count each timer down locally from `remaining_s` when `timers.updated` arrives (the Quest's
-clock isn't the laptop's); play the chime while `status` is `ringing`. Seek the VideoPlayer only when `seek_rev`
-changes, otherwise leave it alone. The `.srt` lines can carry ASS position tags like `{\an8}`: strip `{...}`.
+clock isn't the laptop's); play the chime while `status` is `ringing`.
 
-**Adding a movie.** Files live in `.data/media/` (gitignored; never commit one, and nothing goes into the APK; the
-Quest streams it from the hub over the LAN). Unity's VideoPlayer needs H.264 8-bit + stereo AAC, with the index at
-the front. From a 10-bit HEVC / multi-language source, keeping only the English track (NVIDIA GPU, about 7x real
-time on a laptop 3050 Ti):
+**Mocks for Unity:** `python -m desk.make_mocks` writes `.data/mocks/desk/`: `Resources/Mocks/` (timers, notes,
+ui/widgets REST answers) and `desk/sequence.json` (a ForgeMockPlayer run: a focus and a tea timer,
+notes in, notes to a dot, the tea timer rings and is stopped). Copy both into `unity/Assets/_Forge/Mocks/`.
 
-```powershell
-ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i "in.mkv" -map 0:v:0 -map 0:a:m:language:eng -map_chapters -1 -map_metadata -1 `
-  -vf "scale_cuda=format=nv12" -c:v h264_nvenc -preset p4 -rc vbr -cq 21 -b:v 0 -maxrate 8M -bufsize 16M -profile:v high -g 48 `
-  -c:a aac -b:a 192k -ac 2 -ar 48000 -movflags +faststart .data\media\<id>.part.mp4    # then rename to <id>.mp4
-ffmpeg -i "in.mkv" -map 0:s:0 -c:s srt .data\media\<id>.en.srt     # optional subtitles: one text track (ffprobe lists them; PGS won't convert)
-```
-
-No NVIDIA GPU: drop the two `-hwaccel` flags and the `-vf`, and use `-c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p`
-(slower). `<id>` is a file name without dots (`obsession`); a `*.part.mp4` still being written isn't listed. Optional
-`<id>.json`: `{"title": "Obsession", "year": 2025, "duration_s": 6519.8}`.
-
-**Mocks for Unity:** `python -m desk.make_mocks` writes `.data/mocks/desk/`: `Resources/Mocks/` (timers, notes, movie,
-movie/library, ui/widgets REST answers) and `desk/sequence.json` (a ForgeMockPlayer run: a focus and a tea timer,
-notes in, notes to a dot, movie on, the tea timer rings and is stopped). Copy both into `unity/Assets/_Forge/Mocks/`.
-
-Map: `desk/timer.py` (`TimerBoard`, the spoken line), `notes.py` (`NotesStore`, `.data/desk/notes.json`), `movie.py`
-(`MovieService`: library, places per movie, marks and volume in `.data/desk/movie.json`), `service.py` (`DeskService`:
+Map: `desk/timer.py` (`TimerBoard`, the spoken line), `notes.py` (`NotesStore`, `.data/desk/notes.json`), `service.py` (`DeskService`:
 widgets, events, Bit's voice), `router.py`, `tools.py`, `make_mocks.py`. Tests: `pytest tests/test_desk.py`. Not saved:
 running timers (a hub restart forgets them).

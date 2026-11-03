@@ -110,7 +110,7 @@ def test_a_voice_transcript_after_the_commit_keeps_him_thinking() -> None:
     async def go() -> None:
         await emit(ev.stt_partial("bit", "pause the"))
         await emit(ev.thinking("bit"))
-        await emit(ev.stt_final("bit", "Pause the movie.", voice=True))
+        await emit(ev.stt_final("bit", "Pause the timer.", voice=True))
 
     asyncio.run(go())
     assert [(e.type, e.payload.get("mode")) for e in target.sent if e.type == "pet.state"] == [

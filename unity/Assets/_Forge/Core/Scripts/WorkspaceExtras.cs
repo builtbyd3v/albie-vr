@@ -6,13 +6,12 @@ public enum ExtraState { Closed, Open, Minimized }
 
 /// <summary>
 /// Where an extra goes until the user moves it. Top: just above the open mode's middle panels, growing upward (give the
-/// prefab's root a bottom pivot). Beside: outside the open panels on the right. Cinema: high over the desk and further
-/// back, tilted down to the eyes, above whatever is at the Top.
+/// prefab's root a bottom pivot). Beside: outside the open panels on the right.
 /// </summary>
-public enum ExtraAnchor { Top, Beside, Cinema }
+public enum ExtraAnchor { Top, Beside }
 
 /// <summary>
-/// Panels that come and go outside the modes: Bit's desk extras (the timers, the notes, the movie). They stay open while
+/// Panels that come and go outside the modes: Bit's desk extras (the timers, the notes). They stay open while
 /// modes switch and follow the open mode's layout (until the user moves them), fold away when you stand up and come
 /// back when you sit down. Minimized, a panel shrinks into a <see cref="PanelOrb"/> where it was: tap the orb and the
 /// panel opens there again, hold it to carry it somewhere else. Where things were moved is kept for the session.
@@ -30,8 +29,6 @@ public class WorkspaceExtras : MonoBehaviour
 
     [Header("Layout (m, deg)")]
     public float topGap = 0.02f;
-    public float cinemaDistance = 2.1f;
-    public float cinemaMinPitch = 22f, cinemaMaxPitch = 52f, cinemaMaxDistance = 3.5f;
 
     /// <summary>The user asked for <c>(id, state)</c>: tapped an orb (Open).</summary>
     public event Action<string, ExtraState> Requested;
@@ -440,12 +437,9 @@ public class WorkspaceExtras : MonoBehaviour
                 TopEdge(out Vector3 edge, out rot);
                 pos = edge + rot * Vector3.up * topGap;
                 break;
-            case ExtraAnchor.Beside:
+            default:  // Beside
                 if (workspace != null) workspace.BesidePose(+1, size, out pos, out rot);
                 else Around(eye, 32f, -0.05f, 0.8f, out pos, out rot);  // a sandbox: in a desktop camera's view
-                break;
-            default:
-                Cinema(eye, size, out pos, out rot);
                 break;
         }
         // Out of the room's walls (a Top extra rides on the main panel, which is already clear).
@@ -460,37 +454,6 @@ public class WorkspaceExtras : MonoBehaviour
     {
         if (workspace != null) workspace.TopEdge(out pos, out rot);
         else Around(Eye, 0f, 0.2f, 0.8f, out pos, out rot);
-    }
-
-    // High over the desk, straight ahead, its bottom edge a little above whatever stands at the Top, tilted down to face
-    // the eyes. When that would mean looking up past cinemaMaxPitch (ML's Training panel and a few timers), it goes
-    // further back instead, so it looks smaller and still clears them.
-    void Cinema(Vector3 eye, Vector2 size, out Vector3 pos, out Quaternion rot)
-    {
-        TopEdge(out Vector3 top, out Quaternion topRot);
-        top += topRot * Vector3.up * (topGap + TopHeight());
-        Vector3 d = top - eye;
-        float bottom = Mathf.Atan2(d.y, Mathf.Max(0.3f, new Vector2(d.x, d.z).magnitude)) * Mathf.Rad2Deg + 3f;
-        float distance = cinemaDistance;
-        float half = Mathf.Atan2(size.y * 0.5f, distance) * Mathf.Rad2Deg;
-        if (bottom + half > cinemaMaxPitch)
-        {
-            half = Mathf.Max(6f, cinemaMaxPitch - bottom);
-            distance = Mathf.Min(cinemaMaxDistance, Mathf.Max(distance, size.y * 0.5f / Mathf.Tan(half * Mathf.Deg2Rad)));
-            half = Mathf.Atan2(size.y * 0.5f, distance) * Mathf.Rad2Deg;
-        }
-        float pitch = Mathf.Clamp(bottom + half, cinemaMinPitch, cinemaMaxPitch);
-        pos = eye + Quaternion.Euler(-pitch, 0f, 0f) * Vector3.forward * distance;
-        rot = Quaternion.LookRotation(pos - eye, Vector3.up);
-    }
-
-    // How tall the open Top extras are (the timers' stack), so the Cinema clears them.
-    float TopHeight()
-    {
-        float h = 0f;
-        foreach (var e in all)
-            if (e.anchor == ExtraAnchor.Top && e.panelShown && e.panel != null) h = Mathf.Max(h, e.panel.SizeMeters.y);
-        return h;
     }
 
     static void Around(Vector3 eye, float yaw, float up, float radius, out Vector3 pos, out Quaternion rot)

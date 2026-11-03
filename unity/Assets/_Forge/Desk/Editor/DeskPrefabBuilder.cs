@@ -6,14 +6,11 @@ using UnityEngine.EventSystems;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.Video;
 
 /// <summary>
 /// Forge > Desk > Build Desk Prefabs and Sandbox: (re)builds, all in Assets/_Forge/Desk:
 /// - TimerStack.prefab: headerless ForgePanel variant + TimerStack (the timers' pills; root pivot at the bottom)
 /// - NotesPanel.prefab: ForgePanel variant + NotesPanel
-/// - MoviePanel.prefab: ForgePanel variant, title bar off (PanelManipulator puts a move bar above it), VideoPlayer +
-///   AudioSource + MoviePanel
 /// - DeskOrb.prefab: tiny frameless ForgePanel variant + PanelOrb (the dot a panel minimizes into)
 /// - Resources/DeskExtras.prefab: DeskExtras + DeskChime with the prefabs above (Main's builder puts one under the
 ///   Workspace; DeskBootstrap adds it at runtime to any scene with a Workspace that has none)
@@ -26,7 +23,6 @@ public static class DeskPrefabBuilder
     const string PrefabDir = Root + "/Prefabs";
     public const string TimersPath = PrefabDir + "/TimerStack.prefab";
     public const string NotesPath = PrefabDir + "/NotesPanel.prefab";
-    public const string MoviePath = PrefabDir + "/MoviePanel.prefab";
     public const string OrbPath = PrefabDir + "/DeskOrb.prefab";
     public const string ExtrasPath = Root + "/Resources/DeskExtras.prefab";  // Resources: DeskBootstrap loads it
     public const string SandboxPath = Root + "/DeskSandbox.unity";
@@ -55,7 +51,7 @@ public static class DeskPrefabBuilder
             }
         }
         AssetDatabase.SaveAssets();
-        Debug.Log($"[DeskPrefabBuilder] Built {TimersPath}, {NotesPath}, {MoviePath}, {OrbPath}, {ExtrasPath}, {SandboxPath}");
+        Debug.Log($"[DeskPrefabBuilder] Built {TimersPath}, {NotesPath}, {OrbPath}, {ExtrasPath}, {SandboxPath}");
     }
 
     [MenuItem("Forge/Desk/Build Desk Prefabs")]
@@ -75,22 +71,6 @@ public static class DeskPrefabBuilder
         notes.AddComponent<NotesPanel>();
         var notesPrefab = Save(notes, NotesPath);
 
-        var movie = PanelVariant("MoviePanel", "movie", "Movie", new Vector2(1.44f, 0.96f));
-        // A screen, not a window: no title bar (renamed, so PanelManipulator adds a move bar above instead), no
-        // header line, a thin bezel round the picture.
-        var bar = movie.transform.Find("TitleBar");
-        bar.gameObject.SetActive(false);
-        bar.name = "TitleBar (off)";
-        var frame = movie.transform.Find("Background").GetComponent<ForgeSurface>();
-        frame.Header = 0f;
-        frame.Corner = 24f;
-        var moviePanel = movie.GetComponent<ForgePanel>();
-        Stretch(moviePanel.Content, 6f, 6f, 6f, 6f);
-        movie.AddComponent<AudioSource>();
-        movie.AddComponent<VideoPlayer>();
-        movie.AddComponent<MoviePanel>();
-        var moviePrefab = Save(movie, MoviePath);
-
         var orb = PanelVariant("DeskOrb", "orb", "", new Vector2(0.1f, 0.1f));
         Bare(orb);
         orb.AddComponent<PanelOrb>();
@@ -101,7 +81,6 @@ public static class DeskPrefabBuilder
         var desk = extras.AddComponent<DeskExtras>();
         desk.timersPrefab = timersPrefab;
         desk.notesPrefab = notesPrefab;
-        desk.moviePrefab = moviePrefab;
         desk.orbPrefab = orbPrefab;
         desk.chime = chime;
         PrefabUtility.SaveAsPrefabAsset(extras, ExtrasPath);

@@ -363,14 +363,13 @@ public class NotifyDigest
     [JsonProperty("messages")] public List<NotifyMessage> messages = new List<NotifyMessage>();  // newest first, at most 4
 }
 
-// Desk extras (hub/desk, hub README "Desk"): Bit's focus timers, notes and movie screen, on top of any mode.
+// Desk extras (hub/desk, hub README "Desk"): Bit's focus timers and notes, on top of any mode.
 
 /// <summary>Which desk extras show: "open", "minimized" (a dot) or "closed". Always the whole set.</summary>
 public class UiWidgets
 {
     [JsonProperty("timer")] public string timer = "closed";   // the timers
     [JsonProperty("notes")] public string notes = "closed";
-    [JsonProperty("movie")] public string movie = "closed";
 }
 
 public class DeskTimer
@@ -401,26 +400,6 @@ public class NotesUpdated
 {
     [JsonProperty("notes")] public List<DeskNote> notes = new List<DeskNote>();  // newest first
     [JsonProperty("last_removed")] public DeskNote lastRemoved;                // what Undo brings back, else null
-}
-
-public class MovieInfo
-{
-    [JsonProperty("movie_id")] public string movieId;
-    [JsonProperty("title")] public string title;
-    [JsonProperty("year")] public int? year;
-    [JsonProperty("duration_s")] public float? durationS;
-    [JsonProperty("url")] public string url;                  // hub path: ForgeNet.Url(url); serves byte ranges
-    [JsonProperty("subtitles_url")] public string subtitlesUrl;
-}
-
-/// <summary>The movie screen. Seek the player only when <see cref="seekRev"/> changes; otherwise it keeps time.</summary>
-public class MovieState
-{
-    [JsonProperty("status")] public string status = "closed";  // closed | playing | paused
-    [JsonProperty("movie")] public MovieInfo movie;
-    [JsonProperty("position_s")] public float positionS;
-    [JsonProperty("volume")] public float volume = 0.8f;
-    [JsonProperty("seek_rev")] public int seekRev;
 }
 
 /// <summary>
@@ -454,7 +433,6 @@ public static class ForgeEvents
     public const string UiWidgetsType = "ui.widgets";
     public const string TimersUpdatedType = "timers.updated";
     public const string NotesUpdatedType = "notes.updated";
-    public const string MovieStateType = "movie.state";
 
     public static event Action<MlRunState> OnMlRunState;
     public static event Action<MlMetrics> OnMlMetrics;
@@ -479,7 +457,6 @@ public static class ForgeEvents
     public static event Action<UiWidgets> OnUiWidgets;
     public static event Action<TimersUpdated> OnTimersUpdated;
     public static event Action<NotesUpdated> OnNotesUpdated;
-    public static event Action<MovieState> OnMovieState;
 
     /// <summary>Raise the typed event for <paramref name="type"/>. Returns false for unknown types.</summary>
     internal static bool Raise(string type, JToken payload)
@@ -509,7 +486,6 @@ public static class ForgeEvents
             case UiWidgetsType: Invoke(OnUiWidgets, payload); return true;
             case TimersUpdatedType: Invoke(OnTimersUpdated, payload); return true;
             case NotesUpdatedType: Invoke(OnNotesUpdated, payload); return true;
-            case MovieStateType: Invoke(OnMovieState, payload); return true;
             default: return false;
         }
     }

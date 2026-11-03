@@ -3,10 +3,9 @@
     python -m desk.make_mocks [out_dir]     (from hub/; default hub/.data/mocks/desk)
 
 Resources/Mocks/ holds the REST answers (ForgeNet.Get reads Resources/Mocks/<path>.json): timers.json (GET /timers),
-notes.json (GET /notes), movie.json (GET /movie), movie/library.json, ui/widgets.json. desk/sequence.json is a
+notes.json (GET /notes), ui/widgets.json. desk/sequence.json is a
 ForgeMockPlayer list that walks through the story: Bit sets a focus timer and a tea timer, notes come in, the notes
-shrink to a dot, the movie comes on, the tea timer rings and is turned off. Copy both folders into unity/Assets/_Forge/Mocks/.
-The movie has no file in mock mode: point the player at a local clip there.
+shrink to a dot, the tea timer rings and is turned off. Copy both folders into unity/Assets/_Forge/Mocks/.
 """
 from __future__ import annotations
 
@@ -17,13 +16,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from events import MovieInfo, MovieState, Note, NotesUpdated, TimersUpdated, TimerState, UiWidgets
+from events import Note, NotesUpdated, TimersUpdated, TimerState, UiWidgets
 
 HUB = Path(__file__).resolve().parents[1]
 T0 = 1793030400.0  # a fixed "now" so the files don't change between runs
 
-MOVIE = MovieInfo(movie_id="obsession", title="Obsession", year=2025, duration_s=6519.8,
-                  url="/movie/files/obsession.mp4", subtitles_url="/movie/files/obsession.en.srt")
 NOTES = [Note(id="n3a91c0", text="Ask Adrian about the gator's jump timing", created_at=T0 - 60, updated_at=T0 - 60),
          Note(id="n1f2e77", text="Push the demo build by 3", done=True, created_at=T0 - 1800, updated_at=T0 - 300),
          Note(id="n08bd42", text="Re-record the fallback ML run", created_at=T0 - 7200, updated_at=T0 - 7200)]
@@ -42,9 +39,6 @@ def sequence() -> list[dict[str, Any]]:
         (3.5, "timers.updated", TimersUpdated(timers=[TEA, FOCUS.model_copy(update={"remaining_s": 2535})])),
         (5.0, "notes.updated", NotesUpdated(notes=NOTES)),  # "Bit, add that to my notes"
         (9.0, "ui.widgets", UiWidgets(timer="open", notes="minimized")),
-        (11.0, "movie.state", MovieState(status="playing", movie=MOVIE, position_s=1200, seek_rev=1)),
-        (11.0, "ui.widgets", UiWidgets(timer="open", notes="minimized", movie="open")),
-        (16.0, "movie.state", MovieState(status="playing", movie=MOVIE, position_s=1205, volume=0.4, seek_rev=1)),
         (28.5, "timers.updated", TimersUpdated(timers=[ringing, FOCUS.model_copy(update={"remaining_s": 2510})])),
         (28.5, "pet.say", {"pet_id": "bit", "text": "Time's up! Your tea timer is done."}),
         (34.0, "timers.updated", TimersUpdated(timers=[FOCUS.model_copy(update={"remaining_s": 2504})])),
@@ -56,8 +50,6 @@ def files() -> dict[str, Any]:
     return {
         "Resources/Mocks/timers.json": TimersUpdated().model_dump(),  # none: a mock timer would ring in Main hub-off
         "Resources/Mocks/notes.json": NotesUpdated(notes=NOTES).model_dump(),
-        "Resources/Mocks/movie.json": MovieState(status="paused", movie=MOVIE, position_s=1200).model_dump(),
-        "Resources/Mocks/movie/library.json": [MOVIE.model_dump()],
         # Closed: hub off in Main shows nothing until asked; the sandbox's sequence opens them.
         "Resources/Mocks/ui/widgets.json": UiWidgets().model_dump(),
         "desk/sequence.json": sequence(),

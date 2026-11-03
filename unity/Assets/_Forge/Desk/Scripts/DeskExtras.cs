@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Bit's desk extras on top of any mode: the focus timers (pills above the screens), the notes (beside the open panels)
-/// and the movie (a big screen above the desk). The hub decides what shows (ui.widgets) and owns the data
-/// (timers.updated, notes.updated, movie.state); this turns that into panels and dots through
+/// Bit's desk extras on top of any mode: the focus timers (pills above the screens), and the notes (beside the open panels).
+/// The hub decides what shows (ui.widgets) and owns the data
+/// (timers.updated, notes.updated); this turns that into panels and dots through
 /// <see cref="WorkspaceExtras"/>, and the panels' buttons go back through <see cref="DeskApi"/>. Minimized, the timers
 /// are one dot showing the one that ends soonest (with how many there are), the notes a dot with the open count.
 /// Hub off: <see cref="DeskApi"/> stands in for it (mocks: Resources/Mocks/timers.json etc. and the sandbox's events).
@@ -11,7 +11,7 @@ using UnityEngine;
 public class DeskExtras : MonoBehaviour
 {
     public WorkspaceExtras host;
-    public GameObject timersPrefab, notesPrefab, moviePrefab;
+    public GameObject timersPrefab, notesPrefab;
     public PanelOrb orbPrefab;
     public DeskChime chime;
     [Tooltip("What the panels call the pet (\"Ask Bit to add a note\"). Rename the pet here.")]
@@ -20,11 +20,9 @@ public class DeskExtras : MonoBehaviour
     UiWidgets widgets = new UiWidgets();
     TimersUpdated timers = new TimersUpdated();
     NotesUpdated notes = new NotesUpdated();
-    MovieState movie = new MovieState();
     float timersAt;
     TimerStack timerStack;
     NotesPanel notesPanel;
-    MoviePanel moviePanel;
     int shownCount = -1, shownSecond = -1, ringingCount;
     bool fetched;
 
@@ -33,7 +31,6 @@ public class DeskExtras : MonoBehaviour
         ForgeEvents.OnUiWidgets += OnWidgets;
         ForgeEvents.OnTimersUpdated += OnTimers;
         ForgeEvents.OnNotesUpdated += OnNotes;
-        ForgeEvents.OnMovieState += OnMovie;
         ForgeNet.StatusChanged += OnStatus;
         if (host != null) host.Requested += OnRequested;
     }
@@ -43,7 +40,6 @@ public class DeskExtras : MonoBehaviour
         ForgeEvents.OnUiWidgets -= OnWidgets;
         ForgeEvents.OnTimersUpdated -= OnTimers;
         ForgeEvents.OnNotesUpdated -= OnNotes;
-        ForgeEvents.OnMovieState -= OnMovie;
         ForgeNet.StatusChanged -= OnStatus;
         if (host != null) host.Requested -= OnRequested;
         if (chime != null) chime.SetRinging(false);
@@ -60,7 +56,6 @@ public class DeskExtras : MonoBehaviour
         ForgeNet.Get<TimersUpdated>("/timers", OnTimers, _ => { });
         if (status == ForgeNetStatus.Mock && DeskApi.LoadSavedNotes(out var saved)) OnNotes(saved);  // hub off: this device's notes
         else ForgeNet.Get<NotesUpdated>("/notes", OnNotes, _ => { });
-        ForgeNet.Get<MovieState>("/movie", OnMovie, _ => { });
         ForgeNet.Get<UiWidgets>("/ui/widgets", OnWidgets, _ => { });
     }
 
@@ -87,7 +82,7 @@ public class DeskExtras : MonoBehaviour
         if (timers.timers.Count != shownCount)
         {
             shownCount = timers.timers.Count;
-            host.Relayout();  // the stack grew or shrank: the movie clears it
+            host.Relayout();  // the stack grew or shrank
         }
     }
 
@@ -97,13 +92,6 @@ public class DeskExtras : MonoBehaviour
         DeskApi.Seen(notes);
         if (notesPanel != null) notesPanel.Show(notes);
         UpdateNotesOrb();
-    }
-
-    void OnMovie(MovieState value)
-    {
-        movie = value ?? new MovieState();
-        DeskApi.Seen(movie);
-        if (moviePanel != null) moviePanel.Show(movie);
     }
 
     void Apply()
@@ -128,17 +116,6 @@ public class DeskExtras : MonoBehaviour
             }
         }
 
-        go = host.Set("movie", State(widgets.movie), moviePrefab, ExtraAnchor.Cinema, null, movable: true);
-        var screen = go != null ? go.GetComponent<MoviePanel>() : null;
-        if (screen != moviePanel)
-        {
-            moviePanel = screen;
-            if (screen != null)
-            {
-                screen.Bind(this);
-                screen.Show(movie);
-            }
-        }
         shownSecond = -1;
         UpdateNotesOrb();
     }

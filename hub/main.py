@@ -1,7 +1,7 @@
 """Forge hub: one FastAPI process, a router per module, one `/ws` event bus.
 
 Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), desk
-(timers, notes, movie), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
+(timers, notes), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
 the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
 ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
@@ -31,7 +31,6 @@ from agent.workspace import workspace as views
 from cad import tools as cad_tools
 from cad.router import router as cad_router
 from cad.service import CadService, watch_script
-from agent import wake as agent_wake
 from desk import DeskService
 from desk import tools as desk_tools
 from desk.router import router as desk_router
@@ -88,9 +87,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_ws.client_handlers["messages.opened"] = slack.opened_from_ws  # Unity's answer to messages.open
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(
             name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
-        desk = DeskService(data_dir, bus, speech.speak)  # timer, notes, movie: .data/desk, .data/media
+        desk = DeskService(data_dir, bus, speech.speak)  # timer, notes: .data/desk
         app.state.desk = desk
-        agent_wake.name_needed = lambda: desk.movie.state().status == "playing"  # its soundtrack is not the user
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
         ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)

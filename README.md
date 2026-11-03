@@ -17,7 +17,7 @@ Albie is a mixed reality workspace for engineers on Meta Quest 3 and 3S, led by 
 - **Neural Net Lab.** Poke a live network with your hands and watch the decision boundary move. When a spiral classifier got stuck at **52%**, Albie fixed it: **92%** in about 11 seconds, then on to nearly 100%.
 - **Messages.** Albie reads your Slack and allowed iMessage chats and drafts replies. Nothing sends until you tap Send or say "send it".
 - **The crew.** Albie leads 9 gator specialists (Scout, Builder, Fixer, Tester, Reviewer, Scribe, Shipper, Designer, Sentinel). Each is its own Claude agent in its own git worktree. Say "Tester, run the tests," and that gator gets to work.
-- **The rest of your day.** A focus timer, a to-do list he keeps as you talk, and a movie on the big screen that skips to a scene when you describe it.
+- **The rest of your day.** A focus timer and a to-do list he keeps as you talk.
 
 ## How it works (short)
 

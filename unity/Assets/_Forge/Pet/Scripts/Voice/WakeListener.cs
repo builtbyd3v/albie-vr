@@ -134,7 +134,7 @@ namespace Forge.Pet
             bool want = listenForNames && GatorAgentBridge.EventSourceIsHub && _client != null && _client.IsConnected
                         && !sessionBusy && !_ttsTalking && Time.time >= _pausedUntil && MicPermission.HasPermission;
             // After his speech: resumeDelay (his echo dies down). After a hands-free turn: almost at once, or the start
-            // of the user's next sentence is lost (lab 2026-10-25: "And then, um ... put on the movie" lost the movie).
+            // of the user's next sentence is lost (lab 2026-10-25: "And then, um ... set a timer" lost the timer).
             if (_ttsTalking) _pausedUntil = Time.time + resumeDelay;
             else if (sessionBusy) _pausedUntil = Mathf.Max(_pausedUntil, Time.time + sessionResumeDelay);
             if (!want)
