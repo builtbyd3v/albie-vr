@@ -17,7 +17,10 @@ using UnityEngine;
 /// hub's events (voice.ready, stt.partial/final, agent.*, tts.start + PCM16 frames + tts.end/stop, pet.state), as
 /// hub/agent/voice.py does (contract: docs/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
 /// <see cref="AlbieTools"/>. Kept from voice.py: barge-in, the no-reply guard, tool results after response.done with
-/// one response.create. Not yet: wake/name gating, the reply-length cut, delegate (the Claude runner).
+/// one response.create. Not yet: name gating, the reply-length cut, delegate (the Claude runner).
+/// Cost: xAI bills every minute the session is open, so it opens only for a turn (lazy), room speech (WakeListener's
+/// wake turns) reaches it only while the user faces Albie, and it closes FollowUpS + IdleCloseS after his last word.
+/// A new session gets the last few lines in its instructions, so a reconnect keeps the thread.
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).
 /// Installs itself; off in a build with no voice token server (<see cref="AlbieVoiceToken"/>).
 /// </summary>
@@ -30,7 +33,10 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     const int InputRate = 16000;
     const int MinCommitBytes = 3200;  // under 0.1 s of audio: nothing was said
     const float NoReplyS = 8f;        // committed turn with no transcript and no reply by then: an empty turn
-    const float IdleCloseS = 120f;    // close the socket when unused (a session costs while open); reopens on the next turn
+    const float FollowUpS = 15.5f;    // GatorFollowUp's reply window after his speech (listenSeconds 15 + startDelay)
+    const float IdleCloseS = 20f;     // then close (billed per open minute); the next turn reconnects while the user still talks
+    const int HistoryLines = 8;       // recent lines carried into a new session's instructions
+    const int HistoryChars = 200;
     static readonly int[] SupportedRates = { 8000, 16000, 22050, 24000, 32000, 44100, 48000 };
 
     // From hub/agent/voice.py (PERSONA, BREVITY, BREVITY_NOW); the tool rules cover only the tools on the device.
@@ -74,6 +80,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     readonly Queue<string> outbox = new Queue<string>();
     bool pumping;
     float lastActivity;
+    float speechEnd;  // when the reply's audio stops playing on the device (deltas arrive faster than real time)
+    readonly List<string> history = new List<string>();
+    string instructions = Instructions;  // this session's: Instructions + the recent lines it started with
     int outRate = 48000;
 
     // The turn and the reply in progress.
@@ -123,7 +132,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     void Update()
     {
-        if (ws != null && ws.State == WebSocketState.Open && !turnOpen && !responseActive && Time.realtimeSinceStartup - lastActivity > IdleCloseS)
+        if (ws != null && ws.State == WebSocketState.Open && !turnOpen && !responseActive && toolsRunning == 0
+            && Time.realtimeSinceStartup - Mathf.Max(lastActivity, speechEnd) > FollowUpS + IdleCloseS)
         {
             Debug.Log("[AlbieVoice] idle: closing the voice session (it reopens on the next turn).");
             var idle = ws;
@@ -137,16 +147,18 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     public void OnEvent(string type, JToken payload)
     {
-        lastActivity = Time.realtimeSinceStartup;
         switch (type)
         {
             case "hello":
                 int rate = payload?.Value<int?>("audio_out_rate") ?? 0;
                 outRate = Array.IndexOf(SupportedRates, rate) >= 0 ? rate : 48000;
                 ForgeNet.Inject("voice.ready", new JObject { ["pet_id"] = PetId, ["provider"] = "grok", ["sample_rate"] = outRate });
-                _ = EnsureConnected();  // connect now, so the first turn doesn't wait for it
-                break;
+                break;  // no connect here: the first turn opens the session
             case "stt.start":
+                // Room speech with no conversation going: only while the user faces Albie (the hub's wake.py drops the
+                // rest silently too). Follow-up, barge-in and button turns aren't wake turns, so they always count.
+                if (payload?.Value<bool?>("wake") == true && payload.Value<bool?>("facing") != true) break;
+                lastActivity = Time.realtimeSinceStartup;
                 if (responseActive || audioStarted) StopSpeech("barge_in");
                 turnSeq++;
                 turnOpen = true;
@@ -156,6 +168,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
                 break;
             case "stt.cancel":
+                if (!turnOpen) break;  // a dropped wake turn: nothing to clear, and no reason to connect
                 turnCancelled = true;
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
                 break;
@@ -174,6 +187,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                                 $"Say who it's from and what they want, in one short sentence, and ask if they want to reply. If they do, call messages_send with reply_to_ts \"{(string)payload["ts"]}\" and their words.");
                 break;
             case "albie.note":  // a module's context for the voice model (the hub's note()), e.g. the Neural Net Lab's fix offer
+                Remember("Note: ", (string)payload?["text"]);
                 if (ws != null && ws.State == WebSocketState.Open && !string.IsNullOrEmpty((string)payload?["text"]))
                     Send(new JObject { ["type"] = "conversation.item.create", ["item"] = new JObject
                     {
@@ -190,7 +204,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 else RequestResponse(now);
                 break;
             case "workspace.mode":
-                if (ws != null && ws.State == WebSocketState.Open && ViewNotes.TryGetValue((string)payload?["mode"] ?? "", out string note))
+                if (!ViewNotes.TryGetValue((string)payload?["mode"] ?? "", out string note)) break;
+                Remember("Note: ", note);
+                if (ws != null && ws.State == WebSocketState.Open)
                     Send(new JObject { ["type"] = "conversation.item.create", ["item"] = new JObject
                     {
                         ["type"] = "message", ["role"] = "system",
@@ -239,19 +255,31 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     {
         if (responseActive) Send(new JObject { ["type"] = "response.cancel" });
         if (audioStarted) ForgeNet.Inject("tts.stop", new JObject { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["reason"] = reason });
+        speechEnd = Time.realtimeSinceStartup;
         responseActive = audioStarted = false;
         pendingOutputs.Clear();
     }
 
+    // A response's instructions replace the session's, so they start from this session's (with its recent lines).
     void RequestResponse(string now = BrevityNow) =>
-        Send(new JObject { ["type"] = "response.create", ["response"] = new JObject { ["instructions"] = Instructions + now } });
+        Send(new JObject { ["type"] = "response.create", ["response"] = new JObject { ["instructions"] = instructions + now } });
+
+    void Remember(string who, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        text = text.Trim();
+        history.Add(who + (text.Length > HistoryChars ? text.Substring(0, HistoryChars) + "..." : text));
+        if (history.Count > HistoryLines) history.RemoveAt(0);
+    }
 
     // ---------------------------------------------------------------- from Grok
 
     void Handle(JObject msg)
     {
-        lastActivity = Time.realtimeSinceStartup;
         string type = (string)msg["type"] ?? "";
+        // Only a turn or a reply is activity: Grok also sends a message every ~10 s while idle, which kept the old
+        // 120 s idle close from ever firing (the session stayed open, and billed, as long as the app ran).
+        if (type.StartsWith("response.") || type.StartsWith("conversation.item.input_audio")) lastActivity = Time.realtimeSinceStartup;
         switch (type)
         {
             case "conversation.item.input_audio_transcription.updated":
@@ -282,6 +310,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                     { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["sample_rate"] = outRate, ["encoding"] = "pcm16", ["channels"] = 1 });
                 }
                 ForgeNet.InjectBinary(pcm, 0, pcm.Length);
+                speechEnd = Mathf.Max(speechEnd, Time.realtimeSinceStartup) + pcm.Length / (outRate * 2f);
                 break;
             case "response.output_audio_transcript.delta":
             case "response.audio_transcript.delta":
@@ -372,6 +401,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         finalSent = true;
         text = (text ?? partial).Trim();
         if (text.Length > 0) Debug.Log($"[AlbieVoice] heard: {text}");
+        Remember("User: ", text);
         Emit("stt.final", new JObject { ["text"] = text, ["voice"] = true }, text.Length > 0 ? "thinking" : null);
     }
 
@@ -379,6 +409,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     {
         if (answerDone) return;
         answerDone = true;
+        Remember("Albie: ", text);
         Emit("agent.answer_done", new JObject { ["text"] = text }, "speaking");
     }
 
@@ -443,6 +474,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             socket = new ClientWebSocket();
             socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
             await socket.ConnectAsync(new Uri(Url), life.Token);
+            instructions = history.Count == 0 ? Instructions
+                : Instructions + " Earlier in this conversation, before a short pause: " + string.Join(" ", history);
             await Raw(socket, SessionUpdate().ToString(Formatting.None));
             ws = socket;
             lastActivity = Time.realtimeSinceStartup;
@@ -466,7 +499,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         ["type"] = "session.update",
         ["session"] = new JObject
         {
-            ["instructions"] = Instructions,
+            ["instructions"] = instructions,
             ["turn_detection"] = null,  // Unity says when a turn ends (stt.stop)
             ["reasoning"] = new JObject { ["effort"] = "none" },
             ["audio"] = new JObject
