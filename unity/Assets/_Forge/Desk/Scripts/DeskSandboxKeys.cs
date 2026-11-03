@@ -2,14 +2,14 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// DeskSandbox only: what Bit would do, on the number keys (hub live or off). 1 a 25 second tea timer, 2 an hour of
+/// DeskSandbox only: what Albie would do, on the number keys (hub live or off). 1 a 25 second tea timer, 2 an hour of
 /// focus, 3 a note, 4 the notes open / closed, 5 the notes to a dot, 0 every timer off.
 /// </summary>
 public class DeskSandboxKeys : MonoBehaviour
 {
     static readonly string[] Notes =
     {
-        "Ask Adrian about the gator's jump timing", "Push the demo build by 3", "Re-record the fallback ML run",
+        "Ask Adrian about Albie's jump timing", "Push the demo build by 3", "Re-record the fallback ML run",
         "Try the timer dot in the simulator",
     };
 

@@ -25,7 +25,7 @@ public sealed class CadPanelState
     public Dictionary<string, object> parentParams;
     public CadAnalysis parentAnalysis;
     public CadFlight parentFlight;
-    public string label;                // this version in words (Bit's request, a preset, the change)
+    public string label;                // this version in words (Albie's request, a preset, the change)
     public string source;               // how it was made (pet, preset, api, ...)
     public double? createdAt;
     public readonly List<CadVersion> versions = new List<CadVersion>();  // newest first

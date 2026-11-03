@@ -2,7 +2,7 @@
 (/messages/channels, /messages/history, /messages/channels/{id}/seen, /messages/users/me), /messages/open (show a
 conversation in Unity, the messages_open tool's REST form), /messages/latest,
 /messages/drafts (create, PATCH, send, cancel), /messages/digest, and /messages/focus (the REST form of the ws
-`messages.focus` message: "Reply with Bit" on a card).
+`messages.focus` message: "Reply with Albie" on a card).
 
 There is no direct send endpoint. A draft is created (nothing posted), Unity shows it in the composer with Send /
 Cancel, the user may edit it (PATCH), and only /drafts/{id}/send posts it, under the user's own name.
@@ -97,7 +97,7 @@ class MeReply(BaseModel):
 
 class OpenRequest(BaseModel):
     channel: str                      # id, #name, or a person's name (their DM)
-    pet_id: str = "bit"
+    pet_id: str = "albie"
 
 
 class OpenReply(BaseModel):
@@ -108,11 +108,11 @@ class OpenReply(BaseModel):
 
 
 class DigestRequest(BaseModel):
-    pet_id: str = "bit"
+    pet_id: str = "albie"
 
 
 class FocusRequest(BaseModel):
-    pet_id: str = "bit"
+    pet_id: str = "albie"
     channel: str
     ts: str
 
@@ -181,7 +181,7 @@ async def seen(channel_id: str, request: Request, svc: SlackService = Depends(se
 
 @router.get("/users/me", response_model=MeReply)
 async def me(svc: SlackService = Depends(enabled)) -> MeReply:
-    """Who the hub posts as (the user with SLACK_USER_TOKEN, else Bit)."""
+    """Who the hub posts as (the user with SLACK_USER_TOKEN, else Albie)."""
     return MeReply(**await svc.me())
 
 
@@ -295,7 +295,7 @@ async def cancel_draft(draft_id: str, request: Request, svc: SlackService = Depe
 # ------------------------------------------------------------------ focus + digest
 @router.post("/focus", response_model=SlackMessage)
 async def focus(req: FocusRequest, request: Request, svc: SlackService = Depends(service)) -> SlackMessage:
-    """Tap on a message card: Bit reads it out and offers to answer; the next messages_send replies in that thread."""
+    """Tap on a message card: Albie reads it out and offers to answer; the next messages_send replies in that thread."""
     if req.channel.startswith("im:"):
         imessage = getattr(request.app.state, "imessage", None)
         if imessage is None or not imessage.available:
@@ -318,7 +318,7 @@ async def focus(req: FocusRequest, request: Request, svc: SlackService = Depends
 @router.post("/digest", response_model=NotifyDigest)
 async def digest(request: Request, req: DigestRequest | None = None,
                  svc: SlackService = Depends(service)) -> NotifyDigest:
-    """Unity calls this on the first arrival at the desk. Works with Slack disabled too (count 0, Bit says there is nothing new)."""
+    """Unity calls this on the first arrival at the desk. Works with Slack disabled too (count 0, Albie says there is nothing new)."""
     pet_id = (req or DigestRequest()).pet_id
     imessage = getattr(request.app.state, "imessage", None)
     if imessage is None or not imessage.available:

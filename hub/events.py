@@ -161,7 +161,7 @@ class CadModelUpdated(BaseModel):
     removed_ids: list[str] = []
     source: str = "api"               # api | pet | preset | script | undo | reset | open | startup
     analysis: CadAnalysis | None = None
-    label: str = ""                   # the version in words: Bit's request, a preset, "Saved rocket.py", a change
+    label: str = ""                   # the version in words: Albie's request, a preset, "Saved rocket.py", a change
 
 
 class CadRegenFailed(BaseModel):
@@ -185,7 +185,7 @@ class CadView(BaseModel):
 
 
 class CadAction(BaseModel):
-    """Bit pressing a button in the CAD view (docs/archive/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
+    """Albie pressing a button in the CAD view (docs/archive/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
     that connects later must not replay it. Unity applies it once the model of `version` is on screen."""
     action: Literal["expand", "demo", "markers", "dimensions", "tab", "reassemble", "take_off", "put_back"]
     on: bool | None = None            # expand (Inspect: the model big in front of the user) / demo (Fly, Hover, Run) /
@@ -199,7 +199,7 @@ class CadAction(BaseModel):
 
 
 class VscodeEvent(BaseModel):
-    """Pushed by the Forge Bit VS Code extension so Bit can speak up on its own."""
+    """Pushed by the Forge Albie VS Code extension so Albie can speak up on its own."""
     kind: Literal["errors", "command_finished"]
     file: str | None = None           # workspace-relative
     line: int | None = None           # 1-based, first error
@@ -224,7 +224,7 @@ class ScreenStatus(BaseModel):
 
 
 class UiMode(BaseModel):
-    """hub -> clients: Bit opens a workspace view (Addendum H). Unity answers with workspace.mode {mode, reason?}."""
+    """hub -> clients: Albie opens a workspace view (Addendum H). Unity answers with workspace.mode {mode, reason?}."""
     mode: str                         # cad | code | ml | messages; "" closes the open view
 
 
@@ -286,7 +286,7 @@ class Attachment(BaseModel):
 
 
 class Draft(BaseModel):
-    """A reply Bit wrote but has NOT sent. Payload of notify.draft; Unity shows it as a Send / Cancel card.
+    """A reply Albie wrote but has NOT sent. Payload of notify.draft; Unity shows it as a Send / Cancel card.
 
     Nothing reaches Slack until POST /messages/drafts/{id}/send (the card's Send button) or the
     messages_confirm tool ("yes, send it"). Posting uses the user's own token, so it lands under their name.
@@ -305,7 +305,7 @@ class Draft(BaseModel):
 class MessagesOpen(BaseModel):
     """hub -> Unity: show this conversation on the Slack panel, opening the MSG view if needed (Albie's messages_open).
     Unity answers ws `messages.opened {pet_id, request_id, channel, ok, reason?}`; reason: not_at_desk | no_workspace."""
-    pet_id: str = "bit"
+    pet_id: str = "albie"
     request_id: str
     channel: str
     channel_name: str                 # as the channel list names it: "#general", the DM partner
@@ -330,7 +330,7 @@ NO_NEW_MESSAGES = "You have no new messages today."
 
 
 def digest_line(count: int, mentions: int) -> str:
-    """The one sentence Bit says on sit-down (the greeting card's headline too). Never empty: the zero case is
+    """The one sentence Albie says on sit-down (the greeting card's headline too). Never empty: the zero case is
     NO_NEW_MESSAGES, so the wording lives here and nowhere in Unity."""
     if count <= 0:
         return NO_NEW_MESSAGES
@@ -365,7 +365,7 @@ class NotifyDigest(BaseModel):
         )
 
 
-# Desk extras (hub/desk): the focus timer and notes. Bit adds them on top of any mode and they stay
+# Desk extras (hub/desk): the focus timer and notes. Albie adds them on top of any mode and they stay
 # open across mode switches. Proposed contract additions: hub/README "Desk (timers, notes)".
 
 WidgetState = Literal["open", "minimized", "closed"]

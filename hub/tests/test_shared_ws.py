@@ -44,12 +44,12 @@ def test_cad_and_voice_share_one_socket(client: TestClient) -> None:
     with client.websocket_connect("/ws") as ws:
         assert _recv(ws)[0] == "cad.model_updated"  # sticky CAD state still replayed first
         assert {_recv(ws)[0] for _ in range(3)} == {"ui.widgets", "timers.updated", "notes.updated"}  # desk
-        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
-        assert _recv(ws) == ("voice.ready", {"pet_id": "bit", "provider": "fake", "sample_rate": 24000})
+        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
+        assert _recv(ws) == ("voice.ready", {"pet_id": "albie", "provider": "fake", "sample_rate": 24000})
 
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie"}})
         ws.send_bytes(b"\x00\x00" * 1600)  # mic audio up the shared socket
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
         seen: list[str] = []
         audio = 0
         while "tts.end" not in seen:

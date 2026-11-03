@@ -7,18 +7,18 @@ using UnityEngine.InputSystem;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Small 3D desk button that summons the gator (GatorSummon listens to AnyPressed, so there can be one per table).
+    /// Small 3D desk button that summons Albie (AlbieSummon listens to AnyPressed, so there can be one per table).
     /// Inputs, all ending in Press():
     ///  * Meta Interaction SDK: PokeInteractable / RayInteractable children with an InteractableUnityEventWrapper whose
     ///    WhenSelect → Press(), WhenHover → HoverOn(), WhenUnhover → HoverOff() (wired by Forge/Pet/6. Add Whistle
     ///    To Open Scene). No Meta types here, per docs/archive/PET_AGENT_CONTRACT.md.
     ///  * Mouse: left click raycast from PetUser.HeadCamera (screen centre while the cursor is locked).
     ///  * whistleAction: F, or controller B (right secondaryButton). F is ignored while a sandbox typed-STT field is open.
-    /// Placement: on its table (SetTable, one button per MRUK table via GatorMrukAdapter) or, with no table assigned,
-    /// on GatorNavSurface.Desk; the near corner on the user's right, re-placed when the user walks up to that table from
+    /// Placement: on its table (SetTable, one button per MRUK table via AlbieMrukAdapter) or, with no table assigned,
+    /// on AlbieNavSurface.Desk; the near corner on the user's right, re-placed when the user walks up to that table from
     /// another side. Once Hudson's DeskDock shows on that table it sits just past the dock's right end instead and slides
     /// with it (‹ ›, going round the desk), and stays there while the dock is away. No table and no desk: 0.3 m right of
-    /// the gator's spawn.
+    /// Albie's spawn.
     /// </summary>
     [RequireComponent(typeof(BoxCollider))]
     [DisallowMultipleComponent]
@@ -39,7 +39,7 @@ namespace Forge.Pet
         [SerializeField] UnityEvent onPressed = new UnityEvent();
 
         [Header("Placement")]
-        [SerializeField, Tooltip("Place automatically on the desk / next to the gator.")]
+        [SerializeField, Tooltip("Place automatically on the desk / next to Albie.")]
         bool autoPlace = true;
         [SerializeField, Tooltip("Distance (m) in from both edges of the near-right corner.")]
         float cornerInset = 0.08f;
@@ -47,12 +47,12 @@ namespace Forge.Pet
         float nearTableDistance = 1.2f;
         [SerializeField, Tooltip("Tilt (deg) of the button face toward the user.")]
         float tiltDegrees = 25f;
-        [SerializeField, Tooltip("No desk after this many seconds: place next to the gator spawn.")]
+        [SerializeField, Tooltip("No desk after this many seconds: place next to Albie spawn.")]
         float noDeskFallbackSeconds = 2f;
-        [SerializeField, Tooltip("Fallback: metres to the right of the gator spawn.")]
+        [SerializeField, Tooltip("Fallback: metres to the right of Albie spawn.")]
         float spawnRightOffset = 0.3f;
-        [SerializeField, Tooltip("Gator used for the fallback placement. Empty = first GatorController.")]
-        GatorController gator;
+        [SerializeField, Tooltip("Albie used for the fallback placement. Empty = first AlbieController.")]
+        AlbieController albie;
         [SerializeField, Tooltip("Mirror to the user's left.")]
         bool leftHanded = false;
         [SerializeField, Tooltip("While the DeskDock shows on this table, sit just past its right end and slide with it.")]
@@ -68,7 +68,7 @@ namespace Forge.Pet
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         static readonly int ColorId = Shader.PropertyToID("_Color");
 
-        /// <summary>Raised first on every press (e.g. GatorMrukAdapter makes this button's table the desk).</summary>
+        /// <summary>Raised first on every press (e.g. AlbieMrukAdapter makes this button's table the desk).</summary>
         public event Action<WhistleButton> Pressing;
         public event Action Pressed;
         /// <summary>Any button in the scene was pressed (after its Pressing/Pressed).</summary>
@@ -114,11 +114,11 @@ namespace Forge.Pet
         void Start()
         {
             _startTime = Time.time;
-            if (gator == null) gator = FindAnyObjectByType<GatorController>();
-            if (gator != null)
+            if (albie == null) albie = FindAnyObjectByType<AlbieController>();
+            if (albie != null)
             {
-                _spawnPos = gator.transform.position;
-                _spawnRight = gator.transform.right;
+                _spawnPos = albie.transform.position;
+                _spawnRight = albie.transform.right;
                 _hasSpawn = true;
             }
             if (besideDock) _dock = FindAnyObjectByType<DeskDock>(FindObjectsInactive.Include);   // hidden until the user is at a desk
@@ -183,7 +183,7 @@ namespace Forge.Pet
         }
 
         /// <summary>Put the button on the desk's near corner on the user's right.</summary>
-        public void PlaceOnDesk(GatorNavSurface desk, Transform head)
+        public void PlaceOnDesk(AlbieNavSurface desk, Transform head)
         {
             if (desk == null || !desk.IsBuilt) return;
             PlaceOnRect(desk.TopCenter, desk.Rotation, desk.Size, head);
@@ -237,7 +237,7 @@ namespace Forge.Pet
         }
 
         /// <summary>While it sits by the dock: the desk-top point under its centre, the direction along the edge away from
-        /// the dock, and its half width (m). Props beside it (GatorHatchery) ask every LateUpdate to slide with it.</summary>
+        /// the dock, and its half width (m). Props beside it (AlbieHatchery) ask every LateUpdate to slide with it.</summary>
         public bool TryGetDockSpot(out Vector3 deskPoint, out Vector3 away, out float halfWidth)
         {
             deskPoint = _dockPoint; away = _dockAway; halfWidth = _dockHalf;
@@ -283,11 +283,11 @@ namespace Forge.Pet
             return true;
         }
 
-        // This button's table, or with none assigned the gator's desk. False: neither (yet).
+        // This button's table, or with none assigned Albie's desk. False: neither (yet).
         bool TryGetRect(out Vector3 top, out Quaternion rot, out Vector2 size)
         {
             if (HasTable) { top = _tableTop; rot = _tableRot; size = _tableSize; return true; }
-            GatorNavSurface desk = GatorNavSurface.Desk;
+            AlbieNavSurface desk = AlbieNavSurface.Desk;
             if (desk != null && desk.IsBuilt) { top = desk.TopCenter; rot = desk.Rotation; size = desk.Size; return true; }
             top = default; rot = Quaternion.identity; size = default;
             return false;

@@ -78,7 +78,7 @@ def _says(sent: list[Event]) -> list[str]:
 ERR = {"kind": "errors", "file": "a.py", "line": 2, "message": "boom", "count": 1}
 
 
-def test_bit_moves_speaks_and_glows() -> None:
+def test_albie_moves_speaks_and_glows() -> None:
     async def run() -> None:
         w, sent, glows = _watcher(gap_s=0)
         voice = FakeVoice()
@@ -86,7 +86,7 @@ def test_bit_moves_speaks_and_glows() -> None:
         w.notify("vscode.event", ERR)
         await w.idle()
         assert [e.type for e in sent] == ["pet.state", "pet.say"]
-        assert sent[0].payload == {"pet_id": "bit", "mode": "working", "target_panel": "screen-main"}
+        assert sent[0].payload == {"pet_id": "albie", "mode": "working", "target_panel": "screen-main"}
         assert glows == [("a.py", 2, None, "boom", 8000)]
         assert voice.said == ["Line 2 in a.py has an error. Want me to look?"]
         assert voice.contexts[0] is not None and "line 2 of a.py: boom" in voice.contexts[0]
@@ -252,7 +252,7 @@ def test_card_tap_over_ws_runs_the_fix_as_a_code_ask(client: Any, monkeypatch: A
     card = watcher._card(Line("cad", "k", "Line 3 broke the rocket.", "rocket.py", 3, "boom", task="Fix line 3: boom"))
     assert card is not None and card.actions is not None
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "test", "pet_id": "bit", "project_id": "demo"}})
+        ws.send_json({"type": "hello", "payload": {"client": "test", "pet_id": "albie", "project_id": "demo"}})
         ws.send_json({"type": "pet.card_action", "payload": {"action_id": card.actions[0].action_id}})
         ws.send_json({"type": "pet.card_action", "payload": {"action_id": card.actions[0].action_id}})  # twice: once
         for _ in range(50):

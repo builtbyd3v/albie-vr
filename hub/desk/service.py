@@ -1,7 +1,7 @@
-"""DeskService: the focus timers and notes, which Bit adds on top of any mode, and which of them show.
+"""DeskService: the focus timers and notes, which Albie adds on top of any mode, and which of them show.
 
 One per hub (main.py). Every change goes out on /ws (timers.updated, notes.updated, ui.widgets), and all
-three replay fresh to a client that connects later. The router (Unity's buttons) and the tools (Bit) both come through
+three replay fresh to a client that connects later. The router (Unity's buttons) and the tools (Albie) both come through
 here.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ Speak = Callable[[str, str], Awaitable[bool]]
 
 
 class DeskService:
-    def __init__(self, data_dir: Path, bus: EventBus, speak: Speak, pet_id: str = "bit") -> None:
+    def __init__(self, data_dir: Path, bus: EventBus, speak: Speak, pet_id: str = "albie") -> None:
         self.bus, self.speak, self.pet_id = bus, speak, pet_id
         self.widgets = UiWidgets()
         self.timers = TimerBoard(self._timers_changed, self._timer_rang)
@@ -48,7 +48,7 @@ class DeskService:
         return self.widgets
 
     async def set_widgets(self, timer: WidgetState | None = None, notes: WidgetState | None = None) -> UiWidgets:
-        """Unity's buttons (minimize, expand, close) and Bit's notes_view. Closing the timers stops them all. The
+        """Unity's buttons (minimize, expand, close) and Albie's notes_view. Closing the timers stops them all. The
         timers only open while one is set."""
         if timer in ("open", "minimized") and not len(self.timers):
             raise ValueError("no timer is set")

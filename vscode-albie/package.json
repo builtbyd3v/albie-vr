@@ -1,0 +1,58 @@
+{
+  "name": "forge-albie",
+  "displayName": "Forge Albie",
+  "description": "Lets Albie (the Forge pet) open files, highlight code, read errors, and run training in this VS Code window.",
+  "publisher": "forge",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": { "vscode": "^1.93.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Runs in Restricted Mode too, so Albie still answers when the hub opens a new folder. A repo's own trainCommand and allowedCommands are ignored there: only your user settings count.",
+      "restrictedConfigurations": ["forgeAlbie.trainCommand", "forgeAlbie.allowedCommands"]
+    }
+  },
+  "contributes": {
+    "configuration": {
+      "title": "Forge Albie",
+      "properties": {
+        "forgeAlbie.port": {
+          "type": "number",
+          "default": 8770,
+          "description": "Local HTTP port (127.0.0.1 only)."
+        },
+        "forgeAlbie.hubUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8000",
+          "description": "Forge hub. Errors in a saved file and finished \"Albie\" terminal commands are POSTed to <hubUrl>/vscode/event."
+        },
+        "forgeAlbie.trainCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Shell command that POST /train types into the \"Albie\" terminal, e.g. python train.py."
+        },
+        "forgeAlbie.allowedCommands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "workbench.action.togglePanel",
+            "workbench.action.files.save",
+            "editor.action.formatDocument",
+            "workbench.actions.view.problems",
+            "workbench.action.terminal.toggleTerminal",
+            "workbench.action.zoomIn",
+            "workbench.action.zoomOut",
+            "workbench.action.zoomReset"
+          ],
+          "description": "VS Code command ids that POST /run may execute."
+        }
+      }
+    },
+    "commands": [
+      { "command": "forgeAlbie.openInMlDesk", "title": "Forge: Open this repo in the ML desk" }
+    ]
+  }
+}

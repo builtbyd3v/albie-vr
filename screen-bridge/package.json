@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prestart": "node ../vscode-bit/install.js",
+    "prestart": "node ../vscode-albie/install.js",
     "start": "node start.js"
   },
   "dependencies": {

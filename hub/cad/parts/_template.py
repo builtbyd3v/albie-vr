@@ -1,5 +1,5 @@
 """Template for a new design. Copy this file to hub/cad/parts/<your_design>.py (no leading underscore) and it
-shows up in the Designs menu straight away; open it there (or ask Bit), then save the file to regenerate.
+shows up in the Designs menu straight away; open it there (or ask Albie), then save the file to regenerate.
 
 The file name is the design's id. Millimetres, Z up, the design standing on z=0. Every part needs a unique
 label: it becomes the GLB node name and the object ID Unity selects, explodes and highlights.
@@ -14,7 +14,7 @@ GLYPH = "box"                            # the Designs menu icon: rocket | drone
 
 # Each parameter is a slider (or one button per option with options=(...)): name, default, min, max, unit, step
 # (the fine stepper's increment; leave it out and it's worked out from the range). Optional: label, group (the
-# panel section; default "General"), help (one short line for the panel and for Bit), parts (label patterns of the
+# panel section; default "General"), help (one short line for the panel and for Albie), parts (label patterns of the
 # parts it shapes, lit on the model when you point at its row; default: parts named like it, else all) and
 # dimension (the id of the dimension callout it changes; default: the one with its name, here width/depth/height).
 PARAMS = [
@@ -25,7 +25,7 @@ PARAMS = [
           help="Wall, floor and lid thickness."),
 ]
 
-# Optional: named sets of values, applied on top of the current ones (buttons on the panel; Bit can use them too).
+# Optional: named sets of values, applied on top of the current ones (buttons on the panel; Albie can use them too).
 PRESETS = {
     "Pencil case": {"width": 200, "depth": 50, "height": 30},
     "Shoebox": {"width": 300, "depth": 180, "height": 110},

@@ -1,6 +1,6 @@
 """Tiny in-process broadcast bus: every connected /ws socket gets every event.
 
-Module-level mutable state in hub/agent: this ``bus`` singleton and ``watcher.watcher`` (proactive Bit).
+Module-level mutable state in hub/agent: this ``bus`` singleton and ``watcher.watcher`` (proactive Albie).
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ class Emitter:
     * Before each proposed event, sends ``pet.state`` if the mapped mode changed. Not for an empty
       ``stt.final`` (a dropped / cancelled / silent turn: nothing was heard, so the pet's state must
       not change), and never when ``companion=False`` (wake turns, agent/wake.py: the router sends
-      ``pet.state listening`` itself once it knows the segment was for a gator).
+      ``pet.state listening`` itself once it knows the segment was for an agent).
     * Replaces the absolute repo path in any string payload field with "" so the
       raw path never reaches clients.
     * Optionally mirrors ``agent.answer_done`` as existing-contract ``pet.say``

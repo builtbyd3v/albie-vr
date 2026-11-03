@@ -10,7 +10,7 @@ namespace Forge.Pet
 {
     /// <summary>
     /// Contents of Assets/StreamingAssets/pet_config.json. Parsed with JsonUtility (IL2CPP-safe).
-    /// Missing file / bad JSON → defaults (live hub through ForgeNet). "mock" only takes effect on a gator that carries a
+    /// Missing file / bad JSON → defaults (live hub through ForgeNet). "mock" only takes effect on an agent that carries a
     /// MockEventSource, i.e. in the sandbox scenes; Main always talks to the hub.
     /// </summary>
     [Serializable]
@@ -18,8 +18,8 @@ namespace Forge.Pet
     {
         // Unused since AgentClient rides on ForgeNet: set the hub address on the ForgeNet object (or PlayerPrefs Forge.HubUrl).
         public string hubUrl = "";
-        public string petId = "bit";
-        public const string DisplayName = "Albie";   // what people see and hear; the internal pet id stays "bit"
+        public string petId = "albie";
+        public const string DisplayName = "Albie";   // what people see and hear; the internal pet id stays "albie"
         public string projectId = "gatorhack";
         public string eventSource = "hub";    // "hub" | "mock" (sandbox scenes only)
 

@@ -1,10 +1,10 @@
-"""Bit's Slack connection: Bolt AsyncApp over Socket Mode, running inside the hub's event loop.
+"""Albie's Slack connection: Bolt AsyncApp over Socket Mode, running inside the hub's event loop.
 
 Two identities (PROJECT_CONTEXT 8.7):
 - the app's bot token keeps the socket and is the fallback identity;
-- the USER's token (SLACK_USER_TOKEN) is how Bit reads the user's conversations (DMs it can't see as a bot)
-  and posts replies under the user's own name. Without it Bit falls back to the bot: it only sees channels it
-  was invited to and posts as "Bit", with one warning.
+- the USER's token (SLACK_USER_TOKEN) is how Albie reads the user's conversations (DMs it can't see as a bot)
+  and posts replies under the user's own name. Without it Albie falls back to the bot: it only sees channels it
+  was invited to and posts as "Albie", with one warning.
 
 Inbound `message` / `app_mention` events (bot and user subscriptions, deduped) -> SlackMessage -> MessageStore +
 notify.message on the EventBus. The user's own posts are kept too (`is_me`, so the open conversation stays live);
@@ -16,7 +16,7 @@ STEP / STL / drawing / parts list): they go up with the message in one files_upl
 `open_conversation` is Albie's "open my chat with Adrian" (messages_open): Unity opens the MSG view on it
 (ws `messages.open`, answered by `messages.opened`).
 `digest` is the sit-down summary across every conversation: notify.digest, pet.say and the spoken greeting.
-`focus` is "Reply with Bit" on a message (ws `messages.focus` / POST /messages/focus).
+`focus` is "Reply with Albie" on a message (ws `messages.focus` / POST /messages/focus).
 
 The Slack-like panel (PROJECT_CONTEXT 7): `refresh_channels` lists every conversation the user is in
 (`conversations.list`, at connect and every 60 s), `channel_summaries` shapes the channel list with per-channel unread
@@ -62,7 +62,7 @@ NOTIFY_CHANNELS = "notify.channels"
 FOCUS_TEXT_CHARS = 200
 ACCEPTED_SUBTYPES: tuple[str | None, ...] = (None, "thread_broadcast", "file_share")
 RECONNECT_S = (2, 5, 10, 30)
-DRAFT_EXPIRY_S = 300.0       # time to look a draft (and its files) over and have Bit reword it; an edit restarts it
+DRAFT_EXPIRY_S = 300.0       # time to look a draft (and its files) over and have Albie reword it; an edit restarts it
 SHARE_POLLS, SHARE_POLL_S = 6, 0.5  # files.info tries for the ts of a message sent with files
 FILES_SCOPE_HELP = ("Slack needs the files:write permission to send files: in hub/ run `slack run` (it syncs "
                     "manifest.json), then copy the new User OAuth Token into SLACK_USER_TOKEN and restart the hub")
@@ -250,7 +250,7 @@ def _is_reply(msg: SlackMessage) -> bool:
 
 
 def focus_line(msg: SlackMessage) -> str:
-    """What Bit says when a message card is tapped."""
+    """What Albie says when a message card is tapped."""
     text = _trim(msg.text)
     if text and text[-1] not in ".!?":
         text += "."
@@ -266,7 +266,7 @@ class SlackService:
         self.voice_speak = voice_speak
         self.voice_note = voice_note
         self.on_mention: Callable[[SlackMessage], None] | None = None  # main.py: proactive Albie reads it out
-        self.focused: SlackMessage | None = None   # "Reply with Bit": messages_send without a target answers this
+        self.focused: SlackMessage | None = None   # "Reply with Albie": messages_send without a target answers this
         self.enabled = settings.configured
         self.connected = False
         self.bot_user_id: str | None = None
@@ -333,7 +333,7 @@ class SlackService:
         if self.settings.user_token:
             self._user_client = AsyncWebClient(token=self.settings.user_token, ssl=ssl_ctx)
         else:
-            log.warning("No SLACK_USER_TOKEN: Bit reads only channels it was invited to and posts as Bit, not as you")
+            log.warning("No SLACK_USER_TOKEN: Albie reads only channels it was invited to and posts as Albie, not as you")
 
         @app.event("message")  # bot and user subscriptions both land here; accepts() filters subtypes and senders
         async def _message(event: dict[str, Any]) -> None:
@@ -361,7 +361,7 @@ class SlackService:
                     log.info("Slack user token: acting as %s (%s)", self.user_name, self.user_id)
                 await self._handler.connect_async()
                 self.connected = True
-                log.info("Slack Socket Mode connected (posting as %s)", "you" if self.as_user else "Bit")
+                log.info("Slack Socket Mode connected (posting as %s)", "you" if self.as_user else "Albie")
                 self._backfill = asyncio.create_task(self.backfill(), name="slack-backfill")
                 self._refresh = asyncio.create_task(self._refresh_loop(), name="slack-channels-refresh")
                 return
@@ -629,12 +629,12 @@ class SlackService:
         return cid
 
     async def me(self) -> dict[str, str]:
-        """Who the hub posts as: the user (with a user token) or Bit; `team` is the workspace's name."""
+        """Who the hub posts as: the user (with a user token) or Albie; `team` is the workspace's name."""
         if self.as_user and self.user_id:
             u = await self.user(self.user_id)
             return {"user_id": self.user_id, "name": self.user_name or u.name or self.user_id, "display_name": u.label,
                     "team": self.team_name}
-        return {"user_id": self.bot_user_id or "", "name": "bit", "display_name": DISPLAY_NAME, "team": self.team_name}
+        return {"user_id": self.bot_user_id or "", "name": "albie", "display_name": DISPLAY_NAME, "team": self.team_name}
 
     # ------------------------------------------------------------------ inbound
     def accepts(self, event: dict[str, Any], live: bool = True) -> bool:
@@ -643,7 +643,7 @@ class SlackService:
         if not event.get("user") or not event.get("text") or not event.get("ts"):
             return False
         if not live and not self.as_user and self.bot_user_id and event["user"] == self.bot_user_id:
-            return True  # bot fallback: the hub posts as Bit, so Bit's posts in history are the user's sends
+            return True  # bot fallback: the hub posts as Albie, so Albie's posts in history are the user's sends
         if event.get("bot_id") and not self._own_post(event):
             return False
         if self.bot_user_id and event["user"] == self.bot_user_id:
@@ -884,7 +884,7 @@ class SlackService:
         draft = self._take(draft_id)
         if self._user_client is None and not self._warned_as_bot:
             self._warned_as_bot = True
-            log.warning("posting as Bit (no SLACK_USER_TOKEN)")
+            log.warning("posting as Albie (no SLACK_USER_TOKEN)")
         self._sending = draft
         try:
             ts, file_ids = await self._post(draft)
@@ -961,7 +961,7 @@ class SlackService:
             return
         if self.as_user and self.user_id:
             uid, who = self.user_id, (await self.user(self.user_id)).label
-        else:  # bot fallback: the hub posts as Bit, which is "me" for /messages/users/me
+        else:  # bot fallback: the hub posts as Albie, which is "me" for /messages/users/me
             uid, who = self.bot_user_id or "", DISPLAY_NAME
         name, is_dm = await self.channel_info(draft.channel)
         msg = SlackMessage(channel=draft.channel, channel_name=name, is_dm=is_dm, user=uid, user_name=who,
@@ -1011,7 +1011,7 @@ class SlackService:
         return self.store.get(channel, ts)
 
     # ------------------------------------------------------------------ open a conversation (messages_open)
-    async def open_conversation(self, channel: str, pet_id: str = "bit") -> dict[str, Any]:
+    async def open_conversation(self, channel: str, pet_id: str = "albie") -> dict[str, Any]:
         """Show a conversation on the Slack panel: "#general", a channel id, or a person (their DM, opened with
         conversations.open if there is none yet; nothing is posted). Unity's list gets it first (notify.channels, not
         debounced), then `messages.open`; Unity opens the MSG view on it and answers `messages.opened`, so the result
@@ -1022,7 +1022,7 @@ class SlackService:
         rec = await self.record(cid)
         return await self.show_conversation(cid, rec.label or rec.short_name, rec.kind, pet_id)
 
-    async def show_conversation(self, cid: str, label: str, kind: str, pet_id: str = "bit") -> dict[str, Any]:
+    async def show_conversation(self, cid: str, label: str, kind: str, pet_id: str = "albie") -> dict[str, Any]:
         """The Unity half of open_conversation, for any provider (an iMessage chat is `im:<guid>`): the list first, then
         `messages.open`, then wait for `messages.opened`. Works with Slack itself disabled (an iMessage-only hub)."""
         await self.bus.publish(NOTIFY_CHANNELS, NotifyChannels(channels=self.channel_summaries()))
@@ -1058,9 +1058,9 @@ class SlackService:
             asyncio.get_running_loop().call_later(self.open_refusal_grace_s,
                                                   lambda: fut.done() or fut.set_result(ack))
 
-    # ------------------------------------------------------------------ focus ("Reply with Bit")
-    async def focus(self, channel: str, ts: str, pet_id: str = "bit") -> SlackMessage | None:
-        """Bit reads the message and offers to answer; messages_send without a target then replies in its thread.
+    # ------------------------------------------------------------------ focus ("Reply with Albie")
+    async def focus(self, channel: str, ts: str, pet_id: str = "albie") -> SlackMessage | None:
+        """Albie reads the message and offers to answer; messages_send without a target then replies in its thread.
         Spoken on the live voice session, else pet.say. None (and nothing said) if the message isn't in the store."""
         msg = self.find(channel, ts)
         if msg is None:
@@ -1088,11 +1088,11 @@ class SlackService:
     async def focus_from_ws(self, session: Any, payload: dict[str, Any]) -> None:
         """ws `messages.focus {pet_id, channel, ts}` (agent.ws.client_handlers); the session supplies the pet id."""
         f = MessagesFocus.model_validate(payload)
-        await self.focus(f.channel, f.ts, f.pet_id or getattr(session, "pet_id", "bit"))
+        await self.focus(f.channel, f.ts, f.pet_id or getattr(session, "pet_id", "albie"))
 
     # ------------------------------------------------------------------ digest
-    async def digest(self, pet_id: str = "bit") -> NotifyDigest:
-        """Sit-down summary: everything unread in every conversation -> notify.digest, and Bit says the line (also when
+    async def digest(self, pet_id: str = "albie") -> NotifyDigest:
+        """Sit-down summary: everything unread in every conversation -> notify.digest, and Albie says the line (also when
         nothing is new: "You have no new messages today.", so the arrival greeting always has a sentence). Marks every
         conversation seen."""
         d = NotifyDigest.build(self.store.unread())

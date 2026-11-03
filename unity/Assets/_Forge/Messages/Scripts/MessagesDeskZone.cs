@@ -2,9 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// Marks a Messages thing that floats over the desk top: the floating Send / Cancel card (<see cref="DraftPresenter"/>)
-/// hovers at the desk's front-right, beside Bit, with its bottom edge at the desk.
+/// hovers at the desk's front-right, beside Albie, with its bottom edge at the desk.
 /// <see cref="DigestTrigger.SpawnAtDesk"/> puts one on every floating holder, so while
-/// <see cref="Count"/> is above zero the pet keeps its gators out from under them: GatorMrukAdapter adds
+/// <see cref="Count"/> is above zero the pet keeps its agents out from under them: AlbieMrukAdapter adds
 /// <see cref="Footprint"/> to the desk NavMesh keep-out (and removes it again when the cards fold).
 /// <see cref="Footprint"/> is in the desk frame (DeskPresence.Frame: x right of the front-edge midpoint, z into the desk,
 /// metres) on the desk top; it covers DraftPresenter.floatingOffset (0.35, 0.22, 0.02) with the 0.42 m panel width plus

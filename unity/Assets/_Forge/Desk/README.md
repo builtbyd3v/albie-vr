@@ -1,13 +1,13 @@
 # Desk extras (timers, notes)
 
-Things Bit adds on top of any mode. They stay open while you switch ML / CAD / CODE / MSG, fold away when you stand
+Things Albie adds on top of any mode. They stay open while you switch ML / CAD / CODE / MSG, fold away when you stand
 up and come back when you sit down. The hub owns all of it (`hub/desk/`, contract in hub/README "Desk"); Unity is
 the view.
 
 | | Where | What |
 |---|---|---|
 | **Timers** (`TimerStack.prefab`) | pills just above the main panel (above ML's Training panel), growing upward | one pill per named timer, soonest at the bottom: name, time left, a rim of light draining; pause / resume, stop. Ringing: widens, pulses, chimes (`DeskChime`), +5 min / Stop. The − beside the bottom pill minimizes the stack into one dot: the soonest timer's minutes, its rim draining, a count when there are several |
-| **Notes** (`NotesPanel.prefab`) | beside the open panels on the right | newest first; check ring, age, × (Undo for 5 s). Added by voice ("Ask Bit to add a note"). The header's − (with Face me / Straight) shrinks it into a dot with the open count |
+| **Notes** (`NotesPanel.prefab`) | beside the open panels on the right | newest first; check ring, age, × (Undo for 5 s). Added by voice ("Ask Albie to add a note"). The header's − (with Face me / Straight) shrinks it into a dot with the open count |
 
 **Dots** (`DeskOrb.prefab`, Core `PanelOrb`): tap to open the panel there again; hold (0.3 s, or start moving) to
 carry it on the end of the pointer (scroll / thumbstick / reach pushes it back or pulls it in). The panel then opens
@@ -30,7 +30,7 @@ where you left the dot. Where you move things is kept for the session.
   tea timer, bring notes in and shrink them to a dot, and ring the tea timer. Keys: 1 a 25 s tea timer, 2 an
   hour of focus, 3 a note, 4 notes open / closed, 5 notes to a dot, 0 all timers off. Mouse: the
   desktop rig (Esc frees the cursor).
-- **Main, hub live:** sit at the desk and ask Bit, or straight to the hub:
+- **Main, hub live:** sit at the desk and ask Albie, or straight to the hub:
   `curl -X POST localhost:8000/timers -H "Content-Type: application/json" -d "{\"minutes\": 25, \"label\": \"tea\"}"`,
   `curl -X POST localhost:8000/notes -d "{\"text\": \"try the dot\"}" -H "Content-Type: application/json"`.
 
@@ -42,4 +42,4 @@ Mocks: `python -m desk.make_mocks` in `hub/`, then copy `.data/mocks/desk/Resour
 
 ## Notes
 
-- The pet's name in the UI ("Ask Bit to add a note", "Quieter while Bit talks") is `DeskExtras.assistantName`.
+- The pet's name in the UI ("Ask Albie to add a note", "Quieter while Albie talks") is `DeskExtras.assistantName`.

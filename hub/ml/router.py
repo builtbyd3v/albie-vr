@@ -358,7 +358,7 @@ def get_project(request: Request) -> dict:
 
 @router.post("/project/rescan")
 async def rescan_project(request: Request) -> dict:
-    """"Bit, look again": ignore the existing .forge/ and classify + adapt from scratch."""
+    """"Albie, look again": ignore the existing .forge/ and classify + adapt from scratch."""
     return _start_setup(request, force=True)
 
 

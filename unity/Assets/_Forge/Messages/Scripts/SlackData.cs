@@ -426,7 +426,7 @@ public static class SlackText
 }
 
 /// <summary>
-/// The one HTTP verb ForgeNet lacks. PATCH /messages/drafts/{id} edits a draft Bit wrote before it is sent (the hub
+/// The one HTTP verb ForgeNet lacks. PATCH /messages/drafts/{id} edits a draft Albie wrote before it is sent (the hub
 /// re-emits notify.draft with edited: true). Same base URL (<see cref="ForgeNet.Url"/>) and the same JSON / callback
 /// shape as ForgeNet.Post; the coroutine runs on the ForgeNet instance. Live hub only: no mock path.
 /// </summary>

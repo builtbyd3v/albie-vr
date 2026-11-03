@@ -105,7 +105,7 @@ public static class DeskApi
         EmitTimers();
     }
 
-    /// <summary>A new timer (the sandbox's keys; Bit starts them through the hub).</summary>
+    /// <summary>A new timer (the sandbox's keys; Albie starts them through the hub).</summary>
     public static DeskTimer TimerStart(float seconds, string label)
     {
         if (Live)
@@ -149,7 +149,7 @@ public static class DeskApi
         string line = rang.label.ToLowerInvariant() == "focus"
             ? $"Time's up! That's {DeskUi.Human(rang.durationS)} of focus."
             : $"Time's up! Your {rang.label} timer is done.";
-        ForgeNet.Emit(ForgeEvents.PetSayType, new PetSay { petId = "bit", text = line });
+        ForgeNet.Emit(ForgeEvents.PetSayType, new PetSay { petId = "albie", text = line });
         if (widgets.timer == "minimized") SetWidget("timer", "open");
     }
 
@@ -228,7 +228,7 @@ public static class DeskApi
         NotesChanged();
     }
 
-    /// <summary>A new note (the sandbox's keys; Bit writes them through the hub).</summary>
+    /// <summary>A new note (the sandbox's keys; Albie writes them through the hub).</summary>
     public static void NoteAdd(string text)
     {
         if (Live)

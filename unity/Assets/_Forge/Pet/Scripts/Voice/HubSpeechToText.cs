@@ -10,7 +10,7 @@ namespace Forge.Pet
     /// stt.partial / stt.final events and are re-raised as Partial/FinalTranscript.
     /// No per-frame allocations: fixed chunk buffers are allocated once per mic start.
     /// Level (IMicLevel) is the RMS of the last chunk sent, for PushToTalk's hands-free endpointing.
-    /// Monitoring (barge-in, GatorFollowUp): the mic runs and Level updates while the gator speaks, but nothing is
+    /// Monitoring (barge-in, AlbieFollowUp): the mic runs and Level updates while Albie speaks, but nothing is
     /// sent. The last preRollSeconds are kept and sent right after stt.start, so the first words of a barge-in survive.
     /// </summary>
     public class HubSpeechToText : MonoBehaviour, ISpeechToText, IMicLevel
@@ -19,8 +19,8 @@ namespace Forge.Pet
 
         [SerializeField, Tooltip("Socket used for audio + transcripts. Auto-found on this GameObject / scene if empty.")]
         AgentClient client;
-        [SerializeField, Tooltip("Pet id sent in stt.* payloads (overridden by GatorAgentBridge config when available).")]
-        string petId = "bit";
+        [SerializeField, Tooltip("Pet id sent in stt.* payloads (overridden by AlbieAgentBridge config when available).")]
+        string petId = "albie";
         [SerializeField, Tooltip("Microphone ring-buffer length in seconds.")]
         int ringSeconds = 2;
         [SerializeField, Tooltip("How often new mic samples are read and sent (seconds).")]
@@ -30,7 +30,7 @@ namespace Forge.Pet
 
         public bool IsListening { get; private set; }
         public bool IsMonitoring { get; private set; }
-        /// <summary>Next stt.start asks the hub to answer only if the user names the gator (look-to-talk, not facing it).</summary>
+        /// <summary>Next stt.start asks the hub to answer only if the user names Albie (look-to-talk, not facing it).</summary>
         public bool RequireName { get; set; }
         /// <summary>RMS (0..1) of the last ~100 ms chunk; 0 when not listening.</summary>
         public float Level { get; private set; }

@@ -3,7 +3,7 @@
 Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), desk
 (timers, notes), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
-the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
+the hub through one ForgeNet socket. See README "Agent module (pet)". Albie drives the views over it too (agent/workspace.py:
 ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
 Run from hub/:  uvicorn main:app --host 0.0.0.0 --port 8000   (no --reload: it would restart the CAD worker)
 
@@ -58,8 +58,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         bus = EventBus()
         cad = CadService(data_dir / "cad", cad_script, bus)
         app.state.bus, app.state.cad = bus, cad
-        views.publish = bus.publish  # Bit opens workspace views (ui.mode); Unity answers with workspace.mode
-        agent_tools.register_cad(cad, bus)  # Bit's CAD tools for Grok and the Claude runner
+        views.publish = bus.publish  # Albie opens workspace views (ui.mode); Unity answers with workspace.mode
+        agent_tools.register_cad(cad, bus)  # Albie's CAD tools for Grok and the Claude runner
         slack = SlackService(SlackSettings.from_env(), MessageStore(data_dir / "messages"), bus, speech.speak, speech.note)
         app.state.slack = slack
         imessage = None
@@ -76,7 +76,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             # One message in focus across both providers: a bare "reply to that" answers the last one tapped.
             if channel.startswith("im:") and imessage is not None:
                 if await imessage.focus(channel, str(payload.get("ts") or ""),
-                                        str(payload.get("pet_id") or getattr(session, "pet_id", "bit"))):
+                                        str(payload.get("pet_id") or getattr(session, "pet_id", "albie"))):
                     slack.focused = None
             else:
                 await slack.focus_from_ws(session, payload)
@@ -93,7 +93,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)
         agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
-        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (BitUiDirector)
+        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (AlbieUiDirector)
         nn = nn_lab.lab(app.state, speech.speak, speech.note)  # Neural Net Lab: tools, its Apply card, the stall offer
         agent_tools.register(nn_lab.TOOLS, lambda name, args: nn_lab.call_tool(name, args, app.state))
 
@@ -119,7 +119,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         screens = ScreenBridgeService(bus)  # npm start in screen-bridge/, killed with the hub (SCREEN_BRIDGE=0 to skip)
         app.state.screens = screens
         await screens.start()
-        proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
+        proactive.cad_script = str(cad_script)  # proactive Albie, after start: nobody hears a boot failure
         cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         cad.on_built = lambda record: proactive.notify("cad.built", record)
         app.state.proactive = proactive  # ml/router.py: overfit alerts

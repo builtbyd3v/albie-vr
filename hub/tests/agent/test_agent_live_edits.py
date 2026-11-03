@@ -36,7 +36,7 @@ def test_edit_opens_then_glows_in_vscode(tmp_path: Path, monkeypatch, fake_exten
         events.append(e)
 
     async def turn():
-        out = await runner._run_code(project, "add a fourth fin", emit, "bit", None)
+        out = await runner._run_code(project, "add a fourth fin", emit, "albie", None)
         await asyncio.sleep(0.3)  # the open / glow run in the background
         return out
 

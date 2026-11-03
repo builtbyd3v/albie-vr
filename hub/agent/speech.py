@@ -1,4 +1,4 @@
-"""Live voice sessions by pet id, so other modules can make Bit speak unprompted (the sit-down digest).
+"""Live voice sessions by pet id, so other modules can make Albie speak unprompted (the sit-down digest).
 
 ws.py registers a session when hello opens one and unregisters it when the socket or the session goes away.
 `speak` duck-types on `say(text)` (GrokVoiceSession has it); sessions without it are skipped. `note` does the

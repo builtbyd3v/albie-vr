@@ -1,6 +1,6 @@
 #!/bin/sh
 # One-time setup of everything that runs on the laptop (macOS): hub, ML example env, Albie's sandbox, screen bridge,
-# Forge Bit VS Code extension. Safe to rerun: each step skips what is already there. docs/SETUP.md has the full guide.
+# Forge Albie VS Code extension. Safe to rerun: each step skips what is already there. docs/SETUP.md has the full guide.
 #   sh dev-setup.sh [path/to/forge-hub.env]
 set -eu
 repo=$(cd "$(dirname "$0")" && pwd)
@@ -42,11 +42,11 @@ if [ -f "$sandbox/.albie-sandbox" ]; then echo "ok: exists (rebuild: sh sandbox/
 else ALBIE_SANDBOX="$sandbox" sh "$repo/sandbox/setup.sh"; fi
 [ -e "$sandbox/ml/.venv" ] || { ln -s "$ml/.venv" "$sandbox/ml/.venv" && echo "ok: linked $sandbox/ml/.venv"; }
 
-step "Screen bridge + Forge Bit extension"
+step "Screen bridge + Forge Albie extension"
 (cd "$repo/screen-bridge" && npm install --silent)
 [ -x "$repo/screen-bridge/.venv/bin/python" ] || "$py" -m venv "$repo/screen-bridge/.venv"
 "$repo/screen-bridge/.venv/bin/pip" install -q -r "$repo/screen-bridge/requirements.txt"
-node "$repo/vscode-bit/install.js"
+node "$repo/vscode-albie/install.js"
 echo "ok: bridge deps; extension linked into ~/.vscode/extensions (relaunch VS Code once)"
 
 step "Paths in hub/.env"

@@ -1,6 +1,6 @@
 # Albie
 
-Albie is a mixed reality workspace for engineers on Meta Quest 3 and 3S, led by an AI gator who knows every corner of it. Sit down at your real desk, and Albie hops up beside you, reads you your Slack digest, and unfolds your workspace. Then you just talk to him.
+Albie is a mixed reality workspace for engineers on Meta Quest 3 and 3S, led by an AI character who knows every corner of it. Sit down at your real desk, and Albie hops up beside you, reads you your Slack digest, and unfolds your workspace. Then you just talk to him.
 
 - Built at Gator Hack V (UF AI Days 2026) by a team of five. Unity 6 and the Meta XR SDK on the headset; a Python FastAPI hub on the laptop runs the voice (Grok), the deep work (Claude), and the ML, CAD and messaging modules.
 - Demo video (3 min): https://youtu.be/28D1QIcsdzI
@@ -16,7 +16,7 @@ Albie is a mixed reality workspace for engineers on Meta Quest 3 and 3S, led by 
 - **CAD with real physics.** Say "make the fins smaller," and the build123d part rebuilds while the rocket's stability updates live. "How high will it go?" runs a RocketPy flight on a real Estes C6 thrust curve. A Unitree G1 humanoid walks on its real trained gait.
 - **Neural Net Lab.** Poke a live network with your hands and watch the decision boundary move. When a spiral classifier got stuck at **52%**, Albie fixed it: **92%** in about 11 seconds, then on to nearly 100%.
 - **Messages.** Albie reads your Slack and allowed iMessage chats and drafts replies. Nothing sends until you tap Send or say "send it".
-- **The crew.** Albie leads 9 gator specialists (Scout, Builder, Fixer, Tester, Reviewer, Scribe, Shipper, Designer, Sentinel). Each is its own Claude agent in its own git worktree. Say "Tester, run the tests," and that gator gets to work.
+- **The crew.** Albie leads 9 specialists (Scout, Builder, Fixer, Tester, Reviewer, Scribe, Shipper, Designer, Sentinel). Each is its own Claude agent in its own git worktree. Say "Tester, run the tests," and that Albie gets to work.
 - **The rest of your day.** A focus timer and a to-do list he keeps as you talk.
 
 ## How it works (short)
@@ -39,7 +39,7 @@ flowchart LR
   Hub --- CAD["CAD module<br/>build123d, RocketPy"]
   Hub --> Bridge["Screen bridge<br/>Chrome + WebRTC, JPEG fallback"]
   Bridge -->|VS Code video| Quest
-  Hub <-->|localhost HTTP| Ext["Forge Bit VS Code extension"]
+  Hub <-->|localhost HTTP| Ext["Forge Albie VS Code extension"]
 ```
 
 - Unity is a view; the hub owns the state. All Unity networking goes through `ForgeNet` (one socket, `/ws`).
@@ -50,7 +50,7 @@ flowchart LR
 
 - Unity 6 (6000.6.7f1), URP, Meta XR All-in-One SDK 207 (Interaction SDK, MR Utility Kit), OpenXR, com.unity.webrtc, glTFast
 - Python 3.11+: FastAPI, Claude Agent SDK, Anthropic SDK, slack-bolt, build123d, RocketPy, PyTorch (ML example and `forge-sdk`)
-- Grok Voice Agent API (speech to speech), Node + Playwright + Chrome (screen bridge), a VS Code extension (`vscode-bit/`)
+- Grok Voice Agent API (speech to speech), Node + Playwright + Chrome (screen bridge), a VS Code extension (`vscode-albie/`)
 - Albie's body: the Quirky Series alligator (Unity Asset Store, paid). Its files are not in this repo because the Asset Store EULA forbids redistribution; we added the opening mouth, the talk clips and all his behavior
 
 ## Repo map
@@ -64,7 +64,7 @@ flowchart LR
 | `hub/` | The FastAPI hub: `agent/` (Albie, voice), `ml/`, `cad/`, `messaging/`, `desk/`, `screens/` |
 | `forge-sdk/` | The Python package a training script uses to stream its run to the hub |
 | `ml-examples/cifar10/`, `ml-examples/text-classification/` | The CIFAR-10 and AG News examples the ML desk trains |
-| `screen-bridge/`, `vscode-bit/` | VS Code on the headset, and the extension Albie drives |
+| `screen-bridge/`, `vscode-albie/` | VS Code on the headset, and the extension Albie drives |
 | `sandbox/` | Builds Albie's sandbox repo |
 
 ## How to run

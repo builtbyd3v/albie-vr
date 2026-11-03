@@ -1,5 +1,5 @@
-"""VS Code -> hub. The Forge Bit extension (`vscode-bit/`) posts here; the hub rebroadcasts on `/ws`
-so the agent can make Bit speak up ("line 42 just broke", "training crashed").
+"""VS Code -> hub. The Forge Albie extension (`vscode-albie/`) posts here; the hub rebroadcasts on `/ws`
+so the agent can make Albie speak up ("line 42 just broke", "training crashed").
 
 Hub -> VS Code goes the other way, through `vscode/tools.py`. GET /vscode/context passes the extension's
 /context through, so Unity can put the open file and error count on the VS Code panel.
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/vscode", tags=["vscode"])
 @router.post("/event")
 async def event(ev: VscodeEvent, request: Request) -> dict[str, bool]:
     await request.app.state.bus.publish("vscode.event", ev)
-    watcher.notify("vscode.event", ev)  # Bit may speak up (agent/watcher.py)
+    watcher.notify("vscode.event", ev)  # Albie may speak up (agent/watcher.py)
     return {"ok": True}
 
 

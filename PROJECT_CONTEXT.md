@@ -248,7 +248,7 @@ Section 2.1 is the one list of decisions. Section 2.2 gives each person the deci
 | D-19 | **One REST namespace:** `/v1/{code,projects,jobs,artifacts,integrations,voice,model,events}`. Existing `/cad`, `/ml`, `/tools`, `/events` and `ui.mode`, `stt.*`, `tts.*`, `pet.state` stay as they are until a contract PR replaces them (section 13).<br>*Why:* The drafts used three namespaces. | Proposed | Person 3 |
 | D-20 | The agent's brain and voice come from **Meta's Muse**, replacing Grok. In practice that means the pipeline in section 1.2. | Decided | Person 3 |
 | D-21 | Avatar: a Meta Muse avatar if Meta ships a developer 3D model. **It doesn't, so Albie stays the gator for now, and an original avatar of our own is on the roadmap** (D-03, section 5.5). | Decided | Person 1 |
-| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `GatorNavSurface` and `GatorController.Surfaces`). Away from a desk it floats around the room on a small cloud. | Decided | Person 1 |
+| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `AlbieNavSurface` and `AlbieController.Surfaces`). Away from a desk it floats around the room on a small cloud. | Decided | Person 1 |
 | D-23 | On device where possible, with an app cloud for files that aren't on the device. | Decided | Person 3 |
 | D-24 | Repos: clone the user's GitHub repo into their cloud workspace. Switching repos clears it only when the work is safe (D-25). A project can start with no integrations and be pushed to GitHub later. | Decided | Person 3 |
 | D-25 | **Repo switch rule (canonical):**<br>1. If the workspace has uncommitted or untracked changes, the switch stops and lists them, with one-tap **Commit** or **Stash (with untracked files)**.<br>2. Before any clear, the cloud always saves a `git bundle` of all refs plus the stash, so it's recoverable from the repo list.<br>3. Then it clears.<br>Workspaces are keyed **per user per repo** (`workspaces/{userId}/{repoId}`). A project references zero or more repos.<br>*Why:* Merges three conflicting draft rules. | Proposed | Person 3 |
@@ -468,7 +468,7 @@ Points to decide:
   - Squash and stretch reads well in passthrough.
   - A big face makes blendshape expressions and visemes easy to see.
   - It sits naturally on the small cloud when Albie is away from the desk.
-- **Bridge:** keep the avatar behind one interface (expressions, visemes, talk level, locomotion hooks), so the gator and the bean are swappable prefabs. Start by moving `GatorExpressions` to that interface.
+- **Bridge:** keep the avatar behind one interface (expressions, visemes, talk level, locomotion hooks), so the gator and the bean are swappable prefabs. Start by moving `AlbieExpressions` to that interface.
 
 Roadmap pipeline (proposal):
 1. Concept image of the assistant (original bean design, no Meta or Fall Guys likeness).
@@ -485,7 +485,7 @@ Budget: Quest 3 polycount and bone limits could not be verified (Meta's page ret
 
 Two presence states, driven by the existing desk state:
 
-- **Seated / at desk (`DeskPresence`: Near or Seated).** The assistant walks on the desk surface, the way the gator does. Reuse the existing desk-walk and navigation code: `Pet/Scripts/Core/GatorNavSurface.cs` (runtime desk NavMesh), `GatorController.Surfaces.cs` / `.Motion.cs` / `.KeepOut.cs`, `ArrivalDirector.cs` (the hop onto the desk), `DeskCorner.cs`. Desk layout comes from `Workspace` and `DeskDock`.
+- **Seated / at desk (`DeskPresence`: Near or Seated).** The assistant walks on the desk surface, the way the gator does. Reuse the existing desk-walk and navigation code: `Pet/Scripts/Core/AlbieNavSurface.cs` (runtime desk NavMesh), `AlbieController.Surfaces.cs` / `.Motion.cs` / `.KeepOut.cs`, `ArrivalDirector.cs` (the hop onto the desk), `DeskCorner.cs`. Desk layout comes from `Workspace` and `DeskDock`.
 - **Away (`DeskPresence`: Away).** The assistant floats on a small cloud around the room. It follows the user at a comfortable distance and stays out of the passthrough path. This is new work.
 
 Gaps in current code:
@@ -723,7 +723,7 @@ Avatar:
 | `Scripts/Workspace.cs` (about 900 lines) | Desk-frame layout math, saved poses, tween motion, `FoldAll` | Make modes data-driven (CODE, PROJECT, ARTIFACTS). Split into a session model, a layout engine, and a placement component. Add an away/floating mode. Allow several open contexts. | `DefaultModes` ml/cad/code/messages and the item-id hint switch. |
 | `Scripts/DeskDock.cs`, `DockRing.cs` | Desk-anchored mode ring | Data-driven mode list. | Gator-specific comments and props. |
 | `Scripts/AlbieVoice.cs`, `AlbieVoiceToken.cs` | Ephemeral-token pattern, turn state machine | Put Muse behind `VoiceBackend`. Persona and tool rules become content files. | Grok URL, `grok-voice-3.0`, `sirius`, XAI key path. |
-| `AlbieTips.cs`, `BitUiDirector.cs` | Queued tips with busy gate | Generic event source and panel-id highlights. | `PetId = "bit"` constants (use config). |
+| `AlbieTips.cs`, `AlbieUiDirector.cs` | Queued tips with busy gate | Generic event source and panel-id highlights. | `PetId = "bit"` constants (use config). |
 | `Panel/Volume/Screen` kits | ForgePanel, PanelOrb, ForgeVolume, ScreenSurface | Keep for Artifacts and streamed browsers. | Gator whistle and crew egg naming. |
 | `hub/agent/tools.py`, `events.py` | Registry, sticky event replay | Scope to a session or device, not process globals. | Nothing yet; these are contract values. |
 | `hub/agent/workspace.py` | Request-ack view open with timeout | Generalize VIEWS and ALIASES. | Changing the `ui.mode` enum is a contract change: propose it. |
@@ -732,7 +732,7 @@ Avatar:
 | `hub/ml/*` | Project-open pipeline, propose-apply-undo loop, archetypes, forge-sdk | Make the sink pluggable (hub, file, cloud). Archetypes become a registry. Model calls go through the gateway. | CIFAR-only demo path inside core. |
 | `hub/agent/runner.py`, `crew.py` | Git task worktrees, role allow-lists, Crew roster, event model | Split generic runner from Albie-specific event adapter. One registry of agent types (currently duplicated in Python and C#). | Hard-coded `pet/` branch prefix and `rocket-lab` project. |
 | `hub/messaging`, `hub/desk` | Draft-then-confirm send gate, floating panel host, timers, notes | Replace Slack and iMessage with a Messenger send (PR-00b); keep the confirm gate. Generic floating-panel host. Persist timers. | Slack and iMessage. |
-| `hub/vscode`, `vscode-bit/` | Localhost bridge, allowlisted commands | Generic editor bridge. Add CI and terminal status events. | Hackathon installer, port 8770 hard-code. |
+| `hub/vscode`, `vscode-albie/` | Localhost bridge, allowlisted commands | Generic editor bridge. Add CI and terminal status events. | Hackathon installer, port 8770 hard-code. |
 | `cloud/api/voice-token.ts` | Short-lived token pattern | Re-point to the voice gateway. Fix the `Bearer undefined` case when the key is missing. | xAI endpoint. |
 | `cloud/api/claude.ts` | Field allowlist, token cap, model allowlist | Becomes the model gateway. | Hard-coded model IDs. |
 | `cloud/lib/guard.ts` | App key check, per-IP limit | Per-user auth and a shared rate-limit store (KV). | Public app key. |
@@ -1010,7 +1010,7 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 - `cloud/api/claude.ts`: model gateway with field allowlist and token cap.
 
 **Change.**
-- Crew types are duplicated in Python (`crew.py`), JSON (`crew.json`) and C# (`GatorAgentTypes`). Make one registry.
+- Crew types are duplicated in Python (`crew.py`), JSON (`crew.json`) and C# (`AlbieAgentTypes`). Make one registry.
 - `runner.py` mixes git work with Albie events (`pet_id`, `albie.say`, `vscode_live`). Split a generic runner core from a UI event adapter.
 - `CodeProject.cs` hard-codes `rocket-lab` and a Python-only check.
 - Branch prefix `pet/` is Albie-specific.
@@ -1018,7 +1018,7 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 - `/events` keeps 400 entries. A slow poller loses events.
 - The cloud app key ships inside the APK, so it is public. Use per-install or per-user auth.
 
-**Drop.** `CodeSample.json`, `vscode-bit/install.js`, the Albie terminal wording.
+**Drop.** `CodeSample.json`, `vscode-albie/install.js`, the Albie terminal wording.
 
 ### 7.12 Open questions and risks
 
@@ -1525,7 +1525,7 @@ Note: the on-device ML path is limited to visualization and small classifiers. Q
 | `agent.session.run` | Run one agent turn (Claude Agent SDK or Managed Agents) with a role kit (read, review, code, docs, cad). | cloud | port | `runner.py` `_run_code`. Managed Agents (beta) runs the loop and cloud sandboxes. Self-hosted sandboxes exist (Vercel, Daytona, Modal). |
 | `agent.progress.map` | Map tool and token events to visuals. | cloud + device | new | Events: `agent.tool_use`, `agent.tool_result`, `session.usage`. No native diff event; compute `git diff` in the sandbox. |
 | Agent Teams (Claude Code) | Built-in team feature. | n/a | not used | Experimental, interactive only, not headless. Our orchestrator runs N sessions instead. |
-| `editor.bridge` | Localhost bridge to an editor for open, highlight, errors, and allowlisted commands. | device-adjacent (Mac) | port | `hub/vscode/tools.py`, `vscode-bit/extension.js`. Not needed on a standalone Quest. |
+| `editor.bridge` | Localhost bridge to an editor for open, highlight, errors, and allowlisted commands. | device-adjacent (Mac) | port | `hub/vscode/tools.py`, `vscode-albie/extension.js`. Not needed on a standalone Quest. |
 | `screen.stream` | Show a streamed window or browser panel. | device + cloud | exists | `ScreenSurface.cs`, `ScreenReceiver.cs`, `JpegScreenReceiver.cs`, `screen-bridge/stream.py`. |
 
 ### 10.5 Confirm and desk tools
@@ -1738,7 +1738,7 @@ The critic found these gaps in the drafts. Each needs an owner and a short spec 
 | **Meta VR Glasses target** | Keep passing the Device Readiness Check.<br>Layouts must fit about 70° horizontal FOV.<br>Test the tethered PC or Mac flow.<br>Input is hands, a virtual keyboard and a trackpad: no controllers. |
 | **Offline and degraded modes** | Per mode, say what works with no network:<br>- the desk, avatar, timers, notes and cached artifacts work;<br>- voice, agents, git and training don't.<br>Show one calm state, like today's "Connect a computer to see its screens". |
 | **Comfort and accessibility** | A seated-first layout.<br>A minimum text size at 1 m.<br>The floating agent stays out of the central view and never moves fast near the head.<br>A "hold still" toggle.<br>Captions for every spoken line (they exist today). |
-| **Evaluation** | Regression scripts for the voice path (the existing `hub/tests/test_bit_script.py` pattern).<br>A small eval set for planning sessions, code tasks and drone results.<br>On-device latency logs per pipeline stage. |
+| **Evaluation** | Regression scripts for the voice path (the existing `hub/tests/test_albie_script.py` pattern).<br>A small eval set for planning sessions, code tasks and drone results.<br>On-device latency logs per pipeline stage. |
 | **Onboarding and consent** | One first-run flow:<br>1. Horizon entitlement.<br>2. Account link.<br>3. Mic and spatial data consent.<br>4. Data Use Checkup scopes.<br>5. Optional GitHub, Sketchfab and Hugging Face sign-ins (device flow).<br>6. A privacy notice that names Meta and Anthropic as processors. |
 | **Cost to the user** | A visible per-day spend meter (tokens, GPU minutes).<br>Hard caps in the cloud gateway.<br>Every paid job needs a confirm step and a timeout. |
 | **Multi-user cloud state** | Scope `tools._tools`, `workspace`, `watcher`, `bus`, `Workspace.Current` and `ForgeNet.Instance` per session before hosting more than one user. |
@@ -1836,13 +1836,13 @@ Delete (after the replacement is live, in PR-21). Sandbox scenes such as `CAD/CA
 - `unity/Assets/_Forge/Code/Editor/CodeShot.cs` (keep `CodePanelBuilder.cs` only if the new prefab flow needs it).
 - `cloud-py/stubs/agent/` (exists only because the hub imports voice, Slack and Claude together).
 - `cloud-py/text_improve.py` (keep the fallback pattern, drop the file).
-- `vscode-bit/install.js` (hackathon symlink installer).
+- `vscode-albie/install.js` (hackathon symlink installer).
 - `hub/cad/make_mocks.py` as-is (it writes Albie demo designs into Mocks). Regenerate mocks per artifact instead.
 - `hub/ml/github_import.py` CIFAR preset fast-path. Keep the generic clone path.
 - `Resources/MLMockAssets.asset` and legacy mock entries. Confirm no sandbox uses them first.
 - The Grok-specific turn code in `hub/agent/voice.py` (`force_message`, `conversation.item.delete`, auto-reply guard) once the Muse backend passes its tests. Keep the turn state machine as a generic core.
 - `hub/agent/voice.py` ROCKET_TERMS, DESIGN_TERMS, ML_TERMS and the "Iron Man" and "humanoid" hints.
-- Bit-specific comments and strings in `DeskDock.cs`, `WorkspaceExtras.cs` (whistle, crew egg) and `BitUiDirector.cs`.
+- Bit-specific comments and strings in `DeskDock.cs`, `WorkspaceExtras.cs` (whistle, crew egg) and `AlbieUiDirector.cs`.
 - `cloud/api/voice-token.ts` xAI call (replace with the chosen voice backend's token flow, if one exists).
 - `run-demo.sh` hub-start steps (keep the health-wait loop).
 
@@ -1963,18 +1963,18 @@ Moved to section 2. It's now the one list, with an owner for each decision.
 ### 14.10 Pet module carry-over (the gator body to the new agent body)
 
 - **Keep:**
-  - `GatorController` (state machine, plus the `.Motion`, `.Surfaces`, `.KeepOut` and `.Territory` partials).
-  - `GatorNavSurface`: the runtime desk NavMesh behind the desk walk.
+  - `AlbieController` (state machine, plus the `.Motion`, `.Surfaces`, `.KeepOut` and `.Territory` partials).
+  - `AlbieNavSurface`: the runtime desk NavMesh behind the desk walk.
   - `ArrivalDirector` and `ArrivalGreeting` (the hop and greeting on sit-down).
-  - `GatorCaption` (the speech bubble).
-  - `StreamedPcmTextToSpeech` and `GatorTalkAnimator` (PCM playback and a talk level, which become the viseme driver).
+  - `AlbieCaption` (the speech bubble).
+  - `StreamedPcmTextToSpeech` and `AlbieTalkAnimator` (PCM playback and a talk level, which become the viseme driver).
   - The mic path: `PushToTalk`, `WakeListener`, `HubSpeechToText`, `MicPermission`.
-  - `GatorInteraction` and `GatorHandPoke`.
-  - `WhistleButton` and `GatorSummon` (summoning the agent).
+  - `AlbieInteraction` and `AlbieHandPoke`.
+  - `WhistleButton` and `AlbieSummon` (summoning the agent).
 - **Change:**
-  - `GatorExpressions` maps the Quirky pack's blendshape names. Put it behind the avatar interface (PR-16), so the roadmap bean avatar plugs in later.
-  - The crew (`GatorCrew`, `GatorHatchery`, `GatorCrewMember`, `GatorAgentTypes`) becomes agent-team visuals for CODE MODE (section 7.6), with one shared agent-type registry.
-  - `GatorFollowUp` and `GatorFetch` get neutral names.
+  - `AlbieExpressions` maps the Quirky pack's blendshape names. Put it behind the avatar interface (PR-16), so the roadmap bean avatar plugs in later.
+  - The crew (`AlbieCrew`, `AlbieHatchery`, `AlbieCrewMember`, `AlbieAgentTypes`) becomes agent-team visuals for CODE MODE (section 7.6), with one shared agent-type registry.
+  - `AlbieFollowUp` and `AlbieFetch` get neutral names.
 - **Add:** the away-state float-on-a-cloud locomotion (new), plus the C-03 presence states.
 - **Keep for now:** the Quirky Series alligator and its animator clips. It stays git-ignored, as its EULA requires, and is replaced only when the bean avatar ships (roadmap).
 
@@ -2007,7 +2007,7 @@ The aim is one PR that deletes the feature completely and leaves timers and note
 6. **Docs:** remove the movie from `README.md`, `hub/README.md` ("Desk (timers, notes, movie)") and `docs/DISCLOSURE.md` (the film credit).
 7. **Done-check:**
    - `git grep -i movie -- ':!*.meta' ':!docs/PROJECT_CONTEXT.md' ':!PROJECT_CONTEXT.md'` prints nothing.
-   - The hub tests pass (`BIT_VSCODE_PORT=9`).
+   - The hub tests pass (`ALBIE_VSCODE_PORT=9`).
    - `DeskSandbox.unity` runs with the hub off and shows timers and notes.
    - The device tool count drops from 59 to 55.
 
@@ -2043,7 +2043,7 @@ The aim: "send me the updated model" works from the headset with no laptop, thro
 2. **Unity, keep:** `DraftCard.cs`, its prefab, `DraftPresenter.cs`, `MessagesTools.cs` and `Resources/AlbieTools/messages.json`, trimmed to the tools in section 10.5. The card also serves `confirm.request` for pushes and merges.
 3. **Unity, edit:**
    - `Pet/Scripts/Core/ArrivalDirector.cs`, `ArrivalGreeting.cs`: drop the digest step (`POST /messages/digest`, `notify.digest`). The greeting uses its existing no-hub line for now, and later the notebook summary. This changes a working sit-down flow, so test it on a Quest.
-   - `Pet/Scripts/Adapters/GatorMrukAdapter.cs`: replace its use of `MessagesDeskZone`.
+   - `Pet/Scripts/Adapters/AlbieMrukAdapter.cs`: replace its use of `MessagesDeskZone`.
    - `Core/Scripts/Workspace.cs`, `Core/Editor/MainSceneBuilder.cs`: remove the MSG mode and the two panels. Core owner only, then rebuild `Main.unity`.
    - `Core/Net/ForgeEvents.cs`: remove the `notify.*` events and add the C-20 ones (a contract change, so propose it).
    - `Core/Scripts/AlbieVoice.cs`, `AlbieTips.cs`, `Core/Resources/AlbieTools/cloud.json`: update message lines and tools.
@@ -2053,11 +2053,11 @@ The aim: "send me the updated model" works from the headset with no laptop, thro
    - `hub/agent/events.py`, `runner.py`, `speech.py`, `tools.py`, `voice.py`, `wake.py`, `watcher.py`, `workspace.py`, `ws.py`.
    - `hub/cad/router.py`, `service.py`: only the comments. `GET /cad/files` stays, and supplies files to send.
    - `hub/desk/tools.py`, `cloud-py/app.py`, `cloud-py/stubs/agent/__init__.py`, `dev-setup.sh`.
-6. **Tests:** update `hub/tests/agent/` (`conftest.py`, `test_agent_fake_flow.py`, `test_agent_views.py`, `test_agent_watcher.py`), `hub/tests/test_bit_script.py`, `hub/cad/tests/test_bit_control.py`, `hub/tests/test_messaging.py`.
+6. **Tests:** update `hub/tests/agent/` (`conftest.py`, `test_agent_fake_flow.py`, `test_agent_views.py`, `test_agent_watcher.py`), `hub/tests/test_albie_script.py`, `hub/cad/tests/test_albie_control.py`, `hub/tests/test_messaging.py`.
 7. **Docs:** `README.md`, `hub/README.md`, `hub/ml/README.md`, `docs/SETUP.md`, `docs/DISCLOSURE.md`. `docs/PROJECT_CONTEXT.md` stays as the record.
 8. **Done-check:**
    - `git grep -il 'slack\|imessage' -- ':!*.meta' ':!docs/PROJECT_CONTEXT.md' ':!PROJECT_CONTEXT.md'` prints nothing, or only reviewed leftovers.
-   - The hub tests pass (`BIT_VSCODE_PORT=9`).
+   - The hub tests pass (`ALBIE_VSCODE_PORT=9`).
    - Sit-down on a Quest: the gator greets you with the hub off and on.
    - From a Quest with no laptop: a file reaches a phone only after the confirm.
 

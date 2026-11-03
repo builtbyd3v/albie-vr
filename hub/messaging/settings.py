@@ -29,5 +29,5 @@ class SlackSettings:
 
     @property
     def as_user(self) -> bool:
-        """True when Bit reads the user's inbox and posts as them (PROJECT_CONTEXT 8.7)."""
+        """True when Albie reads the user's inbox and posts as them (PROJECT_CONTEXT 8.7)."""
         return bool(self.user_token)

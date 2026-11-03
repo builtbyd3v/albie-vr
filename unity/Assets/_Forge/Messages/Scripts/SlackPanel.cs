@@ -28,7 +28,7 @@ public class SlackPanel : MonoBehaviour
 {
     public const int MaxRows = 80;
     const string FocusType = "messages.focus";
-    const string LeadPetId = "bit";
+    const string LeadPetId = "albie";
     // Geometry (mm).
     const float WindowCorner = 12f, PaneInset = 6f, PaneCorner = 10f;
     const float TeamH = 44f, SectionH = 28f, SideRowH = 28f, SideRowGap = 2f, SidePad = 8f;
@@ -327,7 +327,7 @@ public class SlackPanel : MonoBehaviour
     /// messages.focus {pet_id, ts, channel}: Albie reads the message aloud, asks whether to answer, and seeds the reply
     /// thread, so what you say next becomes a draft (notify.draft -> the composer). False when the hub isn't live.
     /// </summary>
-    public bool FocusBit(NotifyMessage m)
+    public bool FocusAlbie(NotifyMessage m)
     {
         if (m == null || string.IsNullOrEmpty(m.ts)) return false;
         var focus = new JObject { ["pet_id"] = LeadPetId, ["ts"] = m.ts, ["channel"] = m.channel ?? selected ?? "" };
@@ -625,7 +625,7 @@ public class SlackPanel : MonoBehaviour
 
     void AskAlbie(NotifyMessage m)
     {
-        if (!FocusBit(m)) composer.ShowStatus("Albie can't hear right now");
+        if (!FocusAlbie(m)) composer.ShowStatus("Albie can't hear right now");
         else composer.ShowStatus("Albie is reading it…");
     }
 

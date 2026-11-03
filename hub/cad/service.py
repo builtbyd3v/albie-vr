@@ -25,7 +25,7 @@ from cad.worker import WorkerHandle, default_title, script_sha
 from events import CadModelUpdated, CadRegenFailed, CadView, EventBus
 
 log = logging.getLogger("forge.cad")
-LABEL_MAX = 120   # a version label (Bit's request in the user's words) is cut to this many characters
+LABEL_MAX = 120   # a version label (Albie's request in the user's words) is cut to this many characters
 
 
 class VersionRecord(BaseModel):
@@ -45,7 +45,7 @@ class VersionRecord(BaseModel):
     description: str = ""
     presets: dict[str, dict[str, Any]] = {}
     features: list[str] = []
-    label: str = ""          # what made it, in words: Bit's request, a preset name, "Saved rocket.py", a change
+    label: str = ""          # what made it, in words: Albie's request, a preset name, "Saved rocket.py", a change
     glyph: str = ""          # the design's icon (rocket | drone | gears | box)
 
 
@@ -120,8 +120,8 @@ class CadService:
         self._lock = asyncio.Lock()
         self._versions: dict[int, VersionRecord] = {}
         self.heads: dict[str, int] = {}
-        self.on_regen_failed: Callable[[CadRegenFailed], None] | None = None  # main.py: proactive Bit
-        self.on_built: Callable[[VersionRecord], None] | None = None  # main.py: proactive Bit says a fix worked
+        self.on_regen_failed: Callable[[CadRegenFailed], None] | None = None  # main.py: proactive Albie
+        self.on_built: Callable[[VersionRecord], None] | None = None  # main.py: proactive Albie says a fix worked
 
     # lifecycle
 
@@ -203,7 +203,7 @@ class CadService:
     # changes (all on the open design)
 
     async def set_params(self, changes: dict[str, Any], source: str = "api", label: str | None = None) -> VersionRecord:
-        """`label`: what the version is called in the history (Bit passes the user's request); default: the change
+        """`label`: what the version is called in the history (Albie passes the user's request); default: the change
         in words."""
         async with self._lock:
             known = {p["name"] for p in self.current.param_schema}

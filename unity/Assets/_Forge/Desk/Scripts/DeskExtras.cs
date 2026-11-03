@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Bit's desk extras on top of any mode: the focus timers (pills above the screens), and the notes (beside the open panels).
+/// Albie's desk extras on top of any mode: the focus timers (pills above the screens), and the notes (beside the open panels).
 /// The hub decides what shows (ui.widgets) and owns the data
 /// (timers.updated, notes.updated); this turns that into panels and dots through
 /// <see cref="WorkspaceExtras"/>, and the panels' buttons go back through <see cref="DeskApi"/>. Minimized, the timers
@@ -14,7 +14,7 @@ public class DeskExtras : MonoBehaviour
     public GameObject timersPrefab, notesPrefab;
     public PanelOrb orbPrefab;
     public DeskChime chime;
-    [Tooltip("What the panels call the pet (\"Ask Bit to add a note\"). Rename the pet here.")]
+    [Tooltip("What the panels call the pet (\"Ask Albie to add a note\"). Rename the pet here.")]
     public string assistantName = "Albie";
 
     UiWidgets widgets = new UiWidgets();

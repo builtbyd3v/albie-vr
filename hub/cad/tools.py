@@ -1,12 +1,12 @@
-"""Bit's CAD tools: JSON-schema definitions plus handlers, for the agent module to register.
+"""Albie's CAD tools: JSON-schema definitions plus handlers, for the agent module to register.
 
 Handlers go through the same CadService calls as the REST endpoints, so the pet and the UI change the
 world the same way. The agent should also emit pet.state (working, target_panel=cad-viewer) around
-cad_set_params so Bit walks over and tinkers; that's the agent module's job.
+cad_set_params so Albie walks over and tinkers; that's the agent module's job.
 
 Tools that change what the user sees open the CAD view first through `show` (agent/workspace.py ensure, passed in
 by agent/tools.py), so "open the quadcopter" works with nothing open. Opening the view never blocks the change itself:
-if it fails (the user isn't at the desk) the result carries `view_error` for Bit to mention. Buttons only Unity has
+if it fails (the user isn't at the desk) the result carries `view_error` for Albie to mention. Buttons only Unity has
 (Expand, the demo, markers, dimensions, the panel's tabs) are pressed with `cad.action` (Addendum H), which is not
 sticky: it means "now", and Unity applies it once the version it names is on screen.
 """

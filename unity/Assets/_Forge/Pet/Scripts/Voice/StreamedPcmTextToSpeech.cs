@@ -21,7 +21,7 @@ namespace Forge.Pet
     ///
     /// Speak(text) is a no-op while the hub has a voice session (AgentClient.VoiceActive: the hub alone decides what
     /// is spoken); otherwise it fakes a speaking period like NullTextToSpeech so the talk animation still runs.
-    /// Needs its own GameObject (an AudioSource just for speech), e.g. a "Voice" child of the gator.
+    /// Needs its own GameObject (an AudioSource just for speech), e.g. a "Voice" child of Albie.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     [DisallowMultipleComponent]
@@ -54,11 +54,11 @@ namespace Forge.Pet
         /// <summary>Smoothed loudness 0..1 of what is playing (synthetic envelope during fallback speech).</summary>
         public float Level { get; private set; }
         public bool IsTalking => _speaking;
-        /// <summary>The hub speaks for the gator (voice.ready received on the current connection).</summary>
+        /// <summary>The hub speaks for Albie (voice.ready received on the current connection).</summary>
         public bool VoiceActive => client != null && client.VoiceActive;
 
         AudioSource _source;
-        GatorAgentBridge _bridge;
+        AlbieAgentBridge _bridge;
         int _outRate, _prebuffer;
         float _nextResolve;
         bool _subscribed;
@@ -108,8 +108,8 @@ namespace Forge.Pet
             _source.minDistance = 1f;
             _source.maxDistance = 12f;
 
-            if (_bridge == null) _bridge = GetComponentInParent<GatorAgentBridge>();
-            if (_bridge == null) _bridge = FindAnyObjectByType<GatorAgentBridge>();
+            if (_bridge == null) _bridge = GetComponentInParent<AlbieAgentBridge>();
+            if (_bridge == null) _bridge = FindAnyObjectByType<AlbieAgentBridge>();
         }
 
         void OnEnable()
@@ -249,7 +249,7 @@ namespace Forge.Pet
                 else if (avail <= 0 && (_ended || unchecked(Environment.TickCount - _lastFrameTick) > StallMs))
                 {
                     // Live 19:35: the hub socket dropped mid-reply, tts.end never came, and SpeechEnded never fired, so
-                    // WakeListener (and GatorFollowUp) thought he was still talking and stopped listening for good.
+                    // WakeListener (and AlbieFollowUp) thought he was still talking and stopped listening for good.
                     _gate = false;
                     _streaming = false;
                     _ended = false;
@@ -322,7 +322,7 @@ namespace Forge.Pet
             return Mathf.Clamp01(syll * phrase);
         }
 
-        string PetId => _bridge != null && _bridge.Config != null ? _bridge.Config.petId : "bit";
+        string PetId => _bridge != null && _bridge.Config != null ? _bridge.Config.petId : "albie";
 
         // The bridge adds AgentClient when the config loads, so keep looking until it exists (throttled).
         void ResolveClient()

@@ -1,7 +1,7 @@
-"""Say a gator's name and it listens: routing for Unity's always-on, VAD-gated speech (WakeListener).
+"""Say an agent's name and it listens: routing for Unity's always-on, VAD-gated speech (WakeListener).
 
 Unity streams each speech segment it hears as a normal turn marked ``stt.start {wake: true}``. The transcript is
-held back (no stt.*, no pet.state for room chatter) until we know who it is for; the gator's ``pet.state listening``
+held back (no stt.*, no pet.state for room chatter) until we know who it is for; Albie's ``pet.state listening``
 goes out only when a segment turns out to be a request for it:
 
     "Hey Albie, what's in ws.py?"   -> Albie answers (voice: Grok responds to the turn; else agent.ask)
@@ -46,11 +46,11 @@ FACING_COUNTS = os.getenv("VOICE_FACING", "0") == "1"
 NAME_REQUIRED = os.getenv("VOICE_NAME_REQUIRED", "0") == "1"
 GREETINGS = {"hey", "hi", "hello", "ok", "okay", "yo", "oi", "oh", "um", "uh", "so", "yes", "yeah", "yep", "alright",
              "well", "and", "please"}  # "Yes, Albie. Find..." (live 19:54) was dropped with only the first set
-# Common mis-hearings, per pet id ("bit" = the lead, spoken name Albie). Keep these unambiguous English-wise.
+# Common mis-hearings, per pet id ("albie" = the lead, spoken name Albie). Keep these unambiguous English-wise.
 # A name only counts at the start of a sentence (after a greeting) or after a comma, so "Scott" here means a
 # sentence addressed to someone called Scott goes to the Scout; drop an alias if that bites in your room.
 ALIASES: dict[str, set[str]] = {
-    "bit": {"albie", "albee", "alby", "albi", "elbie", "abby", "obi", "olby", "albany", "elby"},  # all heard for "Albie" (live and lab)
+    "albie": {"albie", "albee", "alby", "albi", "elbie", "abby", "obi", "olby", "albany", "elby"},  # all heard for "Albie" (live and lab)
     "scout": {"scout", "scouts", "scott", "scoot", "skout"},
     "builder": {"builder", "builders", "bilder"},
     "fixer": {"fixer", "fixers", "fixa", "fixor", "fisher"},
@@ -85,7 +85,7 @@ def _alias_map(lead_pet_id: str) -> dict[str, str]:
     for t in TYPES.values():
         for a in ALIASES.get(t.id, {t.id, t.name.lower()}):
             out[a] = t.id
-    for a in ALIASES["bit"]:
+    for a in ALIASES["albie"]:
         out[a] = lead_pet_id
     return out
 
@@ -93,7 +93,7 @@ def _alias_map(lead_pet_id: str) -> dict[str, str]:
 _SENTENCE = re.compile(r"\S.*?(?:[.?!]+(?=\s|$)|$)")  # a dot inside "ws.py" doesn't end a sentence
 
 
-def parse(text: str, lead_pet_id: str = "bit") -> tuple[str | None, str]:
+def parse(text: str, lead_pet_id: str = "albie") -> tuple[str | None, str]:
     """(pet_id the turn is addressed to or None, the turn without the name). The name may open any sentence of the
     turn ("Switch to code. Albie, switch to code.", live 19:55); what came before it stays in the rest unless it is
     only greetings ("Okay. Albie" is just his name)."""
@@ -158,9 +158,9 @@ class WakeRouter:
         self.facing, self.gated = facing, gated
 
     def crew_target(self, text: str) -> str | None:
-        """The crew gator a non-wake turn (push-to-talk, hands-free, Bit's follow-up window) is really for, if any.
+        """The crew member a non-wake turn (push-to-talk, hands-free, Albie's follow-up window) is really for, if any.
         Stricter than a wake turn: the name must be greeted ("Hey Tester ...") or set off ("Tester, ..."), so a
-        question to Bit that merely starts with a type name ("builder pattern?") stays Bit's."""
+        question to Albie that merely starts with a type name ("builder pattern?") stays Albie's."""
         pid, _ = parse(text, self.lead)
         if pid is None or pid == self.lead:
             return None
@@ -181,7 +181,7 @@ class WakeRouter:
 
     async def partial(self, text: str) -> None:
         pid, _ = self._who(text, self.target)
-        if pid is not None:  # addressed: now the gator may show what it's hearing
+        if pid is not None:  # addressed: now Albie may show what it's hearing
             await self._emit_for(pid)(ev.stt_partial(pid, text))
 
     async def final(self, text: str, flags: tuple[str | None, bool, bool] | None = None) -> Decision:
@@ -211,7 +211,7 @@ class WakeRouter:
             await self._emit_for(pid)(ev.pet_state(pid, "listening"))
             await self._emit_for(pid)(ev.stt_final(pid, text, voice=True))
             return Decision(pid, rest, True)
-        # A crew gator (hatched on demand).
+        # A crew member (hatched on demand).
         if not rest:
             self._spawn(self._summon(pid))
         else:
@@ -226,7 +226,7 @@ class WakeRouter:
             if "error" in out:
                 await self._emit_for(pid)(ev.error(pid, str(out["error"])))
                 return
-            await asyncio.sleep(0.3)  # let the new gator's bridge attach before it's told to listen
+            await asyncio.sleep(0.3)  # let the new agent's bridge attach before it's told to listen
         await self._send_owner(ev.wake_listen(pid))
 
     async def _assign(self, pid: str, task: str) -> None:

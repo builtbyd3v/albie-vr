@@ -1,4 +1,4 @@
-"""REST endpoints for the agent module (mounted at /agent). Asking Bit anything goes over /ws (agent.ask)."""
+"""REST endpoints for the agent module (mounted at /agent). Asking Albie anything goes over /ws (agent.ask)."""
 
 from __future__ import annotations
 

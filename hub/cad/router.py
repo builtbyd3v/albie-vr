@@ -191,7 +191,7 @@ async def package_rows(cad: CadService, v: int | None) -> tuple[VersionRecord, l
 
 @router.get("/files")
 async def files(v: int | None = None, cad: CadService = Depends(service)):
-    """A version's files for a supplier (what Bit attaches to a Slack message): the CAD model (STEP), an STL for 3D
+    """A version's files for a supplier (what Albie attaches to a Slack message): the CAD model (STEP), an STL for 3D
     printing, the drawing as PDF and the parts list as CSV -> {part, version, files: [{kind, name, title, bytes}]}.
     Made on first request (a few seconds), then cached. 409 if the version was built from an older part script."""
     r, rows = await package_rows(cad, v)
@@ -237,7 +237,7 @@ async def motion(v: int | None = None, cad: CadService = Depends(service)):
 
 @router.get("/versions")
 def versions(cad: CadService = Depends(service)):
-    """The open design's versions. `label`: the version in words (Bit's request, a preset, "Saved rocket.py", the
+    """The open design's versions. `label`: the version in words (Albie's request, a preset, "Saved rocket.py", the
     change); `primary`: the design's main metric for that version {id, label, value, display, status}."""
     return [{"version": r.version, "part": r.part, "parent": r.parent, "source": r.source, "created_at": r.created_at,
              "head": r.version == cad.head, "params": r.params,

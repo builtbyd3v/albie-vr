@@ -59,7 +59,7 @@ async function openVsCode() {
 // Fills the screen (below the menu bar), so it reads as the real thing on the laptop too. Not macOS full screen: that
 // moves VS Code to its own Space, and a window on another Space can't be captured. The stream is capped at 1920 px
 // wide, so a full-size window gets shrunk to about half; the extension's 173% zoom keeps the text big on the panel.
-// Then the Forge Bit extension closes the side bars and the chat, and sizes the terminal (vscode-bit/extension.js, layout).
+// Then the Forge Albie extension closes the side bars and the chat, and sizes the terminal (vscode-albie/extension.js, layout).
 function screenArea() {
   const script = 'ObjC.import("AppKit"); const s = $.NSScreen.mainScreen, f = s.frame, v = s.visibleFrame;' +
     "[v.origin.x, f.size.height - v.origin.y - v.size.height, v.size.width, v.size.height].join(' ')";
@@ -79,14 +79,14 @@ async function fitVsCode() {
   } catch {
     console.warn("Couldn't resize VS Code (full screen, or no Accessibility permission). Streaming it as it is.");
   }
-  const url = `http://127.0.0.1:${process.env.BIT_VSCODE_PORT || 8770}/layout`;
+  const url = `http://127.0.0.1:${process.env.ALBIE_VSCODE_PORT || 8770}/layout`;
   for (let i = 0; i < 20; i++) {  // the extension starts a few seconds after the window on a cold start
     const body = JSON.stringify({ zoom: Number(process.env.VSCODE_ZOOM || 3) });
     const ok = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body }).then((r) => r.ok, () => false);
     if (ok) return console.log("VS Code laid out for the headset");
     await new Promise((r) => setTimeout(r, 500));
   }
-  console.warn("Forge Bit extension didn't answer; side bars stay as they are.");
+  console.warn("Forge Albie extension didn't answer; side bars stay as they are.");
 }
 
 const source = process.env.SCREEN_SOURCE || (await openVsCode());

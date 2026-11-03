@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// Puts what VS Code has open on the panel header: "rocket.py · 2 errors". Polls the hub's GET /vscode/context
-/// (the Forge Bit extension's /context, passed through). VS Code closed or no computer connected: no subtitle.
+/// (the Forge Albie extension's /context, passed through). VS Code closed or no computer connected: no subtitle.
 /// </summary>
 public class ScreenContext : MonoBehaviour
 {

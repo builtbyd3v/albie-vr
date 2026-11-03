@@ -11,7 +11,7 @@ public enum ExtraState { Closed, Open, Minimized }
 public enum ExtraAnchor { Top, Beside }
 
 /// <summary>
-/// Panels that come and go outside the modes: Bit's desk extras (the timers, the notes). They stay open while
+/// Panels that come and go outside the modes: Albie's desk extras (the timers, the notes). They stay open while
 /// modes switch and follow the open mode's layout (until the user moves them), fold away when you stand up and come
 /// back when you sit down. Minimized, a panel shrinks into a <see cref="PanelOrb"/> where it was: tap the orb and the
 /// panel opens there again, hold it to carry it somewhere else. Where things were moved is kept for the session.

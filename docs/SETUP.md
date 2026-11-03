@@ -41,7 +41,7 @@ Done-check: `ls "$REPO/hub/.env"`. The path check comes at the end of step 4.
 cd "$REPO/hub" && [ -x .venv/bin/python ] || $PY -m venv .venv
 .venv/bin/pip install -q -r requirements-dev.txt -r ml/requirements.txt
 ```
-Done-check: `cd "$REPO/hub" && BIT_VSCODE_PORT=9 .venv/bin/python -m pytest -q` ends with `passed`. Known fails: `test_github_import` folder-name assert (the clone folder is not named `gatorhack-dubz`), and sometimes `test_agent_live_edits`. `BIT_VSCODE_PORT=9` keeps the tests from opening files in the person's VS Code.
+Done-check: `cd "$REPO/hub" && ALBIE_VSCODE_PORT=9 .venv/bin/python -m pytest -q` ends with `passed`. Known fails: `test_github_import` folder-name assert (the clone folder is not named `gatorhack-dubz`), and sometimes `test_agent_live_edits`. `ALBIE_VSCODE_PORT=9` keeps the tests from opening files in the person's VS Code.
 
 ## 3. ML example env (CIFAR-10)
 
@@ -68,17 +68,17 @@ VSCODE_FOLDER=${HOME}/Documents/GitHub/albie-sandbox
 ```
 Done-check: `ls ~/Documents/GitHub/albie-sandbox/.albie-sandbox ~/Documents/GitHub/albie-sandbox/ml/data ~/Documents/GitHub/albie-sandbox/ml/.venv/bin/python ~/Documents/GitHub/albie-sandbox/data/unitree_g1` succeeds (missing `ml/.venv`: `ln -s "$REPO/ml-examples/cifar10/.venv" ~/Documents/GitHub/albie-sandbox/ml/.venv`), and the path check in `sh dev-setup.sh` prints `ok: every path exists`.
 
-## 5. Screen bridge + Forge Bit extension (macOS)
+## 5. Screen bridge + Forge Albie extension (macOS)
 
 ```sh
 cd "$REPO/screen-bridge" && npm install --silent
 [ -x .venv/bin/python ] || $PY -m venv .venv
 .venv/bin/pip install -q -r requirements.txt
-node "$REPO/vscode-bit/install.js"     # links vscode-bit into ~/.vscode/extensions as forge.forge-bit-<version>
+node "$REPO/vscode-albie/install.js"     # links vscode-albie into ~/.vscode/extensions as forge.forge-albie-<version>
 ```
 Add `"window.titleSeparator": " | "` to the VS Code user settings (Chrome finds the VS Code window by it). Relaunch VS Code.
 **HUMAN:** System Settings > Privacy & Security > **Screen Recording**: turn on the terminal app that runs the hub, and Google Chrome. Do the same under **Accessibility** (the bridge resizes VS Code). Quit and reopen that terminal app.
-Done-check: `ls -l ~/.vscode/extensions | grep forge.forge-bit` shows a link to `$REPO/vscode-bit`. With VS Code open: `curl -s -o /dev/null -w '%{http_code}\n' localhost:8770/context` prints `200` (read-only), and VS Code's status bar shows the Forge Bit item.
+Done-check: `ls -l ~/.vscode/extensions | grep forge.forge-albie` shows a link to `$REPO/vscode-albie`. With VS Code open: `curl -s -o /dev/null -w '%{http_code}\n' localhost:8770/context` prints `200` (read-only), and VS Code's status bar shows the Forge Albie item.
 
 ## 6. Run the hub
 
@@ -92,7 +92,7 @@ WebRTC video needs the Mac and the Quest on a phone hotspot (venue Wi-Fi blocks 
 
 ## 7. Slack user token (optional; the bot tokens come in the shared env file)
 
-**HUMAN:** a user token belongs to the person who installed the app, so each teammate installs it for themselves. Install the Slack CLI (https://docs.slack.dev/tools/slack-cli). Ask Dev to add you as a collaborator on the Forge Slack app. In `$REPO/hub`: `slack login` (the team workspace), `slack app link -E local` (app id from `slack app list`), `slack install -E local` (installs it for you), then `slack app settings` > OAuth & Permissions > **User OAuth Token** (`xoxp-...`). Paste it into `SLACK_USER_TOKEN` in `hub/.env` yourself. Never use someone else's `xoxp-` token: Albie would post as them. Empty = Albie posts as "Bit".
+**HUMAN:** a user token belongs to the person who installed the app, so each teammate installs it for themselves. Install the Slack CLI (https://docs.slack.dev/tools/slack-cli). Ask Dev to add you as a collaborator on the Forge Slack app. In `$REPO/hub`: `slack login` (the team workspace), `slack app link -E local` (app id from `slack app list`), `slack install -E local` (installs it for you), then `slack app settings` > OAuth & Permissions > **User OAuth Token** (`xoxp-...`). Paste it into `SLACK_USER_TOKEN` in `hub/.env` yourself. Never use someone else's `xoxp-` token: Albie would post as them. Empty = Albie posts as "Albie".
 Done-check: after `sh run-demo.sh`, `/health` shows Slack connected.
 
 ## 8. iMessage (optional, macOS only)
@@ -107,7 +107,7 @@ Done-check: after `sh run-demo.sh`, `/health` shows `imessage.available: true` (
 ## 9. Unity build + Quest
 
 **HUMAN:** sign in to Unity Hub (license). On the headset: Developer Mode on for the headset's **primary** account (a secondary user cannot turn it on). Plug in USB and accept **Allow USB debugging** for this computer. Run Space Setup with exactly **one** table (each table gets its own whistle).
-0. **HUMAN, before the first open:** Albie's model is a paid Unity Asset Store pack, not in git (its EULA forbids redistribution). Import Quirky Series Ultimate Pack Vol.1 (or its River Vol.2 alligator) in any Unity project, then copy its `Quirky Series` folder, with the `.meta` files, to `$REPO/unity/Assets/_Forge/Pet/ThirdParty/`. Get `Gator_Model.fbx` (to `unity/Assets/_Forge/Pet/Models/`) and `gator_anims.blend` (to `art/gator/`) from a teammate: they hold the pack's mesh, so they are git-ignored too. Without them Unity still compiles; Albie shows up untextured or missing. Do this before Unity opens the project, or it deletes `Gator_Model.fbx.meta` and the prefabs lose the model.
+0. **HUMAN, before the first open:** Albie's model is a paid Unity Asset Store pack, not in git (its EULA forbids redistribution). Import Quirky Series Ultimate Pack Vol.1 (or its River Vol.2 alligator) in any Unity project, then copy its `Quirky Series` folder, with the `.meta` files, to `$REPO/unity/Assets/_Forge/Pet/ThirdParty/`. Get `Gator_Model.fbx` (to `unity/Assets/_Forge/Pet/Models/`) and `gator_anims.blend` (to `art/albie/`) from a teammate: they hold the pack's mesh, so they are git-ignored too. Without them Unity still compiles; Albie shows up untextured or missing. Do this before Unity opens the project, or it deletes `Gator_Model.fbx.meta` and the prefabs lose the model.
 1. Open `$REPO/unity` in Unity 6000.6.7f1. The first import takes 5-15 min. Keep the Editor window in front while it imports and compiles: Unity compiles only while focused.
 2. Menu **Forge > Build Main Scene**. It rewrites `Main.unity`: never commit that file. Run `git checkout -- unity/Assets/_Forge/Core/Main.unity` before every pull.
 3. File > Build Profiles > Android > Switch Platform. Build to `unity/Builds/Forge.apk` with `Assets/_Forge/Core/Main.unity` as the only scene.
@@ -132,7 +132,7 @@ Done-check: `$ADB devices` lists the headset as `device`; `$ADB reverse --list` 
 - Unity compiles only while its window is focused: bring it to the front after every pull or script change.
 - WebRTC video needs the Mac and the Quest on a phone hotspot; else the VS Code panel falls back to JPEG after about 10 s.
 - `Forge > Build Main Scene` rewrites `Main.unity`: `git checkout -- unity/Assets/_Forge/Core/Main.unity` before a pull.
-- Hub tests: always `BIT_VSCODE_PORT=9`.
+- Hub tests: always `ALBIE_VSCODE_PORT=9`.
 - Kill stale `stream.py` / `signaling.py` before a hub restart (`run-demo.sh` does).
 - Never commit a rebuilt `Main.unity`, `hub/.env`, or `hub/.data/`.
 - Meta's network security config blocks plain http except localhost: keep the Quest on USB with `adb reverse`.

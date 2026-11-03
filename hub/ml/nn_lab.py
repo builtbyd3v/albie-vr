@@ -24,7 +24,7 @@ from agent import events as ev
 
 log = logging.getLogger(__name__)
 Speak = Callable[[str, str], Awaitable[bool]]
-PET_ID = "bit"
+PET_ID = "albie"
 SETTLE_S, SETTLE_MAX_S = 3.0, 40.0  # announce once test accuracy stops climbing for 3 s (or after 40 s)
 AUTO_PAUSE = 0.92  # NeuralLabSim.AutoPauseAccuracy
 

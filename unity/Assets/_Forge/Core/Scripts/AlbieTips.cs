@@ -13,13 +13,13 @@ using UnityEngine;
 public class AlbieTips : MonoBehaviour
 {
     public const float MinGapS = 120f;
-    const string PetId = "bit";
+    const string PetId = "albie";
 
     static AlbieTips instance;
     string pending, pendingHint;  // the caption, and what the voice model should do with it
     float lastTip = -MinGapS;
     bool busy;  // Albie is listening / thinking / working / speaking
-    Forge.Pet.GatorCaption caption;  // Bit's bubble: muted while the arrival card is up, so hold tips then
+    Forge.Pet.AlbieCaption caption;  // Albie's bubble: muted while the arrival card is up, so hold tips then
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install() => instance = new GameObject(nameof(AlbieTips)).AddComponent<AlbieTips>();
@@ -67,8 +67,8 @@ public class AlbieTips : MonoBehaviour
         if (pending == null || busy || Time.realtimeSinceStartup - lastTip < MinGapS) return;
         if (caption == null)
         {
-            var bridge = FindAnyObjectByType<Forge.Pet.GatorAgentBridge>();
-            if (bridge != null) caption = bridge.GetComponentInChildren<Forge.Pet.GatorCaption>();
+            var bridge = FindAnyObjectByType<Forge.Pet.AlbieAgentBridge>();
+            if (bridge != null) caption = bridge.GetComponentInChildren<Forge.Pet.AlbieCaption>();
         }
         if (caption != null && caption.Muted) return;
         lastTip = Time.realtimeSinceStartup;

@@ -84,7 +84,7 @@ Every `*.py` in `cad/parts/` (except `_`-files) is a design; its file name is it
   AP214, mm), `.stl` (3D printing), `_drawing.pdf` (the drawing, no orange) and `_parts.csv` (part, material, qty,
   mass) -> `{part, version, files: [{kind: step|stl|drawing|parts, name, title, bytes}]}`; `GET /cad/files/{name}?v=N`
   downloads one. Made in one worker job on first request (a few seconds), cached in the version's `package/` folder.
-  Bit attaches them to Slack drafts (`messages_send` `attach`, see "Bit runs the workspace").
+  Albie attaches them to Slack drafts (`messages_send` `attach`, see "Albie runs the workspace").
 
 ## Test
 
@@ -125,7 +125,7 @@ Copy that folder to `unity/Assets/_Forge/Mocks/cad/` (see the CAD README there).
 
 ## Agent module (pet)
 
-Adrian's module: the gator pet answers questions about a repo and runs coding tasks through the
+Adrian's module: Albie pet answers questions about a repo and runs coding tasks through the
 **Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/archive/PET_AGENT_CONTRACT.md`](../docs/archive/PET_AGENT_CONTRACT.md).
 
 - REST: `GET /agent/projects`. There is no typed REST fallback: a typed question is `agent.ask` on the socket.
@@ -146,7 +146,7 @@ agent/
   crew.py     Albie's crew: agent types, roster, parallel member turns, the lead-only crew tools
   wake.py     "Hey Albie" / "<Crew name>, ..." routing for always-on wake turns
   speech.py   live voice sessions by pet id: speak(text) and note(text) for other modules (digest, focus)
-  workspace.py Bit opens views: ui.mode out, workspace.mode back (the ui_open_view tool; CAD/Slack tools use ensure)
+  workspace.py Albie opens views: ui.mode out, workspace.mode back (the ui_open_view tool; CAD/Slack tools use ensure)
   fake.py     FAKE_AGENT=1 scripted turns (same signature)
   turn.py     auto-mode classifier + TurnControl (cancel/interrupt)
   stt.py      SpeechToText: NoneSTT, WhisperSTT (faster-whisper, optional)
@@ -217,36 +217,36 @@ only work while the CODE view is open (they answer an error otherwise). `VOICE_P
 VOICE_PROVIDER=fake FAKE_AGENT=1 SCREEN_BRIDGE=0 .venv/bin/uvicorn main:app
 ```
 
-### Say a gator's name (wake turns)
+### Say an agent's name (wake turns)
 
 Unity's `WakeListener` keeps the mic on and sends each speech segment as `stt.start {wake: true}`. `agent/wake.py`
-only answers segments that name a gator ("Hey Albie, ...", "Tester, run the tests"); a name on its own
-("Hey Scout") comes back as `wake.listen` and that gator takes the next sentence. Anything else is dropped
+only answers segments that name an agent ("Hey Albie, ...", "Tester, run the tests"); a name on its own
+("Hey Scout") comes back as `wake.listen` and that Albie takes the next sentence. Anything else is dropped
 without a caption (and deleted from the Grok conversation). In voice mode every segment is transcribed by xAI.
 
-### Crew (extra gators, one per agent type)
+### Crew (extra agents, one per agent type)
 
-The user hatches helper gators in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
+The user hatches helper agents in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
 its own Claude runner with a role, a system prompt and a tool kit (`agent/crew.py` `TYPES`): Scout, Builder, Fixer,
 Tester, Reviewer, Scribe, Shipper, Designer and Sentinel. Albie leads: Grok and Albie's Claude runner get four
-lead-only tools, `spawn_agent`, `assign_task` (hatches the gator first if needed), `dismiss_agent` and
+lead-only tools, `spawn_agent`, `assign_task` (hatches Albie first if needed), `dismiss_agent` and
 `crew_status`. Crew members work in parallel. A code task runs in its own git worktree (`AGENT_WORKTREE_DIR`,
 default `<repo>-crew/`) on `pet/<agent>/<task>`, started from the main checkout's current state (uncommitted edits
 included), so nobody switches the main checkout's branch. When one finishes, its changes are applied to the main
 checkout as uncommitted edits (what VS Code shows) and the worktree is removed; if they conflict, the worktree and
-branch are kept and named in the summary. Albie says so out loud (voice mode) and the gator shows the summary in its bubble.
+branch are kept and named in the summary. Albie says so out loud (voice mode) and Albie shows the summary in its bubble.
 Unity is the source of truth for who exists (`crew.roster`); an `agent.ask` whose `pet_id` is a crew member runs
 that member's turn without touching Albie's.
 
-### Bit runs the workspace (views, CAD, files to Slack)
+### Albie runs the workspace (views, CAD, files to Slack)
 
-From the desk with nothing open: "Bit, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the
+From the desk with nothing open: "Albie, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the
 shaft 10% longer. Draft a message to Adrian with all the files for the supplier. Make it shorter. Send it." Each
-sentence is one or two of Bit's fast tools, called straight from Grok (no `delegate`), so each answers in about a
-second. The contract is `docs/archive/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_bit_script.py` runs that whole script.
+sentence is one or two of Albie's fast tools, called straight from Grok (no `delegate`), so each answers in about a
+second. The contract is `docs/archive/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_albie_script.py` runs that whole script.
 
 - **Views.** `ui_open_view {view: cad|code|ml|messages|none}`. The hub sends `ui.mode {mode}`; Unity opens the view
-  (only at the desk) and answers with `workspace.mode {mode, reason?}`, so Bit's result says what really happened
+  (only at the desk) and answers with `workspace.mode {mode, reason?}`, so Albie's result says what really happened
   (`reason: "not_at_desk"` -> "sit down at the desk first"). `agent/workspace.py` waits 1.5 s for that answer, and only
   0.4 s while the Unity build in use never answers (one without the handler), so no tool stalls on it.
 - **CAD tools open the CAD view themselves** (`cad_open_part`, `cad_set_params`, presets, undo/reset, `cad_view`,
@@ -307,7 +307,7 @@ Setup with the Slack CLI (https://docs.slack.dev/tools/slack-cli), from `hub/`:
 
 ```bash
 slack login                      # once per machine, into the team workspace
-slack install -E local           # creates "Bit (local)" from manifest.json and installs it (bot + user scopes)
+slack install -E local           # creates "Albie (local)" from manifest.json and installs it (bot + user scopes)
 slack run                        # start hook (scripts/slack_cli_start.py) writes SLACK_BOT_TOKEN + SLACK_APP_TOKEN to hub/.env, then exits
 slack app settings               # OAuth & Permissions > "User OAuth Token" (xoxp-...) -> SLACK_USER_TOKEN in hub/.env (the CLI never hands it out)
 ```
@@ -322,7 +322,7 @@ api.slack.com/apps with the same manifest.
 ```
 SLACK_BOT_TOKEN=xoxb-...        # written by `slack run`: the app's identity
 SLACK_APP_TOKEN=xapp-...        # written by `slack run`: Socket Mode
-SLACK_USER_TOKEN=xoxp-...       # you: read your inbox, post as you. Empty = Albie sees only invited channels and posts as "Bit"
+SLACK_USER_TOKEN=xoxp-...       # you: read your inbox, post as you. Empty = Albie sees only invited channels and posts as "Albie"
 SLACK_USER_ID=U...              # optional, derived from the user token; only needed without it
 SLACK_DEFAULT_CHANNEL=#forge-team
 ```
@@ -426,9 +426,9 @@ history, where the parent's `reply_count` grows instead.
 
 ## Desk (timers, notes)
 
-Extras Bit adds on top of any mode: named **focus timers** and the user's **notes**. They
+Extras Albie adds on top of any mode: named **focus timers** and the user's **notes**. They
 don't belong to ML / CAD / CODE / MSG and stay open across mode switches. `ui.widgets` says which ones are showing;
-the hub owns all of it (`desk/service.py`), Unity's buttons and Bit's tools both go through it, so they raise the
+the hub owns all of it (`desk/service.py`), Unity's buttons and Albie's tools both go through it, so they raise the
 same events. Every desk event replays fresh to a client that connects later (`EventBus.sticky_fresh`): the timers'
 remaining time is computed at that moment, not copied from the last message.
 
@@ -444,7 +444,7 @@ remaining time is computed at that moment, not copied from the last message.
 | `POST /notes/{id}/remove` · `POST /notes/undo` | remove (kept as `last_removed`) · bring it back |
 | `GET /ui/widgets` · `POST /ui/widgets {timer?, notes?}` | `UiWidgets`, each `open\|minimized\|closed` (minimized = the dot). Closing the timers stops them |
 | `/ws` events | `ui.widgets`, `timers.updated`, `notes.updated`; `pet.say` "Time's up! ..." when a timer rings (also spoken) |
-| Bit's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}` |
+| Albie's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}` |
 
 Unity, for the panels: count each timer down locally from `remaining_s` when `timers.updated` arrives (the Quest's
 clock isn't the laptop's); play the chime while `status` is `ringing`.
@@ -454,5 +454,5 @@ ui/widgets REST answers) and `desk/sequence.json` (a ForgeMockPlayer run: a focu
 notes in, notes to a dot, the tea timer rings and is stopped). Copy both into `unity/Assets/_Forge/Mocks/`.
 
 Map: `desk/timer.py` (`TimerBoard`, the spoken line), `notes.py` (`NotesStore`, `.data/desk/notes.json`), `service.py` (`DeskService`:
-widgets, events, Bit's voice), `router.py`, `tools.py`, `make_mocks.py`. Tests: `pytest tests/test_desk.py`. Not saved:
+widgets, events, Albie's voice), `router.py`, `tools.py`, `make_mocks.py`. Tests: `pytest tests/test_desk.py`. Not saved:
 running timers (a hub restart forgets them).

@@ -7,9 +7,9 @@ events over the bus; agent.cancel -> interrupt; stt.start / binary PCM16 / stt.s
 -> stt.partial / stt.final. With VOICE_PROVIDER=grok|fake the same stt.* frames drive a
 voice session instead (agent/voice.py: speech back as tts.* + binary, owner socket only).
 Wake turns (stt.start {wake: true}, agent/wake.py): always-on speech segments, answered only when they name a
-gator ("Hey Albie ...", "Tester, ...") or the user faces Albie (facing: true). Crew (agent/crew.py): crew.roster -> membership; agent.ask / agent.cancel whose pet_id is a crew member
+albie ("Hey Albie ...", "Tester, ...") or the user faces Albie (facing: true). Crew (agent/crew.py): crew.roster -> membership; agent.ask / agent.cancel whose pet_id is a crew member
 run that member's own background turn instead of the socket's turn. workspace.mode {mode}: which view Unity
-shows; kept on the session, told to the voice model as a one-line note, and gates Bit's crew tools (CODE view only).
+shows; kept on the session, told to the voice model as a one-line note, and gates Albie's crew tools (CODE view only).
 Other modules own their client -> hub messages on this socket through ``client_handlers`` (main.py registers
 ``messages.focus`` for hub/messaging). Unknown message types are ignored and logged.
 """
@@ -60,7 +60,7 @@ card_handlers: dict[str, CardHandler] = {}  # action_id prefix before ":" -> han
 @dataclass
 class Session:
     ws: WebSocket
-    pet_id: str = "bit"
+    pet_id: str = "albie"
     project_id: str | None = None
     turn: asyncio.Task[str] | None = None
     turn_mode: str | None = None
@@ -98,8 +98,8 @@ async def handle_socket(ws: WebSocket, *, accept: bool = True) -> None:
     async def send_owner(event: Event) -> None:
         await bus.send(ws, event)
 
-    # Wake turns carry no pet.state companions: room chatter must not make a gator look like it is listening. The
-    # router sends pet.state listening itself once a segment is addressed to a gator.
+    # Wake turns carry no pet.state companions: room chatter must not make an agent look like it is listening. The
+    # router sends pet.state listening itself once a segment is addressed to an agent.
     s.wake = WakeRouter(lead_pet_id=s.pet_id, emit_for=lambda pid: Emitter(pid, companion=False), send_owner=send_owner,
                         spawn=s.spawn)
     log.info("ws connected (%d total)", bus.count)
@@ -152,7 +152,7 @@ async def _on_text(s: Session, raw: str) -> None:
             await _on_ask(s, AgentAsk.model_validate(event.payload))
         elif event.type == "agent.cancel":
             cancel = AgentCancel.model_validate(event.payload)
-            if cancel.pet_id and cancel.pet_id != s.pet_id:  # a crew gator's task (never Bit's turn)
+            if cancel.pet_id and cancel.pet_id != s.pet_id:  # a crew member's task (never Albie's turn)
                 member = crew.get(cancel.pet_id)  # resolved now: a roster that follows may drop it
                 if member is not None:
                     s.spawn(crew.cancel_member(member))
@@ -234,7 +234,7 @@ async def _on_ask(s: Session, ask: AgentAsk) -> None:
     if not ask.text.strip():
         await s.reply_error("I didn't catch that.", pet_id)
         return
-    if pet_id != s.pet_id and crew.get(pet_id) is not None:  # asked a crew gator directly
+    if pet_id != s.pet_id and crew.get(pet_id) is not None:  # asked a crew member directly
         if ask.project_id:
             crew.project_id = ask.project_id
         started = await crew.assign(pet_id, ask.text, ask.mode)
@@ -436,14 +436,14 @@ async def _open_voice(s: Session, h: Hello) -> None:
         s.wake.judge = judge
     voice.workspace_mode = s.mode  # a workspace.mode that arrived before voice opened still counts
     s.voice = voice
-    speech.register(s.pet_id, voice)  # lets /messages/digest make Bit speak unprompted
+    speech.register(s.pet_id, voice)  # lets /messages/digest make Albie speak unprompted
     watcher.add(voice)  # proactive lines are spoken too
     await bus.send(ws, ev.voice_ready(s.pet_id, voice.provider, voice.sample_rate))
     s.spawn(_voice_call(s, voice.start))
 
     say = getattr(voice, "say", None)
     if say is not None:
-        async def announce(member: Member, result: str) -> None:  # Bit relays finished crew work out loud
+        async def announce(member: Member, result: str) -> None:  # Albie relays finished crew work out loud
             if s.voice is voice:
                 s.spawn(say(f"{member.type.name} says: {spoken(result)}"))
 
@@ -536,7 +536,7 @@ async def _stt_partial(s: Session, stt: SpeechToText) -> None:
         text = await asyncio.to_thread(stt.partial)
         if text and s.stt is stt:
             if s.wake_turn and s.wake is not None:
-                await s.wake.partial(text)  # captions only once a gator is named
+                await s.wake.partial(text)  # captions only once an agent is named
             else:
                 await Emitter(s.pet_id)(ev.stt_partial(s.pet_id, text))
     except Exception:
@@ -556,7 +556,7 @@ async def _on_stt_stop(s: Session) -> None:
             if not s.wake_turn:
                 await s.reply_error("I couldn't hear that, try again?")
             return
-    if s.wake_turn and s.wake is not None:  # text path: Bit answers through the runner like agent.ask
+    if s.wake_turn and s.wake is not None:  # text path: Albie answers through the runner like agent.ask
         s.wake_turn = False
         if s.stt_cancelled:
             return
@@ -564,8 +564,8 @@ async def _on_stt_stop(s: Session) -> None:
         if decision.respond:
             await _on_ask(s, AgentAsk(pet_id=s.pet_id, text=decision.rest or text))
         return
-    if s.wake is not None and s.wake.crew_target(text):  # "Tester, ..." in Bit's own turn: the crew gator's
-        await Emitter(s.pet_id)(ev.stt_final(s.pet_id, ""))  # Bit: nothing to answer
+    if s.wake is not None and s.wake.crew_target(text):  # "Tester, ..." in Albie's own turn: the crew member's
+        await Emitter(s.pet_id)(ev.stt_final(s.pet_id, ""))  # Albie: nothing to answer
         await s.wake.final(text)
         return
     await Emitter(s.pet_id)(ev.stt_final(s.pet_id, text))

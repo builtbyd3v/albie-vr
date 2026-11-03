@@ -9,7 +9,7 @@ from vscode import tools
 
 @pytest.fixture
 def fake_extension(monkeypatch):
-    """Stands in for the vscode-bit extension: records requests, refuses /run like the allowlist does."""
+    """Stands in for the vscode-albie extension: records requests, refuses /run like the allowlist does."""
     seen = []
 
     class Handler(BaseHTTPRequestHandler):

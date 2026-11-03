@@ -1,6 +1,6 @@
-"""Bit's desk tools (voice model + Claude runner), registered through agent/tools.py like the CAD and Slack tools.
+"""Albie's desk tools (voice model + Claude runner), registered through agent/tools.py like the CAD and Slack tools.
 
-Prefixes timer_ / notes_ map to the panels Bit walks to (agent/tools.py PANELS). Removing a note is never for
+Prefixes timer_ / notes_ map to the panels Albie walks to (agent/tools.py PANELS). Removing a note is never for
 good: notes_remove with undo brings it back.
 """
 from __future__ import annotations

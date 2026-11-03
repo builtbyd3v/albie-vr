@@ -1,4 +1,4 @@
-"""Regenerate agent/assets/fake_voice_24k.pcm: ~1.8 s of chirpy "gator babble" (PCM16 LE mono, 24 kHz).
+"""Regenerate agent/assets/fake_voice_24k.pcm: ~1.8 s of chirpy "albie babble" (PCM16 LE mono, 24 kHz).
 
 VOICE_PROVIDER=fake streams this as the pet's reply so Unity playback and the talk animation can be
 tested without an xAI key. Deterministic, stdlib only:  python scripts/make_fake_voice.py

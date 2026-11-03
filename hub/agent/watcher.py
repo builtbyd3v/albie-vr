@@ -1,9 +1,9 @@
-"""Proactive Bit: when something breaks under the user, Bit speaks first. Once, never over anyone, never acting.
+"""Proactive Albie: when something breaks under the user, Albie speaks first. Once, never over anyone, never acting.
 
 Callers hand events over directly (no bus listener, so no contract change):
 vscode/router.py on POST /vscode/event, and cad/service.py on cad.regen_failed and every good build (main.py).
 
-Per event Bit moves to the panel (pet.state working + target_panel), says one line (pet.say bubble, and
+Per event Albie moves to the panel (pet.state working + target_panel), says one line (pet.say bubble, and
 voice when a Grok session is live) and makes the broken line glow in VS Code. It never edits code: Grok gets the
 file, line and error as hidden context with the line, so a "yes" turns into its normal delegate(mode=code) fix.
 
@@ -32,7 +32,7 @@ from .events import Event
 
 log = logging.getLogger(__name__)
 
-PET_ID = "bit"
+PET_ID = "albie"
 GAP_S = 20.0
 GLOW_MS = 8000
 CTRL_C = 130
@@ -77,7 +77,7 @@ def reply_context(said: str, ts: str) -> str:
 
 
 def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | None:
-    """What Bit says about one event, or None to stay quiet."""
+    """What Albie says about one event, or None to stay quiet."""
     if type_ == "ml.overfit_alert":  # one per run (the SDK alerts once; each demo replay alerts once)
         epoch = p.get("epoch")
         since = f" since epoch {epoch}" if epoch is not None else ""
@@ -110,7 +110,7 @@ def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | No
                     context=fix_context(text, where, error), task=fix_task(where, error))
 
     if type_ == "cad.built":
-        # Bit only says it once a broken rocket he spoke about builds again (Watcher.notify checks that)
+        # Albie only says it once a broken rocket he spoke about builds again (Watcher.notify checks that)
         return Line("cad", "fixed", "Fixed it. The rocket builds again.") if p.get("source") == "script" else None
 
     if type_ != "vscode.event":
@@ -166,7 +166,7 @@ class Watcher:
             task.cancel()
 
     def notify(self, type_: str, payload: BaseModel | dict[str, Any]) -> None:
-        """Hand over an event (from a running event loop). Returns at once; Bit speaks in the background."""
+        """Hand over an event (from a running event loop). Returns at once; Albie speaks in the background."""
         body = payload.model_dump() if isinstance(payload, BaseModel) else payload
         line = line_for(type_, body, self.cad_script)
         if line is None:
@@ -175,7 +175,7 @@ class Watcher:
             self._pending.pop("cad", None)  # nothing said about a break (or it was queued only): stay quiet
             return
         if line.key is not None and self._said.get(line.slot) == line.key:
-            self._pending.pop(line.slot, None)  # back to what Bit last said: the queued change is stale
+            self._pending.pop(line.slot, None)  # back to what Albie last said: the queued change is stale
             return
         self._pending.pop(line.slot, None)  # re-insert at the end: newest line for this slot wins
         self._pending[line.slot] = line
@@ -220,7 +220,7 @@ class Watcher:
         if line.path and line.line:
             try:
                 await asyncio.to_thread(self._highlight, line.path, line.line, None, line.note, GLOW_MS)
-            except Exception as exc:  # noqa: BLE001 - VS Code closed: Bit still speaks
+            except Exception as exc:  # noqa: BLE001 - VS Code closed: Albie still speaks
                 log.info("no glow in VS Code: %s", exc)
         await self._broadcast(ev.pet_state(PET_ID, "working", target_panel=line.panel))
         await self._broadcast(ev.pet_say(PET_ID, line.text, self._card(line)))

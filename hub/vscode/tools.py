@@ -1,12 +1,12 @@
-"""Hub -> VS Code: Bit's tools for driving the editor without touching the user's keyboard or mouse.
+"""Hub -> VS Code: Albie's tools for driving the editor without touching the user's keyboard or mouse.
 
-Talks to the Forge Bit extension (`vscode-bit/`), which serves a tiny HTTP API
+Talks to the Forge Albie extension (`vscode-albie/`), which serves a tiny HTTP API
 on 127.0.0.1 from inside the VS Code window. The agent registers these
-functions as Bit's tools: `from vscode import tools`.
+functions as Albie's tools: `from vscode import tools`.
 
 The calls block (urllib, 5 s timeout). From async code use `await asyncio.to_thread(tools.get_errors)`.
 
-Setup: `ln -s "$PWD/vscode-bit" ~/.vscode/extensions/forge.forge-bit-0.1.0`,
+Setup: `ln -s "$PWD/vscode-albie" ~/.vscode/extensions/forge.forge-albie-0.1.0`,
 then relaunch VS Code with the project open. Try it from hub/:
 
     python -m vscode.tools open README.md 12
@@ -27,7 +27,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-BASE = f"http://127.0.0.1:{os.environ.get('BIT_VSCODE_PORT', '8770')}"
+BASE = f"http://127.0.0.1:{os.environ.get('ALBIE_VSCODE_PORT', '8770')}"
 
 
 def call(method: str, route: str, body: dict[str, Any] | None = None) -> Any:
@@ -60,7 +60,7 @@ def open_file(path: str, line: int = 1) -> Any:
 
 
 def highlight(path: str, start: int, end: int | None = None, note: str | None = None, ms: int = 4000) -> Any:
-    """Make lines glow for a few seconds, with an optional inline note. Bit 'points' at code."""
+    """Make lines glow for a few seconds, with an optional inline note. Albie 'points' at code."""
     return call("POST", "/highlight",
                 {"path": in_project(path), "start": start, "end": end or start, "note": note, "ms": ms})
 
@@ -76,12 +76,12 @@ def get_context() -> Any:
 
 
 def run_command(command: str, *args: Any) -> Any:
-    """Run a VS Code command id from the extension's allowlist (forgeBit.allowedCommands)."""
+    """Run a VS Code command id from the extension's allowlist (forgeAlbie.allowedCommands)."""
     return call("POST", "/run", {"command": command, "args": list(args)})
 
 
 def train() -> Any:
-    """Type forgeBit.trainCommand into VS Code's "Albie" terminal, so the run shows on the streamed screen."""
+    """Type forgeAlbie.trainCommand into VS Code's "Albie" terminal, so the run shows on the streamed screen."""
     return call("POST", "/train", {})
 
 

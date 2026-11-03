@@ -1,4 +1,4 @@
-"""Say a gator's name (agent/wake.py): parsing, the Grok wake turn, and wake turns over /ws."""
+"""Say an agent's name (agent/wake.py): parsing, the Grok wake turn, and wake turns over /ws."""
 
 from __future__ import annotations
 
@@ -27,11 +27,11 @@ def fresh_crew() -> None:
 
 
 @pytest.mark.parametrize("text, who, rest", [
-    ("Switch to code. Albie, switch to code.", "bit", "Switch to code. switch to code."),  # live 19:55:09
-    ("Yes, Albie. Find the repo files using Scout.", "bit", "Find the repo files using Scout."),  # live 19:54:55
-    ("Okay. Albi", "bit", ""),  # just his name: opens a listen
+    ("Switch to code. Albie, switch to code.", "albie", "Switch to code. switch to code."),  # live 19:55:09
+    ("Yes, Albie. Find the repo files using Scout.", "albie", "Find the repo files using Scout."),  # live 19:54:55
+    ("Okay. Albi", "albie", ""),  # just his name: opens a listen
     ("Open train.py.", None, "Open train.py."),
-    ("Hey Albie, what's in ws.py?", "bit", "what's in ws.py?"),  # the dot in ws.py ends no sentence
+    ("Hey Albie, what's in ws.py?", "albie", "what's in ws.py?"),  # the dot in ws.py ends no sentence
     ("I told Alby we would come.", None, "I told Alby we would come."),
 ])
 def test_parse_finds_the_name_at_the_start_of_any_sentence(text: str, who: str | None, rest: str) -> None:
@@ -39,21 +39,21 @@ def test_parse_finds_the_name_at_the_start_of_any_sentence(text: str, who: str |
 
 
 @pytest.mark.parametrize("text, who, rest", [
-    ("Hey Albie, what's in ws.py?", "bit", "what's in ws.py?"),
-    ("albee what time is it", "bit", "what time is it"),
-    ("Al bee, what's in ws.py?", "bit", "what's in ws.py?"),
-    ("Hey al be what time is it", "bit", "what time is it"),
-    ("ok Al B, run it", "bit", "run it"),
-    ("Hey Elbie", "bit", ""),
-    ("thanks, Alby", "bit", "thanks"),
-    ("Hey Bit, what's in ws.py?", None, "Hey Bit, what's in ws.py?"),
+    ("Hey Albie, what's in ws.py?", "albie", "what's in ws.py?"),
+    ("albee what time is it", "albie", "what time is it"),
+    ("Al bee, what's in ws.py?", "albie", "what's in ws.py?"),
+    ("Hey al be what time is it", "albie", "what time is it"),
+    ("ok Al B, run it", "albie", "run it"),
+    ("Hey Elbie", "albie", ""),
+    ("thanks, Alby", "albie", "thanks"),
+    ("Hey Bob, what's in ws.py?", None, "Hey Bob, what's in ws.py?"),
     ("a bit more", None, "a bit more"),
     ("Okay Tester, run the hub tests.", "tester", "run the hub tests."),
     ("Hey Scout", "scout", ""),
     ("Skipper, write the changelog", "shipper", "write the changelog"),
     ("can you check the diff, Reviewer?", "reviewer", "can you check the diff"),
     ("wait a bit", None, "wait a bit"),
-    ("I'm a bit tired, Albie", "bit", "I'm a bit tired"),
+    ("I'm a bit tired, Albie", "albie", "I'm a bit tired"),
     ("let's grab lunch", None, "let's grab lunch"),
     ("", None, ""),
 ])
@@ -76,7 +76,7 @@ class Recorder:
         self.owner.append(e)
 
     def router(self) -> WakeRouter:
-        return WakeRouter(lead_pet_id="bit", emit_for=self.emit_for, send_owner=self.send_owner,
+        return WakeRouter(lead_pet_id="albie", emit_for=self.emit_for, send_owner=self.send_owner,
                           spawn=lambda coro: self.jobs.append(coro))
 
 
@@ -96,8 +96,8 @@ def test_router_keeps_room_chatter_silent() -> None:
 def test_router_hey_albie_alone_opens_a_listen() -> None:
     r = Recorder()
     d = asyncio.run(r.router().final("Hey Albie"))
-    assert d.pet_id == "bit" and not d.respond
-    assert [(e.type, e.payload) for e in r.owner] == [("wake.listen", {"pet_id": "bit"})]
+    assert d.pet_id == "albie" and not d.respond
+    assert [(e.type, e.payload) for e in r.owner] == [("wake.listen", {"pet_id": "albie"})]
 
 
 def test_router_crew_target_from_a_previous_listen() -> None:
@@ -147,7 +147,7 @@ def test_router_facing_without_name_is_dropped_by_default() -> None:
 def test_router_facing_without_name_goes_to_the_lead_with_voice_facing(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("agent.wake.FACING_COUNTS", True)
     d, r = _facing_final("Open the ML panel.", facing=True)
-    assert d.pet_id == "bit" and d.respond and d.rest == "Open the ML panel."
+    assert d.pet_id == "albie" and d.respond and d.rest == "Open the ML panel."
     assert [(e.type, e.payload.get("mode") or e.payload.get("text")) for e in r.events] == \
         [("pet.state", "listening"), ("stt.final", "Open the ML panel.")]
     assert r.asked == ["Open the ML panel."]  # type: ignore[attr-defined]
@@ -179,9 +179,9 @@ def test_router_named_turn_needs_no_judge() -> None:
 
 def test_router_facing_named_routes_as_before() -> None:
     d, _ = _facing_final("Hey Albie, how's the build?", facing=True)
-    assert d.pet_id == "bit" and d.respond and d.rest == "how's the build?"
+    assert d.pet_id == "albie" and d.respond and d.rest == "how's the build?"
     d, r = _facing_final("Hey Albie", facing=True)
-    assert d.pet_id == "bit" and not d.respond
+    assert d.pet_id == "albie" and not d.respond
     assert [e.type for e in r.owner] == ["wake.listen"]
 
 
@@ -408,7 +408,7 @@ def test_a_turn_answered_on_its_partial_is_not_answered_again_by_its_late_transc
 
 
 def _hello(ws: Any) -> None:
-    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
+    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
 
 
 def test_fake_voice_wake_turn_over_ws(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -418,9 +418,9 @@ def test_fake_voice_wake_turn_over_ws(client: TestClient, monkeypatch: pytest.Mo
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
         assert ws.receive_json()["type"] == "voice.ready"
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit", "wake": True}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie", "wake": True}})
         ws.send_bytes(b"\x00\x00" * 3200)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
         seen: list[str] = []
         while "tts.end" not in seen and len(seen) < 200:
             msg = ws.receive()
@@ -439,25 +439,25 @@ def test_text_path_wake_turn_routes_to_the_crew(client: TestClient, monkeypatch:
         def finish(self) -> str: return "Scout, where does greet live?"
 
     monkeypatch.setenv("VOICE_PROVIDER", "none")
-    monkeypatch.setattr("agent.wake.NAME_REQUIRED", True)  # name only: Bit sends nothing at all
+    monkeypatch.setattr("agent.wake.NAME_REQUIRED", True)  # name only: Albie sends nothing at all
     monkeypatch.setattr("agent.ws.make_stt", lambda repo=None: Canned())
     assert stt_mod  # imported for the monkeypatch target's module
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
         ws.send_json({"type": "crew.roster", "payload": {"members": [{"pet_id": "scout", "agent_type": "scout"}]}})
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit", "wake": True}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie", "wake": True}})
         ws.send_bytes(b"\x00\x00" * 3200)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
         got: list[tuple[str, str]] = []
         while ("scout", "agent.answer_done") not in got and len(got) < 60:
             m = ws.receive_json()
             got.append((m["payload"].get("pet_id"), m["type"]))
     assert ("scout", "stt.final") in got
-    assert not any(p == "bit" and t.startswith(("agent.", "stt.")) for p, t in got)
+    assert not any(p == "albie" and t.startswith(("agent.", "stt.")) for p, t in got)
 
 
 def test_ws_wake_turn_sends_no_pet_state_before_it_is_decided() -> None:
-    """Over ws.py the router's Emitter has no companions: a partial for a named gator is just stt.partial, and
+    """Over ws.py the router's Emitter has no companions: a partial for a named albie is just stt.partial, and
     pet.state listening appears only with the decided final."""
     from agent.bus import Emitter
 
@@ -474,7 +474,7 @@ def test_ws_wake_turn_sends_no_pet_state_before_it_is_decided() -> None:
     async def send_owner(e: Event) -> None:
         owner.append(e)
 
-    router = WakeRouter(lead_pet_id="bit", emit_for=lambda pid: Emitter(pid, target=target, companion=False),
+    router = WakeRouter(lead_pet_id="albie", emit_for=lambda pid: Emitter(pid, target=target, companion=False),
                         send_owner=send_owner, spawn=lambda coro: coro.close())
 
     async def go() -> None:
@@ -493,16 +493,16 @@ def test_ws_wake_turn_sends_no_pet_state_before_it_is_decided() -> None:
     ("Hey Scout, where does greet live?", "scout"),
     ("Scout.", "scout"),
     ("can you check the diff, Reviewer?", "reviewer"),
-    ("builder pattern or factory?", None),  # a question for Bit that starts with a type name
-    ("Bit, ask the tester to run them", None),
+    ("builder pattern or factory?", None),  # a question for Albie that starts with a type name
+    ("Albie, ask the tester to run them", None),
     ("what's the static margin", None),
 ])
-def test_crew_target_in_a_bit_turn(text: str, who: str | None) -> None:
+def test_crew_target_in_a_albie_turn(text: str, who: str | None) -> None:
     assert Recorder().router().crew_target(text) == who
 
 
 def test_grok_wake_turn_routes_to_the_crew() -> None:
-    """Wake turn naming a crew gator over the Grok path: no response from Grok, the gator gets the task."""
+    """Wake turn naming a crew member over the Grok path: no response from Grok, Albie gets the task."""
     async def run() -> None:
         grok, sink = MockGrok(), Sink()
         s = _session(grok, sink)
@@ -525,9 +525,9 @@ def test_grok_wake_turn_routes_to_the_crew() -> None:
     asyncio.run(run())
 
 
-def test_grok_bit_turn_naming_the_crew_goes_to_the_crew() -> None:
-    """A normal (hands-free / follow-up) Bit turn that addresses a crew gator: Grok's reply is dropped, Bit gets an
-    empty final (back to idle) and the crew gator gets the task. The WakeListener is paused in these windows."""
+def test_grok_albie_turn_naming_the_crew_goes_to_the_crew() -> None:
+    """A normal (hands-free / follow-up) Albie turn that addresses a crew member: Grok's reply is dropped, Albie gets an
+    empty final (back to idle) and the crew member gets the task. The WakeListener is paused in these windows."""
     async def run() -> None:
         grok, sink = MockGrok(), Sink()
         s = _session(grok, sink)
@@ -567,16 +567,16 @@ def test_parse_mishearings(text, pet, rest):
 
 
 @pytest.mark.parametrize("text, pet, rest", [
-    ("Albie, test her code", "bit", "test her code"),  # a split name mid-sentence is left alone
+    ("Albie, test her code", "albie", "test her code"),  # a split name mid-sentence is left alone
     ("fix her bike", None, "fix her bike"),  # no punctuation after the split name: not a name
-    ("Scott said hi", "scout", "said hi"),  # a one-word alias opening the sentence wakes, like "Bit said hi"
+    ("Scott said hi", "scout", "said hi"),  # a one-word alias opening the sentence wakes, like "Albie said hi"
 ])
 def test_parse_split_names_only_where_a_name_can_stand(text, pet, rest):
     assert parse(text) == (pet, rest)
 
 
-def test_free_speech_unnamed_hands_free_turn_goes_to_bit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default (VOICE_NAME_REQUIRED unset): a hands-free segment with no name is a plain turn for Bit."""
+def test_free_speech_unnamed_hands_free_turn_goes_to_albie(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default (VOICE_NAME_REQUIRED unset): a hands-free segment with no name is a plain turn for Albie."""
     class Canned:
         def feed(self, pcm16: bytes) -> None: ...
         def partial(self) -> None: return None
@@ -586,9 +586,9 @@ def test_free_speech_unnamed_hands_free_turn_goes_to_bit(client: TestClient, mon
     monkeypatch.setattr("agent.ws.make_stt", lambda repo=None: Canned())
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit", "wake": True, "require_name": True}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie", "wake": True, "require_name": True}})
         ws.send_bytes(b"\x00\x00" * 3200)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
         m = ws.receive_json()
         while m["type"] != "stt.final":
             m = ws.receive_json()

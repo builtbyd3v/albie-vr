@@ -72,13 +72,13 @@ CODE_DENY = [
 # Crew members share the repo through worktrees: they must not touch other branches or worktrees either.
 CREW_DENY = CODE_DENY + ["Bash(git worktree:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git stash:*)"]
 # Hub tools (agent/tools.py) a crew runner may call, by name prefix: the editor for everyone, plus its kit's own
-# module. Never cad_* outside the Designer, never messages_* (Slack goes through Bit), never the crew tools.
+# module. Never cad_* outside the Designer, never messages_* (Slack goes through Albie), never the crew tools.
 CREW_FORGE_TOOLS: tuple[str, ...] = ("vscode_",)
 KIT_FORGE_TOOLS: dict[str, tuple[str, ...]] = {"cad": ("cad_",)}
 PARTIAL_MIN_INTERVAL_S = 0.15
 
 PERSONA = (
-    "You are Albie, a small, cute, competent gator pet living in a developer's XR workspace. "
+    "You are Albie, a small, cute, competent pet living in a developer's XR workspace. "
     "Your reply is spoken aloud and shown in a speech bubble."
 )
 QA_PROMPT = (
@@ -124,7 +124,7 @@ def _model() -> str:
 
 def crew_prompt(agent: AgentType, mode: ConcreteMode) -> str:
     return (
-        f"You are {agent.name}, a small gator on Albie's crew in a developer's XR workspace; your job: {agent.role}. "
+        f"You are {agent.name}, a small helper on Albie's crew in a developer's XR workspace; your job: {agent.role}. "
         f"{agent.persona} Your reply is shown in a speech bubble above you and may be read aloud by Albie."
         + (CREW_QA_PROMPT if mode == "qa" else CREW_CODE_PROMPT)
     )
@@ -147,9 +147,9 @@ def crew_forge_allow(agent: AgentType) -> tuple[str, ...]:
     return CREW_FORGE_TOOLS + KIT_FORGE_TOOLS.get(agent.kit, ())
 
 
-def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "bit",
+def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "albie",
              agent: AgentType | None = None, cwd: Path | None = None) -> ClaudeAgentOptions:
-    """Bit (agent None): QA/CODE tools plus every hub tool incl. the lead-only crew tools. A crew member: its own
+    """Albie (agent None): QA/CODE tools plus every hub tool incl. the lead-only crew tools. A crew member: its own
     kit and prompt, and only the hub tools in crew_forge_allow (vscode_* and, for the Designer, cad_*)."""
     lead = agent is None
     allow: tuple[str, ...] | None = None
@@ -221,7 +221,7 @@ def worktree_root(repo: Path) -> Path:
 def create_task_worktree(repo: Path, text: str, task_id: str, pet_id: str) -> tuple[Path, str, str] | None:
     """New worktree on pet/<pet>/<slug>-<shortid>, so crew members never switch the main checkout's branch under
     each other. It starts from the main checkout as it is now: `git stash create` snapshots uncommitted tracked
-    edits (Bit's) as a commit without touching the checkout; HEAD if there are none. Returns (path, branch, base
+    edits (Albie's) as a commit without touching the checkout; HEAD if there are none. Returns (path, branch, base
     commit), None if repo isn't a git work tree."""
     if _git(repo, "rev-parse", "--is-inside-work-tree").stdout.strip() != "true":
         return None
@@ -243,7 +243,7 @@ def land_task_worktree(repo: Path, path: Path, branch: str, base: str) -> str | 
     """Bring a finished crew task into the main checkout as plain uncommitted edits: everything in the worktree
     since `base` (commits and anything left uncommitted) goes through `git apply`, which changes only files on disk
     (never the index or branch) and applies all or nothing. Then the worktree and its branch are removed. If it
-    doesn't apply (the user or Bit changed the same lines), both stay so it can be merged by hand.
+    doesn't apply (the user or Albie changed the same lines), both stay so it can be merged by hand.
     Returns a short spoken note, or None when the task changed nothing."""
     with _land_lock:
         _git(path, "add", "-A")  # include uncommitted and new files
@@ -321,7 +321,7 @@ async def run_turn(
     control: TurnControl | None = None,
     agent: AgentType | None = None,
 ) -> str:
-    """Run one pet turn (agent: a crew member's type, None = Bit). Returns the final text ('' if cancelled)."""
+    """Run one pet turn (agent: a crew member's type, None = Albie). Returns the final text ('' if cancelled)."""
     concrete = classify_mode(text, mode)
     log.info("turn pet=%s project=%s mode=%s model=%s", pet_id, project.id, concrete, _model())
     await emit(ev.thinking(pet_id))
@@ -339,7 +339,7 @@ async def run_turn(
 
 
 async def _stream(
-    project: ProjectConfig, mode: ConcreteMode, text: str, control: TurnControl | None, pet_id: str = "bit",
+    project: ProjectConfig, mode: ConcreteMode, text: str, control: TurnControl | None, pet_id: str = "albie",
     agent: AgentType | None = None, cwd: Path | None = None,
 ):  # -> AsyncIterator[Message]
     """Connect a ClaudeSDKClient, send the prompt, yield messages until ResultMessage."""
@@ -412,7 +412,7 @@ async def _run_code(
     base: str | None = None
     if project.edit_in_place:  # the sandbox: edit what VS Code shows, no branch to switch to
         branch = None
-    elif agent is None:  # Bit: a branch in the main checkout (unchanged)
+    elif agent is None:  # Albie: a branch in the main checkout (unchanged)
         branch = await asyncio.to_thread(create_task_branch, project.path, text, task_id)
     else:  # crew: its own worktree, so parallel members never share a checkout
         made = await asyncio.to_thread(create_task_worktree, project.path, text, task_id, pet_id)

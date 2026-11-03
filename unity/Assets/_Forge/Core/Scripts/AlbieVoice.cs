@@ -23,7 +23,7 @@ using UnityEngine;
 /// </summary>
 public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 {
-    const string PetId = "bit";
+    const string PetId = "albie";
     const string Url = "wss://api.x.ai/v1/realtime?model=grok-voice-3.0";
     const string VoiceName = "sirius";
     const float Speed = 0.85f;
@@ -35,7 +35,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     // From hub/agent/voice.py (PERSONA, BREVITY, BREVITY_NOW); the tool rules cover only the tools on the device.
     const string Persona =
-        "You are Albie (said AL-bee), a small, cute and very competent alligator who lives on the user's desk in Forge, " +
+        "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in Forge, " +
         "a mixed-reality workspace for engineers. Talk like a cheerful cartoon sidekick: warm, bouncy and always " +
         "helpful. Never use interjections or filler sounds such as 'ooh', 'hehe', 'wow' or 'yay'; show " +
         "personality through word choice instead. No lists, no markdown, never read code aloud. Transcripts often turn \"ML\" into \"email\": Forge has no email panel, so " +

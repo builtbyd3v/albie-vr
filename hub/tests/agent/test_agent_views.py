@@ -1,4 +1,4 @@
-"""Bit opens workspace views (Addendum H): ui.mode out, workspace.mode back, and the ui_open_view tool."""
+"""Albie opens workspace views (Addendum H): ui.mode out, workspace.mode back, and the ui_open_view tool."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_no_client_or_no_hub_is_an_error(monkeypatch: pytest.MonkeyPatch) -> Non
     asyncio.run(run())
 
 
-def test_the_view_tool_is_registered_for_bit_only() -> None:
+def test_the_view_tool_is_registered_for_albie_only() -> None:
     assert tools.has("ui_open_view")
     tool = next(d for d in tools.definitions() if d["name"] == "ui_open_view")
     assert tool["parameters"]["properties"]["view"]["enum"] == ["cad", "code", "ml", "messages", "none"]
@@ -122,19 +122,19 @@ def test_ui_mode_round_trip_over_the_socket(client: TestClient, monkeypatch: pyt
 
     monkeypatch.setattr(views.workspace, "publish", publish)
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "code"}})
+        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "albie", "mode": "code"}})
         wait_for_mode("code")
-        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "bit")
+        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "albie")
         while (m := ws.receive_json())["type"] != "ui.mode":
             pass
         assert m["payload"] == {"mode": "cad"}
-        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "code", "reason": "not_at_desk"}})
+        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "albie", "mode": "code", "reason": "not_at_desk"}})
         out = pending.result(timeout=5)
         assert out["view"] == "code" and "sit down" in out["error"]
 
-        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "bit")
+        pending = client.portal.start_task_soon(tools.call, "ui_open_view", {"view": "cad"}, "albie")
         while ws.receive_json()["type"] != "ui.mode":
             pass
-        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "bit", "mode": "cad"}})
+        ws.send_json({"type": "workspace.mode", "payload": {"pet_id": "albie", "mode": "cad"}})
         assert pending.result(timeout=5) == {"ok": True, "view": "cad"}
     assert views.workspace.mode is None  # the last Unity socket left

@@ -1,4 +1,4 @@
-"""Bit's fast tools: one registry (agent/tools.py) shared by Grok (voice.py) and the Claude runner."""
+"""Albie's fast tools: one registry (agent/tools.py) shared by Grok (voice.py) and the Claude runner."""
 
 from __future__ import annotations
 
@@ -41,17 +41,17 @@ def broadcasts(monkeypatch: pytest.MonkeyPatch) -> list[Event]:
     return sent
 
 
-def test_call_routes_and_walks_bit_to_the_panel(fake_tools, broadcasts) -> None:
-    out = asyncio.run(tools.call("cad_set_params", {"changes": {"fin_count": 4}}, "bit"))
+def test_call_routes_and_walks_albie_to_the_panel(fake_tools, broadcasts) -> None:
+    out = asyncio.run(tools.call("cad_set_params", {"changes": {"fin_count": 4}}, "albie"))
     assert out == {"ok": True}
     assert fake_tools == [("cad_set_params", {"changes": {"fin_count": 4}})]
     assert [(e.type, e.payload) for e in broadcasts] == \
-        [("pet.state", {"pet_id": "bit", "mode": "working", "target_panel": "cad-viewer"})]
+        [("pet.state", {"pet_id": "albie", "mode": "working", "target_panel": "cad-viewer"})]
 
 
 def test_unknown_tool_and_crash_come_back_as_errors(fake_tools, broadcasts) -> None:
-    assert "unknown tool" in asyncio.run(tools.call("launch_rocket", {}, "bit"))["error"]
-    assert asyncio.run(tools.call("cad_boom", {}, "bit")) == {"error": "worker died"}
+    assert "unknown tool" in asyncio.run(tools.call("launch_rocket", {}, "albie"))["error"]
+    assert asyncio.run(tools.call("cad_boom", {}, "albie")) == {"error": "worker died"}
 
 
 def test_vscode_tools_are_registered_by_default() -> None:
@@ -81,8 +81,8 @@ def test_allow_filters_by_name_or_prefix(fake_tools, broadcasts) -> None:
 
 
 def test_mcp_server_runs_a_tool(fake_tools, broadcasts) -> None:
-    server = tools.mcp_server("bit")
+    server = tools.mcp_server("albie")
     assert server["type"] == "sdk" and server["name"] == "forge"
-    handler = next(t for t in tools._mcp_tools("bit") if t.name == "cad_set_params").handler
+    handler = next(t for t in tools._mcp_tools("albie") if t.name == "cad_set_params").handler
     out = asyncio.run(handler({"changes": {}}))
     assert json.loads(out["content"][0]["text"]) == {"ok": True}

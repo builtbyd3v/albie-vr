@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 
 _WORD = re.compile(r"[A-Za-z0-9']+")  # digits too: "list like 20" ends on 20, not on a dangling "like"
-PEOPLE = {"dude", "bruh", "bro", "guys", "man", "mate", "buddy", "fam"}  # said to a person, not the gator
+PEOPLE = {"dude", "bruh", "bro", "guys", "man", "mate", "buddy", "fam"}  # said to a person, not Albie
 DANGLING = {"or", "and", "so", "but", "like", "because", "um", "uh", "the", "a", "to", "if", "i", "then"}  # cut off mid-sentence
 FILLER = {"oh", "so", "um", "uh", "okay", "ok", "hey", "well", "alright", "and"}
 NOISE = FILLER | {"yeah", "yes", "yep", "no", "nope", "damn", "wow", "lol", "hmm", "huh", "right", "sure", "cool",

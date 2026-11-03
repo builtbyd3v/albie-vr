@@ -1,6 +1,6 @@
 [
   {"name": "spawn_agent",
-   "description": "Hatch a helper gator onto the desk. One per type: scout (maps the codebase), builder (builds features), fixer (fixes bugs), tester (writes tests), reviewer (reviews code), scribe (writes docs), shipper (changelogs and write-ups), designer (rocket design), sentinel (security).",
+   "description": "Hatch a helper albie onto the desk. One per type: scout (maps the codebase), builder (builds features), fixer (fixes bugs), tester (writes tests), reviewer (reviews code), scribe (writes docs), shipper (changelogs and write-ups), designer (rocket design), sentinel (security).",
    "parameters": {"type": "object", "properties": {
      "type": {"type": "string", "enum": ["scout", "builder", "fixer", "tester", "reviewer", "scribe", "shipper", "designer", "sentinel"]}},
      "required": ["type"]}},
@@ -12,7 +12,7 @@
      "mode": {"type": "string", "enum": ["qa", "code", "auto"], "description": "qa = answer only, code or auto = may change a file"}},
      "required": ["agent", "task"]}},
   {"name": "dismiss_agent",
-   "description": "Send a crew member home (removes its gator, drops its current task).",
+   "description": "Send a crew member home (removes its albie, drops its current task).",
    "parameters": {"type": "object", "properties": {
      "agent": {"type": "string", "description": "crew member, by type"}},
      "required": ["agent"]}},

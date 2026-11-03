@@ -16,7 +16,7 @@ using UnityEngine.UI;
 /// Rings brighten as a pointer comes near and run a comet of light while hovered. The dock comes in in two beats: the
 /// frame slides along the front edge in from the user's right, then the rings plop on left to right (ForgeTheme.DockSlide*).
 /// It comes in centered on the edge and slides along it, keeping <see cref="endRoom"/> free at each end of the desk (the
-/// gator's whistle sits just past its right end: <see cref="TryGetRightSide"/>): ‹ and › at its ends (they fade in only
+/// Albie's whistle sits just past its right end: <see cref="TryGetRightSide"/>): ‹ and › at its ends (they fade in only
 /// while a pointer is on them) move it a step, and holding the right controller's grip (middle mouse button in desktop
 /// mode) while pointing anywhere on it drags it; with hands, pinch on it and slide.
 /// Input stays flat: each button is an invisible raycast Image + Button on the dock canvas that never moves. The light
@@ -750,7 +750,7 @@ public class DeskDock : MonoBehaviour
     }
 
     /// <summary>
-    /// Where a desk prop sits beside the dock (the gator's whistle): on the desk top, <paramref name="gap"/> m past the
+    /// Where a desk prop sits beside the dock (Albie's whistle): on the desk top, <paramref name="gap"/> m past the
     /// frame's right end, level with the row; <paramref name="inward"/> points into the desk. While the dock comes in it is
     /// where the dock lands; after that it moves with the dock as ‹ › slide it, so asking every frame keeps the prop stuck
     /// to it. False while the dock is hidden.

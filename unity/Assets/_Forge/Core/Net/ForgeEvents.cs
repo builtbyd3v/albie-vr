@@ -189,7 +189,7 @@ public class CadModelUpdated
     [JsonProperty("removed_ids")] public List<string> removedIds = new List<string>();
     [JsonProperty("source")] public string source;            // api | pet | preset | script | undo | reset | open | startup
     [JsonProperty("analysis")] public CadAnalysis analysis;
-    [JsonProperty("label")] public string label;              // the version in words: Bit's request, a preset, the change
+    [JsonProperty("label")] public string label;              // the version in words: Albie's request, a preset, the change
 }
 
 public class CadRegenFailed
@@ -220,7 +220,7 @@ public class CadView
 }
 
 /// <summary>
-/// Bit pressing a button in the CAD view (cad.action, PET_AGENT_CONTRACT Addendum H). Not sticky: it means "now".
+/// Albie pressing a button in the CAD view (cad.action, PET_AGENT_CONTRACT Addendum H). Not sticky: it means "now".
 /// CadSession applies it once the viewer shows <see cref="version"/> of <see cref="part"/>.
 /// </summary>
 public class CadAction
@@ -268,7 +268,7 @@ public class UiHighlight
     [JsonProperty("class_idx")] public int? classIdx;
 }
 
-/// <summary>Bit opens a workspace view (ui.mode, Addendum H); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
+/// <summary>Albie opens a workspace view (ui.mode, Addendum H); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
 public class UiMode
 {
     [JsonProperty("mode")] public string mode;  // ml | cad | code | messages; "" closes the open one
@@ -315,7 +315,7 @@ public class NotifyChannels
     [JsonProperty("channels")] public List<SlackChannel> channels = new List<SlackChannel>();
 }
 
-/// <summary>A reply Bit wrote but has NOT sent: show it as a Send / Cancel card. Send = POST /messages/drafts/{id}/send.</summary>
+/// <summary>A reply Albie wrote but has NOT sent: show it as a Send / Cancel card. Send = POST /messages/drafts/{id}/send.</summary>
 public class NotifyDraft
 {
     [JsonProperty("source")] public string source;             // slack | imessage
@@ -359,11 +359,11 @@ public class NotifyDigest
 {
     [JsonProperty("count")] public int count;
     [JsonProperty("mentions")] public int mentions;
-    [JsonProperty("line")] public string line;                // what Bit says (and the arrival card shows); "You have no new messages today." when count is 0
+    [JsonProperty("line")] public string line;                // what Albie says (and the arrival card shows); "You have no new messages today." when count is 0
     [JsonProperty("messages")] public List<NotifyMessage> messages = new List<NotifyMessage>();  // newest first, at most 4
 }
 
-// Desk extras (hub/desk, hub README "Desk"): Bit's focus timers and notes, on top of any mode.
+// Desk extras (hub/desk, hub README "Desk"): Albie's focus timers and notes, on top of any mode.
 
 /// <summary>Which desk extras show: "open", "minimized" (a dot) or "closed". Always the whole set.</summary>
 public class UiWidgets

@@ -8,7 +8,7 @@ Paste this into Claude Code: **"Set me up for Albie: follow docs/SETUP.md in thi
 - Voice work is hub-only: edit `hub/agent/`, run `sh run-demo.sh` again. No Unity build.
 - Full guide, HUMAN steps (permissions, Slack token, Unity, Quest) and checks: `SETUP.md`.
 
-1. Run the hub tests before you push: `cd hub && BIT_VSCODE_PORT=9 .venv/bin/python -m pytest -q`.
-2. Check the Forge Bit extension: VS Code's status bar shows the Forge Bit item.
+1. Run the hub tests before you push: `cd hub && ALBIE_VSCODE_PORT=9 .venv/bin/python -m pytest -q`.
+2. Check the Forge Albie extension: VS Code's status bar shows the Forge Albie item.
 3. Never commit a rebuilt `unity/Assets/_Forge/Core/Main.unity`.
 4. Work on a branch, open a PR, never push to `main`.

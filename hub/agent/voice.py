@@ -27,10 +27,10 @@ Grok -> our events (docs/archive/PET_AGENT_CONTRACT.md, Addendum B):
 Context without a reply: ``note(text)`` adds a one-line system message (the workspace view the user opened,
 the Slack message in focus; ws.py and messaging call it through agent/speech.py). ``workspace_mode`` (set by ws.py
 from ``workspace.mode``) gates Albie's crew tools: they answer with an error unless the CODE view is open, since
-the crew's gators live on that screen. None (the client never said) leaves them available.
+the crew live on that screen. None (the client never said) leaves them available.
 
 Wake turns (``begin_turn(wake=True)``, Unity's always-on WakeListener, see agent/wake.py): no barge-in, no stt.*
-and no response until ``wake_router`` has read the transcript; it answers only if a gator was named (or the user
+and no response until ``wake_router`` has read the transcript; it answers only if an agent was named (or the user
 faced Albie and agent/addressed.py's word rules don't rule it out), otherwise the committed item is deleted so room
 chatter never reaches the conversation. A gated turn (``begin_turn(require_name=True)``: a look-to-talk / follow-up
 reply) takes the same route and needs the name; when dropped it still ends with an empty stt.final, since Unity's
@@ -83,7 +83,7 @@ FAKE_TRANSCRIPT = "Hey Albie, are you there?"
 FAKE_ANSWER = "Hi! I'm Albie. I'm right here on your desk, ready to help."
 
 PERSONA = (
-    "You are Albie (said AL-bee), a small, cute and very competent alligator who lives on the user's desk in Forge, "
+    "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in Forge, "
     "a mixed-reality workspace for engineers. Talk like a cheerful cartoon sidekick: warm, bouncy and always "
     "helpful. Never use interjections or filler sounds such as 'ooh', 'hehe', 'wow' or 'yay'; show "
     "personality through word choice instead. No lists, no markdown, never read code aloud; say file and "
@@ -197,7 +197,7 @@ ML_TERMS = ["PyTorch", "CIFAR", "pytorch-cifar", "GitHub", "neural net lab", "Re
             "epochs", "validation accuracy", "overfitting", "humanoid", "Iron Man"]
 # "Stop" over Albie should just stop him, not start a reply ("Okay, quiet!").
 STOP_CORE = {"stop", "wait", "quiet", "shh", "shush", "hush", "enough", "nevermind", "shutup", "cancel"}  # "shut up" -> shutup
-STOP_FILLER = ALIASES["bit"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
+STOP_FILLER = ALIASES["albie"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
                                                                 "mind", "now", "right"}
 HOLD_S = 6.0  # a held half-thought (addressed.unfinished) with no next segment by then is answered as it is
 NO_REPLY_S = 8.0  # committed turn with no transcript and no response from Grok by then: treat it as empty (4 s gave up on late replies on the hotspot, live 01:40)
@@ -316,7 +316,7 @@ class _Base:
         self._partial = text
         self._named = self._named or has_name(text, last=False)  # a growing partial's last word isn't a vocative yet
         if self._wake:
-            await self.wake_router.partial(text)  # captions only once a gator is named
+            await self.wake_router.partial(text)  # captions only once an agent is named
             return
         if self._require_name and not self._named:
             return  # maybe side conversation: no captions until he's named
@@ -352,8 +352,8 @@ class _Base:
 
 def _just_the_name(text: str) -> bool:
     words = [w.lower() for w in re.findall(r"[A-Za-z']+", text)]
-    return bool(words) and set(words) <= wake_mod.GREETINGS | wake_mod.ALIASES["bit"] and \
-        bool(set(words) & wake_mod.ALIASES["bit"])
+    return bool(words) and set(words) <= wake_mod.GREETINGS | wake_mod.ALIASES["albie"] and \
+        bool(set(words) & wake_mod.ALIASES["albie"])
 
 
 class GrokVoiceSession(_Base):
@@ -907,8 +907,8 @@ class GrokVoiceSession(_Base):
         crew_pid = (self.wake_router.crew_target(final)
                     if not self._wake and self.wake_router is not None else None)
         if crew_pid is not None:
-            # "Tester, run the hub tests" in one of Bit's own turns (hands-free, follow-up window, push-to-talk; the
-            # WakeListener is paused then): the crew gator gets it, Bit says nothing and goes back to idle.
+            # "Tester, run the hub tests" in one of Albie's own turns (hands-free, follow-up window, push-to-talk; the
+            # WakeListener is paused then): the crew member gets it, Albie says nothing and goes back to idle.
             self._drop_reply = True
             await super()._final("")
             await self.wake_router.final(final)
@@ -1260,7 +1260,7 @@ def is_stop(text: str) -> bool:
     return bool(words) and set(words) <= STOP_CORE | STOP_FILLER and bool(set(words) & STOP_CORE)
 
 
-NAME_WORDS = ALIASES["bit"]  # albie, albee, alby, elbie (agent/wake.py)
+NAME_WORDS = ALIASES["albie"]  # albie, albee, alby, elbie (agent/wake.py)
 
 
 def has_name(text: str, last: bool = True) -> bool:

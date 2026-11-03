@@ -37,7 +37,7 @@ public class SlackRemote : MonoBehaviour
         string reason = Show(req.channel, req.channelName, req.kind);
         ForgeNet.Send(OpenedType, new SlackOpened
         {
-            petId = string.IsNullOrEmpty(req.petId) ? "bit" : req.petId,
+            petId = string.IsNullOrEmpty(req.petId) ? "albie" : req.petId,
             requestId = req.requestId ?? "",
             channel = req.channel,
             ok = reason == null,

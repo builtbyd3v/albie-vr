@@ -24,13 +24,13 @@ def _types(evts: list[tuple[str, dict[str, Any]]]) -> list[str]:
 
 
 def _hello(ws: Any) -> None:
-    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
+    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
 
 
 def test_qa_flow(client: TestClient) -> None:
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
-        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "bit", "project_id": "demo",
+        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "albie", "project_id": "demo",
                                                         "text": "where is the ws handler?", "mode": "qa"}})
         evts = _collect(ws, {"agent.answer_done", "agent.error"})
     assert _types(evts) == [
@@ -41,7 +41,7 @@ def test_qa_flow(client: TestClient) -> None:
     partials = [p["text"] for t, p in evts if t == "agent.partial_answer"]
     assert all(len(a) < len(b) for a, b in zip(partials, partials[1:])), "partials are cumulative"
     assert evts[-1][1]["text"] == partials[-1]
-    assert all(p["pet_id"] == "bit" for _, p in evts)
+    assert all(p["pet_id"] == "albie" for _, p in evts)
 
 
 def test_code_flow(client: TestClient) -> None:
@@ -85,19 +85,19 @@ def test_cancel(client: TestClient, monkeypatch) -> None:
         _hello(ws)
         ws.send_json({"type": "agent.ask", "payload": {"text": "explain everything", "mode": "qa"}})
         assert _collect(ws, {"agent.thinking"})[-1][0] == "agent.thinking"
-        ws.send_json({"type": "agent.cancel", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "agent.cancel", "payload": {"pet_id": "albie"}})
         evts = _collect(ws, {"pet.state"})
-    assert evts[-1] == ("pet.state", {"pet_id": "bit", "mode": "idle"})
+    assert evts[-1] == ("pet.state", {"pet_id": "albie", "mode": "idle"})
 
 
 def test_stt_none_provider(client: TestClient) -> None:
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit", "sample_rate": 16000, "encoding": "pcm16"}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie", "sample_rate": 16000, "encoding": "pcm16"}})
         ws.send_bytes(b"\x00\x00" * 1600)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
         evts = _collect(ws, {"stt.final"})
-    assert evts[-1] == ("stt.final", {"pet_id": "bit", "text": ""})
+    assert evts[-1] == ("stt.final", {"pet_id": "albie", "text": ""})
 
 
 def test_bad_frame_and_unknown_project(client: TestClient) -> None:
@@ -128,16 +128,16 @@ def test_client_handlers_extend_the_socket(client: TestClient, monkeypatch: pyte
         ws.send_json({"type": "messages.focus", "payload": {"channel": "C1", "ts": "1.0"}})
         ws.send_json({"type": "messages.focus", "payload": {"ts": "1.0"}})  # invalid -> agent.error, socket survives
         err = _collect(ws, {"agent.error"})[-1][1]
-    assert got == [("bit", {"channel": "C1", "ts": "1.0"})]
+    assert got == [("albie", {"channel": "C1", "ts": "1.0"})]
     assert err["message"] == "Bad messages.focus message."
 
 
 def test_typed_question_goes_over_the_socket(client: TestClient) -> None:
     """There is no REST text endpoint any more: a typed question is agent.ask on /ws like a spoken one."""
-    assert client.post("/agent/text", json={"pet_id": "bit", "text": "what does hello.py do?"}).status_code == 404
+    assert client.post("/agent/text", json={"pet_id": "albie", "text": "what does hello.py do?"}).status_code == 404
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
-        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "bit", "text": "what does hello.py do?"}})
+        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "albie", "text": "what does hello.py do?"}})
         done = _collect(ws, {"agent.answer_done", "agent.error"})[-1]
     assert done[0] == "agent.answer_done" and "hub/agent/ws.py" in done[1]["text"]
 

@@ -111,7 +111,7 @@ public class CadVersion
     [JsonProperty("created_at")] public double? createdAt;  // unix seconds (the hub's clock); null for mocks
     [JsonProperty("head")] public bool head;                // the design's current version
     [JsonProperty("params")] public Dictionary<string, object> parameters;
-    [JsonProperty("label")] public string label;            // the version in words: Bit's request, a preset, the change
+    [JsonProperty("label")] public string label;            // the version in words: Albie's request, a preset, the change
     [JsonProperty("primary")] public CadPrimary primary;    // its main metric, or null
     [JsonIgnore] public CadAnalysis analysis;               // mock versions only: the whole analysis
 }

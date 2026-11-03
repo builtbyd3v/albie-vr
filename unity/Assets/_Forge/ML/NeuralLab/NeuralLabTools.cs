@@ -15,7 +15,7 @@ namespace Forge.ML
     /// </summary>
     public sealed class NeuralLabTools : MonoBehaviour
     {
-        const string PetId = "bit";
+        const string PetId = "albie";
         const float Good = 0.98f, SettleS = 3f, SettleMaxS = 40f;
         static readonly string[] Keep = { "view", "dataset", "hidden", "activation", "learning_rate", "features", "noise", "epoch",
             "playing", "auto_paused_at_epoch", "train_accuracy", "test_accuracy", "train_loss", "test_loss", "panel_open" };

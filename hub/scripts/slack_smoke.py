@@ -1,13 +1,13 @@
-"""Live check of Bit's Slack connection, no hub needed. Run from hub/ with the tokens in hub/.env:
+"""Live check of Albie's Slack connection, no hub needed. Run from hub/ with the tokens in hub/.env:
 
     .venv/bin/python scripts/slack_smoke.py                        # --listen: print every message in the inbox (Ctrl-C to stop)
     .venv/bin/python scripts/slack_smoke.py --draft "#forge-team" "hello"   # write a draft only (notify.draft), post nothing
     .venv/bin/python scripts/slack_smoke.py --send  "#forge-team" "hello"   # DEV SHORTCUT: draft + send at once, no confirmation
-    .venv/bin/python scripts/slack_smoke.py --digest               # what Bit would say on sit-down right now
+    .venv/bin/python scripts/slack_smoke.py --digest               # what Albie would say on sit-down right now
     .venv/bin/python scripts/slack_smoke.py --channels             # the panel's channel list: names, kinds, unread
     .venv/bin/python scripts/slack_smoke.py --history "#forge-team" 10   # the last 10 top-level messages of one conversation
 
-With SLACK_USER_TOKEN set, messages post under your name and the inbox is yours; without it Bit posts as itself and
+With SLACK_USER_TOKEN set, messages post under your name and the inbox is yours; without it Albie posts as itself and
 only sees channels it was invited to. The real product path is draft -> Send button / "send it"; --send skips that.
 """
 from __future__ import annotations
@@ -68,7 +68,7 @@ async def main() -> int:
         if not svc.connected:
             print("not connected after 20 s; check the tokens and the log above")
             return 1
-        who = f"YOU ({svc.user_name}, {svc.user_id})" if svc.as_user else "Bit (no SLACK_USER_TOKEN in hub/.env)"
+        who = f"YOU ({svc.user_name}, {svc.user_id})" if svc.as_user else "Albie (no SLACK_USER_TOKEN in hub/.env)"
         print(f"connected; bot {svc.bot_user_id}; posting as {who}; mentions of {svc.user_id or '(unknown user id)'}")
         if args.draft or args.send:
             channel, text = args.draft or args.send
@@ -77,7 +77,7 @@ async def main() -> int:
                 print(f"draft {draft.draft_id} open for #{draft.channel_name}; nothing posted (expires in {svc.draft_expiry_s:.0f}s)")
                 return 0
             _, ts = await svc.send_draft(draft.draft_id)
-            print(f"posted as {'you' if svc.as_user else 'Bit'}, ts={ts}")
+            print(f"posted as {'you' if svc.as_user else 'Albie'}, ts={ts}")
             return 0
         if args.digest:
             d = await svc.digest()
@@ -98,7 +98,7 @@ async def main() -> int:
                 extra = f"  [{m.reply_count} replies]" if m.reply_count else ""
                 print(f"{m.ts}  {who:>12}: {m.text[:100]!r}{extra}")
             return 0
-        print("listening; message yourself from another account, or DM Bit. Ctrl-C to stop.")
+        print("listening; message yourself from another account, or DM Albie. Ctrl-C to stop.")
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         pass
