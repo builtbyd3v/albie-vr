@@ -11,7 +11,7 @@ namespace Forge.Pet
     /// Inputs, all ending in Press():
     ///  * Meta Interaction SDK: PokeInteractable / RayInteractable children with an InteractableUnityEventWrapper whose
     ///    WhenSelect → Press(), WhenHover → HoverOn(), WhenUnhover → HoverOff() (wired by Forge/Pet/6. Add Whistle
-    ///    To Open Scene). No Meta types here, per docs/PET_AGENT_CONTRACT.md.
+    ///    To Open Scene). No Meta types here, per docs/archive/PET_AGENT_CONTRACT.md.
     ///  * Mouse: left click raycast from PetUser.HeadCamera (screen centre while the cursor is locked).
     ///  * whistleAction: F, or controller B (right secondaryButton). F is ignored while a sandbox typed-STT field is open.
     /// Placement: on its table (SetTable, one button per MRUK table via GatorMrukAdapter) or, with no table assigned,

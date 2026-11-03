@@ -62,7 +62,7 @@ namespace Forge.Pet.Editor
     public static class GatorSetup
     {
         // ------------------------------------------------------------------------------------
-        // Paths (match docs/PET_AGENT_CONTRACT.md)
+        // Paths (match docs/archive/PET_AGENT_CONTRACT.md)
         // ------------------------------------------------------------------------------------
         const string QuirkyDir = "Assets/_Forge/Pet/ThirdParty/Quirky Series";
         const string PackDir = QuirkyDir + "/Ultimate Pack Vol.1/Mega Pack Vol.4/River Vol.2";

@@ -14,7 +14,7 @@ namespace Forge.Pet
     /// </summary>
     public class AgentClient : MonoBehaviour, IPetEventSource
     {
-        // Hub → client types the pet cares about (docs/PET_AGENT_CONTRACT.md, incl. Addenda B and D).
+        // Hub → client types the pet cares about (docs/archive/PET_AGENT_CONTRACT.md, incl. Addenda B and D).
         static readonly string[] EventTypes =
         {
             "pet.state", "pet.say",

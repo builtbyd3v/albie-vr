@@ -7,7 +7,7 @@ namespace Forge.Pet
     /// <summary>
     /// One walkable rectangle (desk top, room floor) baked at runtime with the built-in
     /// <see cref="NavMeshBuilder"/> from primitive BOX sources only: no scene meshes, no baked
-    /// assets, no AI Navigation package. See docs/PET_AGENT_CONTRACT.md Addendum A.
+    /// assets, no AI Navigation package. See docs/archive/PET_AGENT_CONTRACT.md Addendum A.
     ///
     /// The box-source trick: NavMeshBuilder voxelizes solid primitives and keeps the walkable
     /// top faces. A thin (0.1 m) walkable box whose TOP face sits exactly at the requested height

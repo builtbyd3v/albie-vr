@@ -2,7 +2,7 @@
 
 Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
 the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated),
+docs/archive/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated),
 and Albie driving the views: ui.mode, cad.action, draft attachments (Addendum H).
 The ML and pet models from section 7 still belong to their owners; add them next to these.
 """
@@ -185,7 +185,7 @@ class CadView(BaseModel):
 
 
 class CadAction(BaseModel):
-    """Bit pressing a button in the CAD view (docs/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
+    """Bit pressing a button in the CAD view (docs/archive/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
     that connects later must not replay it. Unity applies it once the model of `version` is on screen."""
     action: Literal["expand", "demo", "markers", "dimensions", "tab", "reassemble", "take_off", "put_back"]
     on: bool | None = None            # expand (Inspect: the model big in front of the user) / demo (Fly, Hover, Run) /

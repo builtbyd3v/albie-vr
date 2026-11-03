@@ -9,7 +9,7 @@ namespace Forge.Pet
     public enum TerritoryScope { Desk, Floor }
 
     /// <summary>
-    /// Bit's crew (docs/PET_AGENT_CONTRACT.md, Addendum D): hatches and sends home extra gators, one per
+    /// Bit's crew (docs/archive/PET_AGENT_CONTRACT.md, Addendum D): hatches and sends home extra gators, one per
     /// GatorAgentType, and splits the room between everyone.
     ///
     /// Hatching: GatorHatchery (the egg on the desk), the hub's crew.spawn (Bit's spawn_agent tool, "Bit, hatch a

@@ -98,7 +98,7 @@ public class CadSession : MonoBehaviour
     /// <summary>Bit picked a tab of the design panel: an index into Overview, Parameters, Analysis, History.</summary>
     public event Action<int> TabRequested;
 
-    // Bit's buttons (cad.action, docs/PET_AGENT_CONTRACT.md Addendum H). Each is for a version of a design: it waits until
+    // Bit's buttons (cad.action, docs/archive/PET_AGENT_CONTRACT.md Addendum H). Each is for a version of a design: it waits until
     // the viewer shows that version (a demo started on the old model would stop at the swap), keeps the order they came
     // in, and is dropped after ActionTimeout if that version never shows. Overlays are session state and apply at once.
     const float ActionTimeout = 15f, LateActionSeconds = 4f;

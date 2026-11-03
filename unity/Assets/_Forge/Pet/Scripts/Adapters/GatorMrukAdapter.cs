@@ -8,7 +8,7 @@ namespace Forge.Pet
     /// <summary>
     /// The ONLY pet script that references Meta types (MRUK). Turns the scanned room into
     /// GatorNavSurfaces: the desk top ("DeskNav") and the floor with furniture holes ("FloorNav").
-    /// See docs/PET_AGENT_CONTRACT.md Addendum A.
+    /// See docs/archive/PET_AGENT_CONTRACT.md Addendum A.
     /// Which table is the desk: with Core's DeskPresence in the scene (Main) the desk is DeskPresence.Table, the table the
     /// user actually walked up to (re-built whenever it changes: Near / Seated, a whistle on another table), and the hop is
     /// left to the ArrivalDirector. Without one (PetSandboxXR) the desk is DeskLocator.Desk / the TABLE nearest the user at

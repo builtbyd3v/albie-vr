@@ -1,6 +1,6 @@
 """WebSocket message models for the pet <-> agent contract.
 
-Source of truth: docs/PET_AGENT_CONTRACT.md. Every frame is
+Source of truth: docs/archive/PET_AGENT_CONTRACT.md. Every frame is
 ``{"type": "...", "payload": {...}}``; binary frames are raw PCM16 audio.
 
 Hub -> client events come in two flavours:

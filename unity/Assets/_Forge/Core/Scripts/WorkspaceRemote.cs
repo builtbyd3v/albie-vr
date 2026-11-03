@@ -2,7 +2,7 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
-/// Bit opens and closes the workspace views (docs/PET_AGENT_CONTRACT.md Addendum H). The hub's
+/// Bit opens and closes the workspace views (docs/archive/PET_AGENT_CONTRACT.md Addendum H). The hub's
 /// <c>ui.mode {mode}</c> opens that mode (<c>""</c> closes the open one), then this answers at once with
 /// <c>workspace.mode {pet_id, mode, reason?}</c>, so Bit's tool result says what really happened: <c>mode</c> is
 /// what is open now, <c>reason</c> why it isn't what was asked (<c>not_at_desk</c>: DeskPresence is Away, so

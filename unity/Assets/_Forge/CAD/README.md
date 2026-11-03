@@ -2,7 +2,7 @@
 
 The open design on the desk (rocket, quadcopter, gearbox, humanoid robot, or any part script in the hub's library), its design
 panel and its engineering drawing. Inspect brings the model up big in front of you, where you can take it apart.
-Hub side: `hub/cad/`; plan: `docs/CAD_PLAN.md`.
+Hub side: `hub/cad/`; plan: `docs/archive/CAD_PLAN.md`.
 
 ## Prefabs (slot these into the CAD mode on `Workspace`)
 
@@ -91,11 +91,11 @@ layout tweak is a number change. The prefab's older UI (`CadUI`, if present) is 
 - Fits the first version of each design with headroom and keeps that scale, so "20% longer" looks longer. Opening
   another design fits it afresh (no glow or ghost across designs).
 - `cad.view`: explode and focus (everything else dims).
-- `cad.action` (Bit pressing a button, docs/PET_AGENT_CONTRACT.md Addendum H): `expand`, `demo`, `reassemble` and `tab`
+- `cad.action` (Bit pressing a button, docs/archive/PET_AGENT_CONTRACT.md Addendum H): `expand`, `demo`, `reassemble` and `tab`
   wait in `CadSession` until the viewer shows the version they name (`CadSession.ReportShown`), so "make it longer, now
   fly it" flies the new rocket; `markers` / `dimensions` apply at once.
 - Everything below follows `HANDOFF_UI2/cad/CAD_UX_SPEC.md` (sections 3 to 5, 7, 9) and the hub's round 4 data
-  (`docs/CAD_PLAN.md` section 5). All of it is made at runtime under the viewer's `CadOverlay` child (no prefab change),
+  (`docs/archive/CAD_PLAN.md` section 5). All of it is made at runtime under the viewer's `CadOverlay` child (no prefab change),
   works on the desk and on the stage, and falls back to the old behaviour for versions without the new keys.
 
 ### Explode (`CadExploder`)

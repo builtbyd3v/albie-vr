@@ -15,7 +15,7 @@ using UnityEngine;
 /// <see cref="ForgeNet.ILocalPeer"/>, so the pet scripts don't change: what they would send the hub (hello, stt.start,
 /// 16 kHz PCM16 mic frames, stt.stop / stt.cancel, tts.stop, workspace.mode) arrives here, and it answers with the
 /// hub's events (voice.ready, stt.partial/final, agent.*, tts.start + PCM16 frames + tts.end/stop, pet.state), as
-/// hub/agent/voice.py does (contract: docs/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
+/// hub/agent/voice.py does (contract: docs/archive/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
 /// <see cref="AlbieTools"/>. Kept from voice.py: barge-in, the no-reply guard, tool results after response.done with
 /// one response.create. Not yet: wake/name gating, the reply-length cut, delegate (the Claude runner).
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).

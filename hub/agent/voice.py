@@ -14,7 +14,7 @@ agent/tools.py (incl. the crew tools: spawn_agent, assign_task, ... from agent/c
     Unity binary PCM16  -> feed()         (16 kHz mono, forwarded as input_audio_buffer.append)
     Unity stt.stop      -> commit_turn()  (input_audio_buffer.commit + response.create)
 
-Grok -> our events (docs/PET_AGENT_CONTRACT.md, Addendum B):
+Grok -> our events (docs/archive/PET_AGENT_CONTRACT.md, Addendum B):
 
     ...input_audio_transcription.updated/.delta   -> stt.partial (cumulative)
     ...input_audio_transcription.completed        -> stt.final {voice: true}

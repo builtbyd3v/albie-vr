@@ -8,7 +8,7 @@ namespace Forge.Pet
     /// <summary>
     /// Glue between the event source and the gator body. The source is the live hub (AgentClient on ForgeNet) unless a
     /// MockEventSource sits on this gator, which only the sandbox scene builders add; Main has no mock mode.
-    /// Implements the event → GatorState table of docs/PET_AGENT_CONTRACT.md.
+    /// Implements the event → GatorState table of docs/archive/PET_AGENT_CONTRACT.md.
     /// Only events for this gator's pet_id are handled (several gators share one socket, see GatorCrew); a crew
     /// gator uses Bit's source (UseSharedSource) instead of opening its own.
     /// </summary>

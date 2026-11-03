@@ -5,7 +5,7 @@ using UnityEngine.AI;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Whistle to summon, then listen hands-free (docs/WHISTLE_PLAN.md §1, without the keep-out zone):
+    /// Whistle to summon, then listen hands-free (docs/archive/WHISTLE_PLAN.md §1, without the keep-out zone):
     ///   press → whistle SFX + Mood.Excited → gator on the floor and a desk is built: HopToUserDesk(), else ComeToUser()
     ///   → arrived (or approachTimeout) → PushToTalk.BeginHandsFree() (Listening, faces the user)
     ///   → PushToTalk ends it: transcript asked / nothing heard (8 s) / 20 s cap / error.

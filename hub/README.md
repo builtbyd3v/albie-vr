@@ -1,8 +1,8 @@
 # Forge hub
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
-Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)) and **ML** (see [hub/ml](ml/README.md)).
-Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)) and **ML** (see [hub/ml](ml/README.md)).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
 
@@ -126,7 +126,7 @@ Copy that folder to `unity/Assets/_Forge/Mocks/cad/` (see the CAD README there).
 ## Agent module (pet)
 
 Adrian's module: the gator pet answers questions about a repo and runs coding tasks through the
-**Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/PET_AGENT_CONTRACT.md`](../docs/PET_AGENT_CONTRACT.md).
+**Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/archive/PET_AGENT_CONTRACT.md`](../docs/archive/PET_AGENT_CONTRACT.md).
 
 - REST: `GET /agent/projects`. There is no typed REST fallback: a typed question is `agent.ask` on the socket.
 - WebSocket: **`/ws`**, the hub's one socket (Unity's ForgeNet). `main.py` accepts it, attaches the `EventBus`
@@ -243,7 +243,7 @@ that member's turn without touching Albie's.
 From the desk with nothing open: "Bit, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the
 shaft 10% longer. Draft a message to Adrian with all the files for the supplier. Make it shorter. Send it." Each
 sentence is one or two of Bit's fast tools, called straight from Grok (no `delegate`), so each answers in about a
-second. The contract is `docs/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_bit_script.py` runs that whole script.
+second. The contract is `docs/archive/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_bit_script.py` runs that whole script.
 
 - **Views.** `ui_open_view {view: cad|code|ml|messages|none}`. The hub sends `ui.mode {mode}`; Unity opens the view
   (only at the desk) and answers with `workspace.mode {mode, reason?}`, so Bit's result says what really happened

@@ -6,7 +6,7 @@ namespace Forge.Pet
 {
     /// <summary>
     /// Gator pet brain: a small timer-driven state machine over a NavMeshAgent + Animator.
-    /// Public API per docs/PET_AGENT_CONTRACT.md. Locomotion/animator helpers live in
+    /// Public API per docs/archive/PET_AGENT_CONTRACT.md. Locomotion/animator helpers live in
     /// GatorController.Motion.cs, surfaces/desk hop in GatorController.Surfaces.cs, the crew area in
     /// GatorController.Territory.cs. No allocations in Update.
     /// </summary>

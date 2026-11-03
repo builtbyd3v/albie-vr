@@ -6,7 +6,7 @@ namespace Forge.Pet
 {
     /// <summary>
     /// GatorController walkable surfaces (desk / floor GatorNavSurface) and the desk hop
-    /// (third part of the partial class). See docs/PET_AGENT_CONTRACT.md Addendum A.
+    /// (third part of the partial class). See docs/archive/PET_AGENT_CONTRACT.md Addendum A.
     /// </summary>
     public partial class GatorController
     {

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Say a gator's name and it listens (docs/PET_AGENT_CONTRACT.md, Addendum E). The mic stays on; a small
+    /// Say a gator's name and it listens (docs/archive/PET_AGENT_CONTRACT.md, Addendum E). The mic stays on; a small
     /// energy VAD (adaptive noise floor) cuts the room's speech into segments, and each segment goes to the hub as a
     /// wake turn: stt.start {wake: true} + 0.5 s of pre-roll (so the name itself isn't clipped) + PCM16 + stt.stop.
     /// The hub (agent/wake.py) only answers segments that name a gator ("Hey Albie ...", "Tester, run the tests")

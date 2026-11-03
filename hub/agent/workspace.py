@@ -1,4 +1,4 @@
-"""Bit opens and closes the workspace views (docs/PET_AGENT_CONTRACT.md, Addendum H).
+"""Bit opens and closes the workspace views (docs/archive/PET_AGENT_CONTRACT.md, Addendum H).
 
 Only Unity knows whether a view can open (the user has to be at the desk), so opening is a round trip:
 

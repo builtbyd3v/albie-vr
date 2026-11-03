@@ -10,7 +10,7 @@ Bit (the lead) drives the crew with four tools, registered lead-only in agent/to
 own Claude runner get them but crew runners don't: spawn_agent, dismiss_agent, assign_task, crew_status.
 When a member finishes, listeners are told (ws.py lets the voice session say it out loud).
 
-Wire format (docs/PET_AGENT_CONTRACT.md, Addendum D):
+Wire format (docs/archive/PET_AGENT_CONTRACT.md, Addendum D):
     client -> hub  crew.roster  {members: [{pet_id, agent_type}]}
     hub -> client  crew.spawn   {agent_type}       (pet_id == agent_type: one gator per type)
     hub -> client  crew.dismiss {pet_id}

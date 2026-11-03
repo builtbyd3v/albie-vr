@@ -499,7 +499,7 @@ Gaps in current code:
 |---|---|
 | `Core/Scripts/AlbieVoice.cs` (Grok wss URL, persona, tool rules) | Replace with a `MuseVoice` adapter behind a `VoiceBackend` interface. Persona and rules become content files. |
 | `Core/Scripts/AlbieVoiceToken.cs` (xAI client-secret endpoint, key read from `.env` in editor) | Replace with the Muse token or relay route. Never bundle a key. |
-| `hub/agent/voice.py` `GrokVoiceSession` (turn logic plus xAI wire protocol) | Split turn logic from the wire protocol. Put the Grok or Muse wire code behind `VoiceBackend`. The seam is proposed in `docs/VOICE_TTS_PLAN.md`. |
+| `hub/agent/voice.py` `GrokVoiceSession` (turn logic plus xAI wire protocol) | Split turn logic from the wire protocol. Put the Grok or Muse wire code behind `VoiceBackend`. The seam is proposed in `docs/archive/VOICE_TTS_PLAN.md`. |
 | `PetId = "bit"` in `AlbieTips.cs`, `AlbieVoice.cs`, `WorkspaceRemote.cs` | Make the id a config value. |
 | `hub/agent/addressed.py` (direct Anthropic call, Haiku model) | Route through the model gateway. |
 | Fixed mode ids in `Workspace.DefaultModes` | Data-driven, see the Workspace section of this document. |
