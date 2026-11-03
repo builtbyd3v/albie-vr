@@ -2276,7 +2276,7 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 | **Person 1** | Product, Albie's presence, hands, code mode, the submission | 2, 7, 8, 10 | `Pet/`, `Code/`, `Messages/` |
 | **Person 2** | Core and the Thing runtime | 1, 9 | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` |
 | **Person 3** | Brain, voice, cloud, connectors, the messaging backend | 3, 8 | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` |
-| **Person 4** (Satyabrata, ML A) | Controllers and ML. Split into ML A and ML B (16.8) | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
+| **Person 4** (Satyabrata, ML A; Nandani, ML B) | Controllers and ML. Split into ML A and ML B (16.8) | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
 | **Person 5** | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
 
 Folders are under `unity/Assets/_Forge/` unless they start with `hub/`, `cloud/` or `cloud-py/`.
@@ -2344,7 +2344,7 @@ Each date is the day the goal works in that person's sandbox scene, unless it sa
 | Nov 13 | The cloud is stable for judges: spend cap tested, demo account resets, recipient window kept open. |
 | Nov 16 | Fixes only. Cloud stays up to about Dec 11. |
 
-**Person 4: controllers and ML** (Satyabrata leads as ML A; the ML A and ML B task split is in 16.8)
+**Person 4: controllers and ML** (Satyabrata leads as ML A, with Nandani as ML B; the task split is in 16.8)
 
 | By | Major goal |
 |---|---|
@@ -2418,7 +2418,7 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 
 ### 16.8 Person 4 in detail: ML A and ML B
 
-> Added 2026-11-03. Person 4's chunk is split in two, like the Gator Hack ML A and ML B roles. **ML A is Satyabrata**, the lead: the learning engine and the controller runtime, which is the larger half. **ML B** is the brain on the desk: the trainer view, panels and tools. ML B is whoever joins Person 4's chunk under the double-dipping rule (16.2); ML A reviews their PRs. The dates are the Person 4 dates in 16.3, unchanged. Person 4's decisions in 2.2 belong to ML A.
+> Added 2026-11-03. Person 4's chunk is split in two, like the Gator Hack ML A and ML B roles. **ML A is Satyabrata**, the lead: the learning engine and the controller runtime, which is the larger half. **ML B is Nandani**: the brain on the desk, meaning the trainer view, panels and tools. ML A reviews ML B's PRs, and ML B reviews ML A's. The dates are the Person 4 dates in 16.3, unchanged. Person 4's decisions in 2.2 belong to ML A.
 
 **What exists today.** `ML/NeuralLab/NNNetwork.cs` is an allocation-free MLP with **one** tanh output and a squared-error loss, built for 2D Playground points. `NeuralLabSim.cs` trains it one epoch per frame and already runs on the Quest. The truck needs ray-sensor and speed inputs and **two** outputs (steer, throttle), so the network has to grow to N outputs (or two networks side by side).
 
@@ -2435,7 +2435,7 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 | Nov 14 | Decide which ML template repos work with no network (default: one bundled on-device template). Stretch: a small "obstacle ahead" classifier on the ray sensors, plugged into a Thing (15.5). |
 | Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
 
-**ML B: the brain on the desk**
+**ML B (Nandani): the brain on the desk**
 
 | By | Task |
 |---|---|
