@@ -1,5 +1,7 @@
 # Forge (working name): Spatial Workspace for Engineers
 
+> **Working on the next Albie? This is the old hackathon file.** Read the root `PROJECT_CONTEXT.md` instead. The team split here (section 10) is out of date. The current split is in that file's section 16, with a "Who's working on what" table at the top: **Satyabrata is ML A and Nandani is ML B**, both on Person 4 (controllers and ML), with their task lists in its section 16.8.
+
 > The product is called **Albie**. "Forge" was the working name during the hackathon and stays in code names.
 
 > Single source of truth for the hackathon. Every human and every coding agent reads this first.
