@@ -2276,7 +2276,7 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 | **Person 1** | Product, Albie's presence, hands, code mode, the submission | 2, 7, 8, 10 | `Pet/`, `Code/`, `Messages/` |
 | **Person 2** | Core and the Thing runtime | 1, 9 | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` |
 | **Person 3** | Brain, voice, cloud, connectors, the messaging backend | 3, 8 | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` |
-| **Person 4** | Controllers and ML | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
+| **Person 4** (Satyabrata, ML A) | Controllers and ML. Split into ML A and ML B (16.8) | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
 | **Person 5** | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
 
 Folders are under `unity/Assets/_Forge/` unless they start with `hub/`, `cloud/` or `cloud-py/`.
@@ -2344,7 +2344,7 @@ Each date is the day the goal works in that person's sandbox scene, unless it sa
 | Nov 13 | The cloud is stable for judges: spend cap tested, demo account resets, recipient window kept open. |
 | Nov 16 | Fixes only. Cloud stays up to about Dec 11. |
 
-**Person 4: controllers and ML**
+**Person 4: controllers and ML** (Satyabrata leads as ML A; the ML A and ML B task split is in 16.8)
 
 | By | Major goal |
 |---|---|
@@ -2415,6 +2415,39 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 - Before you merge: your sandbox scene runs with the hub off, and with hands, not only a mouse.
 - The nightly APK goes on a Quest. A broken main is the first thing fixed the next morning.
 - A smaller demo that runs well beats a bigger one that doesn't.
+
+### 16.8 Person 4 in detail: ML A and ML B
+
+> Added 2026-11-03. Person 4's chunk is split in two, like the Gator Hack ML A and ML B roles. **ML A is Satyabrata**, the lead: the learning engine and the controller runtime, which is the larger half. **ML B** is the brain on the desk: the trainer view, panels and tools. ML B is whoever joins Person 4's chunk under the double-dipping rule (16.2); ML A reviews their PRs. The dates are the Person 4 dates in 16.3, unchanged. Person 4's decisions in 2.2 belong to ML A.
+
+**What exists today.** `ML/NeuralLab/NNNetwork.cs` is an allocation-free MLP with **one** tanh output and a squared-error loss, built for 2D Playground points. `NeuralLabSim.cs` trains it one epoch per frame and already runs on the Quest. The truck needs ray-sensor and speed inputs and **two** outputs (steer, throttle), so the network has to grow to N outputs (or two networks side by side).
+
+**ML A (Satyabrata): the learning engine and the controller runtime**
+
+| By | Task |
+|---|---|
+| Nov 4 | Propose C-19 with Person 2: the tick interface (sensors in, actuators out, each physics tick) and the controller file `controllers/<name>.json` (manual, rule and PID graph, or MLP weights with an input and output map, plus tunables such as `max_speed`). Commit a fake Thing that echoes inputs (16.5) and a scripted-driver lap file, `Mocks/thing/laps_truck_v2.json`. |
+| Nov 4 | Extend `NNNetwork` to N outputs, still with no allocations after construction. |
+| Nov 6 | Controller runner in new `Controllers/`: the manual controller (fed by Person 1's hands transmitter through the interface) and the rule and PID graph interpreter, running on the mock Thing. |
+| Nov 8 | Telemetry recorder: a preallocated ring buffer of (rays, speed) → (steer, throttle). `BehaviourCloner`: mirrored laps, input scaling, a train and validation split, training spread over frames so the headset holds 72 fps. **A timed run on a Quest 3.** Decide network size and inputs, and tell Person 2 whether ONNX is needed (default: no, our own C# forward pass). |
+| Nov 10 | `LearnedController`: runs the trained net each physics tick, and saves and loads its weights to the controller file. Swap the mock laps for real laps from Person 2's truck. **Two laps train in about 10 s and the Autopilot drives the truck.** |
+| Nov 12 | Hot reload: a changed controller file applies to the running Thing (with Person 1's code panel). **Pretrained v2 fallback controller** shipped. The Autopilot finishes Person 5's slalom. Each training run logs a notebook attempt (C-17) with its data, loss and slalom result. |
+| Nov 14 | Decide which ML template repos work with no network (default: one bundled on-device template). Stretch: a small "obstacle ahead" classifier on the ray sensors, plugged into a Thing (15.5). |
+| Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
+
+**ML B: the brain on the desk**
+
+| By | Task |
+|---|---|
+| Nov 4 | Sketch the brain view against ML A's mock laps: inputs labelled as ray sensors and speed, outputs as steer and throttle. |
+| Nov 6 | Controller panel (a `ForgePanel`): live input and output values and a sparkline for the mock Thing's controller. |
+| Nov 8 | Brain view on the Neural Net Lab visuals, with the live loss curve (`TrainingDash/MLCurve`). **Record lap → Train → Autopilot** buttons, working with hands only (ray and poke). |
+| Nov 10 | Voice and agent tools in `ML/Resources/AlbieTools/nn.json` (proposed names: `brain_record`, `brain_train`, `autopilot_on`, `autopilot_off`), handed to Person 3 for the agent prompt. Make the about-10-s training moment readable on camera. |
+| Nov 12 | The controller side of the code panel, with Person 1: `truck_autopilot` shown beside the Thing, with `max_speed` editable, feeding ML A's hot reload (15.6, step 9). |
+| Nov 14 | The ML template works as a starter, and the Neural Net Lab is the trainer view for any learned controller. Hands-only pass on a Quest: 72 fps while training, and text readable at 1 m. |
+| Nov 16 | Fixes only. |
+
+Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX and the Inference Engine package, Hugging Face fine-tuning (15.10).
 
 ---
 
