@@ -45,6 +45,13 @@ namespace Forge.Artifacts
                 build.AddTrail(trail);
                 build.AfterBuild(() => trail.target = build.Nodes[follow].transform);
             }
+            else if (n.Value<string>("source") is string slot && build.Slots.TryGetValue(slot, out var poses))
+            {
+                // Through a generator slot's positions, such as the gates of a slalom: the line to drive.
+                line.startColor = line.endColor = color;
+                line.positionCount = poses.Count;
+                for (int i = 0; i < poses.Count; i++) line.SetPosition(i, poses[i].position);
+            }
             else if (n["points"] is JArray points)
             {
                 line.startColor = line.endColor = color;

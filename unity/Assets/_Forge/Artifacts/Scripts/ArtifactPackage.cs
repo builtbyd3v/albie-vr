@@ -73,7 +73,7 @@ namespace Forge.Artifacts
 
         static string Read(string id, string file)
         {
-            string path = Path.Combine(Application.persistentDataPath, "artifacts", id, file);
+            string path = Path.Combine(ArtifactLibrary.Folder(id), file);
             if (File.Exists(path)) return File.ReadAllText(path);
             var asset = Resources.Load<TextAsset>($"Mocks/artifacts/{id}/{Path.GetFileNameWithoutExtension(file)}");
             return asset != null ? asset.text : null;

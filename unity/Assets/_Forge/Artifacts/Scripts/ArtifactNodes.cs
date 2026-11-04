@@ -13,6 +13,10 @@ namespace Forge.Artifacts
         public ArtifactInputs Inputs;
         public Transform Root;
         public Dictionary<string, GameObject> Nodes;
+        /// <summary>Generator slots, local to the scene root (C-12 3.3). Empty for a scene with no generators.</summary>
+        public Dictionary<string, List<Pose>> Slots = new Dictionary<string, List<Pose>>();
+        /// <summary>Each <c>array</c> node's copies, in slot order, for runs to count gates and hits.</summary>
+        public readonly Dictionary<string, List<GameObject>> Arrays = new Dictionary<string, List<GameObject>>();
         public readonly ArtifactMetrics Metrics = new ArtifactMetrics();
         readonly List<Action> bound = new List<Action>();
         readonly List<Action> after = new List<Action>();
@@ -63,6 +67,8 @@ namespace Forge.Artifacts
             { "panel", ArtifactWidgets.Build },
             { "sim", ArtifactSim.Build },
             { "line", ArtifactTrail.Build },
+            { "zone", ArtifactZone.Build },
+            { "array", ArtifactArray.Build },
         };
 
         public static void Register(string kind, Builder builder) => builders[kind] = builder;
@@ -80,9 +86,15 @@ namespace Forge.Artifacts
                 {
                     string kind = node.Value<string>("kind");
                     if (!CanBuild(kind) && !missing.Contains(kind)) missing.Add(kind);
+                    if (kind == "array" && node["source"] is JObject && !missing.Contains("array from a table")) missing.Add("array from a table");
                 }
-            if (scene["generators"] is JArray generators && generators.Count > 0) missing.Add("generators");
-            if (scene["run"] is JObject) missing.Add("runs");
+            if (scene["generators"] is JArray generators)
+                foreach (var generator in generators)
+                {
+                    string type = generator.Value<string>("type");
+                    if (!ArtifactGenerators.CanRun(type) && !missing.Contains(type + " generator")) missing.Add(type + " generator");
+                }
+            // Runs (C-12 section 5) don't stop a scene opening: the course shows, and scoring arrives with the run engine.
             return missing;
         }
 

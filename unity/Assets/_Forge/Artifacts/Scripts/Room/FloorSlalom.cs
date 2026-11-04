@@ -1,0 +1,248 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using UnityEngine;
+
+namespace Forge.Artifacts
+{
+    /// <summary>
+    /// The <c>floor_slalom</c> generator (C-12 section 3.3): turns a room into cone, gate, start and finish positions.
+    /// The agent never computes positions; this does, so a bad model output can't put a cone inside the couch.
+    ///
+    /// The course runs along its local +z from the start (z = 0): a line of cones <c>spacing</c> apart, a gate beside
+    /// each cone on alternating sides (the side the truck passes), and the finish one spacing past the last cone.
+    /// Every slot is on the floor (y = 0); a node's own <c>pos</c> lifts it (a cone's centre is half its height up).
+    ///
+    /// Fit rules (shrink and say so, never fail silently): the requested size; then less spacing, down to the minimum;
+    /// then fewer gates, down to the minimum; then <c>no_free_floor</c>. No floor data at all is <c>no_room_data</c>.
+    /// </summary>
+    public static class FloorSlalom
+    {
+        public const float Cell = 0.1f;          // free-floor grid and footprint sampling (m)
+        public const float EndMargin = 0.3f;     // floor before the start and after the finish (m): the truck's length
+        const float CentreStride = 0.2f;         // course centres tried (m)
+        const float YawStep = 15f;
+
+        public struct Settings
+        {
+            public int Gates, MinGates;
+            public float Spacing, MinSpacing, Lane, Clearance;
+            public string Around;  // an MRUK label, or null
+
+            public static Settings Default => new Settings { Gates = 5, MinGates = 3, Spacing = 0.8f, MinSpacing = 0.6f, Lane = 0.6f, Clearance = 0.15f };
+        }
+
+        public sealed class Result
+        {
+            public bool Ok;
+            public string Code, Message;           // Code is null when Ok
+            public int Gates;
+            public float Spacing;
+            public bool Shrunk, AroundFound;
+            public Vector3 Origin;                 // the start, on the floor (world)
+            public float Yaw;                      // the course's direction (degrees, world)
+            public Dictionary<string, List<Pose>> Slots;
+            public int Tried;                      // placements tested, for the checks
+        }
+
+        /// <summary>Course length from the floor before the start to the floor after the finish.</summary>
+        public static float Length(int gates, float spacing) => spacing * (gates + 1) + 2f * EndMargin;
+
+        public static Result Fit(IFloorPlan room, Settings s, string id = "course")
+        {
+            if (room == null || !room.HasFloor)
+                return Fail("no_room_data", "I don't have a scan of this room, so I can't place a course. Run Space Setup on the headset first.");
+            s.MinGates = Mathf.Clamp(s.MinGates, 1, Mathf.Max(1, s.Gates));
+            s.MinSpacing = Mathf.Clamp(s.MinSpacing, 0.1f, Mathf.Max(0.1f, s.Spacing));
+
+            var grid = new FloorGrid(room, s.Clearance);
+            Vector3 target = grid.Centroid;
+            float baseYaw = room.AxisYaw;
+            bool aroundFound = false;
+            if (!string.IsNullOrEmpty(s.Around) && room.TryFind(s.Around, out var aroundAt, out float aroundYaw, out _))
+            {
+                aroundFound = true;
+                target = aroundAt;
+                baseYaw = aroundYaw;
+            }
+            var centres = grid.Centres(target);
+            // Along or across the room (or the couch) first; an angled course only when no square one fits at that size.
+            var passes = new[] { new[] { baseYaw, baseYaw + 180f, baseYaw + 90f, baseYaw + 270f }, Angled(baseYaw) };
+            int tried = 0;
+
+            for (int gates = s.Gates; gates >= s.MinGates; gates--)
+                foreach (float spacing in Spacings(s.Spacing, s.MinSpacing))
+                {
+                    float length = Length(gates, spacing);
+                    if (length > grid.Diagonal) continue;
+                    foreach (var yaws in passes)
+                    foreach (var centre in centres)
+                        foreach (float yaw in yaws)
+                        {
+                            tried++;
+                            var forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                            var origin = centre - forward * (spacing * (gates + 1) * 0.5f);
+                            if (!grid.Clear(origin, yaw, gates, spacing, s.Lane)) continue;
+                            bool shrunk = gates != s.Gates || Mathf.Abs(spacing - s.Spacing) > 0.001f;
+                            return new Result
+                            {
+                                Ok = true, Gates = gates, Spacing = spacing, Shrunk = shrunk, AroundFound = aroundFound,
+                                Origin = new Vector3(origin.x, room.FloorY, origin.z), Yaw = Normalise(yaw),
+                                Slots = Slots(id, gates, spacing, s.Lane), Tried = tried,
+                                Message = Message(shrunk, gates, spacing, s.Around, aroundFound),
+                            };
+                        }
+                }
+            var fail = Fail("no_free_floor", string.Format(CultureInfo.InvariantCulture,
+                "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
+                s.MinGates, s.MinSpacing, Length(s.MinGates, s.MinSpacing), 2f * s.Lane, s.Clearance * 100f));
+            fail.AroundFound = aroundFound;
+            fail.Tried = tried;
+            return fail;
+        }
+
+        /// <summary>Whether a saved course still has free floor (furniture can move between sessions).</summary>
+        public static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int gates, float spacing, Settings s)
+        {
+            if (room == null || !room.HasFloor) return false;
+            return new FloorGrid(room, s.Clearance).Clear(origin, yaw, gates, spacing, s.Lane);
+        }
+
+        /// <summary>The slots, local to the course origin, all on the floor.</summary>
+        public static Dictionary<string, List<Pose>> Slots(string id, int gates, float spacing, float lane)
+        {
+            var cones = new List<Pose>();
+            var gateList = new List<Pose>();
+            for (int i = 1; i <= gates; i++)
+            {
+                cones.Add(new Pose(new Vector3(0f, 0f, spacing * i), Quaternion.identity));
+                gateList.Add(new Pose(new Vector3((i % 2 == 1 ? 0.5f : -0.5f) * lane, 0f, spacing * i), Quaternion.identity));
+            }
+            return new Dictionary<string, List<Pose>>
+            {
+                [id + ".cones"] = cones,
+                [id + ".gates"] = gateList,
+                [id + ".start"] = new List<Pose> { new Pose(Vector3.zero, Quaternion.identity) },
+                [id + ".finish"] = new List<Pose> { new Pose(new Vector3(0f, 0f, spacing * (gates + 1)), Quaternion.identity) },
+            };
+        }
+
+        static IEnumerable<float> Spacings(float requested, float min)
+        {
+            float s = requested;
+            yield return Round(s);
+            while (s - 0.1f > min + 0.001f)
+            {
+                s -= 0.1f;
+                yield return Round(s);
+            }
+            if (Mathf.Abs(Round(s) - Round(min)) > 0.001f) yield return Round(min);
+        }
+
+        // Every 15° that isn't along or across.
+        static float[] Angled(float baseYaw)
+        {
+            var list = new List<float>();
+            for (float a = YawStep; a < 360f; a += YawStep)
+                if (Mathf.Abs(a % 90f) > 0.01f) list.Add(baseYaw + a);
+            return list.ToArray();
+        }
+
+        static string Message(bool shrunk, int gates, float spacing, string around, bool aroundFound)
+        {
+            bool missing = !string.IsNullOrEmpty(around) && !aroundFound;
+            string thing = Thing(around);
+            string size = string.Format(CultureInfo.InvariantCulture, "{0} gates, {1:0.0} m apart", gates, spacing);
+            if (shrunk && missing) return $"This room is tight and I can't find {thing}, so I made a shorter course: {size}.";
+            if (shrunk) return $"This room is tight, so I made a shorter course: {size}.";
+            if (missing) return $"I can't find {thing}, so I put the course on the most open floor: {size}.";
+            return null;
+        }
+
+        static string Thing(string label)
+        {
+            switch (label)
+            {
+                case null: return "it";
+                case "COUCH": return "a couch";
+                case "TABLE": return "a table";
+                case "BED": return "a bed";
+                case "STORAGE": return "a cupboard";
+                default: return "a " + label.ToLowerInvariant().Replace('_', ' ');
+            }
+        }
+
+        static Result Fail(string code, string message) => new Result { Ok = false, Code = code, Message = message };
+        static float Round(float v) => Mathf.Round(v * 100f) / 100f;
+        static float Normalise(float yaw) => Mathf.Repeat(yaw, 360f);
+
+        /// <summary>
+        /// Free floor sampled once on a 10 cm grid, so testing thousands of placements is array lookups, not thousands
+        /// of MRUK queries. A cell is free if its centre is free with the clearance.
+        /// </summary>
+        sealed class FloorGrid
+        {
+            readonly bool[] free;
+            readonly int nx, nz;
+            readonly Vector3 min;
+            readonly float y;
+            public readonly Vector3 Centroid;
+            public readonly float Diagonal;
+            readonly List<Vector3> freeCells = new List<Vector3>();
+
+            public FloorGrid(IFloorPlan room, float clearance)
+            {
+                var b = room.FloorBounds;
+                min = b.min;
+                y = room.FloorY;
+                nx = Mathf.Max(1, Mathf.CeilToInt(b.size.x / Cell));
+                nz = Mathf.Max(1, Mathf.CeilToInt(b.size.z / Cell));
+                Diagonal = new Vector2(b.size.x, b.size.z).magnitude;
+                free = new bool[nx * nz];
+                var sum = Vector3.zero;
+                for (int iz = 0; iz < nz; iz++)
+                    for (int ix = 0; ix < nx; ix++)
+                    {
+                        var p = new Vector3(min.x + (ix + 0.5f) * Cell, y, min.z + (iz + 0.5f) * Cell);
+                        if (!room.IsFree(p, clearance)) continue;
+                        free[iz * nx + ix] = true;
+                        freeCells.Add(p);
+                        sum += p;
+                    }
+                Centroid = freeCells.Count > 0 ? sum / freeCells.Count : b.center;
+            }
+
+            bool Free(Vector3 p)
+            {
+                int ix = Mathf.FloorToInt((p.x - min.x) / Cell), iz = Mathf.FloorToInt((p.z - min.z) / Cell);
+                return ix >= 0 && iz >= 0 && ix < nx && iz < nz && free[iz * nx + ix];
+            }
+
+            /// <summary>Free cells every <see cref="CentreStride"/>, nearest <paramref name="target"/> first.</summary>
+            public List<Vector3> Centres(Vector3 target)
+            {
+                int stride = Mathf.Max(1, Mathf.RoundToInt(CentreStride / Cell));
+                var list = new List<Vector3>();
+                for (int iz = 0; iz < nz; iz += stride)
+                    for (int ix = 0; ix < nx; ix += stride)
+                        if (free[iz * nx + ix]) list.Add(new Vector3(min.x + (ix + 0.5f) * Cell, y, min.z + (iz + 0.5f) * Cell));
+                var t = new Vector3(target.x, y, target.z);
+                list.Sort((a, b) => (a - t).sqrMagnitude.CompareTo((b - t).sqrMagnitude));
+                return list;
+            }
+
+            /// <summary>The whole footprint (the lane each side of the cones, end to end) is on free floor.</summary>
+            public bool Clear(Vector3 origin, float yaw, int gates, float spacing, float lane)
+            {
+                var r = Quaternion.Euler(0f, yaw, 0f);
+                var forward = r * Vector3.forward;
+                var right = r * Vector3.right;
+                float end = spacing * (gates + 1) + EndMargin;
+                for (float z = -EndMargin; z <= end + 0.001f; z += Cell)
+                    for (float x = -lane; x <= lane + 0.001f; x += Cell)
+                        if (!Free(origin + forward * z + right * x)) return false;
+                return true;
+            }
+        }
+    }
+}

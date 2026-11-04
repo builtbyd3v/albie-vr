@@ -70,7 +70,7 @@ public static class ArtifactChecks
         Check(ArtifactNodes.Missing(ArtifactPackage.Load("stance", out _).Scene).Count == 0, "stance can be built today");
         Check(ArtifactNodes.Missing(ArtifactPackage.Load("three_body", out _).Scene).Count == 0, "three_body can be built today");
         var missing = ArtifactNodes.Missing(ArtifactPackage.Load("slalom", out _).Scene);
-        Check(missing.Contains("zone") && missing.Contains("generators") && missing.Contains("runs"), "slalom reports what isn't built");
+        Check(missing.Count == 0, "slalom can be built today (its course; runs are scored by the run engine)");
     }
 
     // One per code in C-12 section 9. hash_mismatch waits for gltf loading, which is when assets are read.

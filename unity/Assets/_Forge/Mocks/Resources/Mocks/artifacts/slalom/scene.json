@@ -10,8 +10,8 @@
         "spacing_m": "$spacing_m",
         "min_spacing_m": 0.6,
         "min_gates": 3,
-        "lane_width_m": 0.7,
-        "clearance_m": 0.25,
+        "lane_width_m": 0.6,
+        "clearance_m": 0.15,
         "around": "COUCH"
       }
     }
@@ -24,6 +24,11 @@
       "template": {
         "kind": "primitive",
         "shape": "cone",
+        "pos": [
+          0,
+          0.12,
+          0
+        ],
         "size": [
           0.12,
           0.24,
@@ -39,8 +44,13 @@
       "source": "course.gates",
       "template": {
         "kind": "zone",
+        "pos": [
+          0,
+          0.25,
+          0
+        ],
         "size": [
-          0.7,
+          0.6,
           0.5,
           0.2
         ]
@@ -50,6 +60,11 @@
       "id": "start",
       "kind": "zone",
       "at": "course.start",
+      "pos": [
+        0,
+        0.25,
+        0
+      ],
       "size": [
         0.9,
         0.5,
@@ -60,6 +75,11 @@
       "id": "finish",
       "kind": "zone",
       "at": "course.finish",
+      "pos": [
+        0,
+        0.25,
+        0
+      ],
       "size": [
         0.9,
         0.5,
@@ -71,7 +91,12 @@
       "kind": "line",
       "source": "course.gates",
       "width": 0.01,
-      "color": "#7CFFB2"
+      "color": "#7CFFB2",
+      "pos": [
+        0,
+        0.01,
+        0
+      ]
     },
     {
       "id": "time_label",
