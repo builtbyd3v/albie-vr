@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using Forge.ML;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Forge.Controllers
 {
@@ -190,6 +191,28 @@ namespace Forge.Controllers
         }
 
 
+        /// <summary>
+        /// The controller file's <c>training</c> object (C-19 section 3.4): provenance the runner ignores and the notebook
+        /// copies into <c>observed.training</c> (C-17). Losses are null until the first epoch ends.
+        /// </summary>
+        public JObject TrainingBlock()
+        {
+            JToken Loss(float v) => float.IsNaN(v) || float.IsInfinity(v) ? JValue.CreateNull() : new JValue(Math.Round(v, 5));
+            return new JObject
+            {
+                ["samples"] = train.Length + validation.Length,
+                ["mirrored"] = Settings.Mirror,
+                ["epochs"] = Epoch,
+                ["seconds"] = Math.Round(ComputeSeconds, 3),
+                ["frames"] = Steps,
+                ["train_loss"] = Loss(TrainLoss),
+                ["val_loss"] = Loss(ValidationLoss),
+                ["laps"] = Laps.CompletedLaps,
+                ["seed"] = Settings.Seed,
+                ["hidden"] = JArray.FromObject(Settings.Hidden),
+            };
+        }
+
         /// <summary>The <c>albie.controller/1</c> learned file (contract section 3.4) for the trained net.</summary>
         public string ToControllerJson(string name, int version, float maxSpeed, float maxSpeedMin = 0.2f, float maxSpeedMax = 4f)
         {
@@ -235,12 +258,7 @@ namespace Forge.Controllers
             sb.Append("  \"tunables\": {\"max_speed\": {\"value\": ").Append(N(maxSpeed)).Append(", \"min\": ").Append(N(maxSpeedMin))
               .Append(", \"max\": ").Append(N(maxSpeedMax)).Append(", \"unit\": \"m/s\", \"label\": \"Top speed\"}},\n");
             sb.Append("  \"limits\": {\"speed\": \"$max_speed\"},\n");
-            int samples = train.Length + validation.Length;
-            sb.Append("  \"training\": {\"samples\": ").Append(samples).Append(", \"mirrored\": ").Append(Settings.Mirror ? "true" : "false")
-              .Append(", \"epochs\": ").Append(Epoch).Append(", \"seconds\": ").Append(ComputeSeconds.ToString("0.###", inv))
-              .Append(", \"frames\": ").Append(Steps)
-              .Append(", \"train_loss\": ").Append(N(TrainLoss)).Append(", \"val_loss\": ").Append(N(ValidationLoss))
-              .Append(", \"laps\": ").Append(Laps.CompletedLaps).Append("}\n");
+            sb.Append("  \"training\": ").Append(TrainingBlock().ToString(Formatting.None)).Append("\n");
             sb.Append("}\n");
             return sb.ToString();
         }

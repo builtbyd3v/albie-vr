@@ -199,6 +199,19 @@ namespace Forge.Controllers
             }
         }
 
+        /// <summary>Takes the PID state from the controller this one replaces (a hot reload that kept the structure).</summary>
+        public void CopyStateFrom(GraphController previous)
+        {
+            if (previous?.nodes == null || nodes == null || previous.nodes.Length != nodes.Length) return;
+            for (int i = 0; i < nodes.Length; i++)
+                if (previous.nodes[i].type == nodes[i].type)
+                {
+                    nodes[i].integral = previous.nodes[i].integral;
+                    nodes[i].lastError = previous.nodes[i].lastError;
+                    nodes[i].hasLastError = previous.nodes[i].hasLastError;
+                }
+        }
+
         public void ResetState()
         {
             if (nodes == null) return;

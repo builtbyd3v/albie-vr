@@ -7,31 +7,42 @@ namespace Forge.Controllers
     /// The Autopilot: the trained candidate brains, tried in order (PROJECT_CONTEXT 16.8). One training run can fail to
     /// drive the course and validation loss can't tell which, so training makes a few candidates and the first arena run
     /// decides. <see cref="Engage"/> attaches the current candidate; when a run fails (a crash, a roll-over, the person
-    /// says "that didn't work"), <see cref="RunEnded"/> moves to the next one. When none is left, the caller uses the
-    /// pretrained fallback. The arena (Person 5) and voice (Person 3) only call these two methods.
+    /// says "that didn't work"), <see cref="RunEnded"/> moves to the next one. After the last trained candidate comes the
+    /// optional pretrained fallback (16.3, Nov 12); <see cref="UsingFallback"/> says when it's driving, so the video and
+    /// the Devpost text can disclose it. The arena (Person 5) and voice (Person 3) only call these two methods.
     /// </summary>
     public sealed class Autopilot
     {
         readonly List<ControllerFile> candidates = new List<ControllerFile>();
         readonly List<string> skipped = new List<string>();
+        readonly int fallbackIndex = -1;
 
-        public int Count => candidates.Count;
+        /// <summary>Trained candidates, not counting the fallback.</summary>
+        public int Count => fallbackIndex >= 0 ? candidates.Count - 1 : candidates.Count;
         /// <summary>Index of the candidate driving (or about to), or -1 when none is left.</summary>
         public int Index { get; private set; }
         public ControllerFile Current => Index >= 0 && Index < candidates.Count ? candidates[Index] : null;
+        /// <summary>True when the pretrained fallback is the one driving.</summary>
+        public bool UsingFallback => fallbackIndex >= 0 && Index == fallbackIndex;
         /// <summary>True after a candidate finished a run: keep it.</summary>
         public bool Kept { get; private set; }
-        /// <summary>True when every candidate failed or was refused: use the pretrained fallback.</summary>
+        /// <summary>True when every candidate (and the fallback, if any) failed or was refused.</summary>
         public bool Exhausted => Index < 0 || Index >= candidates.Count;
         /// <summary>Candidates the host refused, with why (a bad file never stops the others).</summary>
         public IReadOnlyList<string> Skipped => skipped;
 
-        public Autopilot(IEnumerable<ControllerFile> files)
+        /// <param name="files">The trained candidates, in the order to try them.</param>
+        /// <param name="fallback">The pretrained controller to use when every candidate failed, or null.</param>
+        public Autopilot(IEnumerable<ControllerFile> files, ControllerFile fallback = null)
         {
             if (files == null) throw new ArgumentNullException(nameof(files));
             candidates.AddRange(files);
+            if (fallback != null) { candidates.Add(fallback); fallbackIndex = candidates.Count - 1; }
             Index = candidates.Count > 0 ? 0 : -1;
         }
+
+        /// <summary>The one driving, for the UI: "candidate 2 of 3" or "the pretrained fallback".</summary>
+        public string Describe() => Exhausted ? "none" : UsingFallback ? "the pretrained fallback" : $"candidate {Index + 1} of {Count}";
 
         /// <summary>Attaches the current candidate, skipping any the host refuses. Returns null, or why nothing is attached.</summary>
         public string Engage(ControllerHost host)
@@ -40,11 +51,11 @@ namespace Forge.Controllers
             {
                 string error = host.Attach(candidates[Index]);
                 if (error == null) return null;
-                skipped.Add($"candidate {Index + 1}: {error}");
+                skipped.Add($"{Describe()}: {error}");
                 Index++;
             }
             Index = -1;
-            return "no candidate could be attached: use the pretrained fallback";
+            return "no candidate could be attached";
         }
 
         /// <summary>
@@ -53,18 +64,22 @@ namespace Forge.Controllers
         /// </summary>
         public string RunEnded(ControllerHost host, bool success)
         {
-            if (Exhausted) return "no candidate left: use the pretrained fallback";
+            if (Exhausted) return "no candidate left";
             if (success)
             {
                 Kept = true;
-                return $"candidate {Index + 1} of {Count} drove the course: keeping it";
+                return $"{Describe()} drove the course: keeping it";
             }
             Kept = false;
-            int failed = Index + 1;
+            string failed = Describe();
             Index++;
-            if (Exhausted) { Index = -1; return $"candidate {failed} failed, and none is left: use the pretrained fallback"; }
+            if (Exhausted)
+            {
+                Index = -1;
+                return fallbackIndex >= 0 ? $"{failed} failed, and nothing is left" : $"{failed} failed, and none is left: use the pretrained fallback";
+            }
             string error = Engage(host);
-            return error ?? $"candidate {failed} failed: trying candidate {Index + 1} of {Count}";
+            return error ?? $"{failed} failed: trying {Describe()}";
         }
     }
 }
