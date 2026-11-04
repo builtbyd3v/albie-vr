@@ -1,0 +1,31 @@
+# Redeploys the CAD + ML cloud (cloud-py/deploy.sh) to Dev's Hugging Face Space builtbyd3v/albie-cloud.
+# Runs on a push to main that touches what deploy.sh ships, or from Actions > Deploy HF Space > Run workflow.
+# The Space then rebuilds for about 10 min. Billing stays on Dev's HF credits ($0.03/h while awake).
+name: Deploy HF Space
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloud-py/**'
+      - 'hub/cad/**'
+      - 'hub/ml/**'
+      - 'hub/events.py'
+      - 'hub/agent/events.py'
+      - 'forge-sdk/forge/**'
+      - 'ml-examples/text-classification/**'
+  workflow_dispatch:
+concurrency: deploy-space
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install huggingface_hub==2.3.0
+      - run: bash cloud-py/deploy.sh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ALBIE_APP_KEY: ${{ secrets.ALBIE_APP_KEY }}
+          HF_OWNER: builtbyd3v
