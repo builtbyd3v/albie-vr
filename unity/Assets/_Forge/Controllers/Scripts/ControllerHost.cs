@@ -21,13 +21,22 @@ namespace Forge.Controllers
         public float SpeedLimit { get; private set; } = float.PositiveInfinity;
         /// <summary>Why the current controller stopped (Tick threw), or null.</summary>
         public string Fault { get; private set; }
+        /// <summary>
+        /// The last step's actuators after the clamp and before the speed governor: what the controller (or the person
+        /// driving) asked for. Behaviour cloning records these (contract section 4).
+        /// </summary>
+        public readonly float[] Commanded;
 
         /// <summary>Raised with the reason when the controller faults (contract event controller.fault).</summary>
         public event Action<string> Faulted;
         /// <summary>Raised after a successful swap (contract event controller.attached).</summary>
         public event Action<IThingController> Attached;
 
-        public ControllerHost(ControllerIO io) { IO = io ?? throw new ArgumentNullException(nameof(io)); }
+        public ControllerHost(ControllerIO io)
+        {
+            IO = io ?? throw new ArgumentNullException(nameof(io));
+            Commanded = new float[io.Actuators.Length];
+        }
 
         /// <summary>Builds the controller for a file and attaches it. Returns null, or why the old one keeps running.</summary>
         public string Attach(ControllerFile file)
@@ -78,6 +87,7 @@ namespace Forge.Controllers
         {
             float[] a = IO.Actuators;
             Array.Clear(a, 0, a.Length);
+            Array.Clear(Commanded, 0, Commanded.Length);
             if (Current == null || Fault != null) return;
 
             try { Current.Tick(IO, dt); }
@@ -94,6 +104,7 @@ namespace Forge.Controllers
                 float v = a[i];
                 a[i] = float.IsNaN(v) || float.IsInfinity(v) ? 0f : v < -1f ? -1f : v > 1f ? 1f : v;
             }
+            Array.Copy(a, Commanded, a.Length);
 
             if (forwardSpeed > SpeedLimit)
             {

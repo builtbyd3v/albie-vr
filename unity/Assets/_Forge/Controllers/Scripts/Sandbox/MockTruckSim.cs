@@ -23,8 +23,19 @@ namespace Forge.Controllers
         public static readonly string[] SensorNames =
             { "ray_front.d0", "ray_front.d1", "ray_front.d2", "ray_front.d3", "ray_front.d4", "ray_front.d5", "ray_front.d6", "speed.forward" };
         public static readonly string[] ActuatorNames = { "steer.angle", "drive.throttle" };
+        /// <summary>The left-right mirror map the runtime publishes with a Thing (contract section 2.3).</summary>
+        public static readonly string[][] MirrorSwap =
+            { new[] { "ray_front.d0", "ray_front.d6" }, new[] { "ray_front.d1", "ray_front.d5" }, new[] { "ray_front.d2", "ray_front.d4" } };
+        public static readonly string[] MirrorNegate = { "steer.angle" };
 
         public float X, Y, Heading, Speed;
+        /// <summary>
+        /// Each ray also hits things within this many metres of its line (a sphere cast), so a thin cone can't slip
+        /// between two rays: 7 rays over 120° are about 0.5 m apart at 1.6 m, and a cone is 0.16 m wide. 0 is a plain
+        /// ray. The default matches the Python mock and the proposed ray sensor (contract section 2.1).
+        /// </summary>
+        public float BeamRadius = DefaultBeamRadius;
+        public const float DefaultBeamRadius = 0.1f;
         public bool Crashed, Finished;
         public float Time;
         /// <summary>The last ray distances in metres, for drawing.</summary>
@@ -83,16 +94,16 @@ namespace Forge.Controllers
         }
 
         // Distance to the first cone or wall along a unit ray, capped at RayRange (same maths as the Python mock).
-        static float Cast(float px, float py, float dx, float dy)
+        float Cast(float px, float py, float dx, float dy)
         {
-            float best = RayRange;
+            float best = RayRange, r = ConeRadius + BeamRadius;
             for (int i = 0; i < ConeX.Length; i++)
             {
                 float ox = ConeX[i] - px, oy = -py;
                 float along = ox * dx + oy * dy;
                 if (along <= 0) continue;
                 float miss2 = ox * ox + oy * oy - along * along;
-                if (miss2 <= ConeRadius * ConeRadius) best = Math.Min(best, along - (float)Math.Sqrt(ConeRadius * ConeRadius - miss2));
+                if (miss2 <= r * r) best = Math.Min(best, Math.Max(0f, along - (float)Math.Sqrt(r * r - miss2)));
             }
             best = Wall(WallXMin, px, dx, best); best = Wall(WallXMax, px, dx, best);
             best = Wall(WallYMin, py, dy, best); best = Wall(WallYMax, py, dy, best);
