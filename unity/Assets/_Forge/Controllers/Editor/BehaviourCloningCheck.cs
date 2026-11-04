@@ -167,11 +167,15 @@ public static class BehaviourCloningCheck
         return set == null ? error : null;
     }
 
+    // The trainer checks its budget after every batch, so a frame can only run over by about one batch. The check
+    // measures wall-clock time, and on a busy machine the OS can pause the thread mid-frame (25-30 ms spikes were seen
+    // with Spotlight indexing), so it judges the 95th-percentile frame and reports the worst. A trainer that ignored
+    // its budget would make every frame long, and fail this.
     static string FrameBudgetedTraining(LapSet laps, out string note)
     {
         var cloner = new BehaviourCloner(laps);
         cloner.Step(FrameBudgetMs);   // warm up (JIT)
-        double worst = 0;
+        var frames = new System.Collections.Generic.List<double>();
         long bytes = 0;
         var clock = new System.Diagnostics.Stopwatch();
         while (!cloner.Done)
@@ -181,13 +185,15 @@ public static class BehaviourCloningCheck
             cloner.Step(FrameBudgetMs);
             clock.Stop();
             bytes += GC.GetAllocatedBytesForCurrentThread() - before;
-            worst = Math.Max(worst, clock.Elapsed.TotalMilliseconds);
+            frames.Add(clock.Elapsed.TotalMilliseconds);
         }
+        frames.Sort();
+        double p95 = frames[(int)Math.Ceiling(frames.Count * 0.95) - 1], median = frames[frames.Count / 2], worst = frames[frames.Count - 1];
         note = $"{cloner.TrainCount} train / {cloner.ValidationCount} validation rows, {cloner.Epoch} epochs in {cloner.Steps} frames " +
-               $"({cloner.Steps / 72f:0.0} s at 72 fps), {cloner.ComputeSeconds * 1000:0} ms compute, worst frame {worst:0.00} ms of {FrameBudgetMs} budget, " +
-               $"val loss {cloner.ValidationLoss:0.0000}, {bytes} bytes allocated";
+               $"({cloner.Steps / 72f:0.0} s at 72 fps), {cloner.ComputeSeconds * 1000:0} ms compute; frame times median {median:0.00} ms, " +
+               $"95th percentile {p95:0.00} ms, worst {worst:0.00} ms (budget {FrameBudgetMs}); val loss {cloner.ValidationLoss:0.0000}, {bytes} bytes allocated";
         if (bytes != 0) return note;
-        if (worst > FrameBudgetMs + 2) return note;
+        if (p95 > FrameBudgetMs + 1) return note;
         return cloner.ValidationLoss < 0.05f ? null : note;
     }
 

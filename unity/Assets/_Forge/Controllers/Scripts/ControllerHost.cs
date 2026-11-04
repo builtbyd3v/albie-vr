@@ -1,4 +1,6 @@
 using System;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Forge.Controllers
 {
@@ -31,6 +33,13 @@ namespace Forge.Controllers
         public event Action<string> Faulted;
         /// <summary>Raised after a successful swap (contract event controller.attached).</summary>
         public event Action<IThingController> Attached;
+        /// <summary>
+        /// Raised with the reason when <see cref="Reload"/> refuses a file. The running controller keeps driving
+        /// (contract section 6); map it to controller.fault with that reason when events go through a contract PR.
+        /// </summary>
+        public event Action<string> ReloadFailed;
+        /// <summary>Raised after a hot reload: the new file, and whether its state (PID integrators) was kept.</summary>
+        public event Action<ControllerFile, bool> Reloaded;
 
         public ControllerHost(ControllerIO io)
         {
@@ -79,6 +88,53 @@ namespace Forge.Controllers
         }
 
         public void Detach() { Current = null; File = null; Fault = null; SpeedLimit = float.PositiveInfinity; }
+
+        /// <summary>
+        /// Hot reload (contract section 6): a changed file for the running Thing, from the code panel, controller_tune
+        /// or a git checkout. Call it from Update (never FixedUpdate); the swap takes effect at the next physics step.
+        /// When only the tunables, version, notes or training block changed, the controller's state is kept, so the
+        /// Thing doesn't jerk. Any other change (nodes, net, bindings, kind) resets it. A file that doesn't parse or
+        /// bind is refused and the running controller keeps driving. Returns null, or why it was refused.
+        /// </summary>
+        public string Reload(string json)
+        {
+            var file = ControllerFile.Parse(json, out string error);
+            return file == null ? Refuse(error) : Reload(file);
+        }
+
+        public string Reload(ControllerFile file)
+        {
+            var next = Create(file, out string error);
+            if (next == null) return Refuse(error);
+            try { error = next.Bind(IO); }
+            catch (Exception e) { error = "bad_value: " + e.Message; }
+            if (error != null) return Refuse(error);
+
+            bool keep = Current != null && File != null && Fault == null && File.Kind == file.Kind
+                        && StructureKey(File) == StructureKey(file);
+            if (keep && next is GraphController graph && Current is GraphController old) graph.CopyStateFrom(old);
+            else next.ResetState();
+            Current = next;
+            File = file;
+            SpeedLimit = file.SpeedLimit;
+            Fault = null;
+            Reloaded?.Invoke(file, keep);
+            return null;
+        }
+
+        string Refuse(string error)
+        {
+            ReloadFailed?.Invoke(error);
+            return error;
+        }
+
+        /// <summary>The file without the parts a tunable-only edit may change.</summary>
+        static string StructureKey(ControllerFile file)
+        {
+            var copy = (JObject)file.Raw.DeepClone();
+            foreach (var key in new[] { "version", "tunables", "notes", "training" }) copy.Remove(key);
+            return copy.ToString(Formatting.None);
+        }
 
         public void ResetState() { Current?.ResetState(); }
 

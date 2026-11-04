@@ -16,14 +16,17 @@ namespace Forge.Controllers
     /// frame) and save the laps and the candidates' controller files. One training run can fail to drive the course
     /// (PROJECT_CONTEXT 16.8), so the autopilot (next step) tries the candidates in order. The sandbox also scores each
     /// candidate on the mock slalom. P: the Autopilot drives with the trained candidates (or the mock autopilot file
-    /// if nothing is trained yet); when a run crashes, the next candidate takes over. 3 attaches the mock autopilot file.
+    /// if nothing is trained yet); when a run crashes, the next candidate takes over, then the pretrained fallback.
+    /// 3 attaches the mock autopilot file. E exports the running controller to a file and watches it: save an edit
+    /// (say, max_speed or a PID gain) and it hot-reloads onto the running truck.
     /// The readout is a sandbox debug overlay, not product UI.
     /// </summary>
     public sealed class ControllersSandbox : MonoBehaviour
     {
         public Transform truck;
         public LineRenderer[] rays;
-        public string[] controllerFiles = { "Mocks/controllers/truck_manual", "Mocks/controllers/truck_cruise", "Mocks/controllers/truck_autopilot" };
+        // Code-only, not a serialized field: a scene saved with an older, shorter list would override it (that broke key 3).
+        static readonly string[] ControllerFiles = { "Mocks/controllers/truck_manual", "Mocks/controllers/truck_cruise", "Mocks/controllers/truck_autopilot" };
         /// <summary>Training time per frame. 72 fps leaves about 14 ms a frame.</summary>
         public float trainBudgetMs = 4f;
         /// <summary>Nets trained per B press, with seeds 1..n. The best of 3 drove the mock slalom in every sweep.</summary>
@@ -38,6 +41,7 @@ namespace Forge.Controllers
         string[] candidateJson;
         Autopilot autopilot;
         bool runReported;
+        ControllerFileWatcher watcher;
         int stickY, handRoll, lapSeed = 1;
         float lastKeyThrottle, lastKeySteer, trainStarted;
         string readout = "", status = "";
@@ -53,6 +57,7 @@ namespace Forge.Controllers
         public bool Training => cloners != null && training < cloners.Length;
         public string Status => status;
         public Autopilot Autopilot => autopilot;
+        public ControllerFileWatcher Watcher => watcher;
         /// <summary>Where B saves the laps and the learned controller.</summary>
         public static string SaveFolder => Path.Combine(Application.persistentDataPath, "controllers");
 
@@ -60,17 +65,19 @@ namespace Forge.Controllers
         {
             host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
             host.Faulted += reason => status = "FAULT " + reason;
+            host.Reloaded += (file, kept) => status = $"hot reload: {file.Name} v{file.Version} ({(kept ? "state kept" : "state reset")}), limit {ControllerFile.Fmt(file.SpeedLimit)} m/s";
+            host.ReloadFailed += reason => status = "hot reload refused, still driving the old one: " + reason;
             recorder = new LapRecorder(host.IO, "truck", 2, "truck_manual", MockTruckSim.MirrorSwap, MockTruckSim.MirrorNegate);
             stickY = ManualInputs.IndexOf("stick.y");
             handRoll = ManualInputs.IndexOf("hand.roll");
             Use(0);
         }
 
-        /// <summary>Attaches controller file <paramref name="index"/> from <see cref="controllerFiles"/>.</summary>
+        /// <summary>Attaches controller file <paramref name="index"/> from <see cref="ControllerFiles"/>.</summary>
         public string Use(int index)
         {
-            var asset = Resources.Load<TextAsset>(controllerFiles[index]);
-            if (asset == null) return status = $"missing Resources/{controllerFiles[index]}.json (run `python -m ml.make_controller_mocks` in hub/)";
+            var asset = Resources.Load<TextAsset>(ControllerFiles[index]);
+            if (asset == null) return status = $"missing Resources/{ControllerFiles[index]}.json (run `python -m ml.make_controller_mocks` in hub/)";
             var file = ControllerFile.Parse(asset.text, out string error);
             error = error ?? host.Attach(file);
             if (error == null) autopilot = null;
@@ -106,11 +113,29 @@ namespace Forge.Controllers
                 source = "the mock autopilot file";
             }
             ManualInputs.Clear();
-            autopilot = new Autopilot(files);
+            var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
+            var fallback = fallbackAsset == null ? null : ControllerFile.Parse(fallbackAsset.text, out _);
+            autopilot = new Autopilot(files, fallback);
             string error = autopilot.Engage(host);
             sim.Reset(); host.ResetState(); runReported = false;
-            status = error ?? $"Autopilot on with {source}: candidate 1 of {autopilot.Count} driving";
+            status = error ?? $"Autopilot on with {source}{(fallback != null ? " (+ pretrained fallback)" : "")}: {autopilot.Describe()} driving";
             return error;
+        }
+
+        /// <summary>
+        /// Writes the running controller to <c>SaveFolder/live/&lt;name&gt;.json</c> and watches it: a saved edit
+        /// hot-reloads onto the running truck. Returns the path, or null with no controller attached.
+        /// </summary>
+        public string WatchCurrentFile()
+        {
+            if (host.File == null) { status = "no controller file attached"; return null; }
+            string dir = Path.Combine(SaveFolder, "live");
+            Directory.CreateDirectory(dir);
+            string path = Path.Combine(dir, host.File.Name + ".json");
+            ControllerFileWatcher.WriteAtomic(path, host.File.Raw.ToString());
+            watcher = new ControllerFileWatcher(host, path);
+            status = "edit and save " + path + ": it reloads live";
+            return path;
         }
 
         public void ResetTruck() { sim.Reset(); host.ResetState(); runReported = false; status = "reset"; }
@@ -168,6 +193,7 @@ namespace Forge.Controllers
                 if (k.digit2Key.wasPressedThisFrame) Use(1);
                 if (k.digit3Key.wasPressedThisFrame) Use(2);
                 if (k.pKey.wasPressedThisFrame) StartAutopilot();
+                if (k.eKey.wasPressedThisFrame) WatchCurrentFile();
                 if (k.rKey.wasPressedThisFrame) ResetTruck();
                 if (k.leftBracketKey.wasPressedThisFrame) Tune(-0.2f);
                 if (k.rightBracketKey.wasPressedThisFrame) Tune(0.2f);
@@ -177,6 +203,7 @@ namespace Forge.Controllers
             }
 #endif
             if (Training && cloners[training].Step(trainBudgetMs) && ++training == cloners.Length) Finished();
+            watcher?.Poll(Time.unscaledTimeAsDouble);
             DrawTruck();
             if (Time.unscaledTime >= nextReadout) { nextReadout = Time.unscaledTime + 0.2f; BuildReadout(); }
         }
@@ -190,6 +217,12 @@ namespace Forge.Controllers
             for (int i = 0; i < cloners.Length; i++) candidateJson[i] = cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f);
             int frames = 0; double compute = 0;
             var scores = new System.Text.StringBuilder();
+            // One notebook entry per training run (C-17 section 3): candidate 1's block plus every candidate's.
+            var block = cloners[0].TrainingBlock();
+            var list = new Newtonsoft.Json.Linq.JArray();
+            foreach (var c in cloners) list.Add(c.TrainingBlock());
+            block["candidates"] = list;
+            TrainingLog.Report("truck_autopilot", 1, block);
             foreach (var c in cloners)
             {
                 frames += c.Steps; compute += c.ComputeSeconds;
@@ -272,8 +305,9 @@ namespace Forge.Controllers
             if (current != null)
                 sb.Append($"   candidate {System.Math.Min(training + 1, cloners.Length)}/{cloners.Length} epoch {current.Epoch}/{current.Settings.Epochs} val loss {current.ValidationLoss:0.0000}");
             sb.Append("\n").Append(status);
-            if (autopilot != null) sb.Append(autopilot.Exhausted ? "   AUTOPILOT: no candidate left" : $"   AUTOPILOT candidate {autopilot.Index + 1}/{autopilot.Count}{(autopilot.Kept ? " (kept)" : "")}");
-            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot");
+            if (autopilot != null) sb.Append(autopilot.Exhausted ? "   AUTOPILOT: nothing left" : $"   AUTOPILOT {autopilot.Describe()}{(autopilot.Kept ? " (kept)" : "")}");
+            if (watcher != null) sb.Append($"   LIVE FILE ({watcher.Reloads} reloads)");
+            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot  E edit file live");
             readout = sb.ToString();
         }
 
