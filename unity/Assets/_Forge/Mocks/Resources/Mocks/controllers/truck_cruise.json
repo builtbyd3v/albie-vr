@@ -1,0 +1,55 @@
+{
+  "schema": "albie.controller/1",
+  "name": "truck_cruise",
+  "kind": "graph",
+  "version": 1,
+  "thing": "truck",
+  "tunables": {
+    "max_speed": {
+      "value": 1.2,
+      "min": 0.2,
+      "max": 4.0,
+      "unit": "m/s",
+      "label": "Top speed"
+    },
+    "steer_gain": {
+      "value": 1.5,
+      "min": 0.0,
+      "max": 5.0,
+      "label": "Steer away gain"
+    }
+  },
+  "nodes": [
+    {
+      "id": "cruise",
+      "type": "pid",
+      "input": "speed.forward",
+      "setpoint": 0.4,
+      "kp": 0.8,
+      "ki": 0.2,
+      "kd": 0.0,
+      "i_limit": 0.5,
+      "output": "drive.throttle"
+    },
+    {
+      "id": "avoid",
+      "type": "gain",
+      "a": "ray_front.d0",
+      "b": "ray_front.d6",
+      "k": "$steer_gain",
+      "output": "steer.angle"
+    },
+    {
+      "id": "brake",
+      "type": "rule",
+      "if": ["ray_front.d3", "<", 0.15],
+      "set": {
+        "drive.throttle": -0.3
+      }
+    }
+  ],
+  "limits": {
+    "speed": "$max_speed"
+  },
+  "notes": "Mock. Cruise at 1.2 m/s, steer away from the nearer side, brake when something is dead ahead."
+}
