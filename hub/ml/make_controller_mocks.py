@@ -280,10 +280,13 @@ def cruise_controller() -> dict:
                      "steer_gain": {"value": 1.5, "min": 0.0, "max": 5.0, "label": "Steer away gain"}},
         "nodes": [
             {"id": "cruise", "type": "pid", "input": "speed.forward", "setpoint": round(1.2 / TOP_SPEED, 3),
-             "kp": 0.8, "ki": 0.2, "kd": 0.0, "i_limit": 0.5, "output": "drive.throttle"},
-            # d0 is the leftmost ray and 1 means clear: left clearer than right gives a positive (left) steer.
-            {"id": "avoid", "type": "gain", "a": "ray_front.d0", "b": f"ray_front.d{RAYS - 1}",
-             "k": "$steer_gain", "output": "steer.angle"},
+             "kp": 4.0, "ki": 2.0, "kd": 0.0, "i_limit": 0.5, "output": "drive.throttle"},
+            # The ±20° rays (d2 left, d4 right; 1 = clear): left clearer than right gives a positive (left) steer.
+            # The ±60° rays never see a cone dead ahead. The offset breaks the tie when the truck is dead centre
+            # (both rays equal): without it a centred start drives into the first cone. With it the mock truck
+            # finishes the slalom from 15 starts in about 8 s (Forge > Controllers > Check Runner).
+            {"id": "avoid", "type": "gain", "a": f"ray_front.d{RAYS // 2 - 1}", "b": f"ray_front.d{RAYS // 2 + 1}",
+             "k": "$steer_gain", "offset": 0.2, "output": "steer.angle"},
             {"id": "brake", "type": "rule", "if": [f"ray_front.d{RAYS // 2}", "<", 0.15],
              "set": {"drive.throttle": -0.3}},
         ],
