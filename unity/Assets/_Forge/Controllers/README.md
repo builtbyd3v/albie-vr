@@ -10,12 +10,18 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/ManualController.cs` | `kind: manual` and `ManualInputs`, the fixed inputs that input sources write. |
 | `Scripts/GraphController.cs` | `kind: graph`: const, gain, pid and rule nodes. |
 | `Scripts/ControllerHost.cs` | Runs one controller for one Thing: swap with fallback, fault handling, clamp, speed governor, tunables. |
-| `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported. |
-| `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`. |
+| `Scripts/Learning/LapSet.cs` | `albie.laps/1` files: read and write, the same layout as the Python generator. |
+| `Scripts/Learning/LapRecorder.cs` | Records (sensors → `host.Commanded`) each physics step, with no allocations. It drops idle stretches. |
+| `Scripts/Learning/BehaviourCloner.cs` | On-device training with `NNNetwork`. `Step(ms)` trains within a frame budget; `ToControllerJson` writes the learned file. |
+| `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. |
+| `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. |
+| `Scripts/Sandbox/MockTrial.cs` | Scores a trained net on the mock slalom from 15 starts (sandbox and checks only). |
+| `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`, lap recording, training. |
 | `Editor/ControllersSandboxBuilder.cs` | **Forge > Controllers > Build Sandbox** builds `ControllersSandbox.unity`. |
 | `Editor/ControllersCheck.cs` | **Forge > Controllers > Check Runner**: 9 headless checks. |
+| `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
 
-`kind: learned` is refused for now. It lands with the on-device trainer (16.8, Nov 10).
+`kind: learned` is refused by the host for now. Running a learned file (the autopilot) is the next step (16.8, Nov 10). Training already works.
 
 ## For the Thing runtime (Person 2)
 
@@ -51,5 +57,8 @@ Write `ManualInputs.Values[ManualInputs.IndexOf("stick.y")]` (cache the index) e
 | `A` / `D` | Steer |
 | `[` / `]` | Lower / raise `max_speed` live |
 | `R` | Reset the truck |
+| `T` | Record a lap you drive. Press `T` again to stop; it also stops at the finish or a crash |
+| `L` | Record a lap the scripted driver drives |
+| `B` | Train 3 candidate nets on the completed laps, 4 ms a frame. Saves the laps and the controller files under `Application.persistentDataPath/controllers/` |
 
 The mock files come from `hub/ml/make_controller_mocks.py` (run `python -m ml.make_controller_mocks` from `hub/`).

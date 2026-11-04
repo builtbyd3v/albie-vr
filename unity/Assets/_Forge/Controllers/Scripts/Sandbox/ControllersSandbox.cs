@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -6,32 +7,54 @@ using UnityEngine.InputSystem;
 namespace Forge.Controllers
 {
     /// <summary>
-    /// Desktop sandbox for the controller runner (hub off, mock first). Drives <see cref="MockTruckSim"/> through a
-    /// <see cref="ControllerHost"/> with the mock controller files in Resources/Mocks/controllers.
+    /// Desktop sandbox for the controller runner and behaviour cloning (hub off, mock first). Drives
+    /// <see cref="MockTruckSim"/> through a <see cref="ControllerHost"/> with the mock controller files in
+    /// Resources/Mocks/controllers.
     /// Keys: 1 manual, 2 cruise (graph) · W/S or ↑/↓ throttle, A/D or ←/→ steer (manual) · [ / ] max_speed −/+ 0.2 m/s
-    /// (a live tunable change) · R reset. The readout is a sandbox debug overlay, not product UI.
+    /// (a live tunable change) · R reset · T record a lap you drive (T again to stop; it also stops at the finish or a
+    /// crash) · L record a lap the scripted driver drives · B train 3 candidate nets on the recorded laps (4 ms a
+    /// frame) and save the laps and the candidates' controller files. One training run can fail to drive the course
+    /// (PROJECT_CONTEXT 16.8), so the autopilot (next step) tries the candidates in order. The sandbox also scores each
+    /// candidate on the mock slalom. The readout is a sandbox debug overlay, not product UI.
     /// </summary>
     public sealed class ControllersSandbox : MonoBehaviour
     {
         public Transform truck;
         public LineRenderer[] rays;
         public string[] controllerFiles = { "Mocks/controllers/truck_manual", "Mocks/controllers/truck_cruise" };
+        /// <summary>Training time per frame. 72 fps leaves about 14 ms a frame.</summary>
+        public float trainBudgetMs = 4f;
+        /// <summary>Nets trained per B press, with seeds 1..n. The best of 3 drove the mock slalom in every sweep.</summary>
+        public int candidates = 3;
 
         readonly MockTruckSim sim = new MockTruckSim();
         ControllerHost host;
-        int stickY, handRoll;
-        float lastKeyThrottle, lastKeySteer;
+        LapRecorder recorder;
+        MockDriver autoDriver;
+        BehaviourCloner[] cloners;
+        int training;
+        int stickY, handRoll, lapSeed = 1;
+        float lastKeyThrottle, lastKeySteer, trainStarted;
         string readout = "", status = "";
         float nextReadout;
         readonly System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
 
         public ControllerHost Host => host;
         public MockTruckSim Sim => sim;
+        public LapRecorder Recorder => recorder;
+        /// <summary>The candidate being trained, or the last one when all are done (null before B).</summary>
+        public BehaviourCloner Cloner => cloners == null ? null : cloners[System.Math.Min(training, cloners.Length - 1)];
+        public BehaviourCloner[] Candidates => cloners;
+        public bool Training => cloners != null && training < cloners.Length;
+        public string Status => status;
+        /// <summary>Where B saves the laps and the learned controller.</summary>
+        public static string SaveFolder => Path.Combine(Application.persistentDataPath, "controllers");
 
         void Awake()
         {
             host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
             host.Faulted += reason => status = "FAULT " + reason;
+            recorder = new LapRecorder(host.IO, "truck", 2, "truck_manual", MockTruckSim.MirrorSwap, MockTruckSim.MirrorNegate);
             stickY = ManualInputs.IndexOf("stick.y");
             handRoll = ManualInputs.IndexOf("hand.roll");
             Use(0);
@@ -50,6 +73,42 @@ namespace Forge.Controllers
 
         public void ResetTruck() { sim.Reset(); host.ResetState(); status = "reset"; }
 
+        /// <summary>Starts recording a lap from the start line. With <paramref name="scripted"/>, the scripted driver drives it.</summary>
+        public void StartLap(bool scripted)
+        {
+            if (Training) { status = "training: wait for it to finish"; return; }
+            if (host.Current == null || host.Current.Kind != "manual") Use(0);
+            ResetTruck();
+            autoDriver = scripted ? new MockDriver(lapSeed++) : null;
+            recorder.BeginLap();
+            status = scripted ? "recording a scripted lap" : "recording: drive the slalom (T to stop)";
+        }
+
+        /// <summary>Ends the lap being recorded, keeping it with this outcome.</summary>
+        public void StopLap(string outcome)
+        {
+            if (!recorder.Recording) return;
+            var lap = recorder.EndLap(outcome);
+            if (autoDriver != null) ManualInputs.Clear();
+            autoDriver = null;
+            status = lap == null ? "nothing recorded" : $"lap {lap.Id} {lap.Outcome}: {lap.X.Length} frames, {lap.Seconds} s ({recorder.Set.CompletedLaps} completed)";
+        }
+
+        /// <summary>Starts training the candidates on the completed laps. Training runs in Update, a few ms a frame.</summary>
+        public string Train()
+        {
+            if (Training) return status = "already training";
+            if (recorder.Recording) StopLap("aborted");
+            if (recorder.Set.CompletedLaps == 0) return status = "no completed laps yet: record one with T (or L)";
+            cloners = new BehaviourCloner[System.Math.Max(1, candidates)];
+            for (int i = 0; i < cloners.Length; i++)
+                cloners[i] = new BehaviourCloner(recorder.Set, new BehaviourCloner.Options { Seed = i + 1 });
+            training = 0;
+            trainStarted = Time.unscaledTime;
+            status = $"training {cloners.Length} candidates on {recorder.Set.CompletedLaps} laps ({cloners[0].TrainCount} rows)";
+            return null;
+        }
+
         void Update()
         {
 #if ENABLE_INPUT_SYSTEM
@@ -67,10 +126,44 @@ namespace Forge.Controllers
                 if (k.rKey.wasPressedThisFrame) ResetTruck();
                 if (k.leftBracketKey.wasPressedThisFrame) Tune(-0.2f);
                 if (k.rightBracketKey.wasPressedThisFrame) Tune(0.2f);
+                if (k.tKey.wasPressedThisFrame) { if (recorder.Recording) StopLap("aborted"); else StartLap(false); }
+                if (k.lKey.wasPressedThisFrame && !recorder.Recording) StartLap(true);
+                if (k.bKey.wasPressedThisFrame) Train();
             }
 #endif
+            if (Training && cloners[training].Step(trainBudgetMs) && ++training == cloners.Length) Finished();
             DrawTruck();
             if (Time.unscaledTime >= nextReadout) { nextReadout = Time.unscaledTime + 0.2f; BuildReadout(); }
+        }
+
+        // Saves the laps and each candidate's controller file: truck_autopilot.json is candidate 1 (tried first),
+        // candidates/truck_autopilot_2.json and _3 are the next ones. Step 6's autopilot attaches and drives them.
+        void Finished()
+        {
+            float wall = Time.unscaledTime - trainStarted;
+            int frames = 0; double compute = 0;
+            var scores = new System.Text.StringBuilder();
+            foreach (var c in cloners)
+            {
+                frames += c.Steps; compute += c.ComputeSeconds;
+                if (scores.Length > 0) scores.Append(", ");
+                scores.Append($"seed {c.Settings.Seed}: val {c.ValidationLoss:0.0000}, mock slalom {MockTrial.Finishes(c)}/{MockTrial.Starts}");
+            }
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(SaveFolder, "laps"));
+                Directory.CreateDirectory(Path.Combine(SaveFolder, "candidates"));
+                File.WriteAllText(Path.Combine(SaveFolder, "laps", "sandbox.json"), recorder.Set.ToJson());
+                for (int i = 0; i < cloners.Length; i++)
+                {
+                    string path = i == 0 ? Path.Combine(SaveFolder, "truck_autopilot.json")
+                                         : Path.Combine(SaveFolder, "candidates", $"truck_autopilot_{i + 1}.json");
+                    File.WriteAllText(path, cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f));
+                }
+                status = $"trained {cloners.Length} candidates in {frames} frames ({wall:0.0} s, {compute * 1000:0} ms compute). " +
+                         $"{scores}. Saved to {SaveFolder}";
+            }
+            catch (IOException e) { status = "trained, but saving failed: " + e.Message; }
         }
 
         void Tune(float delta)
@@ -82,9 +175,13 @@ namespace Forge.Controllers
 
         void FixedUpdate()
         {
+            float dt = Time.fixedDeltaTime;
             sim.Sense(host.IO.Sensors);
-            host.Step(Time.fixedDeltaTime, sim.Speed);
-            sim.Step(host.IO.Actuators, Time.fixedDeltaTime);
+            if (autoDriver != null) autoDriver.Drive(sim);
+            host.Step(dt, sim.Speed);
+            recorder.Record(host.IO.Sensors, host.Commanded, dt);
+            sim.Step(host.IO.Actuators, dt);
+            if (recorder.Recording && (sim.Finished || sim.Crashed)) StopLap(sim.Finished ? "completed" : "crashed");
         }
 
         // Sim x → world x, sim y (left) → world z, CCW heading → negative yaw.
@@ -115,14 +212,19 @@ namespace Forge.Controllers
               .Append("   throttle ").Append(host.IO.Actuators[1].ToString("+0.00;-0.00"));
             sb.Append("\nrays ");
             for (int i = 0; i < MockTruckSim.Rays; i++) sb.Append(host.IO.Sensors[i].ToString("0.00")).Append(' ');
+            sb.Append($"\nlaps {recorder.Set.Laps.Count} ({recorder.Set.CompletedLaps} completed)");
+            if (recorder.Recording) sb.Append($"   RECORDING {recorder.Frames} frames");
+            var current = Cloner;
+            if (current != null)
+                sb.Append($"   candidate {System.Math.Min(training + 1, cloners.Length)}/{cloners.Length} epoch {current.Epoch}/{current.Settings.Epochs} val loss {current.ValidationLoss:0.0000}");
             sb.Append("\n").Append(status);
-            sb.Append("\n1 manual  2 cruise  WASD drive  [ ] max_speed  R reset");
+            sb.Append("\n1 manual  2 cruise  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train");
             readout = sb.ToString();
         }
 
         void OnGUI()
         {
-            GUI.Label(new Rect(12, 12, 640, 140), readout);
+            GUI.Label(new Rect(12, 12, 900, 160), readout);
         }
     }
 }

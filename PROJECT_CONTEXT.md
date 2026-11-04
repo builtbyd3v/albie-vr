@@ -2444,7 +2444,7 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 | Nov 4 | Propose C-19 with Person 2: the tick interface (sensors in, actuators out, each physics tick) and the controller file `controllers/<name>.json` (manual, rule and PID graph, or MLP weights with an input and output map, plus tunables such as `max_speed`). Commit a fake Thing that echoes inputs (16.5) and a scripted-driver lap file, `Mocks/Resources/Mocks/controllers/laps/truck_v2.json` (from `hub/ml/make_controller_mocks.py`). |
 | Nov 4 | Extend `NNNetwork` to N outputs, still with no allocations after construction. |
 | Nov 6 | Controller runner in new `Controllers/`: the manual controller (fed by Person 1's hands transmitter through the interface) and the rule and PID graph interpreter, running on the mock Thing. |
-| Nov 8 | Telemetry recorder: a preallocated ring buffer of (rays, speed) → (steer, throttle). `BehaviourCloner`: mirrored laps, input scaling, a train and validation split, training spread over frames so the headset holds 72 fps. **A timed run on a Quest 3.** Decide network size and inputs, and tell Person 2 whether ONNX is needed (default: no, our own C# forward pass). |
+| Nov 8 | Telemetry recorder: a preallocated ring buffer of (rays, speed) → (steer, throttle). `BehaviourCloner`: optional mirrored laps (off by default, see the findings below), input scaling, a train and validation split, training spread over frames so the headset holds 72 fps. **A timed run on a Quest 3.** Decide network size and inputs, and tell Person 2 whether ONNX is needed (default: no, our own C# forward pass). |
 | Nov 10 | `LearnedController`: runs the trained net each physics tick, and saves and loads its weights to the controller file. Swap the mock laps for real laps from Person 2's truck. **Two laps train in about 10 s and the Autopilot drives the truck.** |
 | Nov 12 | Hot reload: a changed controller file applies to the running Thing (with Person 1's code panel). **Pretrained v2 fallback controller** shipped. The Autopilot finishes Person 5's slalom. Each training run logs a notebook attempt (C-17) with its data, loss and slalom result. |
 | Nov 14 | Decide which ML template repos work with no network (default: one bundled on-device template). Stretch: a small "obstacle ahead" classifier on the ray sensors, plugged into a Thing (15.5). |
@@ -2463,6 +2463,12 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 | Nov 16 | Fixes only. |
 
 Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX and the Inference Engine package, Hugging Face fine-tuning (15.10).
+
+**ML A findings for the Nov 8 decisions (2026-11-04, closed-loop sweeps on the mock slalom in the Editor; the Quest timing is still to do).** Each trial recorded 2 laps through the real manual controller, trained, and let the net drive the fake truck from 15 starts.
+- **Inputs:** the 7-ray fan plus speed, with each ray a **0.1 m sphere cast**. Plain rays let a 0.16 m cone slip between them; the beam raised one training run's success from 26-48% to 64-70%. Asked of Person 2 in `docs/CONTROLLER_CONTRACT.md` section 8.
+- **Network:** **8×8 tanh, 120 epochs**, mini-batch SGD (batch 16, rate 0.3). It's the smallest size that reached 100% best-of-3. Training takes about 30 frames at 4 ms a frame in the Editor. **ONNX isn't needed:** our own C# forward pass is enough (told to Person 2 here).
+- **Mirrored laps are off by default.** This corrects 15.11. On a slalom, a mirror teaches "pass left" and "pass right" for the same view, and the net averages them into "straight into the cone". Mirroring and ensembles both made results worse.
+- **Train 3 candidates and let the arena run decide.** One training run finishes the course about 60-90% of the time; the best of 3 seeds reached 98-100%. Validation loss can't pick the good one (in a live run, the lowest-loss net scored 0/15 and the other two 15/15), so the autopilot (Nov 10) tries the candidates in order. The pretrained fallback stays necessary (16.3, Nov 12).
 
 ---
 

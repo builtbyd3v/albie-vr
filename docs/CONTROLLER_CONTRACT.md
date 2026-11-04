@@ -71,7 +71,7 @@ All values are **normalised**, so a controller works at desk scale and at true s
 
 | Part kind | Channels | Range | Meaning |
 |---|---|---|---|
-| `sensor` (ray fan) | `<id>.d0` … `<id>.d{n-1}` | 0 to 1 | Hit distance / range. **1 = nothing hit.** `d0` is the leftmost ray, rays are evenly spread across the fan's angle. |
+| `sensor` (ray fan) | `<id>.d0` … `<id>.d{n-1}` | 0 to 1 | Hit distance / range. **1 = nothing hit.** `d0` is the leftmost ray, rays are evenly spread across the fan's angle. Each ray is a sphere cast with the part's `beam` radius (proposed default 0.1 m), so a thin object can't slip between two rays. |
 | `sensor` (IMU) | `<id>.roll`, `<id>.pitch` | -1 to 1 | Angle / 90°. |
 | | `<id>.yaw_rate` | -1 to 1 | Yaw rate / the part's `max_rate` (default 360°/s). Positive turns left. |
 | `sensor` (speed) | `<id>.forward` | -1 to 1 | Forward speed / the drive's rated top speed from the Thing spec (C-16). This is a fixed scale for the net's inputs. It isn't the controller's `max_speed` tunable. |
@@ -309,6 +309,7 @@ None of these send anything off the device or spend money, so none of them need 
 3. Does the runtime own the speed governor (`limits.speed`), or should each controller apply it? Proposed: the runtime, so it's the same for all three kinds.
 4. Can the runtime publish the mirror map (2.3) with each Thing version?
 5. Does `WheelCollider` vs `ArticulationBody` (your Nov 5 decision) change any channel? Proposed: no, the channels are the same either way.
+6. Can the ray fan cast spheres (`Physics.SphereCast`, radius `beam`, default 0.1 m) instead of plain rays? With plain rays, 7 rays over 120° are about 0.5 m apart at 1.6 m, so a 0.16 m cone flickers in and out of view. On the mock slalom, a 0.1 m beam raised how often a learned driver finished from 26-48% to 64-70% for one training run (ML A sweeps, 2026-11-04).
 
 ## 9. What's out of this contract (for now)
 

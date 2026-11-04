@@ -44,6 +44,7 @@ TRUCK_RADIUS = 0.12
 RAYS = 7
 FOV = math.radians(120)
 RAY_RANGE = 2.0
+BEAM_RADIUS = 0.1                      # each ray is a sphere cast: it also hits things this close to its line
 
 # --- the course: a slalom of cones, inside four walls ---------------------------------------------------------------
 CONE_SPACING = 1.6
@@ -88,14 +89,15 @@ class Truck:
 def _ray(px: float, py: float, dx: float, dy: float) -> float:
     """Distance to the first cone or wall along a unit ray, capped at RAY_RANGE."""
     best = RAY_RANGE
+    r = CONE_RADIUS + BEAM_RADIUS
     for cx, cy in CONES:
         ox, oy = cx - px, cy - py
         along = ox * dx + oy * dy
         if along <= 0:
             continue
         miss2 = ox * ox + oy * oy - along * along
-        if miss2 <= CONE_RADIUS * CONE_RADIUS:
-            best = min(best, along - math.sqrt(CONE_RADIUS * CONE_RADIUS - miss2))
+        if miss2 <= r * r:
+            best = min(best, max(0.0, along - math.sqrt(r * r - miss2)))
     x0, x1, y0, y1 = WALLS
     for wall, p, d in ((x0, px, dx), (x1, px, dx), (y0, py, dy), (y1, py, dy)):
         if abs(d) > 1e-9:
@@ -308,12 +310,12 @@ def build(out: Path = OUT, epochs: int = 300) -> dict:
     done = [lap for lap in laps if lap["outcome"] == "completed"]
     x = np.array([r for lap in done for r in lap["x"]], dtype=float)
     y = np.array([r for lap in done for r in lap["y"]], dtype=float)
-    mx, my = mirror(x, y)
-    # Two laps of rays alone don't train a reliable slalom driver: in a sweep, 1 to 4 of 5 seeds finished
-    # (PROJECT_CONTEXT 15.11). For the mock, keep the first seed whose net completes the course, and say so.
+    # Same choices as the on-device BehaviourCloner (PROJECT_CONTEXT 16.8, Nov 8): beam rays, 8x8, no mirroring
+    # (on a slalom a mirror teaches "pass left" and "pass right" for the same view). One training run still fails
+    # sometimes, so the mock keeps the first seed whose net completes the course, and says so.
     tried = []
     for seed in range(10):
-        net = train_mlp(np.vstack([x, mx]), np.vstack([y, my]), hidden=[8, 8], epochs=epochs, seed=seed)
+        net = train_mlp(x, y, hidden=[8, 8], epochs=epochs, seed=seed)
         check, seconds = run_learned(net, MAX_SPEED_TUNABLE["value"])
         tried.append(check)
         if check == "completed":
@@ -331,7 +333,7 @@ def build(out: Path = OUT, epochs: int = 300) -> dict:
         "outputs": [{"actuator": "steer.angle", "scale": 1.0}, {"actuator": "drive.throttle", "scale": 1.0}],
         "tunables": {"max_speed": MAX_SPEED_TUNABLE},
         "limits": {"speed": "$max_speed"},
-        "training": {"laps": ["laps/truck_v2.json"], "samples": int(len(x) * 2), "mirrored": True, "epochs": epochs,
+        "training": {"laps": ["laps/truck_v2.json"], "samples": int(len(x)), "mirrored": False, "epochs": epochs,
                      "train_loss": round(net["train_loss"], 4), "val_loss": round(net["val_loss"], 4),
                      "device": "mock", "seed": len(tried) - 1,
                      "sim_check": f"{check} in {seconds:.1f} s; seeds tried: {', '.join(tried)}"},
