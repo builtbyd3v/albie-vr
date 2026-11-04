@@ -69,10 +69,10 @@ public static class ControllersCheck
     {
         var host = new ControllerHost(NewIO());
         string manual = host.Attach(Load(0)), cruise = host.Attach(Load(1)), learned = host.Attach(Load(2));
-        note = "manual and cruise bind; learned says: " + learned;
+        note = "manual, cruise and the learned autopilot all bind";
         if (manual != null) return "manual: " + manual;
         if (cruise != null) return "cruise: " + cruise;
-        return learned != null && learned.Contains("Nov 10") ? null : "learned should be refused until the Nov 10 step";
+        return learned == null ? null : "learned: " + learned;
     }
 
     // truck_manual: stick.y → drive.throttle (deadzone 0.05), hand.roll → steer.angle (deadzone 0.08, expo 0.3).
