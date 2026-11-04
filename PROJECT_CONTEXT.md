@@ -28,10 +28,10 @@ Section 16 numbers the five chunks; a name goes here when someone claims one. Th
 |---|---|---|---|---|---|
 | **Satyabrata** | Person 4: controllers and ML | **ML A** (lead): the learning engine and the controller runtime | `ML/`, new `Controllers/`, `hub/ml/` | Propose C-19 (controller file and tick interface) with Person 2. Commit a fake Thing and `Mocks/thing/laps_truck_v2.json`. Grow `NNNetwork` to N outputs (steer, throttle). | 16.8, "ML A (Satyabrata)" |
 | **Nandani** | Person 4: controllers and ML | **ML B**: the brain on the desk (trainer view, panels, tools) | `ML/` | Sketch the brain view against the mock laps: ray-sensor and speed inputs, steer and throttle outputs. | 16.8, "ML B (Nandani)" |
+| **Satyabrata** | Person 5: artifacts and the notebook | Lead (also ML A above) | new `Artifacts/`, new `Notebook/` | Propose C-12 and C-17: freeze the Phase 1 `scene.json` node kinds and rules, and the notebook record. Commit the fixture files (16.5). | 16.3, "Person 5"; decisions in 2.2 |
 | *unclaimed* | Person 1: product, presence, hands, code mode, submission | | `Pet/`, `Code/`, `Messages/` | | 16.3 |
 | *unclaimed* | Person 2: Core and the Thing runtime | | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` | | 16.3 |
 | *unclaimed* | Person 3: brain, voice, cloud, connectors | | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` | | 16.3 |
-| *unclaimed* | Person 5: artifacts and the notebook | | new `Artifacts/`, new `Notebook/` | | 16.3 |
 
 ---
 
@@ -2282,7 +2282,7 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 
 > Updated 2026-11-01. There are 17 days to the deadline. The people are numbered, not named: the team decides who takes which number. These are leads, not walls. Most people will work across streams (16.2).
 >
-> **Claimed so far (2026-11-03):** Person 4 is **Satyabrata (ML A)** and **Nandani (ML B)**; their task lists are in 16.8. The "Who's working on what" table at the top of this file lists every name as it's claimed.
+> **Claimed so far (2026-11-03):** Person 4 is **Satyabrata (ML A)** and **Nandani (ML B)**; their task lists are in 16.8. Person 5 is **Satyabrata**, who took the unclaimed chunk on top of ML A; the goals are in 16.3, and the Person 5 decisions in 2.2 (D-18, D-28, D-34) are Satyabrata's. The "Who's working on what" table at the top of this file lists every name as it's claimed.
 
 ### 16.1 The five chunks
 
@@ -2292,7 +2292,7 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 | **Person 2** | Core and the Thing runtime | 1, 9 | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` |
 | **Person 3** | Brain, voice, cloud, connectors, the messaging backend | 3, 8 | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` |
 | **Person 4** (Satyabrata, ML A; Nandani, ML B) | Controllers and ML. Split into ML A and ML B (16.8) | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
-| **Person 5** | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
+| **Person 5** (Satyabrata) | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
 
 Folders are under `unity/Assets/_Forge/` unless they start with `hub/`, `cloud/` or `cloud-py/`.
 
@@ -2371,7 +2371,7 @@ Each date is the day the goal works in that person's sandbox scene, unless it sa
 | Nov 14 | ML template works as a starter. Neural Net Lab is the trainer view. |
 | Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
 
-**Person 5: artifacts and the notebook**
+**Person 5: artifacts and the notebook** (Satyabrata leads, alongside ML A)
 
 | By | Major goal |
 |---|---|
