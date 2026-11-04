@@ -21,6 +21,7 @@ public static class ArtifactSandboxBuilder
     public static void Build()
     {
         if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        BuildMaterials();
         var prefab = BuildPrefab();
 
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -65,7 +66,41 @@ public static class ArtifactSandboxBuilder
         hostObject.AddComponent<ArtifactSandboxKeys>().host = hostObject.GetComponent<ArtifactHost>();
 
         EditorSceneManager.SaveScene(scene, ScenePath);
-        Debug.Log($"[ArtifactSandboxBuilder] Built {ScenePath}. Press Play, then 1 (Stance), 2 (Slalom), 3 (broken), 4 (missing), 0 (close), 9 (forget approvals).");
+        Debug.Log($"[ArtifactSandboxBuilder] Built {ScenePath}. Press Play, then 1 (Stance), 2 (Slalom), 3 (broken), 4 (missing), 5 (three-body), 0 (close), 9 (forget approvals).");
+    }
+
+    // In Resources, so the shaders ship in a Quest build (ArtifactLook clones these at runtime).
+    static void BuildMaterials()
+    {
+        const string Look = Dir + "/Resources/ArtifactLook";
+        if (!AssetDatabase.IsValidFolder(Dir + "/Resources")) AssetDatabase.CreateFolder(Dir, "Resources");
+        if (!AssetDatabase.IsValidFolder(Look)) AssetDatabase.CreateFolder(Dir + "/Resources", "ArtifactLook");
+
+        var lit = new Material(Shader.Find("Universal Render Pipeline/Lit")) { enableInstancing = true };
+        lit.SetFloat("_Smoothness", 0.62f);
+        Save(lit, Look + "/ArtifactLit.mat");
+
+        var glow = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { enableInstancing = true };
+        Save(glow, Look + "/ArtifactGlow.mat");
+
+        // Premultiplied-style alpha blend, drawn after the room, with no depth write so trails don't cut into each other.
+        var trail = new Material(Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+        trail.SetFloat("_Surface", 1f);
+        trail.SetFloat("_Blend", 0f);
+        trail.SetFloat("_ZWrite", 0f);
+        trail.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+        trail.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        trail.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        trail.SetOverrideTag("RenderType", "Transparent");
+        trail.renderQueue = (int)RenderQueue.Transparent;
+        trail.SetColor("_BaseColor", Color.white);
+        Save(trail, Look + "/ArtifactTrail.mat");
+    }
+
+    static void Save(Material material, string path)
+    {
+        AssetDatabase.DeleteAsset(path);
+        AssetDatabase.CreateAsset(material, path);
     }
 
     static GameObject BuildPrefab()

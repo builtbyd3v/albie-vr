@@ -386,6 +386,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `repo_city/manifest.json`, `repo_city/scene.json`, `repo_city/data/repo_activity.json` | `volume` space, an `array` from a table, a null cell, a `sample` label |
 | `stance/manifest.json`, `stance/scene.json` | A standalone artifact the host builds today: no permissions, live `slider` inputs, `on_input` rules |
 | `broken/manifest.json`, `broken/scene.json` | Fails validation on purpose (`unknown_kind`), for the refusal path |
+| `three_body/manifest.json`, `three_body/scene.json` | A live `sim` artifact (section 14): the figure-eight orbit, with trails, live stats and sliders |
 
 `Mocks/artifacts/sequence.json` plays a whole run through `ForgeMockPlayer`.
 
@@ -414,3 +415,46 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 - Zip bundles, sharing, the cloud library and its cache rules (9.9).
 - The cloud headless check (9.4). It can come back after the competition as an extra gate.
 - Writing to projects from an artifact. `write_project: confirm` is reserved, but no competition artifact uses it.
+
+## 14. Proposal: live simulation (needs Hudson's decision)
+
+> **Status: PROPOSAL, added 2026-11-03.** `docs/ARTIFACTS_BRIEF.md` says an artifact should let you "edit things and see how they work over time". Section 9.8 says a three-body integrator needs Phase 2, and the Phase 1 fallback only plays back precomputed data, which can't react to an edit. This is one way through. It answers the first row of the brief's "Where this differs from the spec" table for simulations a solver covers, and **Hudson decides whether it stays**.
+
+**The idea.** A `sim` node names a **solver**: fixed C# in the host that moves other nodes over time. The agent chooses a solver and writes its numbers. No generated code runs, so D-18 still holds and Phase 2 still needs its spike.
+
+**What this doesn't do.** It isn't "do whatever we want". An artifact can only use solvers we've written, so anything else still waits for Phase 2 or a new solver. Each new solver is one registration, but it's a host change.
+
+```json
+{ "id": "orbits", "kind": "sim", "solver": "n_body", "rot": [38, 0, 0], "rate": "$speed",
+  "params": { "g": 1, "step": 0.001, "softening": 0, "velocity_scale": "$kick", "bound_radius": 2.6 },
+  "bodies": [
+    { "node": "body_a", "mass": 1, "pos": [0.97000436, -0.24308753, 0], "vel": [0.466203685, 0.43236573, 0] },
+    { "node": "body_c", "mass": "$mass_c", "pos": [0, 0, 0], "vel": [-0.93240737, -0.86473146, 0] }
+  ] }
+```
+
+| Field | Rule |
+|---|---|
+| `solver` | `n_body` for now. An unknown solver fails validation. |
+| `bodies` | 1 to 16. Each `node` is driven by exactly one body. Make those nodes children of the `sim` node, so its `rot` tilts the whole system. |
+| `rate` | How fast you watch, in simulated time per second. Changing it never restarts the sim. |
+| `params` | Solver numbers. **Changing any of these, or a body's numbers, restarts the sim**, so what's on screen always comes from the values on the panel. |
+
+**`n_body`.** Leapfrog integration in doubles, with the centre of mass held at the origin. A run is repeatable: the same inputs give the same result. When a body passes `bound_radius`, the sim stops and stays on screen.
+
+**New in the scene:**
+
+| Addition | Rule |
+|---|---|
+| `metric` op `sim` | `{ "type": "metric", "name": "closest", "op": "sim", "sim": "orbits", "value": "closest_approach" }`. `n_body` publishes `time`, `energy_drift_pct`, `closest_approach` and `escaped`. |
+| Action `sim` | `{ "sim": "orbits", "action": "play" }`, with `play`, `pause` or `restart`. |
+| `view` | `{ "radius": 1.25 }`, for `volume` space. Scales that sphere to fit the box, so a scene that moves isn't refitted as it moves. |
+| `line` field `follow` | A fading trail behind a node with the same parent. `length` is at most 2,048 points. |
+| `primitive` field `glow` | Self-lit, for things that should read as light. |
+| `stat` field `decimals` | Default 2. |
+
+**Validation.** It uses the existing codes: `bad_value` for an unknown solver, no bodies, a body driven twice, a mass or step of 0 or less, and a trail with a different parent; `unknown_ref` for a missing node, sim or value; `too_big` for over 16 bodies or a trail over the limit.
+
+**Questions for Hudson:**
+1. Is a set of built-in solvers the right Phase 1 answer to "do whatever we want", or should we go straight to the Phase 2 spike?
+2. Which solvers come next? The brief's drone air simulation is the obvious one, and it probably belongs with the Thing runtime rather than here.

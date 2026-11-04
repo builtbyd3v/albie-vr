@@ -174,6 +174,11 @@ namespace Forge.Artifacts
                 if (space == "room" && Permission("room") != "read")
                     Add("permission_missing", "permissions.room", "space is room, so permissions.room must be read");
                 if (scene.ToString().Length > ArtifactSchema.MaxSceneChars) Add("too_big", "scene", "over the 256 KB limit");
+                if (scene["view"] is JObject view)
+                {
+                    if (space != "volume") Add("bad_value", "scene.view", "view needs space volume");
+                    if (view.Value<double?>("radius") == null || view.Value<double>("radius") <= 0.0) Add("bad_value", "scene.view.radius", "must be above 0");
+                }
 
                 Generators(space);
                 var list = scene["nodes"] as JArray ?? new JArray();
@@ -258,16 +263,53 @@ namespace Forge.Artifacts
                             if (!metrics.Contains(m.Groups[1].Value)) Add("unknown_ref", path + ".text", $"no metric \"{m.Groups[1].Value}\"");
                         break;
                     case "panel": Panel(n, path); break;
+                    case "sim": Sim(n, path); break;
                     case "array": Array(n, path); break;
                     case "gltf":
                         string asset = n.Value<string>("asset");
                         if (asset == null || !assets.Contains(asset)) Add("asset_not_listed", path + ".asset", $"\"{asset}\" isn't in the manifest");
                         break;
                     case "line":
-                        if (n["points"] == null && n["source"] == null) Add("bad_value", path, "needs points or a source");
+                        if (n["points"] == null && n["source"] == null && n["follow"] == null) Add("bad_value", path, "needs points, a source or follow");
                         else Source(n, path);
+                        Follow(n, path);
                         break;
                 }
+            }
+
+            // A trail records its target's local position, so the two have to share a parent to line up.
+            void Follow(JObject n, string path)
+            {
+                string follow = n.Value<string>("follow");
+                if (follow == null) return;
+                if (!nodes.TryGetValue(follow, out var target)) Add("unknown_ref", path + ".follow", $"no node \"{follow}\"");
+                else if (target.Value<string>("parent") != n.Value<string>("parent"))
+                    Add("bad_value", path + ".follow", $"a trail needs the same parent as \"{follow}\"");
+                if (n.Value<int?>("length") > ArtifactSchema.MaxTrailPoints)
+                    Add("too_big", path + ".length", $"{n.Value<int>("length")} is over the limit of {ArtifactSchema.MaxTrailPoints}");
+            }
+
+            void Sim(JObject n, string path)
+            {
+                string solver = n.Value<string>("solver");
+                if (solver == null || !ArtifactSchema.Solvers.ContainsKey(solver)) Add("bad_value", path + ".solver", $"unknown solver \"{solver}\"");
+                if (!(n["bodies"] is JArray bodies) || bodies.Count == 0)
+                {
+                    Add("bad_value", path + ".bodies", "at least one is required");
+                    return;
+                }
+                if (bodies.Count > ArtifactSchema.MaxBodies) Add("too_big", path + ".bodies", $"{bodies.Count} is over the limit of {ArtifactSchema.MaxBodies}");
+                var seen = new HashSet<string>();
+                for (int i = 0; i < bodies.Count; i++)
+                {
+                    string at = $"{path}.bodies[{i}]", node = bodies[i].Value<string>("node");
+                    if (node == null || !nodes.ContainsKey(node)) Add("unknown_ref", at + ".node", $"no node \"{node}\"");
+                    else if (!seen.Add(node)) Add("bad_value", at + ".node", $"\"{node}\" is driven twice");
+                    if (bodies[i]["mass"]?.Type == JTokenType.Float || bodies[i]["mass"]?.Type == JTokenType.Integer)
+                        if (bodies[i].Value<double>("mass") <= 0.0) Add("bad_value", at + ".mass", "must be above 0");
+                }
+                if (n["params"] is JObject p && (p["step"]?.Type == JTokenType.Float || p["step"]?.Type == JTokenType.Integer) && p.Value<double>("step") <= 0.0)
+                    Add("bad_value", path + ".params.step", "must be above 0");
             }
 
             void Primitive(JObject n, string path)
@@ -350,6 +392,20 @@ namespace Forge.Artifacts
                 if (probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", path + ".probe", $"unknown probe \"{probe}\"");
                 if (rule["zones"] != null) ZoneRef(rule.Value<string>("zones"), path + ".zones");
                 if (target != null && !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                if (op == "sim") SimMetric(rule, path);
+            }
+
+            void SimMetric(JToken rule, string path)
+            {
+                string sim = rule.Value<string>("sim"), value = rule.Value<string>("value");
+                if (sim == null || !nodes.TryGetValue(sim, out var node) || node.Value<string>("kind") != "sim")
+                {
+                    Add("unknown_ref", path + ".sim", $"no sim node \"{sim}\"");
+                    return;
+                }
+                string solver = node.Value<string>("solver");
+                if (solver != null && ArtifactSchema.Solvers.TryGetValue(solver, out var values) && System.Array.IndexOf(values, value) < 0)
+                    Add("unknown_ref", path + ".value", $"{solver} has no value \"{value}\"");
             }
 
             void ZoneRef(string id, string path)
