@@ -120,7 +120,7 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
 | `kind` | One of the kinds in 3.2. An unknown kind fails validation. |
 | `parent` | Another node's `id`, or absent. No cycles. |
 | `pos`, `rot`, `scale` | `[x, y, z]`. Default to zero, zero and one. Local to the parent. `pos` is the centre of a shape. `size` doesn't reach a node's children; `scale` does. |
-| `at` | A generator slot (3.3) with exactly one entry. Replaces `pos` and `rot`. |
+| `at` | A generator slot (3.3) with exactly one entry. The node stands on the slot's pose, and its own `pos` and `rot` are offsets from it (a zone lifts itself by half its height). |
 | `visible` | Default `true`. |
 
 ### 3.2 Node kinds (frozen for Phase 1)
@@ -157,6 +157,7 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
   "template": { "kind": "primitive", "shape": "box", "size": [0.05, 1.0, 0.05], "color": "#4C8DFF" } }
 ```
 
+- Over a slot, the template's own `pos` and `rot` are offsets from each pose, the same as `at` (a cone template lifts itself by half its height).
 - `map.height` and `map.width` scale a column linearly into `range`.
 - `map.color` gives each distinct value of a text column its own colour.
 - A null cell shows as the grey "no data" colour at the bottom of the range. It's never drawn as zero (9.8).
@@ -168,7 +169,7 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 ```json
 { "id": "course", "type": "floor_slalom",
   "params": { "gates": "$gates", "spacing_m": "$spacing_m", "min_spacing_m": 0.6, "min_gates": 3,
-              "lane_width_m": 0.7, "clearance_m": 0.25, "around": "COUCH" } }
+              "lane_width_m": 0.6, "clearance_m": 0.15, "around": "COUCH" } }
 ```
 
 | `type` | Params | Slots it fills |
@@ -176,9 +177,13 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 | `floor_slalom` | `gates`, `spacing_m`, `min_spacing_m`, `min_gates`, `lane_width_m`, `clearance_m`, optional `around` (an MRUK label) | `<id>.cones`, `<id>.gates`, `<id>.start`, `<id>.finish` |
 | `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m` | `<id>.hoops`, `<id>.start`, `<id>.finish` |
 
-A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin. Adding a generator type is a host change, so it bumps `min_runtime`.
+A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin. **Every slot is on the floor (`y` = 0)**: a node's own `pos` lifts it. Adding a generator type is a host change, so it bumps `min_runtime`.
+
+**`floor_slalom` geometry (as built, 2026-11-04).** The course runs along its local +z from the start (z = 0): a cone every `spacing_m`, a gate beside each cone on alternating sides at ±`lane_width_m`/2 (the side the Thing passes), and the finish one spacing past the last cone. Its footprint is ±`lane_width_m` either side of the cones, from 0.3 m before the start to 0.3 m after the finish, all on free floor. The search tries courses along or across the room (or the `around` object) first, nearest that object (or the middle of the free floor), and turns a course only when no square one fits at that size.
 
 **Default size.** 5 gates at 0.8 m makes a 4.8 m course, which is meant to fit a living room. These are starting guesses until someone drives a truck through one on a Quest.
+
+**Measured on MRUK's 8 prefab rooms (Person 5, 2026-11-04).** With `lane_width_m` 0.7 and `clearance_m` 0.25 (this contract's first guess), 3 of 8 rooms got a course. With 0.6 and 0.15, 4 of 8 did, and the courses were longer: LivingRoom02 5 gates at 0.8 m, Bedroom00 5 at 0.7, LivingRoom01 4 at 0.6, LivingRoom04 3 at 0.7. The other 4 are small or cluttered and fit no slalom at any setting tried, down to a 0.5 m lane; they get `no_free_floor` with the size needed. The template now uses 0.6 and 0.15. A 0.6 m gate is still almost 3 times the width of the 0.22 m mock truck.
 
 **Free floor** means a point on the floor that passes `MRUKRoom.IsPositionInRoom` and fails `IsPositionInSceneVolume` with `clearance_m` as the buffer. Both exist in MRUK 207. `around` is a preference. If that label isn't in the room, the generator ignores it and says so.
 
@@ -253,6 +258,8 @@ A scene with a `run` block can be scored.
 
 Every metric named in `outputs` must have a `metric` rule, and every `metric` kept in the run record must be in `outputs`.
 
+A `run` block doesn't stop a scene opening: the course shows, and the run engine scores it (Nov 10, second step).
+
 ## 6. Device records
 
 ### 6.1 Layout: `albie.layout/1`
@@ -270,10 +277,12 @@ Every metric named in `outputs` must have a `metric` rule, and every `metric` ke
 }
 ```
 
-- Made once, the first time the artifact opens in a room. It's saved, and reruns reuse it.
+- Made once, the first time the artifact opens in a room. It's saved at `artifacts/<artifact_id>/layouts/<layout_id>.json` on the device, and reruns reuse it: the newest layout with the same `artifact_version`, `scenario`, `room.key` and `fit.requested`.
+- **Furniture moved:** a saved layout whose footprint is no longer free floor isn't reused. A new one is made, and `fit.message` starts "Something in the room has moved since I made the course".
 - `slots` are relative to `room.anchor`, a spatial anchor the host places on the floor and saves (`OVRSpatialAnchor.SaveAnchorAsync`). This is the persistent anchor beat (15.3).
 - **Anchor can't be found:** the host says so and makes a new layout with a new `layout_id`. Old runs stay, but they no longer compare like for like.
-- **Before Nov 12** (saved anchors), the host may set `room.anchor` to null and use the floor anchor. Reruns in one session still match.
+- **Before Nov 12** (saved anchors), the host may set `room.anchor` to null and use the floor anchor. Reruns in one session still match. As built, `room.origin {pos, yaw}` then holds the course start in the room's floor frame (the floor anchor's position, turned to the room's main axis), and `slots` are local to it.
+- In the Editor, MRUK gives a prefab room a new UUID every time it loads, so layouts aren't reused across loads there. On a headset the scanned room keeps its UUID (question 3).
 
 ### 6.2 Run record: `albie.run/1`
 
@@ -363,7 +372,7 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 | Tool | Does | Confirm? |
 |---|---|---|
 | `artifact_list` | The library, the project's artifacts and the templates. | No |
-| `artifact_create {template, inputs?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. | No |
+| `artifact_create {template, inputs?, open?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. As built, `open` (default true) opens it straight away, and the result's `say` is the layout's `fit.message` for Albie to speak. Making the same thing again changes nothing; a different one bumps `version`. | No |
 | `artifact_open {id}` / `artifact_close {id}` | Opens it, with the permissions sheet on first open. | Sheet on first open |
 | `artifact_run {id, scenario?}` | Arms a run on the current version. | No |
 | `artifact_compare {id, runs?}` | Run metrics side by side, with the like-for-like flag. | No |

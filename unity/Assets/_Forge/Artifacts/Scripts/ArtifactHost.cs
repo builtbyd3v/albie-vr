@@ -23,9 +23,39 @@ namespace Forge.Artifacts
 
         readonly List<GameObject> spawned = new List<GameObject>();
         readonly Dictionary<string, GameObject> nodes = new Dictionary<string, GameObject>();
+        readonly HashSet<string> generatorInputs = new HashSet<string>();
         ArtifactPackage open;
         ArtifactBuild build;
         Coroutine reveal;
+        Pose courseOrigin;
+
+        /// <summary>The host Albie's artifact tools use: the last one enabled.</summary>
+        public static ArtifactHost Current { get; private set; }
+
+        /// <summary>
+        /// The room generators place courses in. Null means MRUK's current room (<see cref="MrukFloorPlan.Current"/>);
+        /// sandboxes and checks set a <see cref="MockFloorPlan"/>.
+        /// </summary>
+        public IFloorPlan Room;
+
+        /// <summary>The layout the open artifact is using (C-12 6.1), or null for a scene with no generators.</summary>
+        public JObject LastLayout { get; private set; }
+        /// <summary>True when the layout came from a saved one (a rerun), false when it was just made.</summary>
+        public bool LayoutReused { get; private set; }
+        /// <summary>What Albie should say about the layout: a shrink, a missing couch, or why nothing fits. Null if nothing to say.</summary>
+        public string LayoutMessage { get; private set; }
+        /// <summary>True while the first-open permissions sheet is waiting for a tap.</summary>
+        public bool AwaitingApproval { get; private set; }
+        /// <summary>Where a room-space scene's origin is (world): the course start.</summary>
+        public Pose SceneOrigin => courseOrigin;
+        public ArtifactBuild Build => build;
+
+        void OnEnable() => Current = this;
+
+        void OnDisable()
+        {
+            if (Current == this) Current = null;
+        }
 
         /// <summary>The artifact showing right now, or null.</summary>
         public string OpenId => build != null ? open.Id : null;
@@ -63,11 +93,34 @@ namespace Forge.Artifacts
                 return;
             }
             if (ArtifactApprovals.NeedsApproval(package.Manifest)) AskPermission();
-            else Show();
+            else Show(null, false);
         }
 
         public void Close()
         {
+            Teardown();
+            open = null;
+            LastProblem = null;
+            LastErrors = new List<ArtifactError>();
+            LastLayout = null;
+            LayoutMessage = null;
+            LayoutReused = false;
+            AwaitingApproval = false;
+        }
+
+        /// <summary>Makes a new layout for this room and rebuilds (C-12 <c>artifact_relayout</c>). The old layout and its runs are kept.</summary>
+        public bool Relayout()
+        {
+            if (build == null) return false;
+            var inputs = build.Inputs;
+            Teardown();
+            Show(inputs, true);
+            return build != null;
+        }
+
+        void Teardown()
+        {
+            relayoutAt = -1f;
             if (build != null) build.Inputs.Changed -= OnInputChanged;
             if (reveal != null) StopCoroutine(reveal);
             reveal = null;
@@ -81,10 +134,8 @@ namespace Forge.Artifacts
             }
             spawned.Clear();
             nodes.Clear();
+            generatorInputs.Clear();
             build = null;
-            open = null;
-            LastProblem = null;
-            LastErrors = new List<ArtifactError>();
         }
 
         /// <summary>A ForgePanel owned by the open artifact, with mouse support and no placeholder.</summary>
@@ -150,6 +201,7 @@ namespace Forge.Artifacts
         void AskPermission()
         {
             var manifest = open.Manifest;
+            AwaitingApproval = true;
             var panel = NewPanel(open.Title);
             panel.Subtitle = "First time opening";
             float y = ArtifactWidgets.Note(panel.Content, 0f, "This artifact would like to:", true) + 10f;
@@ -166,8 +218,10 @@ namespace Forge.Artifacts
             panel.SizeMeters = new Vector2(ArtifactWidgets.PanelWidth, ArtifactWidgets.PanelHeight(y + 34f)) * ForgePanel.MetersPerUnit;
         }
 
-        void Show()
+        // inputs: keep these values (a rebuild after a generator input changed). forceNew: ignore the saved layout.
+        void Show(ArtifactInputs keep, bool forceNew)
         {
+            AwaitingApproval = false;
             var missing = ArtifactNodes.Missing(open.Scene);
             if (missing.Count > 0)
             {
@@ -175,10 +229,41 @@ namespace Forge.Artifacts
                 return;
             }
 
-            var scenario = (open.Manifest["scenarios"] as JArray)?[0];
-            var inputs = new ArtifactInputs(open.Manifest, scenario?["params"] as JObject);
+            var scenario = (open.Manifest["scenarios"] as JArray)?[0] as JObject;
+            var inputs = keep ?? new ArtifactInputs(open.Manifest, scenario?["params"] as JObject);
+            bool room = open.Scene.Value<string>("space") == "room";
+            var slots = new Dictionary<string, List<Pose>>();
+            courseOrigin = new Pose(transform.position, transform.rotation);
+            if (open.Scene["generators"] is JArray generators && generators.Count > 0)
+            {
+                if (generators.Count > 1)
+                {
+                    Refuse(open.Title, "This version places one generator per scene.");
+                    return;
+                }
+                var placement = ArtifactGenerators.Place(open.Manifest, (JObject)generators[0], inputs, scenario, Room ?? MrukFloorPlan.Current(), forceNew);
+                LayoutMessage = placement.Message;
+                if (!placement.Ok)
+                {
+                    LastErrors = new List<ArtifactError> { new ArtifactError(placement.Code, "generators[0]", placement.Message) };
+                    Emit("artifact.layout", new JObject { ["artifact_id"] = open.Id, ["layout_id"] = null, ["placed"] = null, ["shrunk"] = false, ["code"] = placement.Code, ["message"] = placement.Message });
+                    Refuse(open.Title, placement.Message);
+                    return;
+                }
+                LastLayout = placement.Layout;
+                LayoutReused = placement.Reused;
+                courseOrigin = placement.Origin;
+                slots = placement.Slots;
+                CollectInputs(generators[0]["params"], generatorInputs);
+                Emit("artifact.layout", new JObject
+                {
+                    ["artifact_id"] = open.Id, ["layout_id"] = LastLayout["layout_id"], ["placed"] = LastLayout["fit"]["placed"],
+                    ["shrunk"] = LastLayout["fit"]["shrunk"], ["reused"] = LayoutReused, ["message"] = LayoutMessage,
+                });
+            }
+
             var root = new GameObject("Content").transform;
-            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes };
+            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots };
 
             var list = open.Scene["nodes"] as JArray ?? new JArray();
             foreach (JObject node in list) nodes[node.Value<string>("id")] = ArtifactNodes.Build(node, build);
@@ -187,10 +272,34 @@ namespace Forge.Artifacts
 
             float scale = 1f;
             if (open.Scene.Value<string>("space") == "volume") scale = ShowVolume(root);
+            else if (room) PlaceInRoom(root);
             else Hold(root);
 
             inputs.Changed += OnInputChanged;
             reveal = StartCoroutine(Reveal(root, scale));
+        }
+
+        // A room scene stands on the real floor at the course origin, at true scale. It isn't parented to the host, so
+        // moving the host (or the desk it sits on) never drags a course across the room.
+        void PlaceInRoom(Transform root)
+        {
+            root.SetParent(null, false);
+            root.SetPositionAndRotation(courseOrigin.position, courseOrigin.rotation);
+            spawned.Add(root.gameObject);
+        }
+
+        static void CollectInputs(JToken token, HashSet<string> into)
+        {
+            if (token == null) return;
+            if (token.Type == JTokenType.String && ((string)token).StartsWith("$")) into.Add(((string)token).Substring(1));
+            foreach (var child in token.Children()) CollectInputs(child, into);
+        }
+
+        static void Emit(string type, JObject payload)
+        {
+            if (!Application.isPlaying) return;
+            try { ForgeNet.Emit(type, payload); }
+            catch (System.Exception e) { Debug.LogException(e); }
         }
 
         void Hold(Transform root)
@@ -232,14 +341,18 @@ namespace Forge.Artifacts
                 var pos = n["pos"];
                 var rot = n["rot"];
                 var scale = n["scale"];
+                // On a generator slot, pos and rot are offsets from the slot's pose (a zone lifts itself off the floor).
+                string at = n.Value<string>("at");
+                var slot = at != null && build.Slots.TryGetValue(at, out var poses) && poses.Count > 0 ? poses[0] : new Pose(Vector3.zero, Quaternion.identity);
                 build.Apply(() =>
                 {
-                    go.transform.localPosition = build.Inputs.Vector(pos, Vector3.zero);
-                    go.transform.localEulerAngles = build.Inputs.Vector(rot, Vector3.zero);
+                    go.transform.localPosition = slot.position + slot.rotation * build.Inputs.Vector(pos, Vector3.zero);
+                    go.transform.localRotation = slot.rotation * Quaternion.Euler(build.Inputs.Vector(rot, Vector3.zero));
                     go.transform.localScale = build.Inputs.Vector(scale, Vector3.one);
                 }, ArtifactInputs.IsBound(pos) || ArtifactInputs.IsBound(rot) || ArtifactInputs.IsBound(scale));
             }
             else if (n["pos"] != null) PlacePanel(go.transform, build.Inputs.Vector(n["pos"], panelOffset));
+            else if (open.Scene.Value<string>("space") == "room") PlaceBesideCourse(go.transform);
             if (n.Value<bool?>("visible") == false) go.SetActive(false);
         }
 
@@ -249,6 +362,24 @@ namespace Forge.Artifacts
             panel.localPosition = offset;
             var cam = Camera.main;
             if (cam != null) panel.rotation = Quaternion.LookRotation(panel.position - cam.transform.position);
+        }
+
+        // A course's scoreboard stands beside the start at chest height, on whichever side is free floor (never in a
+        // wall or a cupboard), turned to whoever is looking. With neither side free, it floats just behind the start.
+        void PlaceBesideCourse(Transform panel)
+        {
+            var room = Room ?? MrukFloorPlan.Current();
+            var spot = new Vector3(0f, 1.1f, -0.7f);
+            foreach (var side in new[] { new Vector3(-1.1f, 1.1f, 0.4f), new Vector3(1.1f, 1.1f, 0.4f) })
+                if (room != null && room.HasFloor && room.IsFree(courseOrigin.position + courseOrigin.rotation * side, 0.05f))
+                {
+                    spot = side;
+                    break;
+                }
+            panel.position = courseOrigin.position + courseOrigin.rotation * spot;
+            var cam = Camera.main;
+            if (cam != null) panel.rotation = Quaternion.LookRotation(panel.position - cam.transform.position);
+            else panel.rotation = courseOrigin.rotation;
         }
 
         void Refuse(string title, string message)
@@ -262,7 +393,29 @@ namespace Forge.Artifacts
             LastProblem = problem;
         }
 
-        void OnInputChanged(string input) => build.Refresh();
+        // A generator input (gates, spacing) changes the course itself, so it's laid out again; anything else follows live.
+        void OnInputChanged(string input)
+        {
+            if (!generatorInputs.Contains(input))
+            {
+                build.Refresh();
+                return;
+            }
+            relayoutAt = Time.unscaledTime + RelayoutDelay;  // wait until a slider drag settles
+        }
+
+        const float RelayoutDelay = 0.4f;
+        float relayoutAt = -1f;
+
+        void Update()
+        {
+            if (relayoutAt < 0f || Time.unscaledTime < relayoutAt) return;
+            relayoutAt = -1f;
+            if (build == null) return;
+            var inputs = build.Inputs;
+            Teardown();
+            Show(inputs, false);
+        }
 
         // Grows in rather than popping, so it feels placed. Scales the root's child space only, never the Fit.
         IEnumerator Reveal(Transform root, float scale)
