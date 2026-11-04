@@ -1,7 +1,7 @@
 # Team handoff: Dev away Nov 4 to Nov 16
 
 - Dev is offline Nov 4 to Nov 9, then out of state until Nov 14, and back in person Mon Nov 16. The Meta VR Start deadline is Wed Nov 18, 12:00 PM PT.
-- Hudson (hudmarr) is the point person and a repo admin. Dev stays repo owner.
+- Hudson (hudmarr) is the point person. Everyone with write access can merge and run the deploy workflows. Only Dev (repo owner) can change repo secrets.
 - Both clouds stay on Dev's accounts. You change them through git: merge to `main` and GitHub Actions redeploys. No account access needed.
 - `main` is the on-device Albie (no laptop). `feat/voice-cost` is untested WIP. Do not merge it.
 - Building an APK needs 2 things that are not in git: the app key and the gator files (section 4).
@@ -15,7 +15,7 @@
 | xAI (Grok) key | Voice | in Vercel env `XAI_API_KEY` | Hudson. He extends its expiry in the xAI console. | Hudson only |
 | Anthropic key | Code panel, crew, ML "improve" | in Vercel env `ANTHROPIC_API_KEY` | capped at $50/month | Workflow with "sync keys" |
 | App key | Headset proves it is Albie to both clouds | Vercel env + HF secret `ALBIE_APP_KEY`; local file `unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt` (git-ignored) | shared once by Dev | Don't change it: every installed APK carries it |
-| GitHub `builtbyd3v/albie-vr` | Code, PRs, Actions | private | Dev (owner), Hudson (admin) | PRs |
+| GitHub `builtbyd3v/albie-vr` | Code, PRs, Actions | private | Dev (owner), team (write) | PRs |
 
 The headset reads both URLs from code defaults: `unity/Assets/_Forge/Core/Net/ForgeCloud.cs` and `unity/Assets/_Forge/Core/Scripts/AlbieVoiceToken.cs`. Keep them as they are, or every APK must be rebuilt.
 
@@ -37,9 +37,9 @@ A `401` in a browser is normal: every route, `/health` included, needs the `x-al
 
 ## 3. Change a key
 
-- **Grok key expired** (voice says it can't reach the voice service, Vercel logs show a 502 from xAI "Incorrect API key"): Hudson extends it in the xAI console. The value stays the same, so nothing else changes. A new value: Hudson sets the repo secret `XAI_API_KEY`, then runs **Deploy Vercel cloud** with **sync keys** ticked.
-- **Claude key:** set the repo secret `ANTHROPIC_API_KEY`, then run **Deploy Vercel cloud** with **sync keys** ticked.
-- Repo secrets: GitHub > Settings > Secrets and variables > Actions (admins only). Nobody can read a secret back, not even admins.
+- **Grok key expired** (voice says it can't reach the voice service, Vercel logs show a 502 from xAI "Incorrect API key"): Hudson extends it in the xAI console. The value stays the same, so nothing else changes. A new value: Dev sets the repo secret `XAI_API_KEY` (message Dev), then anyone runs **Deploy Vercel cloud** with **sync keys** ticked.
+- **Claude key:** Dev sets the repo secret `ANTHROPIC_API_KEY`, then anyone runs **Deploy Vercel cloud** with **sync keys** ticked.
+- Repo secrets: GitHub > Settings > Secrets and variables > Actions (repo owner only). Nobody can read a secret back.
 - A secret you never set is skipped, and Vercel keeps its current value.
 - The HF Space's `CLAUDE_PROXY_URL` lives in the Space settings. The deploy doesn't touch it.
 
