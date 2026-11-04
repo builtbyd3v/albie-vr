@@ -19,7 +19,7 @@ using UnityEngine;
 /// <see cref="AlbieTools"/>. Kept from voice.py: barge-in, the no-reply guard, tool results after response.done with
 /// one response.create. Not yet: name gating, the reply-length cut, delegate (the Claude runner).
 /// Cost: xAI bills every minute the session is open, so it opens only for a turn (lazy), room speech (WakeListener's
-/// wake turns) reaches it only while the user faces Albie, and it closes FollowUpS + IdleCloseS after his last word.
+/// wake, follow-up and barge-in turns) reaches it only while the user faces Albie, and it closes FollowUpS + IdleCloseS after his last word.
 /// A new session gets the last few lines in its instructions, so a reconnect keeps the thread.
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).
 /// Installs itself; off in a build with no voice token server (<see cref="AlbieVoiceToken"/>).
@@ -87,7 +87,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     // The turn and the reply in progress.
     int turnSeq, fed;
-    bool turnOpen, turnCancelled, committed, finalSent;
+    bool turnOpen, turnCancelled, committed, finalSent, droppedTurn;
     string partial = "";
     bool responseActive, audioStarted, answerDone;
     string utterance, answer = "", petMode;
@@ -155,9 +155,15 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 ForgeNet.Inject("voice.ready", new JObject { ["pet_id"] = PetId, ["provider"] = "grok", ["sample_rate"] = outRate });
                 break;  // no connect here: the first turn opens the session
             case "stt.start":
-                // Room speech with no conversation going: only while the user faces Albie (the hub's wake.py drops the
-                // rest silently too). Follow-up, barge-in and button turns aren't wake turns, so they always count.
-                if (payload?.Value<bool?>("wake") == true && payload.Value<bool?>("facing") != true) break;
+                // Hands-free speech reaches Grok only while the user faces Albie (each open minute is billed, and side
+                // talk kept answering itself). Wake turns carry facing; follow-up / barge-in turns carry require_name
+                // when not facing (GatorFollowUp). Button and whistle turns always count. The hub drops these too.
+                bool wake = payload?.Value<bool?>("wake") == true;
+                if (wake ? payload.Value<bool?>("facing") != true : payload?.Value<bool?>("require_name") == true)
+                {
+                    droppedTurn = !wake;  // PushToTalk waits for this turn's stt.final; WakeListener doesn't
+                    break;
+                }
                 lastActivity = Time.realtimeSinceStartup;
                 if (responseActive || audioStarted) StopSpeech("barge_in");
                 turnSeq++;
@@ -173,6 +179,12 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
                 break;
             case "stt.stop":
+                if (droppedTurn)
+                {
+                    droppedTurn = false;
+                    Emit("stt.final", new JObject { ["text"] = "", ["voice"] = true }, null);
+                    break;
+                }
                 CommitTurn();
                 break;
             case "tts.stop":

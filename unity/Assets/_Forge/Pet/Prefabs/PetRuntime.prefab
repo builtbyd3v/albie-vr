@@ -5596,9 +5596,9 @@ MonoBehaviour:
   loudLevel: 0.05
   loudSeconds: 0.15
   lookToTalk: 1
-  lookAngle: 40
+  lookAngle: 15
   lookGrace: 1.5
-  lookCountsAsName: 0
+  lookCountsAsName: 1
 --- !u!114 &612942480473611363
 MonoBehaviour:
   m_ObjectHideFlags: 0
