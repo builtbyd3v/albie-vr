@@ -56,7 +56,7 @@ Fixtures are in `unity/Assets/_Forge/Mocks/Resources/Mocks/notebook/` (section 1
 | Field | Rule |
 |---|---|
 | `id` | `ent_` plus a per-project counter. Never reused. |
-| `project_version` | The version current when the entry was opened. |
+| `project_version` | The version current when the entry was opened. `0` before the project's first cut. |
 | `kind` | `attempt`, `training` or `postmortem` (section 3). |
 | `change`, `rationale`, `expected` | Plain sentences. `expected` may be null: not everything had a prediction. |
 | `rationale_by` | `person` or `albie`: your words or Albie's (15.8). |
@@ -83,7 +83,7 @@ Fixtures are in `unity/Assets/_Forge/Mocks/Resources/Mocks/notebook/` (section 1
 |---|---|---|
 | A project version is cut (section 4) | Project module | New `attempt`, `open`, with `change` from the cut |
 | A training run ends | ML A's `BehaviourCloner` | New `training` entry on the current version, with `observed.training` |
-| A run ends | Artifact host | The run id is added to the newest `open` entry on that version. If there's none, a new `attempt` is opened. |
+| A run ends | Artifact host | The run id is added to the newest entry on that version that is still `open` or was only judged by a run (`outcome_by: run`). If there's none, a new `attempt` is opened. A run's suggested outcome doesn't close the entry to later runs: `ent_0002` in the fixtures has a failed run, then a completed one. |
 | The Thing rolls over | Notebook, on `thing.incident` | The incident is added to the newest `open` entry, or a new one, the same way. It doesn't change the outcome on its own. |
 | "That didn't work", or tapping ✗ | Agent, through `notebook_mark` | `failed`, `outcome_by: person`. Albie asks one question, then writes the lesson with a second `notebook_mark`. |
 | A whole plan fails | Agent, through `plan_revise` | New `postmortem` entry and a new plan version (section 6) |
@@ -229,6 +229,8 @@ namespace Forge.Notebook
 
 All of it runs on the main thread. File writes happen on a background queue, in order.
 
+**As built in v1 (2026-11-04):** `Mark` also takes an optional `lessonBy` (default `albie`: Albie writes a lesson's words from what the person said). The store also has `Open`, `Close`, `Flush`, `CutVersion(cutBy, summary, pins)` (section 4), `AddIncident` (section 11, question 1), `Read` (`notebook_read`), `SetLessonHidden` and `SeedFixtures` (section 10). ML A's `Forge.Controllers.TrainingLog` is connected to `LogTraining` at Play start. Module notes: `unity/Assets/_Forge/Notebook/README.md`.
+
 ## 9. Events and tools
 
 **Events.** Raised with `ForgeNet.Emit` and read with `ForgeNet.On`, so they work with no hub and need no change to `ForgeEvents.cs`.
@@ -245,8 +247,8 @@ All of it runs on the main thread. File writes happen on a background queue, in 
 | Tool | Does | Confirm? |
 |---|---|---|
 | `notebook_read {last?}` | Plan, recent entries and matching lessons (section 5). | No |
-| `notebook_log {change, rationale, expected?, tags}` | Opens an attempt. | No |
-| `notebook_mark {outcome, entry?, note?, lesson?, tags?}` | Marks the newest open entry, or the one named. | No |
+| `notebook_log {change, rationale, rationale_by?, expected?, tags}` | Opens an attempt. `rationale_by` is `person` when quoting the person, else `albie` (default). | No |
+| `notebook_mark {outcome, by?, entry?, note?, lesson?, tags?}` | Marks the newest open entry, or the one named. `by` is `person` (default: "that didn't work") or `albie` for Albie's own judgment. Marking the same outcome again only adds the note or lesson. | No |
 | `notebook_lessons {tags}` | Lessons that match, skipping `hidden`. | No |
 | `plan_revise {reason, goal?, milestones?, test?}` | Writes a postmortem and a new plan. The old one is kept. | No |
 
@@ -291,6 +293,7 @@ Under `Mocks/Resources/Mocks/notebook/`. In mock mode `NotebookStore` seeds itse
 **For ML A:**
 
 6. `LogTraining` copies the `training` block as it is, so the mock's `sim_check` field will appear in `observed.training`. That's fine for the notebook. Should it be added to C-19 section 3.4?
+   **Answered (ML A, 2026-11-04):** yes. C-19 section 3.4 now lists the optional `sim_check` and `candidates` (one block per candidate trained, step 7).
 
 ## 12. What's out of this contract (for now)
 
