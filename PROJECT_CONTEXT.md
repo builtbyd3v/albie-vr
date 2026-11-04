@@ -1782,7 +1782,7 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 | C-16 | Thing spec `thing.spec/1`, `thing.updated`, and the `thing_*` tools: any physical object built from a parts kit on the device. | 15.2 | New Thing runtime (Unity), agent tools |
 | C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. | 15.8 | Project module |
 | C-18 | Connectors: one interface over the built-in, broker, MCP and future Muse backends. `connectors.list`, `connector.call`, `connector.snapshot`, permissions like `source_control:read`. | 9.6, 10.7 | New Connectors module, `cloud/`, `cloud-py/`, artifact manifest |
-| C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. | 15.4 | Thing runtime, ML, Code |
+| C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. Full proposal: `docs/CONTROLLER_CONTRACT.md` (2026-11-03, Person 4 / ML A). | 15.4 | Thing runtime, ML, Code |
 | C-20 | Messages: `messages.link`, `messages.draft {text, file_ref}`, `messages.confirm`, and `messages.status {delivered, failed, reason}`. No provider name in the payload. | 10.5, 14.12 | `cloud/`, `Messages/`, `confirm.request` |
 
 ---
