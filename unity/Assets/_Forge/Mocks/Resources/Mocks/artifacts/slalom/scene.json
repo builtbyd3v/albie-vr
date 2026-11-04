@@ -1,0 +1,210 @@
+{
+  "schema": "albie.scene/1",
+  "space": "room",
+  "generators": [
+    {
+      "id": "course",
+      "type": "floor_slalom",
+      "params": {
+        "gates": "$gates",
+        "spacing_m": "$spacing_m",
+        "min_spacing_m": 0.6,
+        "min_gates": 3,
+        "lane_width_m": 0.7,
+        "clearance_m": 0.25,
+        "around": "COUCH"
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cones",
+      "kind": "array",
+      "source": "course.cones",
+      "template": {
+        "kind": "primitive",
+        "shape": "cone",
+        "size": [
+          0.12,
+          0.24,
+          0.12
+        ],
+        "color": "#FF7A1A",
+        "collider": true
+      }
+    },
+    {
+      "id": "gates",
+      "kind": "array",
+      "source": "course.gates",
+      "template": {
+        "kind": "zone",
+        "size": [
+          0.7,
+          0.5,
+          0.2
+        ]
+      }
+    },
+    {
+      "id": "start",
+      "kind": "zone",
+      "at": "course.start",
+      "size": [
+        0.9,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "id": "finish",
+      "kind": "zone",
+      "at": "course.finish",
+      "size": [
+        0.9,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "id": "guide",
+      "kind": "line",
+      "source": "course.gates",
+      "width": 0.01,
+      "color": "#7CFFB2"
+    },
+    {
+      "id": "time_label",
+      "kind": "text",
+      "parent": "finish",
+      "pos": [
+        0,
+        0.4,
+        0
+      ],
+      "text": "{completion_time_s} s",
+      "height": 0.08,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "scoreboard",
+      "kind": "panel",
+      "title": "Slalom",
+      "widgets": [
+        {
+          "type": "stat",
+          "metric": "completion_time_s",
+          "label": "Time",
+          "unit": "s"
+        },
+        {
+          "type": "stat",
+          "metric": "gates_passed",
+          "label": "Gates"
+        },
+        {
+          "type": "stat",
+          "metric": "collisions",
+          "label": "Cones hit"
+        },
+        {
+          "type": "runs",
+          "columns": [
+            "completion_time_s",
+            "collisions",
+            "top_speed_ms"
+          ],
+          "limit": 5
+        },
+        {
+          "type": "slider",
+          "input": "spacing_m"
+        },
+        {
+          "type": "button",
+          "id": "rerun",
+          "label": "Run again"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "metric",
+      "name": "completion_time_s",
+      "op": "elapsed"
+    },
+    {
+      "type": "metric",
+      "name": "gates_passed",
+      "op": "zone_count",
+      "zones": "gates",
+      "ordered": true
+    },
+    {
+      "type": "metric",
+      "name": "collisions",
+      "op": "hit_count",
+      "nodes": "cones"
+    },
+    {
+      "type": "metric",
+      "name": "top_speed_ms",
+      "op": "max",
+      "probe": "speed_ms"
+    },
+    {
+      "type": "on_input",
+      "input": "rerun",
+      "do": [
+        {
+          "run": "reset"
+        },
+        {
+          "set": "time_label.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "on_zone",
+      "zone": "finish",
+      "event": "enter",
+      "do": [
+        {
+          "set": "time_label.visible",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "run": {
+    "start": {
+      "zone": "start"
+    },
+    "finish": {
+      "zone": "finish",
+      "needs": [
+        {
+          "metric": "gates_passed",
+          "min": "@course.gates"
+        }
+      ],
+      "else_reason": "missed_gate"
+    },
+    "fail": [
+      {
+        "probe": "upright",
+        "below": 0.3,
+        "for_s": 1,
+        "reason": "rolled_over"
+      },
+      {
+        "timeout_s": 90,
+        "reason": "timeout"
+      }
+    ]
+  }
+}

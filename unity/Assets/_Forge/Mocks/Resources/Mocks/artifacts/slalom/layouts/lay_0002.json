@@ -1,0 +1,156 @@
+{
+  "schema": "albie.layout/1",
+  "layout_id": "lay_0002",
+  "artifact_id": "slalom",
+  "artifact_version": 1,
+  "scenario": "default",
+  "seed": 42,
+  "room": {
+    "key": "00000000-0000-4000-8000-000000000002",
+    "anchor": "00000000-0000-4000-8000-0000000000a2"
+  },
+  "fit": {
+    "requested": {
+      "gates": 5,
+      "spacing_m": 0.8
+    },
+    "placed": {
+      "gates": 4,
+      "spacing_m": 0.6
+    },
+    "shrunk": true,
+    "around_found": false,
+    "message": "This room is tight and I can't find a couch, so I made a shorter course: 4 gates, 0.6 m apart."
+  },
+  "slots": {
+    "course.cones": [
+      {
+        "pos": [
+          0,
+          0,
+          0.6
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          0,
+          0,
+          1.2
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          0,
+          0,
+          1.8
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          0,
+          0,
+          2.4
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "course.gates": [
+      {
+        "pos": [
+          0.35,
+          0.25,
+          0.6
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          -0.35,
+          0.25,
+          1.2
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          0.35,
+          0.25,
+          1.8
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "pos": [
+          -0.35,
+          0.25,
+          2.4
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "course.start": [
+      {
+        "pos": [
+          0,
+          0.25,
+          0
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "course.finish": [
+      {
+        "pos": [
+          0,
+          0.25,
+          3
+        ],
+        "rot": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "created_at": "2026-11-11T09:30:00Z"
+}

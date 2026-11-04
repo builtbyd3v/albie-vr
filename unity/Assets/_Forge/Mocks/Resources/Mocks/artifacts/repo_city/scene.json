@@ -1,0 +1,53 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "generators": [],
+  "nodes": [
+    {
+      "id": "city",
+      "kind": "array",
+      "source": {
+        "table": "repo_activity",
+        "grid": {
+          "columns": 6,
+          "gap_m": 0.04
+        }
+      },
+      "map": {
+        "height": {
+          "column": "lines_changed",
+          "range": [
+            0.02,
+            0.4
+          ]
+        },
+        "color": {
+          "column": "author"
+        }
+      },
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "size": [
+          0.05,
+          1,
+          0.05
+        ],
+        "color": "#4C8DFF"
+      }
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "What shipped this week",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "Each block is a commit. Taller means more lines changed."
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "run": null
+}

@@ -1,0 +1,167 @@
+[
+  {
+    "schema": "albie.notebook.entry/1",
+    "id": "ent_0001",
+    "project_id": "proj_truck",
+    "project_version": 1,
+    "kind": "attempt",
+    "change": "First truck: 4 wheels, rear drive, servo steering.",
+    "rationale": "Simplest truck that can do a slalom around the couch.",
+    "rationale_by": "albie",
+    "expected": "Drives around the couch without tipping.",
+    "observed": {
+      "runs": [],
+      "incidents": [
+        {
+          "kind": "rolled_over",
+          "thing": "truck",
+          "thing_version": 1,
+          "speed_ms": 2.1,
+          "at": "2026-11-10T13:58:40Z"
+        }
+      ],
+      "training": null,
+      "note": "Rolled over on a sharp turn at 2.1 m/s."
+    },
+    "outcome": "failed",
+    "outcome_by": "person",
+    "lesson": "Track width under 1.6x the CoG height rolls at this speed.",
+    "lesson_id": "les_0001",
+    "tags": [
+      "vehicle",
+      "stability"
+    ],
+    "created_at": "2026-11-10T13:55:02Z",
+    "updated_at": "2026-11-10T13:59:10Z"
+  },
+  {
+    "schema": "albie.notebook.entry/1",
+    "id": "ent_0002",
+    "project_id": "proj_truck",
+    "project_version": 2,
+    "kind": "attempt",
+    "change": "Wider track and a lower centre of mass.",
+    "rationale": "It rolled over on a sharp turn.",
+    "rationale_by": "person",
+    "expected": "Takes the same turn without rolling.",
+    "observed": {
+      "runs": [
+        "run_0001",
+        "run_0002"
+      ],
+      "incidents": [],
+      "training": null,
+      "note": "Rolled once at 2.3 m/s, then finished the slalom in 8.6 s at a lower speed."
+    },
+    "outcome": "worked",
+    "outcome_by": "run",
+    "lesson": null,
+    "lesson_id": null,
+    "tags": [
+      "vehicle",
+      "stability"
+    ],
+    "created_at": "2026-11-10T14:00:30Z",
+    "updated_at": "2026-11-10T14:06:11Z"
+  },
+  {
+    "schema": "albie.notebook.entry/1",
+    "id": "ent_0003",
+    "project_id": "proj_truck",
+    "project_version": 2,
+    "kind": "training",
+    "change": "Trained truck_autopilot on two laps.",
+    "rationale": "Let Albie drive the slalom.",
+    "rationale_by": "person",
+    "expected": "Autopilot finishes the slalom.",
+    "observed": {
+      "runs": [
+        "run_0003"
+      ],
+      "incidents": [],
+      "training": {
+        "laps": [
+          "laps/truck_v2.json"
+        ],
+        "samples": 1676,
+        "mirrored": true,
+        "epochs": 300,
+        "train_loss": 0.0061,
+        "val_loss": 0.0065,
+        "device": "mock",
+        "seed": 2,
+        "sim_check": "completed in 7.4 s; seeds tried: crashed, crashed, completed",
+        "controller": "truck_autopilot",
+        "controller_version": 1
+      },
+      "note": "Finished the slalom in 7.4 s with no cones hit."
+    },
+    "outcome": "worked",
+    "outcome_by": "run",
+    "lesson": null,
+    "lesson_id": null,
+    "tags": [
+      "ml",
+      "control"
+    ],
+    "created_at": "2026-11-10T14:12:40Z",
+    "updated_at": "2026-11-10T14:15:07Z"
+  },
+  {
+    "schema": "albie.notebook.entry/1",
+    "id": "ent_0004",
+    "project_id": "proj_truck",
+    "project_version": 3,
+    "kind": "attempt",
+    "change": "Autopilot max_speed raised to 2.2 m/s.",
+    "rationale": "See how fast it can go.",
+    "rationale_by": "person",
+    "expected": "A faster lap with no cones hit.",
+    "observed": {
+      "runs": [
+        "run_0004"
+      ],
+      "incidents": [],
+      "training": null,
+      "note": "Finished in 5.9 s but hit one cone."
+    },
+    "outcome": "partly",
+    "outcome_by": "person",
+    "lesson": "An Autopilot trained on laps at 1.5 m/s clipped a cone at 2.2 m/s. Retrain after a big speed change.",
+    "lesson_id": "les_0002",
+    "tags": [
+      "ml",
+      "control"
+    ],
+    "created_at": "2026-11-10T14:20:15Z",
+    "updated_at": "2026-11-10T14:23:00Z"
+  },
+  {
+    "schema": "albie.notebook.entry/1",
+    "id": "ent_0005",
+    "project_id": "proj_truck",
+    "project_version": 3,
+    "kind": "postmortem",
+    "change": "Plan revised: the test is now a clean lap, not the fastest lap.",
+    "rationale": "Chasing speed kept costing cones, and the goal is a clean slalom.",
+    "rationale_by": "albie",
+    "expected": null,
+    "observed": {
+      "runs": [
+        "run_0004"
+      ],
+      "incidents": [],
+      "training": null,
+      "note": "Plan v1 asked for the fastest lap. Hitting a cone is the failure that matters here."
+    },
+    "outcome": "partly",
+    "outcome_by": "albie",
+    "lesson": null,
+    "lesson_id": null,
+    "tags": [
+      "control"
+    ],
+    "created_at": "2026-11-10T14:30:00Z",
+    "updated_at": "2026-11-10T14:30:00Z"
+  }
+]
