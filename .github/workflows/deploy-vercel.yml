@@ -1,0 +1,45 @@
+# Redeploys cloud/ (voice token + Claude proxy) to Dev's Vercel project albie-cloud. Teammates never see the token.
+# Push to main under cloud/ = code-only deploy. Actions > Deploy Vercel cloud > Run workflow can also copy keys
+# from the repo's GitHub secrets into Vercel first (tick "sync keys"; secrets you didn't set stay as they are in Vercel).
+name: Deploy Vercel cloud
+on:
+  push:
+    branches: [main]
+    paths: ['cloud/**']
+  workflow_dispatch:
+    inputs:
+      sync_keys:
+        description: Copy XAI_API_KEY / ANTHROPIC_API_KEY / ALBIE_APP_KEY from GitHub secrets into Vercel first
+        type: boolean
+        default: false
+concurrency: deploy-vercel
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloud
+    env:
+      VERCEL_ORG_ID: team_Tz2cQu7N1T6l7YBIp6By7ixT
+      VERCEL_PROJECT_ID: prj_Kr8jVwYNgjDcf6KrxvHHUjwo1CMs
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm i -g vercel@64.1.0
+      - name: Sync keys
+        if: ${{ inputs.sync_keys }}
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ALBIE_APP_KEY: ${{ secrets.ALBIE_APP_KEY }}
+        run: |
+          for n in XAI_API_KEY ANTHROPIC_API_KEY ALBIE_APP_KEY; do
+            v=$(printenv "$n" || true)
+            if [ -z "$v" ]; then echo "$n: not in GitHub secrets, Vercel keeps its value"; continue; fi
+            printf %s "$v" | vercel env add "$n" production --force --token "$VERCEL_TOKEN" > /dev/null
+            echo "$n: updated"
+          done
+      - run: vercel deploy --prod --yes --token "$VERCEL_TOKEN"

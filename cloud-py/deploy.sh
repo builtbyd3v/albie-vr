@@ -6,8 +6,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 KEY_FILE=unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt
-[ -s "$KEY_FILE" ] || { echo "missing $KEY_FILE (the app key the headset sends)"; exit 1; }
-HF_USER=$(hf auth whoami | head -1 | sed 's/.*[= ]//')  # first line is user=<name>
+# CI (.github/workflows/deploy-space.yml) passes ALBIE_APP_KEY and HF_OWNER as env; a laptop uses the key file and the login.
+APP_KEY=${ALBIE_APP_KEY:-$([ -s "$KEY_FILE" ] && tr -d '\r\n' < "$KEY_FILE")}
+[ -n "$APP_KEY" ] || { echo "missing ALBIE_APP_KEY env or $KEY_FILE (the app key the headset sends)"; exit 1; }
+HF_USER=${HF_OWNER:-$(hf auth whoami | head -1 | sed 's/.*[= ]//')}  # first line is user=<name>
 SPACE="$HF_USER/albie-cloud"
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
@@ -15,9 +17,10 @@ trap 'rm -rf "$STAGE"' EXIT
 # Public, so the headset reaches it without an HF token; every request still needs the app key.
 # cpu-upgrade ($0.03/h, from account credits) because free cpu-basic Docker Spaces need PRO; billed only while awake,
 # and it sleeps after 1 h with no requests (the first request after that waits for a cold start).
-hf repos create "$SPACE" --type space --sdk docker --flavor cpu-upgrade --sleep-time 3600 --no-private --exist-ok
+hf repos create "$SPACE" --type space --sdk docker --flavor cpu-upgrade --sleep-time 3600 --no-private --exist-ok \
+  || echo "create skipped (a token scoped to this Space can't create repos; fine when it exists)"
 # The key goes in on stdin, never on the command line or in the log.
-printf 'ALBIE_APP_KEY=%s\n' "$(tr -d '\r\n' < "$KEY_FILE")" | hf spaces secrets add "$SPACE" --secrets-file -
+printf 'ALBIE_APP_KEY=%s\n' "$APP_KEY" | hf spaces secrets add "$SPACE" --secrets-file -
 
 git archive HEAD hub/cad hub/ml hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
   | tar -x -C "$STAGE"
