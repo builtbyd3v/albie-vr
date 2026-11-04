@@ -1,0 +1,22 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "stance",
+  "title": "Stance check",
+  "version": 1,
+  "kind": "standalone",
+  "category": "viz",
+  "template": null,
+  "links": { "project": null, "project_version": null, "repo": null, "thing": null },
+  "runtime": { "type": "scene", "min_runtime": 1 },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    { "name": "track_m", "type": "number", "min": 0.2, "max": 0.8, "default": 0.42, "label": "Track width (m)" },
+    { "name": "cog_m", "type": "number", "min": 0.1, "max": 0.6, "default": 0.28, "label": "Centre of gravity height (m)" }
+  ],
+  "scenarios": [ { "id": "default", "seed": 1, "params": {} } ],
+  "data": [],
+  "assets": [],
+  "permissions": { "network": [], "connectors": [], "storage": "artifact-local", "write_project": "none", "room": "none", "things": "none" },
+  "outputs": []
+}

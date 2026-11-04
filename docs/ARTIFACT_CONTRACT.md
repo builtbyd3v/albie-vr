@@ -119,7 +119,7 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
 | `id` | Required and unique in the scene. Lowercase letters, digits and `_`. |
 | `kind` | One of the kinds in 3.2. An unknown kind fails validation. |
 | `parent` | Another node's `id`, or absent. No cycles. |
-| `pos`, `rot`, `scale` | `[x, y, z]`. Default to zero, zero and one. Local to the parent. |
+| `pos`, `rot`, `scale` | `[x, y, z]`. Default to zero, zero and one. Local to the parent. `pos` is the centre of a shape. `size` doesn't reach a node's children; `scale` does. |
 | `at` | A generator slot (3.3) with exactly one entry. Replaces `pos` and `rot`. |
 | `visible` | Default `true`. |
 
@@ -384,6 +384,8 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `slalom/layouts/lay_0002.json` | A small room: shrunk, with a message |
 | `slalom/runs/run_0001.json` to `run_0004.json` | Failed (rolled over), completed by hand, completed by the Autopilot, completed with a cone hit. All on truck v2 or v3, so they don't assume an answer to question 7. |
 | `repo_city/manifest.json`, `repo_city/scene.json`, `repo_city/data/repo_activity.json` | `volume` space, an `array` from a table, a null cell, a `sample` label |
+| `stance/manifest.json`, `stance/scene.json` | A standalone artifact the host builds today: no permissions, live `slider` inputs, `on_input` rules |
+| `broken/manifest.json`, `broken/scene.json` | Fails validation on purpose (`unknown_kind`), for the refusal path |
 
 `Mocks/artifacts/sequence.json` plays a whole run through `ForgeMockPlayer`.
 
