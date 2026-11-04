@@ -505,6 +505,12 @@ public class Workspace : MonoBehaviour
     static SavedPose CaptureSettled(OpenItem o)
     {
         SavedPose pose = Capture(o);
+        // Pulled in by a gesture: where it belongs is where it came from.
+        if (o.go.TryGetComponent(out GestureWindow window) && window.TryGetHome(out Vector3 home, out Quaternion homeRotation))
+        {
+            pose.position = home;
+            pose.rotation = homeRotation;
+        }
         if (o.motion == null) return pose;
         pose.position = o.position;
         pose.rotation = o.rotation;

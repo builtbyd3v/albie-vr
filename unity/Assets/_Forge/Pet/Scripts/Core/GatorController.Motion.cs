@@ -98,7 +98,7 @@ namespace Forge.Pet
         // True if the agent can move. Off-mesh: retries a snap every second, warns once.
         bool AgentReady()
         {
-            if (agent == null || AnticsBusy) return false;   // a roll/fall drives the transform with the agent off
+            if (agent == null || AnticsBusy || Perched || hopping) return false;   // a roll/fall, perch or hop drives the transform with the agent off
             if (agent.enabled && agent.isOnNavMesh) return true;
             if (Time.time < nextNavRetry) return false;
             nextNavRetry = Time.time + 1f;

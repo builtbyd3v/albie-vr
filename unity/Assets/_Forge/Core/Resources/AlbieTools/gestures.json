@@ -1,0 +1,28 @@
+[
+  {"name": "gesture_list",
+   "description": "The hand gestures you know: their names, how to make them and what they do.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "gesture_teach",
+   "description": "Learn a new hand gesture by watching. Call this when the user wants to teach you one, and in the same reply tell them to show you three times when the countdown appears above their hand. It answers about 10 seconds later, when the takes are over: then say whether it worked. An error says why; read it out and offer to try again. The gesture is saved and active as soon as this succeeds.",
+   "parameters": {"type": "object", "properties": {
+     "name": {"type": "string", "description": "What to call it, in the user's words (e.g. 'peace sign')"},
+     "action": {"type": "string", "description": "What it does: none, window.summon (brings the window you point at to you), window.minimize, albie.perch (you jump into their hand), albie.release, albie.come, display.toggle (the gesture display), or tool:<tool name> to run one of your tools. Default none."},
+     "args": {"type": "object", "description": "With tool:<tool name>, the arguments to call the tool with, e.g. {\"view\": \"cad\"} for tool:ui_open_view"}},
+     "required": ["name"]}},
+  {"name": "gesture_cancel",
+   "description": "Stop watching for a gesture being taught. Nothing is saved.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "gesture_bind",
+   "description": "Change what an existing gesture does, built-in or taught. Built-in gestures: Bring window, Send window away, Call Albie, Close fist, Open fist.",
+   "parameters": {"type": "object", "properties": {
+     "name": {"type": "string"},
+     "action": {"type": "string", "description": "As in gesture_teach"},
+     "args": {"type": "object", "description": "As in gesture_teach"}},
+     "required": ["name", "action"]}},
+  {"name": "gesture_forget",
+   "description": "Forget a taught gesture. Shows the user a confirm card; tell them to tap Yes.",
+   "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+  {"name": "gesture_display",
+   "description": "Show or hide the display of what the user's hands are doing and every gesture you know.",
+   "parameters": {"type": "object", "properties": {"show": {"type": "boolean"}}, "required": ["show"]}}
+]

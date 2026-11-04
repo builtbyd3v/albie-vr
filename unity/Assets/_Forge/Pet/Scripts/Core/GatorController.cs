@@ -277,6 +277,7 @@ namespace Forge.Pet
         void Update()
         {
             if (!started) return;
+            if (UpdatePerch()) { UpdateMotion(); return; }         // riding on the user's palm (GatorController.Perch.cs)
             if (hopping) { UpdateHop(); UpdateMotion(); return; }   // state logic resumes after landing
             if (UpdateAntics()) { UpdateMotion(); return; }        // roll / fall / stun (GatorController.Antics.cs)
             AutoDetectSurface();

@@ -16,6 +16,20 @@ using UnityEngine;
 public class ForgePanel : MonoBehaviour
 {
     public const float MetersPerUnit = 0.001f;
+
+    /// <summary>Every enabled panel, for hands aiming at windows (<see cref="GestureEngine"/>).</summary>
+    public static readonly System.Collections.Generic.List<ForgePanel> All = new System.Collections.Generic.List<ForgePanel>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() => All.Clear();
+
+    PanelManipulator handles;
+    /// <summary>This panel's move and resize handles, or null if it has none (a card, a timer, a minimized dot).</summary>
+    public PanelManipulator Handles => handles != null ? handles : handles = GetComponent<PanelManipulator>();
+
+    void OnEnable() => All.Add(this);
+    void OnDisable() => All.Remove(this);
+
     const float HeaderLeft = 20f, BadgeSize = 40f, BadgePadding = 12f, BadgeGap = 12f, HeaderRight = 180f;
 
     [Tooltip("Matches the panel IDs in PROJECT_CONTEXT section 7 (e.g. ml-results, cad-params).")]
