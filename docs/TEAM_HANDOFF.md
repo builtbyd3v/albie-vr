@@ -49,7 +49,7 @@ A `401` in a browser is normal: every route, `/health` included, needs the `x-al
 
 Before the first build:
 1. Get the app key from Dev's one-time link. Save it as `unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt` (one line, no spaces).
-2. Get the gator files (paid Asset Store pack, never in git): follow `docs/SETUP.md` section 9 step 0 **before** Unity opens the project. Without them, Albie looks gray or is missing.
+2. Get the gator files from Adrian (he holds the Asset Store pack; never in git), then follow `docs/SETUP.md` section 9 step 0 **before** Unity opens the project. Without them, Albie looks gray or is missing.
 3. Gray gator after an import means Unity reset the `.meta`. Fix: `git show 9fd0c93^:unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta > unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta`.
 
 Build (close the Unity Editor first; a batch build fails while the project is open):
@@ -85,9 +85,14 @@ Shipping to judges: upload the APK to the Meta VR Developer Dashboard, "Competit
 - Don't commit the TMP `LiberationSans SDF - Fallback.asset` or `EditorPipelineConfig.json` changes.
 - Never commit `AlbieAppKey.txt`, `hub/.env`, or any gator file.
 
-## 7. Open items (decide as a team)
+## 7. Headset
 
-1. Headset: who keeps the Quest 3S. It is signed in to Dev's Meta account with Developer Mode on. Any Mac can deploy after you tap Allow.
-2. Gator licence: check whether each person who builds needs their own Asset Store licence.
-3. Meta VR Developer Dashboard: who owns the app and the Competition release channel, and who is the submitting representative.
-4. Demo video (under 3 min, public YouTube or Vimeo) and the Devpost form.
+- The Quest 3S is Adrian's roommate's. Adrian keeps it; Hudson has it the night of Nov 3.
+- It is signed in to Dev's Meta account with Developer Mode on. Any Mac can deploy: plug in, tap **Allow USB debugging**.
+- After a reboot it can come back with no Wi-Fi. Voice then fails with "Cannot resolve destination host". Join Wi-Fi first (`adb shell cmd wifi status`).
+- An install right after a reboot can fail with a StorageManager NullPointerException. Wait 1 min and retry.
+
+## 8. Open items (decide as a team)
+
+1. Meta VR Developer Dashboard: who owns the app and the Competition release channel, and who is the submitting representative.
+2. Demo video (under 3 min, public YouTube or Vimeo) and the Devpost form.
