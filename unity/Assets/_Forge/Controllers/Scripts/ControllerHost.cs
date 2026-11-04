@@ -121,9 +121,7 @@ namespace Forge.Controllers
             {
                 case "manual": return new ManualController(file);
                 case "graph": return new GraphController(file);
-                case "learned":
-                    error = "bad_value: learned controllers aren't built yet (ML A, Nov 10 in PROJECT_CONTEXT 16.8)";
-                    return null;
+                case "learned": return new LearnedController(file);
                 default:
                     error = $"bad_value: kind \"{file.Kind}\" must be manual, graph or learned";
                     return null;

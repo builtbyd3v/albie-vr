@@ -9,6 +9,8 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/ControllerFile.cs` | Parses `albie.controller/1`: tunables, `$name` references, `limits.speed`. Errors use the contract's codes. |
 | `Scripts/ManualController.cs` | `kind: manual` and `ManualInputs`, the fixed inputs that input sources write. |
 | `Scripts/GraphController.cs` | `kind: graph`: const, gain, pid and rule nodes. |
+| `Scripts/LearnedController.cs` | `kind: learned`: runs the MLP from a controller file with `NNNetwork`. Checks every shape; no allocations per tick. |
+| `Scripts/Autopilot.cs` | The trained candidates in order: `Engage` attaches one, `RunEnded(success)` keeps it or moves to the next. |
 | `Scripts/ControllerHost.cs` | Runs one controller for one Thing: swap with fallback, fault handling, clamp, speed governor, tunables. |
 | `Scripts/Learning/LapSet.cs` | `albie.laps/1` files: read and write, the same layout as the Python generator. |
 | `Scripts/Learning/LapRecorder.cs` | Records (sensors → `host.Commanded`) each physics step, with no allocations. It drops idle stretches. |
@@ -19,9 +21,20 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`, lap recording, training. |
 | `Editor/ControllersSandboxBuilder.cs` | **Forge > Controllers > Build Sandbox** builds `ControllersSandbox.unity`. |
 | `Editor/ControllersCheck.cs` | **Forge > Controllers > Check Runner**: 9 headless checks. |
+| `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
 
-`kind: learned` is refused by the host for now. Running a learned file (the autopilot) is the next step (16.8, Nov 10). Training already works.
+All three kinds run: manual, graph and learned.
+
+## For the arena and voice (Person 5, Person 3)
+
+```csharp
+var autopilot = new Autopilot(candidateFiles);   // from training: truck_autopilot.json, candidates/truck_autopilot_2.json, ...
+autopilot.Engage(host);                           // "Autopilot"
+// ... when the arena run ends:
+string line = autopilot.RunEnded(host, finished); // keeps the candidate, or attaches the next (reset the Thing for another run)
+if (autopilot.Exhausted) { /* use the pretrained fallback */ }
+```
 
 ## For the Thing runtime (Person 2)
 
@@ -53,6 +66,7 @@ Write `ManualInputs.Values[ManualInputs.IndexOf("stick.y")]` (cache the index) e
 |---|---|
 | `1` | Manual controller |
 | `2` | Cruise controller |
+| `3` | The mock autopilot file |
 | `W` / `S` | Throttle |
 | `A` / `D` | Steer |
 | `[` / `]` | Lower / raise `max_speed` live |
@@ -60,5 +74,6 @@ Write `ManualInputs.Values[ManualInputs.IndexOf("stick.y")]` (cache the index) e
 | `T` | Record a lap you drive. Press `T` again to stop; it also stops at the finish or a crash |
 | `L` | Record a lap the scripted driver drives |
 | `B` | Train 3 candidate nets on the completed laps, 4 ms a frame. Saves the laps and the controller files under `Application.persistentDataPath/controllers/` |
+| `P` | Autopilot: drives with the trained candidates in order (the mock autopilot file if nothing is trained). A crash moves to the next candidate |
 
 The mock files come from `hub/ml/make_controller_mocks.py` (run `python -m ml.make_controller_mocks` from `hub/`).
