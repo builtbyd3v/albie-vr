@@ -26,7 +26,7 @@ Section 16 numbers the five chunks; a name goes here when someone claims one. Th
 
 | Name | Chunk | Role | Folders | Start here (by Nov 4) | Full task list |
 |---|---|---|---|---|---|
-| **Satyabrata** | Person 4: controllers and ML | **ML A** (lead): the learning engine and the controller runtime | `ML/`, new `Controllers/`, `hub/ml/` | Propose C-19 (controller file and tick interface) with Person 2. Commit a fake Thing and `Mocks/thing/laps_truck_v2.json`. Grow `NNNetwork` to N outputs (steer, throttle). | 16.8, "ML A (Satyabrata)" |
+| **Satyabrata** | Person 4: controllers and ML | **ML A** (lead): the learning engine and the controller runtime | `ML/`, new `Controllers/`, `hub/ml/` | Propose C-19 (controller file and tick interface) with Person 2. Commit a fake Thing and `Mocks/Resources/Mocks/controllers/laps/truck_v2.json` (from `hub/ml/make_controller_mocks.py`). Grow `NNNetwork` to N outputs (steer, throttle). | 16.8, "ML A (Satyabrata)" |
 | **Nandani** | Person 4: controllers and ML | **ML B**: the brain on the desk (trainer view, panels, tools) | `ML/` | Sketch the brain view against the mock laps: ray-sensor and speed inputs, steer and throttle outputs. | 16.8, "ML B (Nandani)" |
 | *unclaimed* | Person 1: product, presence, hands, code mode, submission | | `Pet/`, `Code/`, `Messages/` | | 16.3 |
 | *unclaimed* | Person 2: Core and the Thing runtime | | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` | | 16.3 |
@@ -2441,7 +2441,7 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 
 | By | Task |
 |---|---|
-| Nov 4 | Propose C-19 with Person 2: the tick interface (sensors in, actuators out, each physics tick) and the controller file `controllers/<name>.json` (manual, rule and PID graph, or MLP weights with an input and output map, plus tunables such as `max_speed`). Commit a fake Thing that echoes inputs (16.5) and a scripted-driver lap file, `Mocks/thing/laps_truck_v2.json`. |
+| Nov 4 | Propose C-19 with Person 2: the tick interface (sensors in, actuators out, each physics tick) and the controller file `controllers/<name>.json` (manual, rule and PID graph, or MLP weights with an input and output map, plus tunables such as `max_speed`). Commit a fake Thing that echoes inputs (16.5) and a scripted-driver lap file, `Mocks/Resources/Mocks/controllers/laps/truck_v2.json` (from `hub/ml/make_controller_mocks.py`). |
 | Nov 4 | Extend `NNNetwork` to N outputs, still with no allocations after construction. |
 | Nov 6 | Controller runner in new `Controllers/`: the manual controller (fed by Person 1's hands transmitter through the interface) and the rule and PID graph interpreter, running on the mock Thing. |
 | Nov 8 | Telemetry recorder: a preallocated ring buffer of (rays, speed) → (steer, throttle). `BehaviourCloner`: mirrored laps, input scaling, a train and validation split, training spread over frames so the headset holds 72 fps. **A timed run on a Quest 3.** Decide network size and inputs, and tell Person 2 whether ONNX is needed (default: no, our own C# forward pass). |

@@ -174,7 +174,7 @@ Nodes run **in list order** each tick. A later write to an actuator overrides an
   "nodes": [
     { "id": "cruise", "type": "pid", "input": "speed.forward", "setpoint": 0.6,
       "kp": 0.8, "ki": 0.2, "kd": 0.0, "i_limit": 0.5, "output": "drive.throttle" },
-    { "id": "avoid", "type": "gain", "a": "ray_front.d6", "b": "ray_front.d0",
+    { "id": "avoid", "type": "gain", "a": "ray_front.d0", "b": "ray_front.d6",
       "k": "$steer_gain", "output": "steer.angle" },
     { "id": "brake", "type": "rule", "if": ["ray_front.d3", "<", 0.15],
       "set": { "drive.throttle": -0.3 } }
