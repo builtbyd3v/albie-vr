@@ -229,7 +229,7 @@ There's deliberately **no expression language and no script**: the agent writes 
 | `net.weights` | `weights[l][to][from]` for layers 1 to L, the same layout as `NNNetwork.cs` (`weights[layer][to][from]`) without its unused layer 0. |
 | `net.activation` | `tanh`, `relu`, `sigmoid` or `linear` (hidden layers). `output_activation` defaults to `tanh`. |
 | `outputs` | One per output neuron. The value is `y * scale`, and `scale` may be a `$tunable`. |
-| `training` | Provenance only. The runner ignores it. The notebook (C-17) copies it into the attempt record. |
+| `training` | Provenance only. The runner ignores it. The notebook (C-17) copies it into the attempt record. Optional extras: `sim_check` (a sim result, as text) and `candidates` (every candidate's block when several were trained). |
 
 The weights are stored as plain decimals, not base64, so a diff in code mode shows which layer changed. A net this small is a few KB.
 
