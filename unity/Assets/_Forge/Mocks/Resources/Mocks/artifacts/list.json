@@ -15,6 +15,14 @@
       "kind": "code",
       "category": "viz",
       "project_id": null
+    },
+    {
+      "id": "stance",
+      "title": "Stance check",
+      "version": 1,
+      "kind": "standalone",
+      "category": "viz",
+      "project_id": null
     }
   ],
   "templates": [
