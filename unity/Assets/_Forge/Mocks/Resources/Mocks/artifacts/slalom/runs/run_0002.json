@@ -1,0 +1,34 @@
+{
+  "schema": "albie.run/1",
+  "run_id": "run_0002",
+  "artifact_id": "slalom",
+  "artifact_version": 1,
+  "scenario": "default",
+  "seed": 42,
+  "layout_id": "lay_0001",
+  "project_id": "proj_truck",
+  "project_version": 2,
+  "thing": {
+    "name": "truck",
+    "version": 2
+  },
+  "controller": {
+    "name": "truck_manual",
+    "kind": "manual",
+    "version": 1
+  },
+  "inputs": {
+    "gates": 5,
+    "spacing_m": 0.8
+  },
+  "outcome": "completed",
+  "reason": null,
+  "metrics": {
+    "completion_time_s": 8.6,
+    "gates_passed": 5,
+    "collisions": 0,
+    "top_speed_ms": 1.6
+  },
+  "started_at": "2026-11-10T14:06:02Z",
+  "ended_at": "2026-11-10T14:06:11Z"
+}
