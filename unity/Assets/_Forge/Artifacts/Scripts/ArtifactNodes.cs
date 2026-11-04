@@ -12,7 +12,11 @@ namespace Forge.Artifacts
         public ArtifactHost Host;
         public ArtifactInputs Inputs;
         public Transform Root;
+        public Dictionary<string, GameObject> Nodes;
+        public readonly ArtifactMetrics Metrics = new ArtifactMetrics();
         readonly List<Action> bound = new List<Action>();
+        readonly List<Action> after = new List<Action>();
+        readonly List<ArtifactTrail> trails = new List<ArtifactTrail>();
 
         /// <summary>Runs <paramref name="apply"/> now, and again whenever an input changes if <paramref name="live"/>.</summary>
         public void Apply(Action apply, bool live)
@@ -24,6 +28,22 @@ namespace Forge.Artifacts
         public void Refresh()
         {
             for (int i = 0; i < bound.Count; i++) bound[i]();
+        }
+
+        /// <summary>Runs once every node exists, for anything that points at another node.</summary>
+        public void AfterBuild(Action action) => after.Add(action);
+
+        public void Finish()
+        {
+            for (int i = 0; i < after.Count; i++) after[i]();
+            after.Clear();
+        }
+
+        public void AddTrail(ArtifactTrail trail) => trails.Add(trail);
+
+        public void ClearTrails()
+        {
+            for (int i = 0; i < trails.Count; i++) trails[i].Clear();
         }
     }
 
@@ -41,6 +61,8 @@ namespace Forge.Artifacts
             { "primitive", Primitive },
             { "text", Text },
             { "panel", ArtifactWidgets.Build },
+            { "sim", ArtifactSim.Build },
+            { "line", ArtifactTrail.Build },
         };
 
         public static void Register(string kind, Builder builder) => builders[kind] = builder;
@@ -72,7 +94,7 @@ namespace Forge.Artifacts
             bool collider = n.Value<bool?>("collider") == true;
             var mesh = ArtifactLook.Shape(shape, collider);
             mesh.transform.SetParent(root.transform, false);
-            mesh.GetComponent<Renderer>().sharedMaterial = ArtifactLook.Material(n.Value<string>("color"));
+            mesh.GetComponent<Renderer>().sharedMaterial = ArtifactLook.Material(n.Value<string>("color"), n.Value<bool?>("glow") == true);
             var size = n["size"];
             build.Apply(() => mesh.transform.localScale = ArtifactLook.ShapeScale(shape, build.Inputs.Vector(size, Vector3.one * 0.1f)),
                 ArtifactInputs.IsBound(size));

@@ -13,7 +13,7 @@ namespace Forge.Artifacts
     /// </summary>
     public static class ArtifactWidgets
     {
-        public const float PanelWidth = 420f;  // mm
+        public const float PanelWidth = 500f;  // mm
         const float ContentWidth = PanelWidth - 2f * ForgeTheme.PanelInset;
         const float Chrome = ForgeTheme.PanelHeader + 14f + 16f;  // header and insets around ForgePanel's content
         const float Gap = 14f, StatHeight = 30f, SliderHeight = 56f, PillRow = ForgeTheme.PillHeight;
@@ -35,7 +35,7 @@ namespace Forge.Artifacts
                     switch (type)
                     {
                         case "note": y += Note(panel.Content, y, widget.Value<string>("text")) + Gap; break;
-                        case "stat": y += Row(panel.Content, y, widget.Value<string>("label"), ArtifactLook.NoValue, widget.Value<string>("unit")) + Gap; break;
+                        case "stat": y += Stat(panel.Content, y, widget, build) + Gap; break;
                         case "runs": y += Row(panel.Content, y, "Runs", "None yet", null) + Gap; break;
                         case "slider": y += Slider(panel, y, widget.Value<string>("input"), build) + Gap; break;
                         case "button":
@@ -45,6 +45,7 @@ namespace Forge.Artifacts
                 }
             if (rowX > 0f) y += PillRow + Gap;
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;
+            build.Host.KeepAboveBase(panel);
             return panel.gameObject;
         }
 
@@ -61,7 +62,18 @@ namespace Forge.Artifacts
 
         public static float PanelHeight(float contentHeight) => Chrome + contentHeight;
 
-        static float Row(RectTransform parent, float y, string label, string value, string unit)
+        static float Stat(RectTransform parent, float y, JToken widget, ArtifactBuild build)
+        {
+            string unit = widget.Value<string>("unit");
+            Row(parent, y, widget.Value<string>("label"), ArtifactLook.NoValue, unit, out var value);
+            build.Metrics.Show(widget.Value<string>("metric"), value, widget.Value<int?>("decimals") ?? 2, unit);
+            return StatHeight;
+        }
+
+        static float Row(RectTransform parent, float y, string label, string value, string unit) =>
+            Row(parent, y, label, value, unit, out _);
+
+        static float Row(RectTransform parent, float y, string label, string value, string unit, out TMP_Text shown)
         {
             var left = Text(parent, "Label", 15f, ForgeTheme.PanelSubtext, TextAlignmentOptions.Left);
             left.text = label;
@@ -69,6 +81,7 @@ namespace Forge.Artifacts
             var right = Text(parent, "Value", 19f, ForgeTheme.PanelText, TextAlignmentOptions.Right);
             right.text = string.IsNullOrEmpty(unit) ? value : value + " " + unit;
             Place(right.rectTransform, y, StatHeight);
+            shown = right;
             return StatHeight;
         }
 

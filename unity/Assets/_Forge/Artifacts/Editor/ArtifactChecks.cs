@@ -43,6 +43,7 @@ public static class ArtifactChecks
         Inputs();
         Approvals();
         Looks();
+        Physics();
         foreach (var f in failures) Debug.LogError("[ArtifactChecks] FAIL " + f);
         Debug.Log($"[ArtifactChecks] {passed} passed, {failures.Count} failed");
     }
@@ -56,7 +57,7 @@ public static class ArtifactChecks
 
     static void Fixtures()
     {
-        foreach (var id in new[] { "slalom", "repo_city", "stance" })
+        foreach (var id in new[] { "slalom", "repo_city", "stance", "three_body" })
         {
             var p = ArtifactPackage.Load(id, out string error);
             Check(p != null, $"{id} loads: {error}");
@@ -67,6 +68,7 @@ public static class ArtifactChecks
         var broken = ArtifactPackage.Load("broken", out _);
         Check(ArtifactValidator.Validate(broken.Manifest, broken.Scene).Any(e => e.code == "unknown_kind"), "broken is refused");
         Check(ArtifactNodes.Missing(ArtifactPackage.Load("stance", out _).Scene).Count == 0, "stance can be built today");
+        Check(ArtifactNodes.Missing(ArtifactPackage.Load("three_body", out _).Scene).Count == 0, "three_body can be built today");
         var missing = ArtifactNodes.Missing(ArtifactPackage.Load("slalom", out _).Scene);
         Check(missing.Contains("zone") && missing.Contains("generators") && missing.Contains("runs"), "slalom reports what isn't built");
     }
@@ -101,6 +103,21 @@ public static class ArtifactChecks
         Expect("bad_value", (m, s) => { Node(s, "start")["parent"] = "finish"; Node(s, "finish")["parent"] = "start"; });
         Expect("bad_value", (m, s) => m["version"] = "1.2.0");
         Expect("bad_value", (m, s) => m["links"]["thing"] = "truck", "stance");
+
+        // The sim node
+        Expect("bad_value", (m, s) => Node(s, "orbits")["solver"] = "warp_drive", "three_body");
+        Expect("bad_value", (m, s) => Node(s, "orbits")["bodies"] = new JArray(), "three_body");
+        Expect("unknown_ref", (m, s) => Node(s, "orbits")["bodies"][0]["node"] = "nothing", "three_body");
+        Expect("bad_value", (m, s) => Node(s, "orbits")["bodies"][1]["node"] = "body_a", "three_body");
+        Expect("bad_value", (m, s) => Node(s, "orbits")["bodies"][0]["mass"] = -1, "three_body");
+        Expect("bad_value", (m, s) => Node(s, "orbits")["params"]["step"] = 0, "three_body");
+        Expect("unknown_ref", (m, s) => s["rules"][0]["value"] = "warp_factor", "three_body");
+        Expect("unknown_ref", (m, s) => s["rules"][0]["sim"] = "nothing", "three_body");
+        Expect("unknown_ref", (m, s) => Node(s, "trail_a")["follow"] = "nothing", "three_body");
+        Expect("bad_value", (m, s) => Node(s, "trail_a")["parent"] = null, "three_body");
+        Expect("too_big", (m, s) => Node(s, "trail_a")["length"] = 100000, "three_body");
+        Expect("bad_value", (m, s) => s["view"]["radius"] = 0, "three_body");
+        Expect("unknown_input", (m, s) => Node(s, "orbits")["rate"] = "$warp", "three_body");
     }
 
     // Wrong shapes and hostile ids: the host answers, it doesn't throw.
@@ -174,6 +191,97 @@ public static class ArtifactChecks
             ArtifactApprovals.FileOverride = null;
             if (File.Exists(file)) File.Delete(file);
         }
+    }
+
+    static (IArtifactSolver solver, JObject node, ArtifactInputs inputs) Orbits()
+    {
+        var p = ArtifactPackage.Load("three_body", out _);
+        var inputs = new ArtifactInputs(p.Manifest);
+        var node = Node(p.Scene, "orbits");
+        var solver = ArtifactSolvers.Create("n_body");
+        solver.Configure(node, inputs);
+        solver.Restart();
+        return (solver, node, inputs);
+    }
+
+    static void Run(IArtifactSolver solver, double time)
+    {
+        int steps = (int)Math.Round(time / solver.StepSize);
+        for (int i = 0; i < steps && !solver.Finished; i++) solver.Step();
+    }
+
+    // Against known physics, not just "it runs". The figure eight is an exact solution (Chenciner and Montgomery, 2000):
+    // three equal masses return to where they started every 6.32591398 time units.
+    static void Physics()
+    {
+        const double Period = 6.32591398;
+        var (solver, node, inputs) = Orbits();
+        var start = new[] { solver.Position(0), solver.Position(1), solver.Position(2) };
+        int drift = solver.ValueIndex("energy_drift_pct"), time = solver.ValueIndex("time"), closest = solver.ValueIndex("closest_approach");
+        Run(solver, Period);
+        float miss = 0f;
+        for (int i = 0; i < 3; i++) miss = Mathf.Max(miss, (solver.Position(i) - start[i]).magnitude);
+        Check(miss < 0.001f, $"the figure eight closes after one period (missed by {miss})");
+        Check(Math.Abs(solver.Value(time) - Period) < 0.002, $"time advances ({solver.Value(time)})");
+        Check(solver.Value(drift) < 0.001, $"energy holds over one period ({solver.Value(drift)}%)");
+        Run(solver, Period * 19);
+        miss = 0f;
+        for (int i = 0; i < 3; i++) miss = Mathf.Max(miss, (solver.Position(i) - start[i]).magnitude);
+        Check(miss < 0.05f, $"still closes after 20 periods (missed by {miss})");
+        Check(solver.Value(drift) < 0.001, $"energy holds over 20 periods ({solver.Value(drift)}%)");
+        Check(solver.Value(closest) > 0.5, $"the three stay apart on the figure eight ({solver.Value(closest)})");
+
+        // Same numbers, same answer, every time. A rerun has to be fair.
+        var (a, _, _) = Orbits();
+        var (b, _, _) = Orbits();
+        Run(a, 20.0);
+        Run(b, 20.0);
+        Check(a.Position(0) == b.Position(0), "the same inputs give the same run");
+
+        // Editing a value has to actually change what happens.
+        var (edited, editedNode, editedInputs) = Orbits();
+        Check(editedInputs.TrySet("mass_c", 1.2), "mass_c can be edited");
+        Check(edited.Configure(editedNode, editedInputs), "an edited mass counts as a change");
+        edited.Restart();
+        var (plain, _, _) = Orbits();
+        Run(edited, Period);
+        Run(plain, Period);
+        Check((edited.Position(0) - plain.Position(0)).magnitude > 0.05f, "a heavier body changes the orbit");
+        Check(!plain.Configure(node, inputs), "unchanged numbers don't count as a change");
+        Check(inputs.TrySet("speed", 2.0) && !plain.Configure(node, inputs), "playback speed doesn't count as a change");
+
+        // Centre of mass stays put with unequal masses, so nothing drifts out of the volume.
+        var com = Vector3.zero;
+        for (int i = 0; i < 3; i++) com += edited.Position(i) * (i == 2 ? 1.2f : 1f);
+        Check(com.magnitude < 0.001f, $"unequal masses keep the centre of mass still ({com.magnitude})");
+
+        // Thrown hard enough, a body leaves, and the sim says so and stops.
+        var (flung, flungNode, flungInputs) = Orbits();
+        Check(flungInputs.TrySet("kick", 1.45), "kick can be edited");
+        flung.Configure(flungNode, flungInputs);
+        flung.Restart();
+        Run(flung, 300.0);
+        Check(flung.Finished && flung.Value(flung.ValueIndex("escaped")) == 1.0, "a body leaving the bounds ends the sim");
+
+        // Two bodies on one point must not become NaN.
+        var (crash, crashNode, crashInputs) = Orbits();
+        var bodies = (JArray)crashNode["bodies"];
+        bodies[1]["pos"] = bodies[0]["pos"].DeepClone();
+        crash.Configure(crashNode, crashInputs);
+        crash.Restart();
+        Run(crash, 1.0);
+        Check(!float.IsNaN(crash.Position(0).x), "bodies on one point stay finite");
+
+        // The per-frame path has to be free of garbage (CLAUDE.md, Quest performance).
+        var (quiet, _, _) = Orbits();
+        Run(quiet, 0.1);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 5000; i++)
+        {
+            quiet.Step();
+            quiet.Position(0);
+        }
+        Check(GC.GetAllocatedBytesForCurrentThread() == before, "stepping allocates nothing");
     }
 
     static void Looks()

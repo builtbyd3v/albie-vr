@@ -14,22 +14,31 @@ namespace Forge.Artifacts
 
         static readonly Regex Metric = new Regex(@"\{[a-z0-9_]+\}");
         static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
+        static Material trail;
         static Mesh cone, cylinder;
 
         public static Color Color(string hex, Color fallback) =>
             hex != null && ColorUtility.TryParseHtmlString(hex, out var color) ? color : fallback;
 
-        /// <summary>One shared material per colour: soft, slightly glossy, so it sits well on passthrough.</summary>
-        public static Material Material(string hex)
+        /// <summary>
+        /// One shared material per colour: soft and slightly glossy so it sits well on passthrough, or self-lit with
+        /// <paramref name="glow"/>. Cloned from templates in Resources, not Shader.Find: a shader no asset uses is stripped
+        /// from a Quest build, and Find would return null there while working fine in the Editor.
+        /// </summary>
+        public static Material Material(string hex, bool glow = false)
         {
-            string key = hex ?? "";
+            string key = (hex ?? "") + (glow ? "+" : "");
             if (materials.TryGetValue(key, out var material) && material != null) return material;
-            material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Artifact " + key, enableInstancing = true };
+            material = new Material(Template(glow ? "ArtifactGlow" : "ArtifactLit")) { name = "Artifact " + key };
             material.SetColor("_BaseColor", Color(hex, ForgeTheme.Tool));
-            material.SetFloat("_Smoothness", 0.62f);
             materials[key] = material;
             return material;
         }
+
+        /// <summary>Transparent and vertex-coloured, so a trail can fade along its length.</summary>
+        public static Material Trail() => trail != null ? trail : trail = Template("ArtifactTrail");
+
+        static Material Template(string name) => Resources.Load<Material>("ArtifactLook/" + name);
 
         public static GameObject Shape(string shape, bool collider)
         {

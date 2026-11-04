@@ -23,6 +23,14 @@
       "kind": "standalone",
       "category": "viz",
       "project_id": null
+    },
+    {
+      "id": "three_body",
+      "title": "Three-body problem",
+      "version": 1,
+      "kind": "standalone",
+      "category": "sim",
+      "project_id": null
     }
   ],
   "templates": [

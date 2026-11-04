@@ -39,6 +39,12 @@ namespace Forge.Artifacts
 
         public ArtifactInputs Inputs => build?.Inputs;
 
+        /// <summary>The open scene's rules, for nodes that act on them.</summary>
+        public JToken Rules => open?.Scene["rules"];
+
+        /// <summary>The open artifact's live numbers.</summary>
+        public ArtifactMetrics Metrics => build?.Metrics;
+
         public void Open(string id)
         {
             Close();
@@ -96,6 +102,14 @@ namespace Forge.Artifacts
             return panel;
         }
 
+        /// <summary>A tall panel rises so its bottom edge stays above the host's base, clear of whatever that stands on.</summary>
+        public void KeepAboveBase(ForgePanel panel)
+        {
+            var at = panel.transform.localPosition;
+            at.y = Mathf.Max(at.y, panel.SizeMeters.y * 0.5f + 0.04f);
+            PlacePanel(panel.transform, at);
+        }
+
         /// <summary>A button was pressed: run its <c>on_input</c> rules.</summary>
         public void Fire(string input)
         {
@@ -107,6 +121,12 @@ namespace Forge.Artifacts
 
         void Do(JToken action)
         {
+            string sim = action.Value<string>("sim");
+            if (sim != null)
+            {
+                Control(sim, action.Value<string>("action"));
+                return;
+            }
             string target = action.Value<string>("set");
             if (target == null)
             {
@@ -117,6 +137,14 @@ namespace Forge.Artifacts
             if (parts.Length == 2 && parts[1] == "visible" && nodes.TryGetValue(parts[0], out var node))
                 node.SetActive(action.Value<bool>("value"));
             else Debug.LogWarning($"[Artifacts] can't set {target} yet: only <node>.visible is built");
+        }
+
+        void Control(string id, string verb)
+        {
+            if (!nodes.TryGetValue(id, out var node) || !node.TryGetComponent<ArtifactSim>(out var sim)) return;
+            if (verb == "play") sim.Play();
+            else if (verb == "pause") sim.Pause();
+            else if (verb == "restart") sim.Restart();
         }
 
         void AskPermission()
@@ -150,17 +178,19 @@ namespace Forge.Artifacts
             var scenario = (open.Manifest["scenarios"] as JArray)?[0];
             var inputs = new ArtifactInputs(open.Manifest, scenario?["params"] as JObject);
             var root = new GameObject("Content").transform;
-            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root };
+            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes };
 
             var list = open.Scene["nodes"] as JArray ?? new JArray();
             foreach (JObject node in list) nodes[node.Value<string>("id")] = ArtifactNodes.Build(node, build);
             foreach (JObject node in list) Arrange(node, root);
+            build.Finish();
 
-            if (open.Scene.Value<string>("space") == "volume") ShowVolume(root);
+            float scale = 1f;
+            if (open.Scene.Value<string>("space") == "volume") scale = ShowVolume(root);
             else Hold(root);
 
             inputs.Changed += OnInputChanged;
-            reveal = StartCoroutine(Reveal(root));
+            reveal = StartCoroutine(Reveal(root, scale));
         }
 
         void Hold(Transform root)
@@ -169,15 +199,25 @@ namespace Forge.Artifacts
             spawned.Add(root.gameObject);
         }
 
-        void ShowVolume(Transform root)
+        // A scene with a view keeps that sphere in the box however its contents move. Without one, it's fitted once as it
+        // stands. Returns the scale the root should end at.
+        float ShowVolume(Transform root)
         {
             var volume = Instantiate(volumePrefab, transform);
             volume.name = "Volume " + open.Title;
             volume.Title = open.Title;
             volume.SetAccent(accent);
             volume.SetSize(volumeSize);
-            volume.SetContent(root.gameObject);
             spawned.Add(volume.gameObject);
+            float radius = open.Scene["view"]?.Value<float?>("radius") ?? 0f;
+            if (radius <= 0f)
+            {
+                volume.SetContent(root.gameObject);
+                return 1f;
+            }
+            volume.SetContent(root.gameObject, false);
+            root.localPosition = new Vector3(0f, volumeSize.y * 0.5f, 0f);
+            return Mathf.Min(volumeSize.x, volumeSize.y, volumeSize.z) / (2f * radius);
         }
 
         // Panels live beside the scene, not in it: they keep their real size however the scene is scaled to fit.
@@ -225,14 +265,14 @@ namespace Forge.Artifacts
         void OnInputChanged(string input) => build.Refresh();
 
         // Grows in rather than popping, so it feels placed. Scales the root's child space only, never the Fit.
-        IEnumerator Reveal(Transform root)
+        IEnumerator Reveal(Transform root, float scale)
         {
             for (float t = 0f; t < 1f; t += Time.deltaTime / ForgeTheme.UnfoldTime)
             {
-                root.localScale = Vector3.one * Mathf.SmoothStep(ForgeTheme.UnfoldScale, 1f, t);
+                root.localScale = Vector3.one * (scale * Mathf.SmoothStep(ForgeTheme.UnfoldScale, 1f, t));
                 yield return null;
             }
-            root.localScale = Vector3.one;
+            root.localScale = Vector3.one * scale;
             reveal = null;
         }
     }
