@@ -17,6 +17,10 @@ namespace Forge.Artifacts
         public Dictionary<string, List<Pose>> Slots = new Dictionary<string, List<Pose>>();
         /// <summary>Each <c>array</c> node's copies, in slot order, for runs to count gates and hits.</summary>
         public readonly Dictionary<string, List<GameObject>> Arrays = new Dictionary<string, List<GameObject>>();
+        /// <summary>The manifest's data tables (C-12 section 7), resolved before the build.</summary>
+        public Dictionary<string, ArtifactTable> Tables = new Dictionary<string, ArtifactTable>();
+        /// <summary>Things the build had to change that Albie should say (an array cut to the copy limit).</summary>
+        public readonly List<string> Notes = new List<string>();
         public readonly ArtifactMetrics Metrics = new ArtifactMetrics();
         readonly List<Action> bound = new List<Action>();
         readonly List<Action> after = new List<Action>();
@@ -86,7 +90,8 @@ namespace Forge.Artifacts
                 {
                     string kind = node.Value<string>("kind");
                     if (!CanBuild(kind) && !missing.Contains(kind)) missing.Add(kind);
-                    if (kind == "array" && node["source"] is JObject && !missing.Contains("array from a table")) missing.Add("array from a table");
+                    if (kind == "array" && node["source"] is JObject s && s["grid"] == null && !missing.Contains("array from a table without a grid"))
+                        missing.Add("array from a table without a grid");
                 }
             if (scene["generators"] is JArray generators)
                 foreach (var generator in generators)

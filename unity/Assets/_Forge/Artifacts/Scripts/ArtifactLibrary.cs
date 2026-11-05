@@ -16,7 +16,7 @@ namespace Forge.Artifacts
     public static class ArtifactLibrary
     {
         /// <summary>The built-in templates.</summary>
-        public static readonly string[] Templates = { "slalom", "hoop_course" };
+        public static readonly string[] Templates = { "slalom", "hoop_course", "repo_activity" };
 
         /// <summary>Checks point this at a scratch folder.</summary>
         public static string RootOverride;
@@ -81,7 +81,38 @@ namespace Forge.Artifacts
                 manifest["kind"] = "standalone";
                 foreach (var link in ((JObject)manifest["links"]).Properties()) link.Value = JValue.CreateNull();
             }
+            return Write(manifest, scene);
+        }
 
+        /// <summary>
+        /// Saves an artifact Albie wrote itself (<c>artifact_create {manifest, scene}</c>). Nothing is written unless the
+        /// validator passes and this host can build every part; otherwise <paramref name="errors"/> says what to fix, as
+        /// data (C-12 section 9). A project or code artifact made while a notebook is open is linked to that project.
+        /// </summary>
+        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors)
+        {
+            errors = ArtifactValidator.Validate(manifest, scene);
+            if (errors.Count > 0) return null;
+            var missing = ArtifactNodes.Missing(scene);
+            if (missing.Count > 0)
+            {
+                errors.Add(new ArtifactError("cant_build", "scene", "valid, but this version can't build: " + string.Join(", ", missing)));
+                return null;
+            }
+            manifest = (JObject)manifest.DeepClone();
+            scene = (JObject)scene.DeepClone();
+            if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone")
+            {
+                if (!(manifest["links"] is JObject)) manifest["links"] = new JObject();
+                manifest["links"]["project"] = NotebookStore.ProjectId;
+                manifest["links"]["project_version"] = NotebookStore.CurrentVersion();
+            }
+            return Write(manifest, scene);
+        }
+
+        // Same artifact again: unchanged. Different: the next version. Links following a project don't count as different.
+        static Created Write(JObject manifest, JObject scene)
+        {
             string id = manifest.Value<string>("id");
             string folder = Folder(id);
             int version = 1;
@@ -116,7 +147,7 @@ namespace Forge.Artifacts
             NotebookFiles.WriteAtomic(Path.Combine(folder, "scene.json"), scene.ToString(Formatting.Indented));
             NotebookFiles.WriteAtomic(oldManifestPath, manifest.ToString(Formatting.Indented));
             if (Application.isPlaying)
-                ForgeNet.Emit("artifact.updated", new JObject { ["project_id"] = manifest["links"]["project"], ["artifact_id"] = id, ["version"] = version });
+                ForgeNet.Emit("artifact.updated", new JObject { ["project_id"] = manifest["links"]?["project"], ["artifact_id"] = id, ["version"] = version });
             return new Created { Id = id, Version = version, Change = change };
         }
 

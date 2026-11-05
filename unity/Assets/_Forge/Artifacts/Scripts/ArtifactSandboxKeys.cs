@@ -6,7 +6,8 @@ namespace Forge.Artifacts
     /// <summary>
     /// ArtifactsSandbox only, with the hub off: 1 Stance check (opens with no permissions, sliders change it live),
     /// 2 Slalom (permissions, then says what isn't built yet), 3 a broken artifact (the validator refuses it),
-    /// 4 an artifact that doesn't exist, 5 three-body problem (live, with trails), 0 close, 9 forget every approval.
+    /// 4 an artifact that doesn't exist, 5 three-body problem (live, with trails), 6 repo city (its own snapshot),
+    /// 7 make repo activity (bundled sample data), 0 close, 9 forget every approval.
     /// </summary>
     public class ArtifactSandboxKeys : MonoBehaviour
     {
@@ -21,6 +22,8 @@ namespace Forge.Artifacts
             if (k.digit3Key.wasPressedThisFrame) host.Open("broken");
             if (k.digit4Key.wasPressedThisFrame) host.Open("nothing_here");
             if (k.digit5Key.wasPressedThisFrame) host.Open("three_body");
+            if (k.digit6Key.wasPressedThisFrame) host.Open("repo_city");
+            if (k.digit7Key.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "repo_activity" });
             if (k.digit0Key.wasPressedThisFrame) host.Close();
             if (k.digit9Key.wasPressedThisFrame) ArtifactApprovals.Forget();
         }

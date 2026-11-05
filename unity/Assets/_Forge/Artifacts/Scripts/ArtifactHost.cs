@@ -46,6 +46,10 @@ namespace Forge.Artifacts
         public bool LayoutReused { get; private set; }
         /// <summary>What Albie should say about the layout: a shrink, a missing couch, or why nothing fits. Null if nothing to say.</summary>
         public string LayoutMessage { get; private set; }
+        /// <summary>What Albie should say about the open artifact's data (sample data, a saved copy, rows cut), or null.</summary>
+        public string DataMessage { get; private set; }
+        /// <summary>The open artifact's data tables (C-12 section 7). Empty when it reads none.</summary>
+        public IReadOnlyDictionary<string, ArtifactTable> Tables => build != null ? build.Tables : new Dictionary<string, ArtifactTable>();
         /// <summary>True while the first-open permissions sheet is waiting for a tap.</summary>
         public bool AwaitingApproval { get; private set; }
         /// <summary>Where a room-space scene's origin is (world): the course start.</summary>
@@ -118,6 +122,7 @@ namespace Forge.Artifacts
             LastErrors = new List<ArtifactError>();
             LastLayout = null;
             LayoutMessage = null;
+            DataMessage = null;
             LayoutReused = false;
             AwaitingApproval = false;
         }
@@ -265,6 +270,23 @@ namespace Forge.Artifacts
                 return;
             }
 
+            var tables = ArtifactData.Resolve(open, out string dataProblem);
+            if (tables == null)
+            {
+                LastErrors = new List<ArtifactError> { new ArtifactError("no_data", "data", dataProblem) };
+                Refuse(open.Title, dataProblem);
+                return;
+            }
+            if (open.Scene["nodes"] is JArray tableNodes)
+                foreach (JObject node in tableNodes)
+                {
+                    string problem = node.Value<string>("kind") == "array" ? ArtifactArray.Problem(node, tables) : null;
+                    if (problem == null) continue;
+                    LastErrors = new List<ArtifactError> { new ArtifactError("unknown_ref", "nodes." + node.Value<string>("id"), problem) };
+                    Refuse(open.Title, problem);
+                    return;
+                }
+
             var scenario = (open.Manifest["scenarios"] as JArray)?[0] as JObject;
             var inputs = keep ?? new ArtifactInputs(open.Manifest, scenario?["params"] as JObject);
             bool room = open.Scene.Value<string>("space") == "room";
@@ -299,12 +321,18 @@ namespace Forge.Artifacts
             }
 
             var root = new GameObject("Content").transform;
-            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots };
+            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots, Tables = tables };
 
             var list = open.Scene["nodes"] as JArray ?? new JArray();
             foreach (JObject node in list) nodes[node.Value<string>("id")] = ArtifactNodes.Build(node, build);
             foreach (JObject node in list) Arrange(node, root);
             build.Finish();
+            LabelSample(root);
+            var said = new List<string>();
+            string aboutData = ArtifactData.Say(tables);
+            if (aboutData != null) said.Add(aboutData);
+            said.AddRange(build.Notes);
+            DataMessage = said.Count > 0 ? string.Join(" ", said) : null;
 
             float scale = 1f;
             if (open.Scene.Value<string>("space") == "volume") scale = ShowVolume(root);
@@ -316,9 +344,26 @@ namespace Forge.Artifacts
             reveal = StartCoroutine(Reveal(root, scale));
         }
 
+        // C-12 section 7: sample rows always carry a "Sample data" label, floating just above everything else in the scene.
+        void LabelSample(Transform root)
+        {
+            bool sample = false;
+            foreach (var t in build.Tables.Values) sample |= t.Sample;
+            if (!sample) return;
+            var label = ArtifactNodes.Build(new JObject
+            {
+                ["id"] = "sample_label", ["kind"] = "text", ["text"] = "Sample data", ["height"] = 0.04, ["color"] = "#FFD24C", ["billboard"] = true,
+            }, build);
+            var bounds = new Bounds(root.position, Vector3.zero);
+            foreach (var r in root.GetComponentsInChildren<Renderer>()) bounds.Encapsulate(r.bounds);
+            label.transform.SetParent(root, false);
+            label.transform.localPosition = root.InverseTransformPoint(new Vector3(bounds.center.x, bounds.max.y + 0.06f, bounds.center.z));
+            nodes["_sample_label"] = label;  // not a legal node id, so it can't clash with the scene's own
+        }
+
         void BindRun()
         {
-            if (open.Scene["run"] == null) return;
+            if (!(open.Scene["run"] is JObject)) return;
             if (Thing == null) Thing = FindFirstObjectByType<ArtifactThing>();
             run = new ArtifactRun();
             run.Bind(open.Manifest, open.Scene, LastLayout, build.Inputs, Thing, build.Metrics, build);

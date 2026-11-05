@@ -1,0 +1,44 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "generators": [],
+  "nodes": [
+    {
+      "id": "base",
+      "kind": "primitive",
+      "shape": "box",
+      "pos": [0, -0.005, 0],
+      "size": [0.42, 0.01, 0.3],
+      "color": "#1C2230"
+    },
+    {
+      "id": "city",
+      "kind": "array",
+      "source": {
+        "table": "commits",
+        "grid": { "columns": 6, "gap_m": 0.02 }
+      },
+      "map": {
+        "height": { "column": "lines_changed", "range": [0.02, 0.3] },
+        "color": { "column": "author" }
+      },
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "size": [0.045, 1.0, 0.045],
+        "color": "#4C8DFF"
+      }
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "What shipped this week",
+      "widgets": [
+        { "type": "note", "text": "Each block is a commit. Taller means more lines changed. One colour per person." },
+        { "type": "note", "text": "Grey blocks are commits the source didn't report a size for." }
+      ]
+    }
+  ],
+  "rules": [],
+  "run": null
+}

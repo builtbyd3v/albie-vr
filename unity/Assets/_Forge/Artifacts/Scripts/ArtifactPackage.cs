@@ -64,6 +64,29 @@ namespace Forge.Artifacts
             return package;
         }
 
+        /// <summary>
+        /// A snapshot named in the manifest's <c>data</c> (<c>data/repo_activity.json</c>), or null with <paramref name="why"/>.
+        /// Only files under the artifact's own <c>data/</c> folder can be read (C-12 section 8: no file access outside it).
+        /// </summary>
+        public JObject ReadData(string file, out string why)
+        {
+            why = null;
+            if (file == null || !SafeData.IsMatch(file))
+            {
+                why = $"\"{file}\" has to be data/<name>.json";
+                return null;
+            }
+            string text = Read(Id, file);
+            if (text == null)
+            {
+                why = file + " is missing";
+                return null;
+            }
+            return Parse(text);
+        }
+
+        static readonly Regex SafeData = new Regex(@"^data/[a-z0-9_-]+\.json$");
+
         // Dates stay strings: this data is passed along, not interpreted.
         static JObject Parse(string text)
         {
@@ -75,7 +98,9 @@ namespace Forge.Artifacts
         {
             string path = Path.Combine(ArtifactLibrary.Folder(id), file);
             if (File.Exists(path)) return File.ReadAllText(path);
-            var asset = Resources.Load<TextAsset>($"Mocks/artifacts/{id}/{Path.GetFileNameWithoutExtension(file)}");
+            string folder = Path.GetDirectoryName(file);
+            string name = (string.IsNullOrEmpty(folder) ? "" : folder.Replace('\\', '/') + "/") + Path.GetFileNameWithoutExtension(file);
+            var asset = Resources.Load<TextAsset>($"Mocks/artifacts/{id}/{name}");
             return asset != null ? asset.text : null;
         }
     }

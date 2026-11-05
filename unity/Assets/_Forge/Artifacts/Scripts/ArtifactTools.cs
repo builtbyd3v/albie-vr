@@ -32,14 +32,40 @@ namespace Forge.Artifacts
                 if (ArtifactLibrary.TryTemplate(name, out var manifest, out _))
                     templates.Add(new JObject { ["template"] = name, ["title"] = manifest["title"], ["inputs"] = manifest["inputs"] });
             var host = ArtifactHost.Current;
-            return new JObject { ["templates"] = templates, ["library"] = ArtifactLibrary.List(), ["open"] = host != null ? host.OpenId : null };
+            return new JObject
+            {
+                ["templates"] = templates, ["data_sources"] = ArtifactData.Sources(), ["library"] = ArtifactLibrary.List(),
+                ["open"] = host != null ? host.OpenId : null,
+            };
         }
 
         public static JObject Create(JObject args)
         {
             string template = (string)args["template"];
-            if (string.IsNullOrEmpty(template)) throw new ArgumentException("bad_value: say which template (" + string.Join(", ", ArtifactLibrary.Templates) + ")");
-            var made = ArtifactLibrary.FromTemplate(template, args["inputs"] as JObject);
+            ArtifactLibrary.Created made;
+            if (args["manifest"] != null || args["scene"] != null)
+            {
+                if (template != null) throw new ArgumentException("bad_value: give a template or a manifest and scene, not both");
+                if (!(args["manifest"] is JObject manifest) || !(args["scene"] is JObject scene))
+                    throw new ArgumentException("bad_value: a written artifact needs both manifest and scene, as JSON objects");
+                made = ArtifactLibrary.FromScene(manifest, scene, out var errors);
+                if (made == null)
+                {
+                    // Returned as data, not thrown, so the agent can fix every problem in one go (C-12 section 9).
+                    var list = new JArray();
+                    foreach (var e in errors) list.Add(new JObject { ["code"] = e.code, ["path"] = e.path, ["message"] = e.message });
+                    return new JObject
+                    {
+                        ["status"] = "invalid", ["errors"] = list,
+                        ["next"] = "Nothing was saved. Fix these and call artifact_create again with the whole manifest and scene.",
+                    };
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(template)) throw new ArgumentException("bad_value: say which template (" + string.Join(", ", ArtifactLibrary.Templates) + "), or give a manifest and scene");
+                made = ArtifactLibrary.FromTemplate(template, args["inputs"] as JObject);
+            }
             var result = new JObject { ["id"] = made.Id, ["version"] = made.Version, ["change"] = made.Change };
             if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
             return result;
@@ -132,6 +158,19 @@ namespace Forge.Artifacts
                 };
                 if (host.LayoutMessage != null) result["say"] = host.LayoutMessage;
             }
+            if (host.Tables.Count > 0)
+            {
+                var data = new JArray();
+                foreach (var t in host.Tables.Values)
+                    data.Add(new JObject
+                    {
+                        ["name"] = t.Name, ["source"] = t.Source, ["rows"] = t.Rows.Count, ["fetched_at"] = t.FetchedAt,
+                        ["sample"] = t.Sample, ["from"] = t.From,
+                    });
+                result["data"] = data;
+            }
+            if (host.DataMessage != null)
+                result["say"] = result["say"] != null ? (string)result["say"] + " " + host.DataMessage : host.DataMessage;
             return result;
         }
     }
