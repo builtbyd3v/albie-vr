@@ -271,6 +271,8 @@ public static class SlalomCheck
         if (!File.Exists(path)) return "no file at " + path;
         var saved = (JObject)NotebookFiles.Parse(File.ReadAllText(path));
         if ((string)saved["room"]["key"] != "mock:living_room" || (int)saved["fit"]["placed"]["gates"] != 5 || saved["room"]["origin"] == null) return "saved " + saved["room"] + saved["fit"];
+        string anchor = (string)saved["room"]["anchor"];
+        if (string.IsNullOrEmpty(anchor) || !ArtifactAnchors.Exists(anchor)) return "no saved spatial anchor: " + saved["room"]["anchor"];
 
         var again = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, false);
         if (!again.Ok || !again.Reused || (string)again.Layout["layout_id"] != "lay_0001") return "a rerun didn't reuse lay_0001";
@@ -301,9 +303,12 @@ public static class SlalomCheck
         File.WriteAllText(Path.Combine(root, "slalom", "layouts", "lay_0099.json"), "{ broken");
         var afterDamage = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Loft(), false);
         if (!afterDamage.Ok || !afterDamage.Reused) return "a damaged layout file broke the lookup";
+        ArtifactAnchors.Forget((string)afterDamage.Layout["room"]["anchor"]);
+        var lost = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Loft(), false);
+        if (!lost.Ok || lost.Reused || lost.Message == null || !lost.Message.StartsWith("I can't find the saved course")) return "lost anchor: " + lost.Message;
         var none = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Unscanned(), false);
         if (none.Ok || none.Code != "no_room_data") return "unscanned: " + none.Code;
-        note = "lay_0001 reused on rerun; relayout, a new spacing, moved furniture and another room each made a new one";
+        note = "lay_0001 reused on rerun; relayout, a new spacing, moved furniture, another room and a lost anchor each made a new one";
         return null;
     }
 

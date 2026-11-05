@@ -284,6 +284,7 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 - `slots` are relative to `room.anchor`, a spatial anchor the host places on the floor and saves (`OVRSpatialAnchor.SaveAnchorAsync`). This is the persistent anchor beat (15.3).
 - **Anchor can't be found:** the host says so and makes a new layout with a new `layout_id`. Old runs stay, but they no longer compare like for like.
 - **Before Nov 12** (saved anchors), the host may set `room.anchor` to null and use the floor anchor. Reruns in one session still match. As built, `room.origin {pos, yaw}` then holds the course start in the room's floor frame (the floor anchor's position, turned to the room's main axis), and `slots` are local to it.
+- **As built, 2026-11-05 (Nov 12).** `ArtifactAnchors.Save` writes a uuid into `room.anchor` and a copy on the device. On a Quest it also calls `OVRSpatialAnchor.SaveAnchorAsync`. If the uuid is gone, the host makes a new layout and the `say` line is "I can't find the saved course in this room, so I made a new one." Furniture that has moved still uses the existing message. `room.origin` is kept so Editor and mock rooms can place the course without waiting on headset localisation.
 - In the Editor, MRUK gives a prefab room a new UUID every time it loads, so layouts aren't reused across loads there. On a headset the scanned room keeps its UUID (question 3).
 
 ### 6.2 Run record: `albie.run/1`

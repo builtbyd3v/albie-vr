@@ -7,22 +7,22 @@ The lab notebook (C-17, `docs/NOTEBOOK_CONTRACT.md`). It's the engineering log A
 - "That didn't work" logs a failure.
 - The notebook survives a restart.
 
-**Still to come (Nov 12 goals):**
-- Lessons shown at session start: `notebook_read` already returns them; the brain's prompt has to call it.
-- Plan revision (`plan_revise`).
-- Comparing v1 and v2.
+**Nov 12:**
+- Session start: `notebook_read` returns the current plan, recent entries, matching lessons, and a `say` line ("Last time: …"). Person 3's brain should call it before planning.
+- `plan_revise` writes a postmortem and a new plan version. The old plan is kept.
+- `notebook_compare` puts two project versions side by side. A version with an incident and no slalom run is labelled "free drive, not this course" (C-12 question 7: v1 flipped before the course existed).
 
 ## Files
 
 | Path | What it is |
 |---|---|
-| `Scripts/NotebookStore.cs` | The API other modules call. Entries, project versions and lessons, plus the outcome rules. |
+| `Scripts/NotebookStore.cs` | The API other modules call. Entries, project versions, plans, lessons, `RevisePlan`, `CompareVersions`. |
 | `Scripts/NotebookFiles.cs` | Writes on a background queue, through a temp file and then a replace. Parses JSON with dates kept as strings. |
 | `Scripts/NotebookTools.cs` | Albie's tools, the bridge from ML A's training runs, and the default project. Set up at Play start. |
 | `Scripts/Lesson.cs` | A read-only view of an `albie.lesson/1` record. |
-| `Resources/AlbieTools/notebook.json` | Tool definitions: `notebook_read`, `notebook_log`, `notebook_mark`, `notebook_lessons`. |
+| `Resources/AlbieTools/notebook.json` | Tool definitions: `notebook_read`, `notebook_log`, `notebook_mark`, `notebook_lessons`, `plan_revise`, `notebook_compare`. |
 | `Scripts/NotebookSandbox.cs`, `NotebookSandbox.unity` | Desktop sandbox with the hub off. Rebuild it with **Forge > Notebook > Build Sandbox**. |
-| `Editor/NotebookCheck.cs` | 13 headless checks: **Forge > Notebook > Check Notebook**. |
+| `Editor/NotebookCheck.cs` | Headless checks: **Forge > Notebook > Check Notebook**. |
 
 ## On the device
 
@@ -31,6 +31,7 @@ Everything lives under `persistentDataPath` (C-17 section 7):
 ```
 projects/<project_id>/notebook/ent_0001.json   one file per entry
 projects/<project_id>/versions/v0001.json      written once, never edited
+projects/<project_id>/plans/plan_v0002.json    written once, never edited
 user/lessons.json                              lessons belong to the person, not the project
 ```
 
@@ -53,7 +54,13 @@ NotebookStore.AddIncident(new JObject { ["kind"] = "rolled_over", ["thing"] = "t
 // Thing runtime or code mode: a Thing spec change or a commit cuts a version and opens an attempt.
 NotebookStore.CutVersion("thing", "Wider track and a lower centre of mass.", new JObject { ["things"] = new JObject { ["truck"] = 2 } });
 
-// Panels: C# events, or the ForgeNet events notebook.entry, notebook.updated and project.version.
+// Demo step 7: v1 vs v2. Speak the `say` line.
+NotebookStore.CompareVersions(1, 2);
+
+// The whole plan failed: postmortem + a new plan. The old one stays on disk.
+NotebookStore.RevisePlan("Chasing speed kept costing cones.", test: "Finish the slalom with no cones hit.");
+
+// Panels: C# events, or the ForgeNet events notebook.entry, notebook.updated, project.version and plan.updated.
 NotebookStore.EntryCreated += entry => ...;
 ```
 

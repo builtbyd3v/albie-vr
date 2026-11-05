@@ -13,8 +13,8 @@ namespace Forge.Notebook
     /// that everything comes back after a restart.
     ///
     /// Keys: N new attempt, F "that didn't work", K Albie writes the lesson, W worked, C / X / A a run completed /
-    /// failed / aborted, I the truck rolled over, T a training run ends, V cut a version, S seed the demo story,
-    /// H hide or show the newest lesson, Z wipe the sandbox notebook.
+    /// failed / aborted, I the truck rolled over, T a training run ends, V cut a version, P revise the plan,
+    /// Y compare v1 vs v2, S seed the demo story, H hide or show the newest lesson, Z wipe the sandbox notebook.
     /// </summary>
     public sealed class NotebookSandbox : MonoBehaviour
     {
@@ -60,6 +60,8 @@ namespace Forge.Notebook
             if (k.iKey.wasPressedThisFrame) RolledOver();
             if (k.tKey.wasPressedThisFrame) Training();
             if (k.vKey.wasPressedThisFrame) CutVersion();
+            if (k.pKey.wasPressedThisFrame) RevisePlan();
+            if (k.yKey.wasPressedThisFrame) Compare();
             if (k.sKey.wasPressedThisFrame) Seed();
             if (k.hKey.wasPressedThisFrame) ToggleNewestLesson();
             if (k.zKey.wasPressedThisFrame) Wipe();
@@ -117,6 +119,19 @@ namespace Forge.Notebook
             Status = $"cut v{v}";
         }
 
+        public void RevisePlan() => Report(Tool("plan_revise", new JObject
+        {
+            ["reason"] = "Chasing speed kept costing cones, and the goal is a clean slalom.",
+            ["test"] = "Finish the slalom with no cones hit.",
+        }));
+
+        public void Compare()
+        {
+            int to = NotebookStore.CurrentVersion();
+            if (to < 2) { Status = "cut two versions (V) or seed the demo (S) first"; return; }
+            Report(Tool("notebook_compare", new JObject { ["from"] = to - 1, ["to"] = to }));
+        }
+
         public void Seed()
         {
             int added = NotebookStore.SeedFixtures();
@@ -163,7 +178,17 @@ namespace Forge.Notebook
         {
             var sb = new StringBuilder(2048);
             sb.Append($"<b>Notebook sandbox</b>   {NotebookStore.ProjectId} v{NotebookStore.CurrentVersion()}   {NotebookStore.Entries.Count} entries\n");
-            sb.Append("N attempt   F that didn't work   K lesson   W worked   C/X/A run done/failed/aborted   I rolled over   T training   V cut version   S seed   H hide lesson   Z wipe\n\n");
+            sb.Append("N attempt   F that didn't work   K lesson   W worked   C/X/A run   I rolled over   T training   V cut version   P revise plan   Y compare   S seed   H hide lesson   Z wipe\n");
+            var plan = NotebookStore.CurrentPlan;
+            if (plan != null)
+            {
+                int done = 0, total = 0;
+                if (plan["milestones"] is JArray ms) { total = ms.Count; foreach (var m in ms) if ((bool?)m["done"] == true) done++; }
+                sb.Append($"Plan v{plan["version"]}: {plan["goal"]}   test: {plan["test"]}   {done}/{total}\n");
+            }
+            var session = NotebookStore.Read();
+            if ((string)session["say"] != null) sb.Append($"<color=#ffd166>session: {session["say"]}</color>\n");
+            sb.Append('\n');
             var entries = NotebookStore.Entries;
             for (int i = Mathf.Max(0, entries.Count - 12); i < entries.Count; i++)
             {

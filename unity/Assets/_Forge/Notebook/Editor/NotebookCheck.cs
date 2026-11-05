@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Forge.Artifacts;
 using Forge.Controllers;
 using Forge.Notebook;
 using Newtonsoft.Json.Linq;
@@ -10,9 +11,9 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 /// <summary>
-/// Headless checks for Notebook v1 (PROJECT_CONTEXT 16.3, Person 5, Nov 8: "attempts saved, 'that didn't work' logs a
-/// failure, and it survives a restart"), against C-17 (docs/NOTEBOOK_CONTRACT.md). Uses a scratch folder under
-/// <c>temporaryCachePath</c>, never the real notebook. Forge > Notebook > Check Notebook logs the report; <see cref="Run"/> returns it.
+/// Headless checks for the notebook (C-17): Nov 8 v1 plus Nov 12 plan revision, session-start read and v1 vs v2
+/// compare. Uses a scratch folder under <c>temporaryCachePath</c>, never the real notebook.
+/// Forge > Notebook > Check Notebook logs the report; <see cref="Run"/> returns it.
 /// </summary>
 public static class NotebookCheck
 {
@@ -23,6 +24,14 @@ public static class NotebookCheck
     {
         string report = Run();
         if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
+    }
+
+    /// <summary>For -executeMethod.</summary>
+    public static void RunBatch()
+    {
+        string report = Run();
+        if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
+        EditorApplication.Exit(report.StartsWith("PASS") ? 0 : 1);
     }
 
     public static string Run()
@@ -45,6 +54,8 @@ public static class NotebookCheck
             ok &= Check(sb, "damaged files are moved aside", Damaged);
             ok &= Check(sb, "lessons carry across projects; hidden skipped", LessonsCarry);
             ok &= Check(sb, "session-start read fits 2,000 characters", SessionRead);
+            ok &= Check(sb, "plan_revise writes a postmortem and keeps the old plan", PlanRevise);
+            ok &= Check(sb, "v1 vs v2: free drive labelled, numbers from records", CompareVersions);
             ok &= Check(sb, "writes stay off the main thread", WriteSpeed);
         }
         finally
@@ -111,7 +122,7 @@ public static class NotebookCheck
             names.Add((string)def["name"]);
             if (def["parameters"]?["type"]?.ToString() != "object") return $"{def["name"]} has no object parameters";
         }
-        string expected = "notebook_read,notebook_log,notebook_mark,notebook_lessons";
+        string expected = "notebook_read,notebook_log,notebook_mark,notebook_lessons,plan_revise,notebook_compare";
         if (string.Join(",", names) != expected) return $"tools are {string.Join(",", names)}, expected {expected}";
         note = names.Count + " tools";
         return null;
@@ -383,6 +394,8 @@ public static class NotebookCheck
         int length = read.ToString(Newtonsoft.Json.Formatting.None).Length;
         if (length > 2000) return $"{length} characters";
         if ((int)read["version"] != 3) return "version " + read["version"];
+        if (read["plan"] == null || read["plan"].Type == JTokenType.Null || (int)read["plan"]["version"] != 2) return "plan " + read["plan"];
+        if ((string)read["say"] == null || !((string)read["say"]).StartsWith("Last time:")) return "say " + read["say"];
         if (((JArray)read["lessons"]).Count != 2) return $"{((JArray)read["lessons"]).Count} lessons (the hidden one must be skipped)";
         if (((JArray)read["entries"]).Count != 5) return $"{((JArray)read["entries"]).Count} entries";
         for (int i = 0; i < 40; i++) LogAttempt("A long change description that goes on and on to fill the session-start read. " + new string('x', 120));
@@ -393,6 +406,69 @@ public static class NotebookCheck
         if (entries.Count == 0 || (string)entries[entries.Count - 1]["id"] != "ent_0045") return "the newest entry was dropped";
         note = $"demo story {length} chars; with 45 entries {fullLength} chars, newest {entries.Count} kept";
         return null;
+    }
+
+    static string PlanRevise(out string note)
+    {
+        note = null;
+        Fresh();
+        string empty = null;
+        try { NotebookStore.RevisePlan("No goal yet."); }
+        catch (ArgumentException e) { empty = e.Message; }
+        if (empty == null || !empty.StartsWith("bad_value:")) return "a first plan with no goal was accepted: " + empty;
+        int v1 = NotebookStore.RevisePlan("Start from a slalom around the couch.", "An RC truck that does a slalom around the couch.", "Finish the slalom.");
+        if (v1 != 1) return "first plan is v" + v1;
+        var first = OnDiskPlan(1);
+        if (first == null || (string)first["schema"] != NotebookStore.PlanSchema || first["supersedes"].Type != JTokenType.Null) return "plan v1 " + first;
+        if ((string)NotebookStore.Newest()["kind"] != "postmortem") return "no postmortem for the first plan";
+        int v2 = NotebookStore.RevisePlan("Chasing speed kept costing cones.", test: "Finish the slalom with no cones hit.");
+        if (v2 != 2) return "revision is v" + v2;
+        NotebookStore.Flush();
+        var kept = OnDiskPlan(1);
+        var next = OnDiskPlan(2);
+        if ((string)kept["test"] == (string)next["test"]) return "the old plan was edited";
+        if ((int)next["supersedes"] != 1 || (string)next["postmortem"] != (string)NotebookStore.Newest()["id"]) return "v2 " + next.ToString(Newtonsoft.Json.Formatting.None);
+        if ((string)next["goal"] != (string)kept["goal"]) return "omitted goal wasn't copied";
+        var tool = NotebookTools.RevisePlanTool(new JObject { ["reason"] = "The test is a clean lap." });
+        if ((int)tool["version"] != 3) return "tool version " + tool;
+        note = "v1 written, v2 keeps v1 on disk, v3 through the tool; each opened a postmortem";
+        return null;
+    }
+
+    static JObject OnDiskPlan(int version)
+    {
+        NotebookStore.Flush();
+        string path = Path.Combine(root, "projects", "proj_check", "plans", $"plan_v{version:0000}.json");
+        return File.Exists(path) ? (JObject)NotebookFiles.Parse(File.ReadAllText(path)) : null;
+    }
+
+    static string CompareVersions(out string note)
+    {
+        note = null;
+        string libBefore = ArtifactLibrary.RootOverride;
+        ArtifactLibrary.RootOverride = Path.Combine(root, "artifacts");
+        try
+        {
+            Fresh("proj_truck");
+            if (NotebookStore.SeedFixtures() != 5) return "fixtures didn't seed";
+            var cmp = NotebookTools.CompareTool(new JObject { ["from"] = 1, ["to"] = 2 });
+            if ((string)cmp["from"]["label"] != "free drive, not this course") return "v1 label " + cmp["from"]["label"];
+            if ((string)cmp["from"]["outcome"] != "failed") return "v1 outcome " + cmp["from"]["outcome"];
+            if (((JArray)cmp["from"]["incidents"]).Count == 0 || (string)cmp["from"]["incidents"][0]["kind"] != "rolled_over") return "v1 incident missing";
+            if (((JArray)cmp["from"]["runs"]).Count != 0) return "v1 shouldn't have a slalom run";
+            var toRuns = (JArray)cmp["to"]["runs"];
+            if (toRuns.Count < 1) return "v2 has no runs";
+            bool sawCompleted = false;
+            foreach (var run in toRuns) sawCompleted |= (string)run["outcome"] == "completed";
+            if (!sawCompleted) return "v2 runs " + toRuns.ToString(Newtonsoft.Json.Formatting.None);
+            string say = (string)cmp["say"];
+            if (say == null || !say.Contains("rolled over") || !say.Contains("8.6")) return "say invented or incomplete: " + say;
+            string same = Tool(NotebookTools.CompareTool, new JObject { ["from"] = 2, ["to"] = 2 });
+            if (same == null || !same.StartsWith("bad_value:")) return "same version: " + same;
+            note = say;
+            return null;
+        }
+        finally { ArtifactLibrary.RootOverride = libBefore; }
     }
 
     static string WriteSpeed(out string note)
