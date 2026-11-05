@@ -1,0 +1,65 @@
+[
+  {
+    "schema": "albie.project_version/1",
+    "project_id": "proj_truck",
+    "version": 1,
+    "parent": null,
+    "cut_by": "thing",
+    "summary": "First truck.",
+    "things": {
+      "truck": 1
+    },
+    "controllers": {
+      "truck_manual": 1
+    },
+    "artifacts": {},
+    "cad": {},
+    "repos": {},
+    "datasets": {},
+    "checkpoints": {},
+    "created_at": "2026-11-10T13:55:02Z"
+  },
+  {
+    "schema": "albie.project_version/1",
+    "project_id": "proj_truck",
+    "version": 2,
+    "parent": 1,
+    "cut_by": "thing",
+    "summary": "Wider track and a lower centre of mass.",
+    "things": {
+      "truck": 2
+    },
+    "controllers": {
+      "truck_manual": 1
+    },
+    "artifacts": {},
+    "cad": {},
+    "repos": {},
+    "datasets": {},
+    "checkpoints": {},
+    "created_at": "2026-11-10T14:00:30Z"
+  },
+  {
+    "schema": "albie.project_version/1",
+    "project_id": "proj_truck",
+    "version": 3,
+    "parent": 2,
+    "cut_by": "commit",
+    "summary": "Autopilot max_speed raised to 2.2 m/s.",
+    "things": {
+      "truck": 2
+    },
+    "controllers": {
+      "truck_manual": 1,
+      "truck_autopilot": 2
+    },
+    "artifacts": {
+      "slalom": 1
+    },
+    "cad": {},
+    "repos": {},
+    "datasets": {},
+    "checkpoints": {},
+    "created_at": "2026-11-10T14:20:15Z"
+  }
+]

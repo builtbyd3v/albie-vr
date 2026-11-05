@@ -1,0 +1,8 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "generators": [],
+  "nodes": [ { "id": "block", "kind": "cube", "size": [0.1, 0.1, 0.1] } ],
+  "rules": [],
+  "run": null
+}

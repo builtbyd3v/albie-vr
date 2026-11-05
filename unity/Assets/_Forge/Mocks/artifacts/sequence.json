@@ -1,0 +1,66 @@
+[
+  {
+    "at": 0.5,
+    "type": "artifact.updated",
+    "payload": {
+      "project_id": "proj_truck",
+      "artifact_id": "slalom",
+      "version": 1
+    }
+  },
+  {
+    "at": 1,
+    "type": "artifact.layout",
+    "payload": {
+      "artifact_id": "slalom",
+      "layout_id": "lay_0001",
+      "placed": {
+        "gates": 5,
+        "spacing_m": 0.8
+      },
+      "shrunk": false,
+      "message": null
+    }
+  },
+  {
+    "at": 2,
+    "type": "artifact.run",
+    "payload": {
+      "artifact_id": "slalom",
+      "run_id": "run_0002",
+      "state": "armed",
+      "outcome": null,
+      "reason": null,
+      "metrics": null
+    }
+  },
+  {
+    "at": 3,
+    "type": "artifact.run",
+    "payload": {
+      "artifact_id": "slalom",
+      "run_id": "run_0002",
+      "state": "running",
+      "outcome": null,
+      "reason": null,
+      "metrics": null
+    }
+  },
+  {
+    "at": 11.6,
+    "type": "artifact.run",
+    "payload": {
+      "artifact_id": "slalom",
+      "run_id": "run_0002",
+      "state": "finished",
+      "outcome": "completed",
+      "reason": null,
+      "metrics": {
+        "completion_time_s": 8.6,
+        "gates_passed": 5,
+        "collisions": 0,
+        "top_speed_ms": 1.6
+      }
+    }
+  }
+]

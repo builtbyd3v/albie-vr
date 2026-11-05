@@ -1,0 +1,28 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "three_body",
+  "title": "Three-body problem",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "template": null,
+  "links": { "project": null, "project_version": null, "repo": null, "thing": null },
+  "runtime": { "type": "scene", "min_runtime": 1 },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    { "name": "mass_c", "type": "number", "min": 0.5, "max": 1.5, "default": 1.0, "label": "Mass of the green body" },
+    { "name": "kick", "type": "number", "min": 0.8, "max": 1.5, "default": 1.0, "label": "Starting speed" },
+    { "name": "speed", "type": "number", "min": 0.1, "max": 3.0, "default": 1.0, "label": "Playback speed" }
+  ],
+  "scenarios": [ { "id": "figure_eight", "seed": 1, "params": {} } ],
+  "data": [],
+  "assets": [],
+  "permissions": { "network": [], "connectors": [], "storage": "artifact-local", "write_project": "none", "room": "none", "things": "none" },
+  "outputs": [
+    { "name": "sim_time", "type": "number", "label": "Time" },
+    { "name": "energy_drift", "type": "number", "unit": "%", "label": "Energy drift" },
+    { "name": "closest", "type": "number", "label": "Closest approach" },
+    { "name": "escaped", "type": "integer", "label": "Bodies thrown out" }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "fetched_at": "2026-11-12T09:00:00Z",
+  "source": "connector:source_control/list_commits",
+  "sample": true,
+  "columns": [
+    {
+      "name": "author",
+      "type": "string"
+    },
+    {
+      "name": "lines_changed",
+      "type": "number"
+    }
+  ],
+  "rows": [
+    [
+      "Sample Author A",
+      120
+    ],
+    [
+      "Sample Author B",
+      45
+    ],
+    [
+      "Sample Author C",
+      null
+    ],
+    [
+      "Sample Author A",
+      310
+    ],
+    [
+      "Sample Author B",
+      18
+    ],
+    [
+      "Sample Author C",
+      76
+    ],
+    [
+      "Sample Author A",
+      204
+    ],
+    [
+      "Sample Author B",
+      9
+    ],
+    [
+      "Sample Author C",
+      150
+    ],
+    [
+      "Sample Author A",
+      33
+    ],
+    [
+      "Sample Author B",
+      null
+    ],
+    [
+      "Sample Author C",
+      88
+    ]
+  ]
+}

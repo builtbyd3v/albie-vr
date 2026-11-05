@@ -1,0 +1,24 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "generators": [],
+  "nodes": [
+    { "id": "ground", "kind": "primitive", "shape": "cylinder", "size": [0.96, 0.02, 0.96], "color": "#2B2F36" },
+    { "id": "track", "kind": "primitive", "shape": "box", "pos": [0, 0.04, 0], "size": ["$track_m", 0.04, 0.34], "color": "#4D8DFF" },
+    { "id": "mast", "kind": "primitive", "shape": "cylinder", "pos": [0, 0.33, 0], "size": [0.012, 0.6, 0.012], "color": "#CFE0FF" },
+    { "id": "cog", "kind": "primitive", "shape": "sphere", "pos": [0, "$cog_m", 0], "size": [0.08, 0.08, 0.08], "color": "#FF8A3D" },
+    { "id": "cog_label", "kind": "text", "parent": "cog", "pos": [0, 0.08, 0], "text": "CoG", "height": 0.05, "color": "#FFFFFF", "billboard": true },
+    { "id": "controls", "kind": "panel", "title": "Stance check", "widgets": [
+      { "type": "note", "text": "A wider track and a lower centre of gravity both resist rolling over." },
+      { "type": "slider", "input": "track_m" },
+      { "type": "slider", "input": "cog_m" },
+      { "type": "button", "id": "hide_label", "label": "Hide label" },
+      { "type": "button", "id": "show_label", "label": "Show label" }
+    ] }
+  ],
+  "rules": [
+    { "type": "on_input", "input": "hide_label", "do": [ { "set": "cog_label.visible", "value": false } ] },
+    { "type": "on_input", "input": "show_label", "do": [ { "set": "cog_label.visible", "value": true } ] }
+  ],
+  "run": null
+}

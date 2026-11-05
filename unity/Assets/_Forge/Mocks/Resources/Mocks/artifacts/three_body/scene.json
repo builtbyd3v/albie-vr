@@ -1,0 +1,44 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": { "radius": 1.25 },
+  "generators": [],
+  "nodes": [
+    { "id": "orbits", "kind": "sim", "solver": "n_body", "rot": [38, 0, 0], "rate": "$speed",
+      "params": { "g": 1, "step": 0.001, "softening": 0, "velocity_scale": "$kick", "bound_radius": 2.6 },
+      "bodies": [
+        { "node": "body_a", "mass": 1, "pos": [0.97000436, -0.24308753, 0], "vel": [0.466203685, 0.43236573, 0] },
+        { "node": "body_b", "mass": 1, "pos": [-0.97000436, 0.24308753, 0], "vel": [0.466203685, 0.43236573, 0] },
+        { "node": "body_c", "mass": "$mass_c", "pos": [0, 0, 0], "vel": [-0.93240737, -0.86473146, 0] }
+      ] },
+    { "id": "body_a", "kind": "primitive", "parent": "orbits", "shape": "sphere", "size": [0.15, 0.15, 0.15], "color": "#FF8A3D", "glow": true },
+    { "id": "body_b", "kind": "primitive", "parent": "orbits", "shape": "sphere", "size": [0.15, 0.15, 0.15], "color": "#4D8DFF", "glow": true },
+    { "id": "body_c", "kind": "primitive", "parent": "orbits", "shape": "sphere", "size": [0.15, 0.15, 0.15], "color": "#22CF86", "glow": true },
+    { "id": "trail_a", "kind": "line", "parent": "orbits", "follow": "body_a", "length": 700, "width": 0.045, "color": "#FF8A3D" },
+    { "id": "trail_b", "kind": "line", "parent": "orbits", "follow": "body_b", "length": 700, "width": 0.045, "color": "#4D8DFF" },
+    { "id": "trail_c", "kind": "line", "parent": "orbits", "follow": "body_c", "length": 700, "width": 0.045, "color": "#22CF86" },
+    { "id": "controls", "kind": "panel", "title": "Three-body problem", "widgets": [
+      { "type": "note", "text": "Three equal masses can chase each other around a figure eight. Nudge anything and watch what happens." },
+      { "type": "stat", "metric": "sim_time", "label": "Time", "decimals": 1 },
+      { "type": "stat", "metric": "energy_drift", "label": "Energy drift", "unit": "%", "decimals": 4 },
+      { "type": "stat", "metric": "closest", "label": "Closest approach", "decimals": 3 },
+      { "type": "stat", "metric": "escaped", "label": "Bodies thrown out", "decimals": 0 },
+      { "type": "slider", "input": "mass_c" },
+      { "type": "slider", "input": "kick" },
+      { "type": "slider", "input": "speed" },
+      { "type": "button", "id": "play", "label": "Play" },
+      { "type": "button", "id": "pause", "label": "Pause" },
+      { "type": "button", "id": "restart", "label": "Restart" }
+    ] }
+  ],
+  "rules": [
+    { "type": "metric", "name": "sim_time", "op": "sim", "sim": "orbits", "value": "time" },
+    { "type": "metric", "name": "energy_drift", "op": "sim", "sim": "orbits", "value": "energy_drift_pct" },
+    { "type": "metric", "name": "closest", "op": "sim", "sim": "orbits", "value": "closest_approach" },
+    { "type": "metric", "name": "escaped", "op": "sim", "sim": "orbits", "value": "escaped" },
+    { "type": "on_input", "input": "play", "do": [ { "sim": "orbits", "action": "play" } ] },
+    { "type": "on_input", "input": "pause", "do": [ { "sim": "orbits", "action": "pause" } ] },
+    { "type": "on_input", "input": "restart", "do": [ { "sim": "orbits", "action": "restart" } ] }
+  ],
+  "run": null
+}

@@ -6,13 +6,15 @@ namespace Forge.ML
 
     /// <summary>
     /// A small fully connected network in the TensorFlow Playground mould: input features (x, y, x², ...) → hidden
-    /// layers → one tanh output in [-1, 1], squared-error loss, mini-batch gradient descent. Any hidden neuron can be
+    /// layers → tanh outputs in [-1, 1], squared-error loss, mini-batch gradient descent. Any hidden neuron can be
     /// switched off: it outputs 0 and learns nothing until switched back on, so its effect on the boundary shows at once.
-    /// No allocations after construction: Forward / TrainBatch reuse the same buffers (runs every frame on Quest).
+    /// The Neural Net Lab uses one output. A learned controller (C-19, docs/CONTROLLER_CONTRACT.md) uses several, e.g.
+    /// steer and throttle; its weights use this same [layer][to][from] layout.
+    /// No allocations after construction: Forward / Accumulate / Apply reuse the same buffers (runs every frame on Quest).
     /// </summary>
     public sealed class NNNetwork
     {
-        public readonly int[] sizes;            // layer sizes: inputs, hidden..., 1
+        public readonly int[] sizes;            // layer sizes: inputs, hidden..., outputs (1 for the Lab)
         public readonly float[][][] weights;    // [layer][to][from], layer 1..L
         public readonly float[][] biases;       // [layer][neuron]
         public readonly bool[][] disabled;      // [layer][neuron], hidden layers only
@@ -23,12 +25,22 @@ namespace Forge.ML
         int accumulated;
 
         public int Layers => sizes.Length;
+        public int OutputCount => sizes[sizes.Length - 1];
+        /// <summary>The first output (the Lab's only one).</summary>
         public float Output => outputs[sizes.Length - 1][0];
+        /// <summary>Output <paramref name="i"/> from the last <see cref="Forward(float[])"/>.</summary>
+        public float OutputAt(int i) => outputs[sizes.Length - 1][i];
 
+        /// <summary>One output: the Neural Net Lab's network.</summary>
         public NNNetwork(int inputs, int[] hidden, NNActivation activation, int seed)
+            : this(inputs, hidden, 1, activation, seed) { }
+
+        /// <summary><paramref name="outputCount"/> tanh outputs, e.g. 2 for steer and throttle.</summary>
+        public NNNetwork(int inputs, int[] hidden, int outputCount, NNActivation activation, int seed)
         {
+            if (outputCount < 1) throw new ArgumentOutOfRangeException(nameof(outputCount), "a network needs at least one output");
             sizes = new int[hidden.Length + 2];
-            sizes[0] = inputs; for (int i = 0; i < hidden.Length; i++) sizes[i + 1] = hidden[i]; sizes[sizes.Length - 1] = 1;
+            sizes[0] = inputs; for (int i = 0; i < hidden.Length; i++) sizes[i + 1] = hidden[i]; sizes[sizes.Length - 1] = outputCount;
             this.activation = activation;
             int n = sizes.Length;
             weights = new float[n][][]; biases = new float[n][]; disabled = new bool[n][];
@@ -53,7 +65,8 @@ namespace Forge.ML
 
         public float NeuronOutput(int layer, int neuron) => outputs[layer][neuron];
 
-        /// <summary>Forward pass over already computed features; returns the output in [-1, 1].</summary>
+        /// <summary>Forward pass over already computed features; returns the first output in [-1, 1]. Read the others
+        /// with <see cref="OutputAt"/>, or use <see cref="Forward(float[], float[])"/>.</summary>
         public float Forward(float[] features)
         {
             var input = outputs[0];
@@ -75,12 +88,53 @@ namespace Forge.ML
             return outputs[last][0];
         }
 
-        /// <summary>Forward + backward for one point; gradients accumulate until <see cref="Apply"/>.</summary>
+        /// <summary>Forward pass that copies every output into <paramref name="result"/> (length <see cref="OutputCount"/>).</summary>
+        public void Forward(float[] features, float[] result)
+        {
+            Forward(features);
+            var o = outputs[sizes.Length - 1];
+            for (int j = 0; j < o.Length; j++) result[j] = o[j];
+        }
+
+        /// <summary>Forward + backward for one point of a one-output network; gradients accumulate until <see cref="Apply"/>.</summary>
         public void Accumulate(float[] features, float label)
         {
+            if (OutputCount != 1) throw new InvalidOperationException($"this network has {OutputCount} outputs: pass one label per output");
             float o = Forward(features);
+            delta[sizes.Length - 1][0] = (o - label) * (1f - o * o);  // d(½(o-y)²)/d total through tanh
+            Backward();
+        }
+
+        /// <summary>Forward + backward for one point, one label per output (loss ½Σ(o-y)²); gradients accumulate until
+        /// <see cref="Apply"/>. Returns that point's loss, for training curves.</summary>
+        public float Accumulate(float[] features, float[] labels)
+        {
+            Forward(features);
+            float[] o = outputs[sizes.Length - 1], d = delta[sizes.Length - 1];
+            float loss = 0;
+            for (int j = 0; j < o.Length; j++)
+            {
+                float err = o[j] - labels[j];
+                loss += 0.5f * err * err;
+                d[j] = err * (1f - o[j] * o[j]);
+            }
+            Backward();
+            return loss;
+        }
+
+        /// <summary>½Σ(o-y)² of the last <see cref="Forward(float[])"/> against <paramref name="labels"/>, with no training.</summary>
+        public float Loss(float[] labels)
+        {
+            float[] o = outputs[sizes.Length - 1];
+            float loss = 0;
+            for (int j = 0; j < o.Length; j++) { float err = o[j] - labels[j]; loss += 0.5f * err * err; }
+            return loss;
+        }
+
+        // Backpropagates delta[last] (set by the caller) and adds this point's gradients.
+        void Backward()
+        {
             int last = sizes.Length - 1;
-            delta[last][0] = (o - label) * (1f - o * o);  // d(½(o-y)²)/d total through tanh
             for (int l = last; l >= 1; l--)
             {
                 float[] prev = outputs[l - 1], dl = delta[l];

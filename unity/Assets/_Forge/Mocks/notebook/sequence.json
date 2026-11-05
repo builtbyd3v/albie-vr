@@ -1,0 +1,159 @@
+[
+  {
+    "at": 0.5,
+    "type": "project.version",
+    "payload": {
+      "project_id": "proj_truck",
+      "version": 1,
+      "cut_by": "thing",
+      "summary": "First truck."
+    }
+  },
+  {
+    "at": 0.6,
+    "type": "notebook.entry",
+    "payload": {
+      "schema": "albie.notebook.entry/1",
+      "id": "ent_0001",
+      "project_id": "proj_truck",
+      "project_version": 1,
+      "kind": "attempt",
+      "change": "First truck: 4 wheels, rear drive, servo steering.",
+      "rationale": "Simplest truck that can do a slalom around the couch.",
+      "rationale_by": "albie",
+      "expected": "Drives around the couch without tipping.",
+      "observed": {
+        "runs": [],
+        "incidents": [],
+        "training": null,
+        "note": null
+      },
+      "outcome": "open",
+      "outcome_by": null,
+      "lesson": null,
+      "lesson_id": null,
+      "tags": [
+        "vehicle",
+        "stability"
+      ],
+      "created_at": "2026-11-10T13:55:02Z",
+      "updated_at": "2026-11-10T13:55:02Z"
+    }
+  },
+  {
+    "at": 3,
+    "type": "notebook.updated",
+    "payload": {
+      "project_id": "proj_truck",
+      "entry_id": "ent_0001",
+      "outcome": "failed",
+      "lesson_id": "les_0001"
+    }
+  },
+  {
+    "at": 4,
+    "type": "project.version",
+    "payload": {
+      "project_id": "proj_truck",
+      "version": 2,
+      "cut_by": "thing",
+      "summary": "Wider track and a lower centre of mass."
+    }
+  },
+  {
+    "at": 4.1,
+    "type": "notebook.entry",
+    "payload": {
+      "schema": "albie.notebook.entry/1",
+      "id": "ent_0002",
+      "project_id": "proj_truck",
+      "project_version": 2,
+      "kind": "attempt",
+      "change": "Wider track and a lower centre of mass.",
+      "rationale": "It rolled over on a sharp turn.",
+      "rationale_by": "person",
+      "expected": "Takes the same turn without rolling.",
+      "observed": {
+        "runs": [],
+        "incidents": [],
+        "training": null,
+        "note": null
+      },
+      "outcome": "open",
+      "outcome_by": null,
+      "lesson": null,
+      "lesson_id": null,
+      "tags": [
+        "vehicle",
+        "stability"
+      ],
+      "created_at": "2026-11-10T14:00:30Z",
+      "updated_at": "2026-11-10T14:00:30Z"
+    }
+  },
+  {
+    "at": 7,
+    "type": "notebook.updated",
+    "payload": {
+      "project_id": "proj_truck",
+      "entry_id": "ent_0002",
+      "outcome": "worked",
+      "lesson_id": null
+    }
+  },
+  {
+    "at": 8,
+    "type": "notebook.entry",
+    "payload": {
+      "schema": "albie.notebook.entry/1",
+      "id": "ent_0003",
+      "project_id": "proj_truck",
+      "project_version": 2,
+      "kind": "training",
+      "change": "Trained truck_autopilot on two laps.",
+      "rationale": "Let Albie drive the slalom.",
+      "rationale_by": "person",
+      "expected": "Autopilot finishes the slalom.",
+      "observed": {
+        "runs": [
+          "run_0003"
+        ],
+        "incidents": [],
+        "training": {
+          "laps": [
+            "laps/truck_v2.json"
+          ],
+          "samples": 1676,
+          "mirrored": true,
+          "epochs": 300,
+          "train_loss": 0.0061,
+          "val_loss": 0.0065,
+          "device": "mock",
+          "seed": 2,
+          "sim_check": "completed in 7.4 s; seeds tried: crashed, crashed, completed",
+          "controller": "truck_autopilot",
+          "controller_version": 1
+        },
+        "note": "Finished the slalom in 7.4 s with no cones hit."
+      },
+      "outcome": "worked",
+      "outcome_by": "run",
+      "lesson": null,
+      "lesson_id": null,
+      "tags": [
+        "ml",
+        "control"
+      ],
+      "created_at": "2026-11-10T14:12:40Z",
+      "updated_at": "2026-11-10T14:15:07Z"
+    }
+  },
+  {
+    "at": 10,
+    "type": "plan.updated",
+    "payload": {
+      "project_id": "proj_truck",
+      "version": 2
+    }
+  }
+]

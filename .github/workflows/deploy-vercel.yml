@@ -1,0 +1,28 @@
+# Redeploys cloud/ (voice token + Claude proxy) to Dev's Vercel project albie-cloud with cloud/deploy.py.
+# VERCEL_TOKEN is scoped to that one project; teammates never see it.
+# Push to main under cloud/ = code-only deploy. Actions > Deploy Vercel cloud > Run workflow can also copy keys
+# from the repo's GitHub secrets into Vercel first (tick "sync keys"; secrets that aren't set stay as they are in Vercel).
+name: Deploy Vercel cloud
+on:
+  push:
+    branches: [main]
+    paths: ['cloud/**']
+  workflow_dispatch:
+    inputs:
+      sync_keys:
+        description: Copy XAI_API_KEY / ANTHROPIC_API_KEY / ALBIE_APP_KEY from GitHub secrets into Vercel first
+        type: boolean
+        default: false
+concurrency: deploy-vercel
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 cloud/deploy.py
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SYNC_KEYS: ${{ inputs.sync_keys && '1' || '0' }}
+          XAI_API_KEY: ${{ inputs.sync_keys && secrets.XAI_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ inputs.sync_keys && secrets.ANTHROPIC_API_KEY || '' }}
+          ALBIE_APP_KEY: ${{ inputs.sync_keys && secrets.ALBIE_APP_KEY || '' }}

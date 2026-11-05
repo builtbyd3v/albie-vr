@@ -1,0 +1,80 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "slalom",
+  "title": "Slalom",
+  "version": 1,
+  "kind": "project",
+  "category": "sim",
+  "template": "slalom",
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": null,
+    "thing": "truck"
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    {
+      "name": "gates",
+      "type": "integer",
+      "min": 3,
+      "max": 12,
+      "default": 5,
+      "label": "Gates"
+    },
+    {
+      "name": "spacing_m",
+      "type": "number",
+      "min": 0.6,
+      "max": 2,
+      "default": 0.8,
+      "label": "Spacing"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 42,
+      "params": {}
+    }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+    "network": [],
+    "connectors": [],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "read",
+    "things": "read"
+  },
+  "outputs": [
+    {
+      "name": "completion_time_s",
+      "type": "number",
+      "unit": "s",
+      "label": "Time"
+    },
+    {
+      "name": "gates_passed",
+      "type": "integer",
+      "label": "Gates"
+    },
+    {
+      "name": "collisions",
+      "type": "integer",
+      "label": "Cones hit"
+    },
+    {
+      "name": "top_speed_ms",
+      "type": "number",
+      "unit": "m/s",
+      "label": "Top speed"
+    }
+  ]
+}
