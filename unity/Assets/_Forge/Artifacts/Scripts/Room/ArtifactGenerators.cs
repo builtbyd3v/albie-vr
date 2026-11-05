@@ -50,28 +50,35 @@ namespace Forge.Artifacts
                 return new Placement { Code = none.Code, Message = none.Message };
             }
 
-            bool moved = false;
+            bool moved = false, lostAnchor = false;
             if (!forceNew)
             {
                 var saved = ArtifactLayouts.Find(artifactId, version, scenarioId, room.Key, requested);
                 if (saved != null)
                 {
-                    var origin = ArtifactLayouts.Origin(saved, room);
-                    float yaw = origin.rotation.eulerAngles.y;
-                    if (FloorSlalom.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, "gates"), ArtifactLayouts.PlacedNumber(saved, "spacing_m"), settings))
-                        return new Placement
-                        {
-                            Ok = true, Layout = saved, Reused = true, Origin = origin, Slots = ArtifactLayouts.Slots(saved),
-                            Message = (string)saved["fit"]?["message"],
-                        };
-                    moved = true;
+                    string anchor = (string)saved["room"]?["anchor"];
+                    if (anchor != null && !ArtifactAnchors.Exists(anchor))
+                        lostAnchor = true;
+                    else
+                    {
+                        var origin = ArtifactLayouts.Origin(saved, room);
+                        float yaw = origin.rotation.eulerAngles.y;
+                        if (FloorSlalom.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, "gates"), ArtifactLayouts.PlacedNumber(saved, "spacing_m"), settings))
+                            return new Placement
+                            {
+                                Ok = true, Layout = saved, Reused = true, Origin = origin, Slots = ArtifactLayouts.Slots(saved),
+                                Message = (string)saved["fit"]?["message"],
+                            };
+                        moved = true;
+                    }
                 }
             }
 
             var fit = FloorSlalom.Fit(room, settings, id);
             if (!fit.Ok) return new Placement { Code = fit.Code, Message = fit.Message };
             string message = fit.Message;
-            if (moved) message = "Something in the room has moved since I made the course, so I made a new one." + (message != null ? " " + message : "");
+            if (lostAnchor) message = "I can't find the saved course in this room, so I made a new one." + (message != null ? " " + message : "");
+            else if (moved) message = "Something in the room has moved since I made the course, so I made a new one." + (message != null ? " " + message : "");
             var layout = ArtifactLayouts.Make(artifactId, version, scenarioId, seed, room, requested, fit, message);
             ArtifactLayouts.Save(layout);
             return new Placement

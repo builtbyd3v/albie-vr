@@ -12,8 +12,9 @@ namespace Forge.Artifacts
     /// (the real MRUK code path: IsPositionInRoom, scene volumes, labels) or the mock rooms the checks use.
     ///
     /// Keys: 2 make me a slalom (the artifact_create tool), 3 arm a run, 4 drive a scripted lap, 5 roll over,
-    /// WASD drive the truck, R relayout, [ ] spacing -/+ 0.1 m, G gates (3 to 8), M next MRUK room, N next mock room,
-    /// O overhead / first-person view, 0 close, 9 forget approvals.
+    /// WASD drive the truck, R relayout, 6 forget the saved spatial anchor (next 2 remakes the course),
+    /// [ ] spacing -/+ 0.1 m, G gates (3 to 8), M next MRUK room, N next mock room, O overhead / first-person view,
+    /// 0 close, 9 forget approvals.
     /// </summary>
     public sealed class SlalomSandbox : MonoBehaviour
     {
@@ -49,6 +50,7 @@ namespace Forge.Artifacts
             if (k.digit3Key.wasPressedThisFrame) Report(Tool("artifact_run", new JObject()));
             if (k.digit4Key.wasPressedThisFrame) ScriptedLap();
             if (k.digit5Key.wasPressedThisFrame) RollOver();
+            if (k.digit6Key.wasPressedThisFrame) ForgetAnchor();
             if (k.rKey.wasPressedThisFrame) Report(Tool("artifact_relayout", new JObject()));
             if (k.leftBracketKey.wasPressedThisFrame) Nudge("spacing_m", -0.1);
             if (k.rightBracketKey.wasPressedThisFrame) Nudge("spacing_m", 0.1);
@@ -122,6 +124,14 @@ namespace Forge.Artifacts
             var opened = result["opened"] as JObject ?? result;
             say = (string)opened["say"] ?? "";
             status = opened.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        void ForgetAnchor()
+        {
+            string uuid = (string)host.LastLayout?["room"]?["anchor"];
+            if (string.IsNullOrEmpty(uuid)) { status = "no saved course to forget"; return; }
+            ArtifactAnchors.Forget(uuid);
+            status = "forgot " + uuid + " — press 2 to open again";
         }
 
         void SpawnThing()
@@ -251,7 +261,7 @@ namespace Forge.Artifacts
             string layout = host.LastLayout != null ? $"   layout {host.LastLayout["layout_id"]}{(host.LayoutReused ? " (reused)" : " (new)")}" : "";
             string run = host.Run != null ? $"   run {host.Run.State.ToString().ToLowerInvariant()}" + (host.Run.Outcome != null ? " " + host.Run.Outcome : "") : "";
             GUI.Label(new Rect(14, 72, Screen.width - 28, 72),  // below the desktop rig's hint bar
-                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   3 arm a run   4 scripted lap   5 roll over   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
+                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
             if (!string.IsNullOrEmpty(say)) GUI.Label(new Rect(14, Screen.height - 80, Screen.width - 28, 30), "<b>Albie:</b> " + say, style);
             GUI.Label(new Rect(14, Screen.height - 48, Screen.width - 28, 44), status, style);
         }

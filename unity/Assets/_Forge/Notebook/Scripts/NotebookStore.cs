@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
+using Forge.Artifacts;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -23,6 +24,7 @@ namespace Forge.Notebook
         public const string EntrySchema = "albie.notebook.entry/1";
         public const string VersionSchema = "albie.project_version/1";
         public const string LessonSchema = "albie.lesson/1";
+        public const string PlanSchema = "albie.plan/1";
         /// <summary>The demo project, opened at Play start until the Project module (C-09) opens projects itself.</summary>
         public const string DefaultProject = "proj_truck";
 
@@ -34,8 +36,9 @@ namespace Forge.Notebook
         static readonly List<JObject> entries = new List<JObject>();
         static readonly List<JObject> versions = new List<JObject>();
         static readonly List<JObject> lessons = new List<JObject>();
+        static readonly List<JObject> plans = new List<JObject>();
         static readonly List<string> problems = new List<string>();
-        static int nextEntry = 1, nextLesson = 1;
+        static int nextEntry = 1, nextLesson = 1, nextPlan = 1;
 
         /// <summary>The clock for timestamps (UTC). Checks replace it to get fixed times.</summary>
         public static Func<DateTime> Clock = () => DateTime.UtcNow;
@@ -46,12 +49,17 @@ namespace Forge.Notebook
         public static event Action<JObject> EntryUpdated;
         /// <summary>A project version was cut (the manifest).</summary>
         public static event Action<JObject> VersionCut;
+        /// <summary>A plan was written (the new <c>albie.plan/1</c> record).</summary>
+        public static event Action<JObject> PlanUpdated;
 
         public static string ProjectId { get; private set; }
         public static string Root { get; private set; }
         public static bool IsOpen => ProjectId != null;
         public static IReadOnlyList<JObject> Entries => entries;
         public static IReadOnlyList<JObject> Versions => versions;
+        public static IReadOnlyList<JObject> Plans => plans;
+        /// <summary>The newest plan, or null before the first one.</summary>
+        public static JObject CurrentPlan => plans.Count == 0 ? null : plans[plans.Count - 1];
         /// <summary>Every lesson, hidden ones too. <see cref="Lessons"/> is what Albie reads.</summary>
         public static IReadOnlyList<JObject> AllLessons => lessons;
         /// <summary>Files that wouldn't load at the last <see cref="Open"/>, moved to <c>damaged/</c>.</summary>
@@ -61,6 +69,7 @@ namespace Forge.Notebook
         public static string ProjectFolder => Path.Combine(Root, "projects", ProjectId);
         static string NotebookFolder => Path.Combine(ProjectFolder, "notebook");
         static string VersionsFolder => Path.Combine(ProjectFolder, "versions");
+        static string PlansFolder => Path.Combine(ProjectFolder, "plans");
         static string LessonsPath => Path.Combine(Root, "user", "lessons.json");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -71,6 +80,7 @@ namespace Forge.Notebook
             EntryCreated = null;
             EntryUpdated = null;
             VersionCut = null;
+            PlanUpdated = null;
             Clock = () => DateTime.UtcNow;
         }
 
@@ -94,6 +104,9 @@ namespace Forge.Notebook
             entries.Sort((a, b) => IdNumber((string)a["id"], "ent_").CompareTo(IdNumber((string)b["id"], "ent_")));
             LoadFolder(VersionsFolder, "v", VersionSchema, versions);
             versions.Sort((a, b) => ((int)a["version"]).CompareTo((int)b["version"]));
+            LoadFolder(PlansFolder, "plan_v", PlanSchema, plans);
+            plans.Sort((a, b) => ((int)a["version"]).CompareTo((int)b["version"]));
+            nextPlan = 1 + (plans.Count == 0 ? 0 : (int)plans[plans.Count - 1]["version"]);
             LoadLessons();
             foreach (string problem in problems) Debug.LogWarning("[Notebook] " + problem);
         }
@@ -114,8 +127,9 @@ namespace Forge.Notebook
             entries.Clear();
             versions.Clear();
             lessons.Clear();
+            plans.Clear();
             problems.Clear();
-            nextEntry = nextLesson = 1;
+            nextEntry = nextLesson = nextPlan = 1;
         }
 
         static int LoadFolder(string folder, string prefix, string schema, List<JObject> into)
@@ -134,6 +148,7 @@ namespace Forge.Notebook
                     else if ((string)record["schema"] != schema) why = $"schema is \"{record["schema"]}\", not {schema}";
                     else if (schema == EntrySchema && IdNumber((string)record["id"], "ent_") <= 0) why = "no valid id";
                     else if (schema == VersionSchema && record["version"]?.Type != JTokenType.Integer) why = "no version number";
+                    else if (schema == PlanSchema && record["version"]?.Type != JTokenType.Integer) why = "no version number";
                 }
                 catch (Exception e) when (e is JsonException || e is IOException) { why = e.Message; }
                 if (why == null)
@@ -226,6 +241,45 @@ namespace Forge.Notebook
             VersionCut?.Invoke(manifest);
             Emit("project.version", new JObject { ["project_id"] = ProjectId, ["version"] = version, ["cut_by"] = cutBy, ["summary"] = manifest["summary"] });
             Log("attempt", summary, rationale, rationaleBy, null, null);
+            return version;
+        }
+
+        // ---- Plans (C-17 section 6, plan_revise) ----------------------------------------------------------------
+
+        /// <summary>
+        /// Writes a postmortem and a new plan together. The old plan is kept. <paramref name="goal"/>, <paramref name="test"/>
+        /// and <paramref name="milestones"/> copy forward when omitted. A project with no plan yet needs a goal.
+        /// Returns the new plan version, or throws "code: message".
+        /// </summary>
+        public static int RevisePlan(string reason, string goal = null, string test = null, JArray milestones = null)
+        {
+            Require();
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("bad_value: say why the plan is changing");
+            var previous = CurrentPlan;
+            if (previous == null && string.IsNullOrWhiteSpace(goal))
+                throw new ArgumentException("bad_value: a new plan needs a goal");
+            int version = previous == null ? 1 : (int)previous["version"] + 1;
+            string postmortem = Log("postmortem",
+                previous == null ? "Wrote the plan." : "Plan revised: " + reason.Trim(),
+                reason.Trim(), "albie", null, new[] { "build" });
+            var plan = new JObject
+            {
+                ["schema"] = PlanSchema,
+                ["project_id"] = ProjectId,
+                ["version"] = version,
+                ["goal"] = string.IsNullOrWhiteSpace(goal) ? previous["goal"] : goal.Trim(),
+                ["parts"] = previous?["parts"] is JArray parts ? parts.DeepClone() : new JArray(),
+                ["test"] = string.IsNullOrWhiteSpace(test) ? (previous?["test"] ?? JValue.CreateNull()) : (JToken)test.Trim(),
+                ["milestones"] = milestones != null ? (JArray)milestones.DeepClone() : previous?["milestones"] is JArray old ? (JArray)old.DeepClone() : new JArray(),
+                ["supersedes"] = previous == null ? JValue.CreateNull() : previous["version"],
+                ["postmortem"] = postmortem,
+                ["created_at"] = Now(),
+            };
+            nextPlan = version + 1;
+            plans.Add(plan);
+            NotebookFiles.Write(Path.Combine(PlansFolder, $"plan_v{version:0000}.json"), plan.ToString(Formatting.Indented));
+            PlanUpdated?.Invoke(plan);
+            Emit("plan.updated", new JObject { ["project_id"] = ProjectId, ["version"] = version });
             return version;
         }
 
@@ -481,9 +535,9 @@ namespace Forge.Notebook
         // ---- Session start (C-17 section 5, notebook_read) ------------------------------------------------------
 
         /// <summary>
-        /// What Albie reads at session start: the project, its version, the last <paramref name="last"/> entries and up
-        /// to 10 lessons matching the project's tags, in at most <paramref name="maxChars"/> characters of JSON (oldest
-        /// entries are dropped first). The plan joins in once plans land (C-17 section 6).
+        /// What Albie reads at session start: the project, its version, the current plan, the last <paramref name="last"/>
+        /// entries and up to 10 lessons matching the project's tags, in at most <paramref name="maxChars"/> characters of
+        /// JSON (oldest entries are dropped first). <c>say</c> is the line to speak about a matching lesson (C-17 section 5).
         /// </summary>
         public static JObject Read(int last = 5, int maxChars = 2000)
         {
@@ -513,20 +567,151 @@ namespace Forge.Notebook
             var lessonList = new JArray();
             foreach (var lesson in Lessons(projectTags.ToArray()))
                 lessonList.Add(new JObject { ["id"] = lesson.Id, ["text"] = lesson.Text, ["tags"] = new JArray(lesson.Tags), ["seen"] = lesson.Seen });
+            string say = null;
+            if (lessonList.Count > 0)
+            {
+                var first = (JObject)lessonList[0];
+                string text = (string)first["text"];
+                say = ((int?)first["seen"] ?? 1) <= 1 ? "Last time: " + text : text;
+            }
             var result = new JObject
             {
                 ["project_id"] = ProjectId,
                 ["version"] = CurrentVersion(),
-                ["plan"] = null,
+                ["plan"] = PlanBrief(),
+                ["say"] = say,
                 ["entries"] = recent,
                 ["lessons"] = lessonList,
             };
-            while (result.ToString(Formatting.None).Length > maxChars && (recent.Count > 1 || lessonList.Count > 0))
+            while (result.ToString(Formatting.None).Length > maxChars && (recent.Count > 1 || lessonList.Count > 0 || say != null))
             {
                 if (recent.Count > 1) recent.RemoveAt(0);
-                else lessonList.RemoveAt(lessonList.Count - 1);
+                else if (lessonList.Count > 0) lessonList.RemoveAt(lessonList.Count - 1);
+                else { result["say"] = say = null; }
             }
             return result;
+        }
+
+        static JToken PlanBrief()
+        {
+            var plan = CurrentPlan;
+            if (plan == null) return JValue.CreateNull();
+            int done = 0, total = 0;
+            if (plan["milestones"] is JArray list)
+            {
+                total = list.Count;
+                foreach (var m in list) if ((bool?)m["done"] == true) done++;
+            }
+            return new JObject
+            {
+                ["version"] = plan["version"],
+                ["goal"] = Clip((string)plan["goal"], 120),
+                ["test"] = Clip((string)plan["test"], 80),
+                ["done"] = done,
+                ["milestones"] = total,
+            };
+        }
+
+        /// <summary>
+        /// Side by side for two project versions (16.3 Nov 12, C-12 question 7). A version with an incident and no run
+        /// is labelled "free drive, not this course": v1 flipped before the slalom existed. Numbers come from the
+        /// notebook and the run records, never invented.
+        /// </summary>
+        public static JObject CompareVersions(int fromVersion, int toVersion, string artifactId = "slalom")
+        {
+            Require();
+            if (fromVersion == toVersion) throw new ArgumentException("bad_value: compare two different versions");
+            var from = VersionSide(fromVersion, artifactId);
+            var to = VersionSide(toVersion, artifactId);
+            return new JObject
+            {
+                ["from"] = from,
+                ["to"] = to,
+                ["say"] = CompareSay(from, to),
+            };
+        }
+
+        static JObject VersionSide(int version, string artifactId)
+        {
+            JObject manifest = null;
+            foreach (var v in versions) if ((int)v["version"] == version) manifest = v;
+            var incidents = new JArray();
+            var runIds = new List<string>();
+            string outcome = null, outcomeBy = null, note = null;
+            foreach (var e in entries)
+            {
+                if ((int)e["project_version"] != version) continue;
+                outcome = (string)e["outcome"];
+                outcomeBy = (string)e["outcome_by"];
+                if ((string)e["observed"]?["note"] != null) note = (string)e["observed"]["note"];
+                if (e["observed"]?["incidents"] is JArray listed)
+                    foreach (var incident in listed) incidents.Add(incident.DeepClone());
+                if (e["observed"]?["runs"] is JArray runs)
+                    foreach (var run in runs) if (!runIds.Contains((string)run)) runIds.Add((string)run);
+            }
+            var runRows = new JArray();
+            foreach (string id in runIds)
+            {
+                var record = ArtifactRuns.Load(artifactId, id);
+                if (record == null)
+                {
+                    runRows.Add(new JObject { ["run_id"] = id, ["label"] = "different course" });
+                    continue;
+                }
+                runRows.Add(new JObject
+                {
+                    ["run_id"] = record["run_id"],
+                    ["outcome"] = record["outcome"],
+                    ["reason"] = record["reason"],
+                    ["metrics"] = record["metrics"],
+                    ["layout_id"] = record["layout_id"],
+                    ["project_version"] = record["project_version"],
+                });
+            }
+            string label = runIds.Count == 0 && incidents.Count > 0 ? "free drive, not this course" : null;
+            return new JObject
+            {
+                ["version"] = version,
+                ["summary"] = manifest?["summary"],
+                ["cut_by"] = manifest?["cut_by"],
+                ["outcome"] = outcome,
+                ["outcome_by"] = outcomeBy,
+                ["note"] = note,
+                ["label"] = label,
+                ["incidents"] = incidents,
+                ["runs"] = runRows,
+            };
+        }
+
+        // Every number in this line comes from the records (C-17: the model never invents data).
+        static string CompareSay(JObject from, JObject to)
+        {
+            var parts = new List<string>();
+            parts.Add(SideSay("v" + from["version"], from));
+            parts.Add(SideSay("v" + to["version"], to));
+            return string.Join(" ", parts);
+        }
+
+        static string SideSay(string name, JObject side)
+        {
+            if ((string)side["label"] == "free drive, not this course")
+            {
+                string kind = (string)(side["incidents"] as JArray)?[0]?["kind"];
+                return kind == "rolled_over"
+                    ? name + " rolled over on a free drive, not this course."
+                    : name + " has no run on this course.";
+            }
+            JObject completed = null;
+            if (side["runs"] is JArray runs)
+                foreach (var run in runs)
+                    if (completed == null && (string)run["outcome"] == "completed") completed = (JObject)run;
+            if (completed?["metrics"]?["completion_time_s"] != null && completed["metrics"]["completion_time_s"].Type != JTokenType.Null)
+            {
+                double s = (double)completed["metrics"]["completion_time_s"];
+                return name + " finished the slalom in " + s.ToString("0.0", CultureInfo.InvariantCulture) + " s.";
+            }
+            string outcome = (string)side["outcome"];
+            return outcome == "failed" ? name + " failed." : outcome == "worked" ? name + " worked." : name + " is " + (outcome ?? "open") + ".";
         }
 
         // ---- Fixtures (C-17 section 10) -------------------------------------------------------------------------
@@ -560,6 +745,16 @@ namespace Forge.Notebook
                     nextLesson = Math.Max(nextLesson, IdNumber((string)lesson["id"], "les_") + 1);
                 }
                 SaveLessons();
+            }
+            if (plans.Count == 0)
+            {
+                foreach (JObject plan in Fixture("plans"))
+                {
+                    plan["project_id"] = ProjectId;
+                    plans.Add(plan);
+                    nextPlan = Math.Max(nextPlan, (int)plan["version"] + 1);
+                    NotebookFiles.Write(Path.Combine(PlansFolder, $"plan_v{(int)plan["version"]:0000}.json"), plan.ToString(Formatting.Indented));
+                }
             }
             return entries.Count;
         }
@@ -622,7 +817,7 @@ namespace Forge.Notebook
 
         static int Rank(string by) => by == "run" ? 0 : by == "albie" ? 1 : by == "person" ? 2 : -1;
 
-        static readonly Regex IdPattern = new Regex(@"^(?:ent_|les_|v)(\d+)", RegexOptions.CultureInvariant);
+        static readonly Regex IdPattern = new Regex(@"^(?:ent_|les_|plan_v|v)(\d+)", RegexOptions.CultureInvariant);
 
         /// <summary>The number in an id or file name with that prefix (ent_0012 → 12), or 0.</summary>
         static int IdNumber(string id, string prefix)

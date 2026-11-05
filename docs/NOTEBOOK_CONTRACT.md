@@ -231,6 +231,8 @@ All of it runs on the main thread. File writes happen on a background queue, in 
 
 **As built in v1 (2026-11-04):** `Mark` also takes an optional `lessonBy` (default `albie`: Albie writes a lesson's words from what the person said). The store also has `Open`, `Close`, `Flush`, `CutVersion(cutBy, summary, pins)` (section 4), `AddIncident` (section 11, question 1), `Read` (`notebook_read`), `SetLessonHidden` and `SeedFixtures` (section 10). ML A's `Forge.Controllers.TrainingLog` is connected to `LogTraining` at Play start. Module notes: `unity/Assets/_Forge/Notebook/README.md`.
 
+**As built, 2026-11-05 (Nov 12):** `Read` includes the current plan (goal, test, done/total) and a `say` line for the newest matching lesson ("Last time: …" when `seen` is 1). `RevisePlan` / `plan_revise` writes a postmortem and a new `albie.plan/1` file; the old plan is kept. `CompareVersions` / `notebook_compare` puts two project versions side by side. A version with an incident and no slalom run is labelled `"free drive, not this course"` (C-12 question 7). The `say` line uses numbers from the records only.
+
 ## 9. Events and tools
 
 **Events.** Raised with `ForgeNet.Emit` and read with `ForgeNet.On`, so they work with no hub and need no change to `ForgeEvents.cs`.

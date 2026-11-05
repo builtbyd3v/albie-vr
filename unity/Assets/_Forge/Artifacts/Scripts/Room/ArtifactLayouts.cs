@@ -14,8 +14,9 @@ namespace Forge.Artifacts
     /// Made the first time the artifact opens in a room, saved, and reused by reruns, so runs compare like for like.
     /// Saved at <c>artifacts/&lt;artifact_id&gt;/layouts/lay_0001.json</c> (<see cref="ArtifactLibrary.Root"/>), beside the artifact's own files.
     ///
-    /// Until saved anchors (Nov 12), <c>room.anchor</c> is null and the course origin is stored in the room's floor frame
-    /// (<see cref="IFloorPlan.RoomToWorld"/>) as <c>room.origin {pos, yaw}</c>; the slots are local to that origin.
+    /// <c>room.anchor</c> is a uuid from <see cref="ArtifactAnchors"/> (an <c>OVRSpatialAnchor</c> on a Quest). The
+    /// course origin is also stored in the room's floor frame as <c>room.origin {pos, yaw}</c>, so Editor and mock rooms
+    /// can place the same course when the headset uuid isn't localised yet. Slots are local to that origin.
     /// </summary>
     public static class ArtifactLayouts
     {
@@ -73,7 +74,7 @@ namespace Forge.Artifacts
                 ["room"] = new JObject
                 {
                     ["key"] = room.Key,
-                    ["anchor"] = null,
+                    ["anchor"] = ArtifactAnchors.Save(new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f))),
                     ["origin"] = new JObject { ["pos"] = Vec(originInRoom), ["yaw"] = R(Mathf.Atan2(forwardInRoom.x, forwardInRoom.z) * Mathf.Rad2Deg) },
                 },
                 ["fit"] = new JObject

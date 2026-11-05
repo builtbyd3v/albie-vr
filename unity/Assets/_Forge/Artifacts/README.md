@@ -8,7 +8,7 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 1. copies `Resources/ArtifactTemplates/slalom/` into the library, at `persistentDataPath/artifacts/slalom/`, linked to the open notebook project;
 2. opens the artifact. On the first open, a permissions sheet asks to use the room;
 3. runs the `floor_slalom` generator (`Scripts/Room/FloorSlalom.cs`), which finds free floor in the real room and places the course, around the couch if there is one;
-4. saves the layout (`Scripts/Room/ArtifactLayouts.cs`), so reruns in that room reuse it;
+4. saves the layout (`Scripts/Room/ArtifactLayouts.cs`) with a spatial-anchor uuid (`room.anchor`), so reruns in that room reuse it;
 5. builds the cones (`array`), the gates, start and finish (`zone`) and the guide line, on the real floor at true scale;
 6. scores a run when `artifact_run` arms it: the bound Thing entering start starts the timer, every gate in order plus finish completes, rolling over / missing a gate / timing out fails. The record is saved and attached to the notebook.
 
@@ -22,6 +22,10 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 
 **Runs.** `ArtifactRun` ticks in `FixedUpdate` with no allocations. Zones use `ArtifactZone.Contains` (no trigger colliders). A finish that hasn't seen `@course.gates` entries fails as `missed_gate`. Closing the artifact while a run is going writes `aborted`. Records live at `artifacts/<id>/runs/run_0001.json` and are never overwritten.
 
+**Saved anchors (Nov 12).** Each new layout gets a uuid from `ArtifactAnchors`. On a Quest that also calls `OVRSpatialAnchor.SaveAnchorAsync`. If the uuid is gone, the host makes a new layout and Albie says "I can't find the saved course in this room, so I made a new one." Furniture that has moved still uses the existing "Something in the room has moved" line. Old runs stay, but they no longer compare like for like.
+
+**v1 vs v2.** That's a notebook compare (`notebook_compare`), not `artifact_compare`. v1 flipped during free driving, before the slalom existed, so it is labelled "free drive, not this course".
+
 ## Files
 
 | Path | What it is |
@@ -29,10 +33,10 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 | `Scripts/ArtifactHost.cs` | Opens, validates, asks permission, places generated scenes in the room, relayouts, and scores runs. `ArtifactHost.Current` is the host the tools use. |
 | `Scripts/ArtifactRun.cs`, `Scripts/ArtifactRuns.cs` | The run engine (`albie.run/1`) and the device records. |
 | `Scripts/ArtifactThing.cs` | `IArtifactThing` probes, plus a kinematic stand-in until Person 2's Thing runtime exposes them. |
-| `Scripts/Room/` | `IFloorPlan`, plus the MRUK and mock rooms, the `floor_slalom` generator, layout records, and `ArtifactGenerators`. |
+| `Scripts/Room/` | `IFloorPlan`, plus the MRUK and mock rooms, the `floor_slalom` generator, layout records, spatial anchors, and `ArtifactGenerators`. |
 | `Scripts/ArtifactZone.cs` | The `zone` node (with `Contains` for runs) and the `array` node over a slot. |
 | `Scripts/ArtifactLibrary.cs`, `Scripts/ArtifactTools.cs` | The templates and the device library. Tools: `artifact_list`, `artifact_create`, `artifact_open`, `artifact_close`, `artifact_relayout`, `artifact_run`, `artifact_compare`. |
-| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 3 arm a run, 4 scripted lap, 5 roll over, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
+| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
 | `Editor/ArtifactRunCheck.cs` | 13 headless run checks: **Forge > Artifacts > Check Runs**. `Forge > Check Artifacts` runs the rest. |
 
