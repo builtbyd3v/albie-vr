@@ -27,6 +27,14 @@ public static class SlalomCheck
         if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
     }
 
+    /// <summary>For -executeMethod.</summary>
+    public static void RunBatch()
+    {
+        string report = Run();
+        if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
+        EditorApplication.Exit(report.StartsWith("PASS") ? 0 : 1);
+    }
+
     public static string Run()
     {
         root = Path.Combine(Application.temporaryCachePath, "slalom_check");

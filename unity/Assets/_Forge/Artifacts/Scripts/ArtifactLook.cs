@@ -91,6 +91,8 @@ namespace Forge.Artifacts
         /// <summary>Text with its <c>{metric}</c> holes shown as "no value yet". Never a made-up zero.</summary>
         public static string WithoutMetrics(string text) => Metric.Replace(text ?? "", NoValue);
 
+        public static bool HasMetrics(string text) => text != null && text.IndexOf('{') >= 0;
+
         static Mesh Cone() => cone != null ? cone : cone = Lathe("Artifact cone", 0f);
         static Mesh Cylinder() => cylinder != null ? cylinder : cylinder = Lathe("Artifact cylinder", 0.5f);
 

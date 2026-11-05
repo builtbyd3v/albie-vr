@@ -54,6 +54,15 @@ namespace Forge.Artifacts
         public bool Whole(string name) => inputs[name].whole;
         public string Label(string name) => inputs[name].label;
 
+        /// <summary>The live values, for a run record. Allocates; call off the physics step.</summary>
+        public JObject Snapshot()
+        {
+            var o = new JObject();
+            foreach (var pair in inputs)
+                o[pair.Key] = pair.Value.whole ? (JToken)(int)Math.Round(pair.Value.value) : pair.Value.value;
+            return o;
+        }
+
         /// <summary>False, with nothing changed, if there's no such input or the value is out of range.</summary>
         public bool TrySet(string name, double value)
         {

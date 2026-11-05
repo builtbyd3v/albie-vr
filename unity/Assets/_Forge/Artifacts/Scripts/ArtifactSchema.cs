@@ -10,6 +10,7 @@ namespace Forge.Artifacts
     {
         public const string Manifest = "albie.artifact/1";
         public const string Scene = "albie.scene/1";
+        public const string Run = "albie.run/1";
         public const int HostRuntime = 1;
 
         public const int MaxNodes = 512, MaxZones = 64, MaxRules = 64, MaxSceneChars = 256 * 1024;

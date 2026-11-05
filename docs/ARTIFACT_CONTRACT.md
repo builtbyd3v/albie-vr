@@ -260,6 +260,8 @@ Every metric named in `outputs` must have a `metric` rule, and every `metric` ke
 
 A `run` block doesn't stop a scene opening: the course shows, and the run engine scores it (Nov 10, second step).
 
+**As built, 2026-11-05.** `ArtifactRun` is the engine: it ticks from `FixedUpdate` with no allocations, tests zones with `ArtifactZone.Contains` (no trigger colliders), writes `albie.run/1` off that step, and calls `NotebookStore.AttachRun`. The probes come from `IArtifactThing` (C-12 question 1): Person 2's Thing runtime can implement it; until then the slalom sandbox drives `ArtifactThing`. `artifact_run` arms a lap; `artifact_compare` flags anything that isn't like for like as `"different course"`. Closing the artifact, or tapping Run again, aborts a running attempt.
+
 ## 6. Device records
 
 ### 6.1 Layout: `albie.layout/1`
