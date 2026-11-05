@@ -38,7 +38,7 @@ namespace Forge.Artifacts
         public static JObject Create(JObject args)
         {
             string template = (string)args["template"];
-            if (string.IsNullOrEmpty(template)) throw new ArgumentException("bad_value: say which template (slalom)");
+            if (string.IsNullOrEmpty(template)) throw new ArgumentException("bad_value: say which template (" + string.Join(", ", ArtifactLibrary.Templates) + ")");
             var made = ArtifactLibrary.FromTemplate(template, args["inputs"] as JObject);
             var result = new JObject { ["id"] = made.Id, ["version"] = made.Version, ["change"] = made.Change };
             if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));

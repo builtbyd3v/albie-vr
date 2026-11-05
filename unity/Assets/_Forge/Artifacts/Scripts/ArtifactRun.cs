@@ -61,6 +61,7 @@ namespace Forge.Artifacts
         {
             public string Name;
             public int Op, Watch, Probe, Slot;
+            public int[] Watches;  // hit_count over a list of nodes: summed
             public bool Integer;
             public double Acc, Samples;
         }
@@ -191,7 +192,12 @@ namespace Forge.Artifacts
                         Acc = double.NaN,
                     };
                     if (op == "zone_count") m.Watch = EnsureZone(rule.Value<string>("zones"), rule.Value<bool?>("ordered") == true);
-                    if (op == "hit_count") m.Watch = EnsureHit(rule.Value<string>("nodes"));
+                    if (op == "hit_count" && rule["nodes"] is JArray targets)
+                    {
+                        m.Watches = new int[targets.Count];
+                        for (int t = 0; t < targets.Count; t++) m.Watches[t] = EnsureHit((string)targets[t]);
+                    }
+                    else if (op == "hit_count") m.Watch = EnsureHit(rule.Value<string>("nodes"));
                     metrics[metricN++] = m;
                 }
 
@@ -499,7 +505,7 @@ namespace Forge.Artifacts
             {
                 case OpElapsed: return elapsed;
                 case OpZoneCount: return metrics[i].Watch >= 0 ? zones[metrics[i].Watch].Count : 0;
-                case OpHitCount: return metrics[i].Watch >= 0 ? hits[metrics[i].Watch].Count : 0;
+                case OpHitCount: return HitCount(i);
                 default: return metrics[i].Acc;
             }
         }
@@ -510,7 +516,7 @@ namespace Forge.Artifacts
             {
                 case OpElapsed: return elapsed;
                 case OpZoneCount: return metrics[i].Watch >= 0 ? zones[metrics[i].Watch].Count : 0;
-                case OpHitCount: return metrics[i].Watch >= 0 ? hits[metrics[i].Watch].Count : 0;
+                case OpHitCount: return HitCount(i);
                 case OpLast:
                 case OpMax:
                 case OpMin:
@@ -526,6 +532,15 @@ namespace Forge.Artifacts
                     return (prev + sample) / n;
                 default: return double.NaN;
             }
+        }
+
+        int HitCount(int i)
+        {
+            var list = metrics[i].Watches;
+            if (list == null) return metrics[i].Watch >= 0 ? hits[metrics[i].Watch].Count : 0;
+            int n = 0;
+            for (int k = 0; k < list.Length; k++) n += hits[list[k]].Count;
+            return n;
         }
 
         float ReadProbe(int probe)

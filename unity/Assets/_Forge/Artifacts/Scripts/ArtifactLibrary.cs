@@ -15,8 +15,8 @@ namespace Forge.Artifacts
     /// </summary>
     public static class ArtifactLibrary
     {
-        /// <summary>The built-in templates. The hoop course joins on Nov 14 (16.3).</summary>
-        public static readonly string[] Templates = { "slalom" };
+        /// <summary>The built-in templates.</summary>
+        public static readonly string[] Templates = { "slalom", "hoop_course" };
 
         /// <summary>Checks point this at a scratch folder.</summary>
         public static string RootOverride;

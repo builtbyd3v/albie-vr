@@ -51,7 +51,7 @@ namespace Forge.Artifacts
 
         /// <summary>A new layout record for a fit, with the next free id. Not saved: call <see cref="Save"/>.</summary>
         public static JObject Make(string artifactId, int version, string scenario, int seed, IFloorPlan room, JObject requested,
-                                   FloorSlalom.Result fit, string message)
+                                   FloorSlalom.Result fit, string message, string countKey = "gates")
         {
             var toRoom = room.RoomToWorld.inverse;
             var originInRoom = toRoom.MultiplyPoint3x4(fit.Origin);
@@ -80,7 +80,7 @@ namespace Forge.Artifacts
                 ["fit"] = new JObject
                 {
                     ["requested"] = requested.DeepClone(),
-                    ["placed"] = new JObject { ["gates"] = fit.Gates, ["spacing_m"] = R(fit.Spacing) },
+                    ["placed"] = new JObject { [countKey] = fit.Gates, ["spacing_m"] = R(fit.Spacing) },
                     ["shrunk"] = fit.Shrunk,
                     ["around_found"] = fit.AroundFound,
                     ["message"] = message,

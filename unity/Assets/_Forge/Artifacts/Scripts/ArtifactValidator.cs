@@ -387,11 +387,16 @@ namespace Forge.Artifacts
 
             void Metric(JToken rule, string path)
             {
-                string op = rule.Value<string>("op"), probe = rule.Value<string>("probe"), target = rule.Value<string>("nodes");
+                string op = rule.Value<string>("op"), probe = rule.Value<string>("probe");
                 if (op == null || !ArtifactSchema.MetricOps.Contains(op)) Add("bad_value", path + ".op", $"unknown op \"{op}\"");
                 if (probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", path + ".probe", $"unknown probe \"{probe}\"");
                 if (rule["zones"] != null) ZoneRef(rule.Value<string>("zones"), path + ".zones");
-                if (target != null && !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                var targets = rule["nodes"] as JArray ?? (rule["nodes"] != null ? new JArray(rule["nodes"]) : new JArray());
+                foreach (var t in targets)
+                {
+                    string target = (string)t;
+                    if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                }
                 if (op == "sim") SimMetric(rule, path);
             }
 

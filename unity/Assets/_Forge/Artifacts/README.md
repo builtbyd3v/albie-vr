@@ -24,6 +24,17 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 
 **Saved anchors (Nov 12).** Each new layout gets a uuid from `ArtifactAnchors`. On a Quest that also calls `OVRSpatialAnchor.SaveAnchorAsync`. If the uuid is gone, the host makes a new layout and Albie says "I can't find the saved course in this room, so I made a new one." Furniture that has moved still uses the existing "Something in the room has moved" line. Old runs stay, but they no longer compare like for like.
 
+## "Make me a hoop course" (Nov 14)
+
+Albie calls `artifact_create {template: "hoop_course"}`. It works the same way as the slalom, with the `room_hoops` generator (`Scripts/Room/RoomHoops.cs`):
+- It places standing hoops for a drone: 4 hoops 1.0 m apart by default, weaving ±0.21 m, each a 0.7 m frame with its centre 1.0 m up. They go on free floor along the room's main axis and use the same search and fit rules as the slalom: less spacing first (down to 0.6 m), then fewer hoops (down to 3).
+- **Small rooms.** The mock 4.5 × 3.8 m bedroom gets 3 hoops 0.6 m apart, and Albie says so.
+- **Missing labels.** The hoop course doesn't look for any furniture label, so an unlabelled scan places normally. If the scan has no ceiling, the course is still placed, and Albie says it couldn't check the ceiling and how tall the hoops are.
+- **Low ceilings.** A ceiling lower than the frame top (1.37 m) plus `clearance_m` gives `no_headroom`, with both heights.
+- **Scoring.** A run counts hoops in order (`hoops_passed`, else `missed_hoop`). `collisions` counts touches on any part of the frame (`hit_count` over a list of nodes). A drone that stays upside down for 1 s fails as `crashed`.
+
+The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding a generator type is a host change.
+
 **v1 vs v2.** That's a notebook compare (`notebook_compare`), not `artifact_compare`. v1 flipped during free driving, before the slalom existed, so it is labelled "free drive, not this course".
 
 ## Files
@@ -33,11 +44,12 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 | `Scripts/ArtifactHost.cs` | Opens, validates, asks permission, places generated scenes in the room, relayouts, and scores runs. `ArtifactHost.Current` is the host the tools use. |
 | `Scripts/ArtifactRun.cs`, `Scripts/ArtifactRuns.cs` | The run engine (`albie.run/1`) and the device records. |
 | `Scripts/ArtifactThing.cs` | `IArtifactThing` probes, plus a kinematic stand-in until Person 2's Thing runtime exposes them. |
-| `Scripts/Room/` | `IFloorPlan`, plus the MRUK and mock rooms, the `floor_slalom` generator, layout records, spatial anchors, and `ArtifactGenerators`. |
+| `Scripts/Room/` | `IFloorPlan` (free floor and ceiling height), plus the MRUK and mock rooms, the `floor_slalom` and `room_hoops` generators, layout records, spatial anchors, and `ArtifactGenerators`. |
 | `Scripts/ArtifactZone.cs` | The `zone` node (with `Contains` for runs) and the `array` node over a slot. |
 | `Scripts/ArtifactLibrary.cs`, `Scripts/ArtifactTools.cs` | The templates and the device library. Tools: `artifact_list`, `artifact_create`, `artifact_open`, `artifact_close`, `artifact_relayout`, `artifact_run`, `artifact_compare`. |
-| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
+| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 7 make a hoop course, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
+| `Editor/HoopCheck.cs` | 14 headless hoop checks (mock rooms, template, scored laps): **Forge > Artifacts > Check Hoops**. |
 | `Editor/ArtifactRunCheck.cs` | 13 headless run checks: **Forge > Artifacts > Check Runs**. `Forge > Check Artifacts` runs the rest. |
 
 ## For other modules
