@@ -1,16 +1,19 @@
 using System;
+using Forge.ML;
 using Newtonsoft.Json.Linq;
 
 namespace Forge.Controllers
 {
     /// <summary>
     /// <c>kind: graph</c>: rule and PID nodes run in list order each tick, and a later write to an actuator overrides an
-    /// earlier one (contract section 3.3). Node types: const, gain, pid, rule. No expressions and no scripts: the file is
-    /// data the agent writes. Bind compiles the nodes into flat arrays, so Tick allocates nothing.
+    /// earlier one (contract section 3.3). Node types: const, gain, pid, rule, and model (section 3.5, proposed): a small
+    /// trained classifier over sensor channels that sets actuators while its probability is at or above a threshold, like
+    /// a rule whose condition was learned (the ML template's "obstacle ahead" brake). No expressions and no scripts: the
+    /// file is data the agent writes. Bind compiles the nodes into flat arrays, so Tick allocates nothing.
     /// </summary>
     public sealed class GraphController : IThingController
     {
-        enum NodeType { Const, Gain, Pid, Rule }
+        enum NodeType { Const, Gain, Pid, Rule, Model }
         enum Op { Less, LessOrEqual, Greater, GreaterOrEqual }
 
         // An operand is a sensor (index >= 0) or a constant.
@@ -34,17 +37,36 @@ namespace Forge.Controllers
             public Operand ruleInput;       // rule: if ruleInput op threshold
             public Op op;
             public float threshold;
-            public int setStart, setCount;  // rule: range in setActuator / setValue
+            public int setStart, setCount;  // rule and model: range in setActuator / setValue
+            public int model;               // model: index into models
+            public float probability;       // model: the last P(class 1), for panels
+        }
+
+        sealed class Model
+        {
+            public NNNetwork net;
+            public int[] sensor;
+            public float[] mean, invStd, features;
         }
 
         readonly ControllerFile file;
         Node[] nodes;
         int[] setActuator;
         float[] setValue;
+        Model[] models;
 
         public GraphController(ControllerFile file) { this.file = file; }
 
         public string Kind => "graph";
+        /// <summary>The first model node's last probability, or NaN if the graph has none (sandbox and panels).</summary>
+        public float ModelProbability
+        {
+            get
+            {
+                if (nodes != null) for (int i = 0; i < nodes.Length; i++) if (nodes[i].type == NodeType.Model) return nodes[i].probability;
+                return float.NaN;
+            }
+        }
         public string Name => file.Name;
 
         public string Bind(ControllerIO io)
@@ -55,7 +77,10 @@ namespace Forge.Controllers
             int sets = 0;
             foreach (var n in list) if (n["set"] is JObject s) sets += s.Count;
             var setActuator = new int[sets]; var setValue = new float[sets];
-            int used = 0;
+            int used = 0, modelCount = 0;
+            foreach (var n in list) if ((string)n["type"] == "model") modelCount++;
+            var models = new Model[modelCount];
+            int modelsUsed = 0;
 
             for (int i = 0; i < list.Count; i++)
             {
@@ -104,21 +129,26 @@ namespace Forge.Controllers
                             default: return $"bad_value: {where}.if[1] must be <, <=, > or >=";
                         }
                         if (!file.TryNumber(cond[2], where + ".if[2]", out node.threshold, out error)) return error;
-                        if (!(n["set"] is JObject set) || set.Count == 0)
-                            return $"bad_value: {where}.set needs at least one actuator";
-                        node.setStart = used;
-                        foreach (var pair in set)
-                        {
-                            setActuator[used] = io.ActuatorIndex(pair.Key);
-                            if (setActuator[used] < 0)
-                                return $"unknown_channel: {where}.set: no actuator \"{pair.Key}\" on this Thing (it has {io.DescribeActuators()})";
-                            if (!file.TryNumber(pair.Value, $"{where}.set.{pair.Key}", out setValue[used], out error)) return error;
-                            used++;
-                        }
-                        node.setCount = used - node.setStart;
+                        if ((error = Sets(io, n, where, setActuator, setValue, ref used, ref node)) != null) return error;
                         break;
+                    case "model":
+                    {
+                        node.type = NodeType.Model;
+                        if (!(n["model"] is JObject m)) return $"bad_value: {where}.model must be an object with inputs and net";
+                        var model = new Model();
+                        error = NetFile.ReadInputs(m["inputs"] as JArray, io, where + ".model.inputs", out model.sensor, out model.mean, out model.invStd);
+                        if (error != null) return error;
+                        if ((error = NetFile.Build(m["net"] as JObject, model.sensor.Length, 1, where + ".model.net", out model.net)) != null) return error;
+                        model.features = new float[model.sensor.Length];
+                        if (!Optional(n["threshold"], 0.5f, where + ".threshold", out node.threshold, out error)) return error;
+                        if (node.threshold < 0f || node.threshold > 1f) return $"bad_value: {where}.threshold must be between 0 and 1 (a probability)";
+                        if ((error = Sets(io, n, where, setActuator, setValue, ref used, ref node)) != null) return error;
+                        node.model = modelsUsed;
+                        models[modelsUsed++] = model;
+                        break;
+                    }
                     default:
-                        return $"bad_value: {where}.type \"{(string)n["type"]}\" must be const, gain, pid or rule";
+                        return $"bad_value: {where}.type \"{(string)n["type"]}\" must be const, gain, pid, rule or model";
                 }
             }
             // A re-bind after a tunable change keeps PID state for nodes that are still the same type at the same place,
@@ -131,7 +161,25 @@ namespace Forge.Controllers
                         nodes[i].lastError = this.nodes[i].lastError;
                         nodes[i].hasLastError = this.nodes[i].hasLastError;
                     }
-            this.nodes = nodes; this.setActuator = setActuator; this.setValue = setValue;
+            this.nodes = nodes; this.setActuator = setActuator; this.setValue = setValue; this.models = models;
+            return null;
+        }
+
+        // A rule or model node's "set": actuator indexes and values, appended at setActuator[used...].
+        string Sets(ControllerIO io, JToken n, string where, int[] setActuator, float[] setValue, ref int used, ref Node node)
+        {
+            if (!(n["set"] is JObject set) || set.Count == 0)
+                return $"bad_value: {where}.set needs at least one actuator";
+            node.setStart = used;
+            foreach (var pair in set)
+            {
+                setActuator[used] = io.ActuatorIndex(pair.Key);
+                if (setActuator[used] < 0)
+                    return $"unknown_channel: {where}.set: no actuator \"{pair.Key}\" on this Thing (it has {io.DescribeActuators()})";
+                if (!file.TryNumber(pair.Value, $"{where}.set.{pair.Key}", out setValue[used], out string error)) return error;
+                used++;
+            }
+            node.setCount = used - node.setStart;
             return null;
         }
 
@@ -193,6 +241,14 @@ namespace Forge.Controllers
                         bool hit = n.op == Op.Less ? v < n.threshold : n.op == Op.LessOrEqual ? v <= n.threshold
                                  : n.op == Op.Greater ? v > n.threshold : v >= n.threshold;
                         if (hit) for (int s = n.setStart; s < n.setStart + n.setCount; s++) outputs[setActuator[s]] = setValue[s];
+                        break;
+                    }
+                    case NodeType.Model:
+                    {
+                        var m = models[n.model];
+                        for (int f = 0; f < m.features.Length; f++) m.features[f] = (sensors[m.sensor[f]] - m.mean[f]) * m.invStd[f];
+                        n.probability = (m.net.Forward(m.features) + 1f) * 0.5f;
+                        if (n.probability >= n.threshold) for (int s = n.setStart; s < n.setStart + n.setCount; s++) outputs[setActuator[s]] = setValue[s];
                         break;
                     }
                 }

@@ -2470,6 +2470,21 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Mirrored laps are off by default.** This corrects 15.11. On a slalom, a mirror teaches "pass left" and "pass right" for the same view, and the net averages them into "straight into the cone". Mirroring and ensembles both made results worse.
 - **Train 3 candidates and let the arena run decide.** One training run finishes the course about 60-90% of the time; the best of 3 seeds reached 98-100%. Validation loss can't pick the good one (in a live run, the lowest-loss net scored 0/15 and the other two 15/15), so the autopilot (Nov 10) tries the candidates in order. The pretrained fallback stays necessary (16.3, Nov 12).
 
+**ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
+- **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
+- **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.
+  - It makes 3,000 labelled samples from the truck's own sensors in about 10 ms. The label is physics: would it hit something within 0.6 s, driving straight at its speed (at least 1 m/s)?
+  - It trains an 8-neuron net in about 24 frames at 4 ms a frame.
+  - It plugs the net into `truck_cruise` as a learned brake, using the proposed graph `model` node (C-19 section 3.5).
+- **Results:**
+
+  | Measure | Result |
+  |---|---|
+  | Held-out samples | 97% right. The best single front-ray rule gets 86%. |
+  | Closed loop, 180 saveable starts aimed at cones and walls | The learned brake crashed 4 times, the same as the best fixed rule, and drove 15% further before stopping (0.97 m vs 0.84 m). `truck_cruise`'s hand-written brake (`d3 < 0.15`) crashed 161 times. |
+
+- **The speed floor in the label matters.** With the plain "at its current speed" label, the net scored 96% offline but still crashed 28 of 60 starts in closed loop. A truck that braked and was crawling next to a cone read "clear", and the cruise control sped it back up.
+
 ---
 
 ## Appendix A. Research sources
