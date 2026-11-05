@@ -77,7 +77,7 @@ public static class ArtifactChecks
     static void Mistakes()
     {
         Expect("newer_schema", (m, s) => s["schema"] = "albie.scene/2");
-        Expect("newer_schema", (m, s) => m["runtime"]["min_runtime"] = 2);
+        Expect("newer_schema", (m, s) => m["runtime"]["min_runtime"] = ArtifactSchema.HostRuntime + 1);
         Expect("unknown_kind", (m, s) => Node(s, "cones")["kind"] = "cube");
         Expect("unsupported_kind", (m, s) => Node(s, "guide")["kind"] = "camera_rig");
         Expect("unknown_ref", (m, s) => s["rules"][1]["zones"] = "gate");

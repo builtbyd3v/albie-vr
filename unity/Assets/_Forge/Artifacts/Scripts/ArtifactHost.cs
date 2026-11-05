@@ -72,6 +72,8 @@ namespace Forge.Artifacts
         /// <summary>The artifact showing right now, or null.</summary>
         public string OpenId => build != null ? open.Id : null;
         public string OpenTitle => open != null ? open.Title : "";
+        /// <summary>The manifest of the artifact being opened (also while its permissions sheet waits), or null.</summary>
+        public JObject OpenManifest => open?.Manifest;
 
         /// <summary>The last reason an artifact didn't open, for tools and the agent. Null if it did.</summary>
         public string LastProblem { get; private set; }

@@ -175,11 +175,21 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 | `type` | Params | Slots it fills |
 |---|---|---|
 | `floor_slalom` | `gates`, `spacing_m`, `min_spacing_m`, `min_gates`, `lane_width_m`, `clearance_m`, optional `around` (an MRUK label) | `<id>.cones`, `<id>.gates`, `<id>.start`, `<id>.finish` |
-| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m` | `<id>.hoops`, `<id>.start`, `<id>.finish` |
+| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m`, optional `height_m` (the hoop centre, default 1.0) | `<id>.hoops`, `<id>.start`, `<id>.finish` |
 
 A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin. **Every slot is on the floor (`y` = 0)**: a node's own `pos` lifts it. Adding a generator type is a host change, so it bumps `min_runtime`.
 
 **`floor_slalom` geometry (as built, 2026-11-04).** The course runs along its local +z from the start (z = 0): a cone every `spacing_m`, a gate beside each cone on alternating sides at ±`lane_width_m`/2 (the side the Thing passes), and the finish one spacing past the last cone. Its footprint is ±`lane_width_m` either side of the cones, from 0.3 m before the start to 0.3 m after the finish, all on free floor. The search tries courses along or across the room (or the `around` object) first, nearest that object (or the middle of the free floor), and turns a course only when no square one fits at that size.
+
+**`room_hoops` geometry (as built, 2026-11-05, Nov 14).** This generator needs host runtime 2, so the `hoop_course` template sets `min_runtime` 2.
+- **Layout.** A hoop every `spacing_m` along +z, weaving ±0.3 × `diameter_m` sideways on alternating sides. The finish is one spacing past the last hoop. The slots stay on the floor; the scene lifts each frame so the hoop's centre is at `height_m`.
+- **Footprint.** It uses the same search as the slalom. Its half-width is the weave, plus half a hoop, plus the 4 cm post.
+- **Ceiling.** The frame top plus `clearance_m` must be under the ceiling (`IFloorPlan.CeilingHeight`). If it isn't, the layout fails with **`no_headroom`** (new) and Albie says both heights. A scan with no ceiling anchor still gets a course, and the `say` line notes that the ceiling couldn't be checked. A missing label is never a reason to fail.
+- **Template defaults.** 4 hoops at 1.0 m, minimum 3 hoops at 0.6 m, 0.7 m hoops at 1.0 m, `clearance_m` 0.15.
+- **Scoring.** `collisions` uses `hit_count` over a list of the four frame arrays.
+- **Fail reasons.** A missed hoop fails as `missed_hoop`, and upside down for 1 s fails as `crashed`.
+- **Mock-room results.** The 7 × 5 m living room gets the full course. The 4.5 × 3.8 m bedroom shrinks to 3 hoops at 0.6 m. An unlabelled 5 × 4 m room with no ceiling gets 4 hoops at 0.8 m. A 1.4 m attic gives `no_headroom`. The closet gives `no_free_floor`.
+- **Not yet measured.** It hasn't been run on MRUK's prefab rooms or a Quest.
 
 **Default size.** 5 gates at 0.8 m makes a 4.8 m course, which is meant to fit a living room. These are starting guesses until someone drives a truck through one on a Quest.
 
@@ -212,7 +222,7 @@ Whenever a step other than 1 ran, `fit.shrunk` is true and `fit.message` says wh
 |---|---|---|
 | `elapsed` | | Seconds since the run started |
 | `zone_count` | `zones` (an array or zone id), `ordered` | Zones entered. With `ordered`, only the next one in order counts. |
-| `hit_count` | `nodes` (an array or node id) | Times the Thing touched those nodes |
+| `hit_count` | `nodes` (an array or node id) | Times the Thing touched those nodes. As built, a list of ids is summed |
 | `max`, `min`, `mean` | `probe` | Over the run |
 | `last` | `probe` | The final value |
 
@@ -305,6 +315,7 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 ```
 
 - Runs are never overwritten (9.7). The host writes one when a run ends, off the physics step.
+- **`run_id` is unique across every artifact on the device, not just its own folder** (as built, 2026-11-05). The notebook stores bare run ids (C-17 `observed.runs`). With per-artifact numbering, a hoop course's `run_0001` matched the slalom's `run_0001`, so the notebook dropped it as a duplicate. The file still lives in `artifacts/<id>/runs/`.
 - `controller` is recorded here because training doesn't cut a project version (C-17, section 4). The project version alone can't say which brain drove.
 - A `failed` run keeps the metrics it reached. Metrics that never got a value are null, never zero.
 

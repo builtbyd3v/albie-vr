@@ -43,6 +43,7 @@ namespace Forge.Artifacts
         public bool HasFloor => Room != null && Room.FloorAnchor != null;
         public float FloorY => Room.FloorAnchor.transform.position.y;
         public Bounds FloorBounds => Room.GetRoomBounds();
+        public float CeilingHeight => Room.CeilingAnchor != null ? Room.CeilingAnchor.transform.position.y - FloorY : float.NaN;
 
         // The floor anchor faces up (its forward is world up), so its local y is a direction along the floor.
         public float AxisYaw

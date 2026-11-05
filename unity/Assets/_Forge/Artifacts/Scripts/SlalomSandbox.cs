@@ -11,7 +11,8 @@ namespace Forge.Artifacts
     /// SlalomSandbox only, hub off: "Make me a slalom" in a room, with no headset. Rooms are MRUK's own prefab rooms
     /// (the real MRUK code path: IsPositionInRoom, scene volumes, labels) or the mock rooms the checks use.
     ///
-    /// Keys: 2 make me a slalom (the artifact_create tool), 3 arm a run, 4 drive a scripted lap, 5 roll over,
+    /// Keys: 2 make me a slalom (the artifact_create tool), 7 make me a hoop course (a scripted lap then flies the
+    /// hoops at hoop height), 3 arm a run, 4 drive a scripted lap, 5 roll over,
     /// WASD drive the truck, R relayout, 6 forget the saved spatial anchor (next 2 remakes the course),
     /// [ ] spacing -/+ 0.1 m, G gates (3 to 8), M next MRUK room, N next mock room, O overhead / first-person view,
     /// 0 close, 9 forget approvals.
@@ -47,6 +48,7 @@ namespace Forge.Artifacts
             var k = Keyboard.current;
             if (k == null) return;
             if (k.digit2Key.wasPressedThisFrame) MakeSlalom();
+            if (k.digit7Key.wasPressedThisFrame) MakeHoops();
             if (k.digit3Key.wasPressedThisFrame) Report(Tool("artifact_run", new JObject()));
             if (k.digit4Key.wasPressedThisFrame) ScriptedLap();
             if (k.digit5Key.wasPressedThisFrame) RollOver();
@@ -67,6 +69,15 @@ namespace Forge.Artifacts
         public JObject MakeSlalom()
         {
             var result = Tool("artifact_create", new JObject { ["template"] = "slalom" });
+            Report(result);
+            if (result["error"] == null) SpawnThing();
+            return result;
+        }
+
+        /// <summary>What Albie does for "Make me a hoop course".</summary>
+        public JObject MakeHoops()
+        {
+            var result = Tool("artifact_create", new JObject { ["template"] = "hoop_course" });
             Report(result);
             if (result["error"] == null) SpawnThing();
             return result;
@@ -145,6 +156,13 @@ namespace Forge.Artifacts
                 if (renderer != null) renderer.sharedMaterial = ArtifactLook.Material("#4C8DFF");
                 thing = thingGo.AddComponent<ArtifactThing>();
             }
+            // The stand-in plays whatever Thing the open artifact links (the slalom a truck, the hoop course a drone),
+            // so run records don't say a truck flew the hoops.
+            string linked = (string)host.OpenManifest?["links"]?["thing"];
+            if (string.IsNullOrEmpty(linked)) linked = "truck";
+            thing.ThingName = linked;
+            thing.ThingVersion = linked == "truck" ? 2 : 1;
+            thing.ControllerName = linked + "_manual";
             host.Thing = thing;
             var at = host.SceneOrigin;
             thing.Place(at.position + Vector3.up * 0.06f, at.rotation);
@@ -173,12 +191,18 @@ namespace Forge.Artifacts
         {
             Report(Tool("artifact_run", new JObject()));
             var origin = host.SceneOrigin;
-            Vector3 World(Pose local) => origin.position + origin.rotation * local.position + Vector3.up * 0.06f;
+            bool hoops = host.Build.Slots.TryGetValue("course.hoops", out var markers);
+            if (!hoops) host.Build.Slots.TryGetValue("course.gates", out markers);
+            // Fly at the height the scene actually put the hoop zones (the template's height_m), not a default.
+            float lift = 0.06f;
+            if (hoops && host.Build.Arrays.TryGetValue("hoops", out var hoopZones) && hoopZones.Count > 0)
+                lift = hoopZones[0].transform.position.y - origin.position.y;
+            Vector3 World(Pose local) => origin.position + origin.rotation * local.position + Vector3.up * lift;
             thing.Place(World(new Pose(Vector3.zero, Quaternion.identity)), origin.rotation);
             yield return new WaitForFixedUpdate();
             yield return new WaitForFixedUpdate();
-            if (host.Build.Slots.TryGetValue("course.gates", out var gates))
-                foreach (var gate in gates)
+            if (markers != null)
+                foreach (var gate in markers)
                 {
                     thing.Place(World(gate), origin.rotation);
                     yield return new WaitForFixedUpdate();
@@ -261,7 +285,7 @@ namespace Forge.Artifacts
             string layout = host.LastLayout != null ? $"   layout {host.LastLayout["layout_id"]}{(host.LayoutReused ? " (reused)" : " (new)")}" : "";
             string run = host.Run != null ? $"   run {host.Run.State.ToString().ToLowerInvariant()}" + (host.Run.Outcome != null ? " " + host.Run.Outcome : "") : "";
             GUI.Label(new Rect(14, 72, Screen.width - 28, 72),  // below the desktop rig's hint bar
-                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
+                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   7 hoop course   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
             if (!string.IsNullOrEmpty(say)) GUI.Label(new Rect(14, Screen.height - 80, Screen.width - 28, 30), "<b>Albie:</b> " + say, style);
             GUI.Label(new Rect(14, Screen.height - 48, Screen.width - 28, 44), status, style);
         }

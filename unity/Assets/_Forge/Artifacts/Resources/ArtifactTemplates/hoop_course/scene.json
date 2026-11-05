@@ -1,0 +1,165 @@
+{
+  "schema": "albie.scene/1",
+  "space": "room",
+  "generators": [
+    {
+      "id": "course",
+      "type": "room_hoops",
+      "params": {
+        "hoops": "$hoops",
+        "spacing_m": "$spacing_m",
+        "min_spacing_m": 0.6,
+        "min_hoops": 3,
+        "diameter_m": 0.7,
+        "height_m": 1.0,
+        "clearance_m": 0.15
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "hoop_left",
+      "kind": "array",
+      "source": "course.hoops",
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "pos": [-0.37, 0.685, 0],
+        "size": [0.04, 1.37, 0.04],
+        "color": "#FF7A1A",
+        "collider": true
+      }
+    },
+    {
+      "id": "hoop_right",
+      "kind": "array",
+      "source": "course.hoops",
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "pos": [0.37, 0.685, 0],
+        "size": [0.04, 1.37, 0.04],
+        "color": "#FF7A1A",
+        "collider": true
+      }
+    },
+    {
+      "id": "hoop_top",
+      "kind": "array",
+      "source": "course.hoops",
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "pos": [0, 1.35, 0],
+        "size": [0.78, 0.04, 0.04],
+        "color": "#FF7A1A",
+        "collider": true
+      }
+    },
+    {
+      "id": "hoop_bottom",
+      "kind": "array",
+      "source": "course.hoops",
+      "template": {
+        "kind": "primitive",
+        "shape": "box",
+        "pos": [0, 0.63, 0],
+        "size": [0.78, 0.04, 0.04],
+        "color": "#FF7A1A",
+        "collider": true
+      }
+    },
+    {
+      "id": "hoops",
+      "kind": "array",
+      "source": "course.hoops",
+      "template": {
+        "kind": "zone",
+        "pos": [0, 1.0, 0],
+        "size": [0.7, 0.7, 0.2]
+      }
+    },
+    {
+      "id": "start",
+      "kind": "zone",
+      "at": "course.start",
+      "pos": [0, 0.6, 0],
+      "size": [0.9, 1.2, 0.4]
+    },
+    {
+      "id": "finish",
+      "kind": "zone",
+      "at": "course.finish",
+      "pos": [0, 0.6, 0],
+      "size": [0.9, 1.2, 0.4]
+    },
+    {
+      "id": "guide",
+      "kind": "line",
+      "source": "course.hoops",
+      "width": 0.01,
+      "color": "#7CFFB2",
+      "pos": [0, 1.0, 0]
+    },
+    {
+      "id": "time_label",
+      "kind": "text",
+      "parent": "finish",
+      "pos": [0, 0.75, 0],
+      "text": "{completion_time_s} s",
+      "height": 0.08,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "scoreboard",
+      "kind": "panel",
+      "title": "Hoop course",
+      "widgets": [
+        { "type": "stat", "metric": "completion_time_s", "label": "Time", "unit": "s" },
+        { "type": "stat", "metric": "hoops_passed", "label": "Hoops" },
+        { "type": "stat", "metric": "collisions", "label": "Frames hit" },
+        { "type": "runs", "columns": ["completion_time_s", "collisions", "top_speed_ms"], "limit": 5 },
+        { "type": "slider", "input": "spacing_m" },
+        { "type": "button", "id": "rerun", "label": "Fly again" }
+      ]
+    }
+  ],
+  "rules": [
+    { "type": "metric", "name": "completion_time_s", "op": "elapsed" },
+    { "type": "metric", "name": "hoops_passed", "op": "zone_count", "zones": "hoops", "ordered": true },
+    { "type": "metric", "name": "collisions", "op": "hit_count", "nodes": ["hoop_left", "hoop_right", "hoop_top", "hoop_bottom"] },
+    { "type": "metric", "name": "top_speed_ms", "op": "max", "probe": "speed_ms" },
+    {
+      "type": "on_input",
+      "input": "rerun",
+      "do": [
+        { "run": "reset" },
+        { "set": "time_label.visible", "value": false }
+      ]
+    },
+    {
+      "type": "on_zone",
+      "zone": "finish",
+      "event": "enter",
+      "do": [
+        { "set": "time_label.visible", "value": true }
+      ]
+    }
+  ],
+  "run": {
+    "start": { "zone": "start" },
+    "finish": {
+      "zone": "finish",
+      "needs": [
+        { "metric": "hoops_passed", "min": "@course.hoops" }
+      ],
+      "else_reason": "missed_hoop"
+    },
+    "fail": [
+      { "probe": "upright", "below": 0.3, "for_s": 1, "reason": "crashed" },
+      { "timeout_s": 90, "reason": "timeout" }
+    ]
+  }
+}
