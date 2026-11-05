@@ -15,8 +15,8 @@ namespace Forge.ML
             ("ml-neural-neurons", "What each neuron sees", "MLPanels/NeuralNeurons", WorkspaceSlot.Right),
             ("ml-neural-story", "Training story", "MLPanels/NeuralStory", WorkspaceSlot.Above),
         };
-        static readonly string[] Supported = { "ml-datastack", "ml-model3d", "ml-results", "ml-training", "ml-viz-card", "ml-regression-results" };
-        static readonly string[] ResourceNames = { "MLPanels/DataStack", "MLPanels/Model3D", "MLPanels/ResultsWall", "MLPanels/TrainingDash", "MLPanels/VizCard", "MLPanels/RegressionResults" };
+        static readonly string[] Supported = { "ml-datastack", "ml-model3d", "ml-results", "ml-training", "ml-controller-brain", "ml-viz-card", "ml-regression-results" };
+        static readonly string[] ResourceNames = { "MLPanels/DataStack", "MLPanels/Model3D", "MLPanels/ResultsWall", "MLPanels/TrainingDash", "MLPanels/ControllerBrain", "MLPanels/VizCard", "MLPanels/RegressionResults" };
         Workspace workspace;
         IDisposable subscription;
         readonly Dictionary<string, GameObject> assigned = new Dictionary<string, GameObject>();  // prefabs from Main
@@ -99,7 +99,7 @@ namespace Forge.ML
                 if (item.prefab != null && !assigned.ContainsKey(item.id)) assigned[item.id] = item.prefab;
             var items = mode.items.FindAll(m => !m.id.StartsWith("ml-"));
             if (items.Count == 0) items.Add(screen ?? new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main));
-            string[] defaults = { "ml-datastack", "ml-model3d", "ml-results", "ml-training" };
+            string[] defaults = { "ml-datastack", "ml-model3d", "ml-results", "ml-training", "ml-controller-brain" };
             for (int i = 0; i < Supported.Length; i++)
             {
                 string id = Supported[i];
@@ -195,6 +195,7 @@ namespace Forge.ML
                 case "ml-model3d": return "Model";
                 case "ml-results": return "Results";
                 case "ml-training": return "Training";
+                case "ml-controller-brain": return "Controller brain";
                 case "ml-viz-card": return "Visualizations";
                 default: return "Regression";
             }
