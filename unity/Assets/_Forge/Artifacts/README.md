@@ -37,6 +37,15 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 
 **v1 vs v2.** That's a notebook compare (`notebook_compare`), not `artifact_compare`. v1 flipped during free driving, before the slalom existed, so it is labelled "free drive, not this course".
 
+## "What shipped this week?" (repo activity)
+
+Albie calls `artifact_create {template: "repo_activity"}`. This shows commits as a small city on a base: one block per commit, height for lines changed, and colour for the author. The data is read through the `array` node's `source: {table, grid}` (C-12 section 7). The rows are never typed into the scene.
+- **Where the rows come from** (`Scripts/ArtifactData.cs`). The host tries `ArtifactData.Provider` first. That's the hook for Person 3's connector host, and it's null until that's on main. Next it tries the artifact's own `data/<name>.json`, then the bundled sample in `Resources/ArtifactData/`. Today that means the bundled sample: 18 made-up commits.
+- **Sample data** always gets a yellow "Sample data" label, and Albie says the commits are made up. A commit with no line count is a grey stub, not a zero.
+- **Albie's own artifacts.** `artifact_create {manifest, scene}` validates the artifact and saves it versioned. If it's invalid, the result is `status: "invalid"` with every error, and nothing is saved. A source this headset has no copy of opens as `no_data`.
+
+The template needs host runtime 3.
+
 ## Files
 
 | Path | What it is |
@@ -50,6 +59,9 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 | `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 7 make a hoop course, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
 | `Editor/HoopCheck.cs` | 14 headless hoop checks (mock rooms, template, scored laps): **Forge > Artifacts > Check Hoops**. |
+| `Scripts/ArtifactData.cs` | Data tables: parsing and checking snapshots, the Provider → snapshot → bundled sample order, `data_sources`. |
+| `ArtifactsSandbox.unity` | Hub off. Keys: 1 stance, 2 slalom, 3 broken, 4 missing, 5 three-body, 6 repo city (its own snapshot), 7 make repo activity, 0 close, 9 forget approvals. |
+| `Editor/RepoActivityCheck.cs` | 10 headless data and city checks: **Forge > Artifacts > Check Repo Activity**. |
 | `Editor/ArtifactRunCheck.cs` | 13 headless run checks: **Forge > Artifacts > Check Runs**. `Forge > Check Artifacts` runs the rest. |
 
 ## For other modules
