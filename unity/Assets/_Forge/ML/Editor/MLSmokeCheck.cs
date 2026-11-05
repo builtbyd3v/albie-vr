@@ -100,9 +100,12 @@ public static class MLSmokeCheck
             Require(dash.ProbeCount == 16, "ml.probe updates the fixed sample strip");
             var vizPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Forge/ML/Prefabs/VizCard.prefab");
             var regressionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Forge/ML/Prefabs/RegressionResults.prefab");
+            var brainPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_Forge/ML/Prefabs/ControllerBrain.prefab");
             Require(vizPrefab != null && vizPrefab.GetComponent<VizCard>() != null, "VizCard prefab is generated");
             Require(regressionPrefab != null && regressionPrefab.GetComponent<RegressionResults>() != null, "Regression results prefab is generated");
-            Require(Resources.Load<GameObject>("MLPanels/VizCard") != null && Resources.Load<GameObject>("MLPanels/RegressionResults") != null, "Runtime Resources prefabs are generated");
+            Require(brainPrefab != null && brainPrefab.GetComponent<ControllerBrainView>() != null, "Controller brain prefab is generated");
+            Require(Resources.Load<GameObject>("MLPanels/VizCard") != null && Resources.Load<GameObject>("MLPanels/RegressionResults") != null
+                && Resources.Load<GameObject>("MLPanels/ControllerBrain") != null, "Runtime Resources prefabs are generated");
             var vizMocks = Resources.Load<TextAsset>("MLVizCardMocks");
             Require(vizMocks != null && Newtonsoft.Json.Linq.JArray.Parse(vizMocks.text).Count == 7, "Seven VizCard mock JSON documents are available");
             var vizObject = UnityEngine.Object.Instantiate(vizPrefab); var viz = vizObject.GetComponent<VizCard>();
