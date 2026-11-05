@@ -156,6 +156,13 @@ namespace Forge.Artifacts
                 if (renderer != null) renderer.sharedMaterial = ArtifactLook.Material("#4C8DFF");
                 thing = thingGo.AddComponent<ArtifactThing>();
             }
+            // The stand-in plays whatever Thing the open artifact links (the slalom a truck, the hoop course a drone),
+            // so run records don't say a truck flew the hoops.
+            string linked = (string)host.OpenManifest?["links"]?["thing"];
+            if (string.IsNullOrEmpty(linked)) linked = "truck";
+            thing.ThingName = linked;
+            thing.ThingVersion = linked == "truck" ? 2 : 1;
+            thing.ControllerName = linked + "_manual";
             host.Thing = thing;
             var at = host.SceneOrigin;
             thing.Place(at.position + Vector3.up * 0.06f, at.rotation);
@@ -186,7 +193,10 @@ namespace Forge.Artifacts
             var origin = host.SceneOrigin;
             bool hoops = host.Build.Slots.TryGetValue("course.hoops", out var markers);
             if (!hoops) host.Build.Slots.TryGetValue("course.gates", out markers);
-            float lift = hoops ? RoomHoops.Settings.Default.Height : 0.06f;
+            // Fly at the height the scene actually put the hoop zones (the template's height_m), not a default.
+            float lift = 0.06f;
+            if (hoops && host.Build.Arrays.TryGetValue("hoops", out var hoopZones) && hoopZones.Count > 0)
+                lift = hoopZones[0].transform.position.y - origin.position.y;
             Vector3 World(Pose local) => origin.position + origin.rotation * local.position + Vector3.up * lift;
             thing.Place(World(new Pose(Vector3.zero, Quaternion.identity)), origin.rotation);
             yield return new WaitForFixedUpdate();

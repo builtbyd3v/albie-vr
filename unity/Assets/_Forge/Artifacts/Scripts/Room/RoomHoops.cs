@@ -49,7 +49,7 @@ namespace Forge.Artifacts
                 {
                     Code = "no_headroom",
                     Message = string.Format(CultureInfo.InvariantCulture,
-                        "The ceiling here is only {0:0.0} m, and the hoops need {1:0.0} m: they stand {2:0.0} m tall, with {3:0} cm to spare above them. They don't fit in this room.",
+                        "The ceiling here is only {0:0.00} m, and the hoops need {1:0.00} m: they stand {2:0.00} m tall, with {3:0} cm to spare above them. They don't fit in this room.",
                         ceiling, need, Top(s), s.Clearance * 100f),
                 };
 
@@ -95,7 +95,7 @@ namespace Forge.Artifacts
         {
             string size = string.Format(CultureInfo.InvariantCulture, "{0} hoops, {1:0.0} m apart", hoops, spacing);
             string ceiling = string.Format(CultureInfo.InvariantCulture,
-                "I can't find the ceiling in this scan, so check the hoops clear it: they stand {0:0.0} m tall.", top);
+                "I can't find the ceiling in this scan, so check the hoops clear it: they stand {0:0.00} m tall.", top);
             if (shrunk && noCeiling) return $"This room is tight, so I made a shorter hoop course: {size}. {ceiling}";
             if (shrunk) return $"This room is tight, so I made a shorter hoop course: {size}.";
             if (noCeiling) return ceiling;

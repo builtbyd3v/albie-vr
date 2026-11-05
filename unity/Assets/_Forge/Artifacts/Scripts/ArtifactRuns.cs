@@ -20,14 +20,23 @@ namespace Forge.Artifacts
 
         public static string Folder(string artifactId) => Path.Combine(ArtifactLibrary.Folder(artifactId), "runs");
 
-        /// <summary>The next unused <c>run_####</c> in this artifact's folder.</summary>
+        /// <summary>
+        /// The next unused <c>run_####</c> across every artifact on this device, not just this one. The notebook keeps
+        /// bare run ids (C-17 <c>observed.runs</c>), so a slalom's run_0001 and a hoop course's run_0001 would be the
+        /// same id there: the second was dropped as a duplicate. Called when a run is armed, never per tick.
+        /// </summary>
         public static string NextId(string artifactId)
         {
             int highest = 0;
-            string folder = Folder(artifactId);
-            if (Directory.Exists(folder))
-                foreach (string path in Directory.GetFiles(folder, "run_*.json"))
-                    highest = Math.Max(highest, Number(Path.GetFileNameWithoutExtension(path)));
+            string root = ArtifactLibrary.Root;
+            if (Directory.Exists(root))
+                foreach (string artifact in Directory.GetDirectories(root))
+                {
+                    string folder = Path.Combine(artifact, "runs");
+                    if (!Directory.Exists(folder)) continue;
+                    foreach (string path in Directory.GetFiles(folder, "run_*.json"))
+                        highest = Math.Max(highest, Number(Path.GetFileNameWithoutExtension(path)));
+                }
             return $"run_{highest + 1:0000}";
         }
 

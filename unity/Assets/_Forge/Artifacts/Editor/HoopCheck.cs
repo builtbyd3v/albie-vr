@@ -60,6 +60,7 @@ public static class HoopCheck
             ok &= Check(sb, "a lap through every hoop completes, frames not hit", Completes);
             ok &= Check(sb, "skipping a hoop fails as missed_hoop", MissedHoop);
             ok &= Check(sb, "clipping a post or a bar counts as a hit", Hits);
+            ok &= Check(sb, "run ids don't clash across courses; the notebook keeps both", RunIds);
         }
         finally
         {
@@ -137,7 +138,7 @@ public static class HoopCheck
         var s = RoomHoops.Settings.Default;
         var fit = RoomHoops.Fit(room, s);
         if (!fit.Ok) return fit.Code + ": " + fit.Message;
-        if (fit.Message == null || !fit.Message.Contains("can't find the ceiling") || !fit.Message.Contains("1.4 m")) return "message: " + fit.Message;
+        if (fit.Message == null || !fit.Message.Contains("can't find the ceiling") || !fit.Message.Contains("1.37 m")) return "message: " + fit.Message;
         note = $"{fit.Gates} hoops at {F(fit.Spacing)}: \"{fit.Message}\"";
         return OnFreeFloor(room, fit, s);
     }
@@ -146,7 +147,7 @@ public static class HoopCheck
     {
         note = null;
         var fit = RoomHoops.Fit(MockFloorPlan.Attic(), RoomHoops.Settings.Default);
-        if (fit.Ok || fit.Code != "no_headroom" || !fit.Message.Contains("1.4 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
+        if (fit.Ok || fit.Code != "no_headroom" || !fit.Message.Contains("only 1.40 m") || !fit.Message.Contains("need 1.52 m") || !fit.Message.Contains("stand 1.37 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
         var slalom = FloorSlalom.Fit(MockFloorPlan.Attic(), FloorSlalom.Settings.Default);
         if (!slalom.Ok) return "a slalom should still fit in the attic: " + slalom.Code;
         note = $"\"{fit.Message}\" (a slalom still fits there)";
@@ -374,6 +375,36 @@ public static class HoopCheck
         int bottom = (int)Math.Round(low.Board.Value("collisions"));
         if (side < 4 || bottom < 4) return $"edge laps hit {side} (posts) and {bottom} (bottom bars), expected at least 4 each";
         note = $"post side {side}, bottom bar {bottom}";
+        return null;
+    }
+
+    // The notebook keeps bare run ids, so a slalom run and a hoop run must never share one.
+    static string RunIds(out string note)
+    {
+        note = null;
+        foreach (string a in new[] { "slalom", "hoop_course" })
+        {
+            string f = ArtifactRuns.Folder(a);
+            if (Directory.Exists(f)) Directory.Delete(f, true);
+        }
+        NotebookStore.Close();
+        string nb = Path.Combine(root, "nb_ids");
+        NotebookStore.Open("proj_check", nb);
+        var ids = new List<string>();
+        foreach (string a in new[] { "slalom", "hoop_course", "slalom" })
+        {
+            string id = ArtifactRuns.NextId(a);
+            ArtifactRuns.Save(new JObject { ["schema"] = ArtifactRuns.Schema, ["run_id"] = id, ["artifact_id"] = a, ["outcome"] = "completed" });
+            NotebookStore.AttachRun(id, "completed");
+            ids.Add(id);
+        }
+        if (ids[0] != "run_0001" || ids[1] != "run_0002" || ids[2] != "run_0003") return "ids " + string.Join(", ", ids);
+        var entry = NotebookStore.Newest();
+        var runs = entry?["observed"]?["runs"] as JArray;
+        if (runs == null || runs.Count != 3) return "the notebook kept " + (runs?.Count ?? 0) + " of 3 runs";
+        if (File.Exists(Path.Combine(ArtifactRuns.Folder("slalom"), "run_0002.json")))
+            return "the hoop run landed in the slalom's folder";
+        note = "slalom run_0001, hoop run_0002, slalom run_0003; all 3 on " + entry["id"];
         return null;
     }
 

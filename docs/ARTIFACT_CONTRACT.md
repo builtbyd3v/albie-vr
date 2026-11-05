@@ -315,6 +315,7 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 ```
 
 - Runs are never overwritten (9.7). The host writes one when a run ends, off the physics step.
+- **`run_id` is unique across every artifact on the device, not just its own folder** (as built, 2026-11-05). The notebook stores bare run ids (C-17 `observed.runs`). With per-artifact numbering, a hoop course's `run_0001` matched the slalom's `run_0001`, so the notebook dropped it as a duplicate. The file still lives in `artifacts/<id>/runs/`.
 - `controller` is recorded here because training doesn't cut a project version (C-17, section 4). The project version alone can't say which brain drove.
 - A `failed` run keeps the metrics it reached. Metrics that never got a value are null, never zero.
 

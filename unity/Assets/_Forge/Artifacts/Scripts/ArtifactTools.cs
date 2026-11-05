@@ -105,11 +105,17 @@ namespace Forge.Artifacts
         {
             open(host);
             if (host.AwaitingApproval)
+            {
+                // Say what this artifact actually asks for (the sheet's own lines), not what the slalom asks for.
+                var asks = host.OpenManifest != null ? ArtifactApprovals.Lines(host.OpenManifest) : new List<string>();
                 return new JObject
                 {
                     ["id"] = id, ["status"] = "awaiting_approval",
-                    ["next"] = "It's asking for permission the first time: tell the person what it will use (the room's layout and the truck's position) and ask them to tap Allow.",
+                    ["asks"] = new JArray(asks.ToArray()),
+                    ["next"] = "It's asking for permission the first time. Tell the person in your own words what it will use ("
+                               + string.Join("; ", asks) + ") and ask them to tap Allow.",
                 };
+            }
             if (host.LastProblem != null)
             {
                 string code = host.LastErrors.Count > 0 ? host.LastErrors[0].code : "cant_open";
