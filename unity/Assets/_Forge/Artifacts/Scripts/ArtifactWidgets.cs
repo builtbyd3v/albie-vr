@@ -36,7 +36,7 @@ namespace Forge.Artifacts
                     {
                         case "note": y += Note(panel.Content, y, widget.Value<string>("text")) + Gap; break;
                         case "stat": y += Stat(panel.Content, y, widget, build) + Gap; break;
-                        case "runs": y += Row(panel.Content, y, "Runs", "None yet", null) + Gap; break;
+                        case "runs": y += Runs(panel.Content, y, widget, build) + Gap; break;
                         case "slider": y += Slider(panel, y, widget.Value<string>("input"), build) + Gap; break;
                         case "button":
                             rowX += Pill(panel.Content, y, rowX, widget.Value<string>("label"), widget.Value<string>("id"), build) + 10f;
@@ -67,6 +67,19 @@ namespace Forge.Artifacts
             string unit = widget.Value<string>("unit");
             Row(parent, y, widget.Value<string>("label"), ArtifactLook.NoValue, unit, out var value);
             build.Metrics.Show(widget.Value<string>("metric"), value, widget.Value<int?>("decimals") ?? 2, unit);
+            return StatHeight;
+        }
+
+        static float Runs(RectTransform parent, float y, JToken widget, ArtifactBuild build)
+        {
+            Row(parent, y, "Runs", "None yet", null, out var value);
+            int n = widget["columns"] is JArray cols ? cols.Count : 0;
+            var columns = new string[n];
+            for (int i = 0; i < n; i++) columns[i] = (string)widget["columns"][i];
+            var row = parent.gameObject.AddComponent<ArtifactRunsRow>();
+            row.Bind(value, build.Host.OpenId, () => build.Host.LastLayout?.Value<string>("layout_id"), columns, widget.Value<int?>("limit") ?? 5);
+            build.Host.RunsRow = row;
+            row.Refresh();
             return StatHeight;
         }
 
@@ -202,6 +215,57 @@ namespace Forge.Artifacts
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.raycastTarget = false;
             return text;
+        }
+    }
+
+    /// <summary>The <c>runs</c> widget: a short line of recent records. Like-for-like with this layout; anything else is labelled.</summary>
+    public sealed class ArtifactRunsRow : MonoBehaviour
+    {
+        TMP_Text text;
+        string artifactId;
+        Func<string> layoutId;
+        string[] columns;
+        int limit;
+
+        public void Bind(TMP_Text value, string id, Func<string> layout, string[] cols, int shown)
+        {
+            text = value;
+            artifactId = id;
+            layoutId = layout;
+            columns = cols ?? Array.Empty<string>();
+            limit = shown;
+        }
+
+        public void Refresh()
+        {
+            if (text == null) return;
+            var runs = ArtifactRuns.List(artifactId);
+            if (runs.Count == 0) { text.text = "None yet"; return; }
+            int from = Math.Max(0, runs.Count - limit);
+            string current = layoutId?.Invoke();
+            var parts = new System.Text.StringBuilder();
+            for (int i = runs.Count - 1; i >= from; i--)
+            {
+                if (parts.Length > 0) parts.Append(" · ");
+                var run = runs[i];
+                string outcome = (string)run["outcome"];
+                parts.Append(Summary(run));
+                if (outcome == "failed") parts.Append(' ').Append((string)run["reason"] ?? "fail");
+                else if (outcome == "aborted") parts.Append(" stop");
+                if (current != null && (string)run["layout_id"] != current) parts.Append(" (other course)");
+            }
+            text.text = parts.ToString();
+        }
+
+        string Summary(JObject run)
+        {
+            var metrics = run["metrics"] as JObject;
+            if (metrics == null) return (string)run["run_id"];
+            string col = columns.Length > 0 ? columns[0] : "completion_time_s";
+            var v = metrics[col];
+            if (v == null || v.Type == JTokenType.Null) return ArtifactLook.NoValue;
+            if (col.EndsWith("_s")) return ((double)v).ToString("0.0", CultureInfo.InvariantCulture) + "s";
+            return v.Type == JTokenType.Integer ? v.ToString() : ((double)v).ToString("0.0", CultureInfo.InvariantCulture);
         }
     }
 }

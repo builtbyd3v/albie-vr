@@ -94,7 +94,7 @@ namespace Forge.Artifacts
                     string type = generator.Value<string>("type");
                     if (!ArtifactGenerators.CanRun(type) && !missing.Contains(type + " generator")) missing.Add(type + " generator");
                 }
-            // Runs (C-12 section 5) don't stop a scene opening: the course shows, and scoring arrives with the run engine.
+            // A run block doesn't stop a scene opening: the course shows, and the run engine scores it.
             return missing;
         }
 
@@ -124,10 +124,49 @@ namespace Forge.Artifacts
             text.rectTransform.sizeDelta = new Vector2(2f, 0.5f);
             var height = n["height"];
             build.Apply(() => text.fontSize = build.Inputs.Number(height, 0.05f) * 10f, ArtifactInputs.IsBound(height));
-            text.text = ArtifactLook.WithoutMetrics(n.Value<string>("text"));
+            string raw = n.Value<string>("text");
+            text.text = ArtifactLook.WithoutMetrics(raw);
             text.ForceMeshUpdate();
+            if (ArtifactLook.HasMetrics(raw)) go.AddComponent<ArtifactMetricLabel>().Bind(raw, build.Metrics);
             if (n.Value<bool?>("billboard") == true) go.AddComponent<ArtifactBillboard>();
             return go;
+        }
+    }
+
+    /// <summary>
+    /// A <c>text</c> node with one <c>{metric}</c>. TMP formats the number itself, so a live timer doesn't allocate.
+    /// Stays on "--" until the metric has a value.
+    /// </summary>
+    public sealed class ArtifactMetricLabel : MonoBehaviour
+    {
+        TMP_Text text;
+        ArtifactMetrics metrics;
+        int slot;
+        string format, empty;
+        double last = double.PositiveInfinity;
+
+        public void Bind(string template, ArtifactMetrics board)
+        {
+            text = GetComponent<TMP_Text>();
+            metrics = board;
+            int open = template.IndexOf('{'), close = template.IndexOf('}');
+            string name = open >= 0 && close > open ? template.Substring(open + 1, close - open - 1) : "";
+            string prefix = open > 0 ? template.Substring(0, open) : "";
+            string suffix = close >= 0 && close + 1 < template.Length ? template.Substring(close + 1) : "";
+            slot = board.Slot(name);
+            format = prefix + "{0:2}" + suffix;
+            empty = prefix + ArtifactLook.NoValue + suffix;
+            if (text != null) text.SetText(empty);
+        }
+
+        void LateUpdate()
+        {
+            if (metrics == null || text == null) return;
+            double v = metrics.Value(slot);
+            if (v == last || (double.IsNaN(v) && double.IsNaN(last))) return;
+            last = v;
+            if (double.IsNaN(v)) text.SetText(empty);
+            else text.SetText(format, (float)v);
         }
     }
 

@@ -91,7 +91,7 @@ public static class SlalomSandboxBuilder
         sandbox.furnitureMaterial = ForgePrefabBuilder.RoomMaterial("Furniture", new Color(0.58f, 0.6f, 0.64f));
 
         EditorSceneManager.SaveScene(scene, ScenePath);
-        Debug.Log($"[SlalomSandboxBuilder] Built {ScenePath}. Press Play, then 2 (make me a slalom), M / N (rooms), R (relayout), O (view).");
+        Debug.Log($"[SlalomSandboxBuilder] Built {ScenePath}. Press Play, then 2 (make me a slalom), 3 (arm a run), 4 (scripted lap), WASD (drive), M / N (rooms).");
     }
 
     static void NoXr(Camera camera)

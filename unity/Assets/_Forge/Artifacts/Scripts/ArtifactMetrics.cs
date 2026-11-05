@@ -37,12 +37,32 @@ namespace Forge.Artifacts
 
         public void Set(int slot, double value)
         {
+            if (slot < 0 || slot >= values.Count) return;
+            if (values[slot] == value) return;
             values[slot] = value;
             var list = readouts[slot];
-            for (int i = 0; i < list.Count; i++) list[i].text.SetText(list[i].format, (float)value);
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (double.IsNaN(value)) list[i].text.SetText(ArtifactLook.NoValue);
+                else list[i].text.SetText(list[i].format, (float)value);
+            }
         }
+
+        public void Set(string name, double value) => Set(Slot(name), value);
 
         /// <summary>NaN until it has a value.</summary>
         public double Value(string name) => slots.TryGetValue(name, out int slot) ? values[slot] : double.NaN;
+        public double Value(int slot) => slot >= 0 && slot < values.Count ? values[slot] : double.NaN;
+
+        /// <summary>Back to "no value yet" (a run being armed). Readouts show "--", never a made-up zero.</summary>
+        public void Reset()
+        {
+            for (int i = 0; i < values.Count; i++)
+            {
+                values[i] = double.NaN;
+                var list = readouts[i];
+                for (int j = 0; j < list.Count; j++) list[j].text.SetText(ArtifactLook.NoValue);
+            }
+        }
     }
 }
