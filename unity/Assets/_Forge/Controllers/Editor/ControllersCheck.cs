@@ -245,13 +245,14 @@ public static class ControllersCheck
             var sim = new MockTruckSim();
             ManualInputs.Set("stick.y", 0.6f);
             for (int i = 0; i < 10; i++) { sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt); }
-            long start = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1000; i++)
+            total += AllocationCounter.BytesDuring(() =>
             {
-                if (sim.Crashed || sim.Finished) sim.Reset();
-                sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt);
-            }
-            total += GC.GetAllocatedBytesForCurrentThread() - start;
+                for (int i = 0; i < 1000; i++)
+                {
+                    if (sim.Crashed || sim.Finished) sim.Reset();
+                    sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt);
+                }
+            });
         }
         note = $"{total} bytes over 2 × 1000 steps (manual and graph)";
         return total == 0 ? null : note;

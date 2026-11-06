@@ -2573,7 +2573,10 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **`template_status` while it runs:** `step` is `making_data`, `training` or `saving`. While making data it also gives `made`.
 - **Found along the way: `GC.GetAllocatedBytesForCurrentThread` reads 0 under Unity's garbage collector.** So every "0 bytes" check built on it passed whatever the code did.
   - `MLTemplateCheck` and the timing kit now use the profiler's "GC Allocated In Frame" counter. It counted the old dataset code's 193,440 bytes exactly. Training, ticking the learned brake and Autopilot training really are 0 bytes.
-  - These checks still use the old counter, so their allocation steps can't fail yet: `ControllersCheck`, `AutopilotCheck`, `BehaviourCloningCheck`, `ThingRuntimeCheck`, `NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts). Each owner can swap in the same counter.
+  - **All the Controllers checks now use it** (`Controllers/Editor/AllocationCounter.cs`): `ControllersCheck`, `AutopilotCheck`, `BehaviourCloningCheck`, `ThingRuntimeCheck` and `MLTemplateCheck`. The counter first proves it counts a 1 KB probe, so a check can't pass on a counter that reads 0.
+    - Every one still passes: ticking, recording, training and the physics truck really allocate nothing.
+    - Proof the checks can fail now: with a temporary 1-float allocation in the controller tick and in training, every allocation step failed, at 36 bytes a step.
+  - Three checks, all ML A / Person 5's, still use the old counter, so their allocation steps can't fail yet: `NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts).
 - **Still to do:** the kit on a Quest 3.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**

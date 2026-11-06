@@ -240,12 +240,14 @@ public static class ThingRuntimeCheck
         if (error != null) return "FAIL " + error;
         Place(w, 0f, 0f, 0f);
         for (int i = 0; i < 20; i++) w.Thing.Tick(Dt); // warm up
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var watch = new System.Diagnostics.Stopwatch();
         int steps = 0;
-        for (; steps < 200 && !w.Body.Crashed; steps++) w.Thing.Tick(Dt);
-        watch.Stop();
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        long bytes = AllocationCounter.BytesDuring(() =>
+        {
+            watch.Start();
+            for (; steps < 200 && !w.Body.Crashed; steps++) w.Thing.Tick(Dt);
+            watch.Stop();
+        });
         if (bytes > 0) return $"FAIL {bytes} bytes allocated in {steps} steps";
         return $"ok: {steps} steps of the learned fallback with 7 sphere casts each, 0 bytes, {watch.Elapsed.TotalMilliseconds * 1000 / steps:0} µs a step";
     }

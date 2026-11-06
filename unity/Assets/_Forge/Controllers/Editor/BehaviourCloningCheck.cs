@@ -108,13 +108,14 @@ public static class BehaviourCloningCheck
         recorder.BeginLap();
         ManualInputs.Set("stick.y", 0.5f);
         for (int i = 0; i < 5; i++) { sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); recorder.Record(host.IO.Sensors, host.Commanded, Dt); sim.Step(host.IO.Actuators, Dt); }
-        long start = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 500; i++)
+        long bytes = AllocationCounter.BytesDuring(() =>
         {
-            if (sim.Crashed || sim.Finished) sim.Reset();
-            sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); recorder.Record(host.IO.Sensors, host.Commanded, Dt); sim.Step(host.IO.Actuators, Dt);
-        }
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - start;
+            for (int i = 0; i < 500; i++)
+            {
+                if (sim.Crashed || sim.Finished) sim.Reset();
+                sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); recorder.Record(host.IO.Sensors, host.Commanded, Dt); sim.Step(host.IO.Actuators, Dt);
+            }
+        });
         ManualInputs.Clear();
         note = $"{bytes} bytes over 500 steps, {recorder.Frames} frames kept";
         return bytes == 0 ? null : note;
@@ -178,14 +179,17 @@ public static class BehaviourCloningCheck
         var frames = new System.Collections.Generic.List<double>();
         long bytes = 0;
         var clock = new System.Diagnostics.Stopwatch();
-        while (!cloner.Done)
+        using (var allocations = AllocationCounter.Start())
         {
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            clock.Restart();
-            cloner.Step(FrameBudgetMs);
-            clock.Stop();
-            bytes += GC.GetAllocatedBytesForCurrentThread() - before;
-            frames.Add(clock.Elapsed.TotalMilliseconds);
+            while (!cloner.Done)
+            {
+                long before = allocations.Now;
+                clock.Restart();
+                cloner.Step(FrameBudgetMs);
+                clock.Stop();
+                bytes += allocations.Now - before;   // only the step: the list growing below isn't counted
+                frames.Add(clock.Elapsed.TotalMilliseconds);
+            }
         }
         frames.Sort();
         double p95 = frames[(int)Math.Ceiling(frames.Count * 0.95) - 1], median = frames[frames.Count / 2], worst = frames[frames.Count - 1];

@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using Forge.Controllers;
 using Newtonsoft.Json.Linq;
-using Unity.Profiling;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,8 +12,8 @@ using UnityEngine;
 /// dataset, frame-budgeted training, the albie.model/1 file, the graph <c>model</c> node (contract section 3.5,
 /// proposed), and the learned brake in closed loop on the mock truck. Forge > Controllers > Check ML Template logs the
 /// report; <see cref="Run"/> returns it (for `unity command eval`). Timings are Editor timings.
-/// Allocations are counted by the profiler (<see cref="BytesAllocated"/>): GC.GetAllocatedBytesForCurrentThread reads 0
-/// under Unity's garbage collector, so a check on it can't fail.
+/// Allocations are counted by <see cref="AllocationCounter"/> (GC.GetAllocatedBytesForCurrentThread reads 0 under Unity's
+/// garbage collector, so a check on it can't fail).
 /// </summary>
 public static class MLTemplateCheck
 {
@@ -244,20 +243,7 @@ public static class MLTemplateCheck
         return null;
     }
 
-    /// <summary>
-    /// Bytes allocated while <paramref name="work"/> runs, from the profiler's "GC Allocated In Frame" counter, which
-    /// counts each allocation as it happens (a check runs inside one Editor frame, so the counter doesn't restart).
-    /// </summary>
-    static long BytesAllocated(Action work)
-    {
-        using (var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame"))
-        {
-            if (!recorder.Valid) throw new InvalidOperationException("the profiler's GC Allocated In Frame counter isn't available");
-            long before = recorder.CurrentValue;
-            work();
-            return recorder.CurrentValue - before;
-        }
-    }
+    static long BytesAllocated(Action work) => AllocationCounter.BytesDuring(work);
 
     static ControllerHost Host() => new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
 
