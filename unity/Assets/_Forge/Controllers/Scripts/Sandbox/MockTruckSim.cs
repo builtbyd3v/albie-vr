@@ -6,12 +6,14 @@ namespace Forge.Controllers
     /// The fake Thing (PROJECT_CONTEXT 16.5) until the Thing runtime (C-16) lands: a top-down RC truck on a 5-cone
     /// slalom, ported from hub/ml/make_controller_mocks.py with the same constants, so its sensors match the mock laps.
     /// Bicycle model at true scale (metres, m/s); x runs along the course, y is to the left, heading is CCW from +x.
+    /// A small truck: 0.17 m wheelbase and 35° steering turn it in 0.24 m, so it can weave the room slalom (cones 1.0-1.2 m
+    /// apart). Until 2026-11-06 it was 0.28 m and 30° (0.48 m), which couldn't pass cones 0.8 m apart at all.
     /// Channels (contract section 2): sensors ray_front.d0-d6 (d0 leftmost, 1 = nothing hit) and speed.forward;
     /// actuators steer.angle (+ is left) and drive.throttle. Plain C#, so headless checks can drive it too.
     /// </summary>
     public sealed class MockTruckSim
     {
-        public const float Wheelbase = 0.28f, MaxSteerDeg = 30f, MaxAccel = 3f, Drag = 1f, TruckRadius = 0.12f;
+        public const float Wheelbase = 0.17f, MaxSteerDeg = 35f, MaxAccel = 3f, Drag = 1f, TruckRadius = 0.09f;
         public const float TopSpeed = MaxAccel / Drag;   // 3 m/s: the scale for speed.forward
         public const int Rays = 7;
         public const float FovDeg = 120f, RayRange = 2f;

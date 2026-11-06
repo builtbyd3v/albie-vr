@@ -2583,6 +2583,28 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - **`ArtifactRunCheck` had also been measuring past the end of the run.** Its 5000 ticks (100 s) ran past the slalom's 90 s timeout, and the tick that ends a run builds the run record. It now ticks 4000 times (80 s) and fails if the run isn't still going, so every tick it measures is a live one. Live ticks allocate nothing.
 - **Still to do:** the kit on a Quest 3.
 
+**ML A room slalom, part 1: a truck that can weave it (2026-11-06, Editor, with Person 5's slalom).** The Autopilot was only ever tested on the mock course: cones 1.6 m apart in a 3 m corridor. The room slalom (`FloorSlalom`) put cones 0.8 m apart, down to 0.5 m in a tight room, with ±0.3 m to pass each one. **No driver could weave it with the mock truck:** a scripted driver passed 0 of 60 settings at 0.8 m or less, because the truck turned no tighter than 0.48 m.
+- **Both sides changed** (the user's call):
+  - **The truck:** 0.17 m wheelbase, 35° steering and a 0.09 m body (`MockTruckSim` and `hub/ml/make_controller_mocks.py`), so it turns in 0.24 m. The scripted driver's steering wobble is scaled to match (0.25 to 0.13 stick units, `MockDriver.Wobble`), so its path wobbles as much as before.
+  - **The course:** cones 1.2 m apart by default, never closer than 1.0 m. That's in the template, the fixture and the generator's defaults; details in `docs/ARTIFACT_CONTRACT.md`, "Spacing the truck can weave".
+
+  | Scripted driver, 60 settings | 0.8 m | 1.0 m | 1.2 m |
+  |---|---|---|---|
+  | Old truck (0.48 m turn) | 0 | 28 | 44 |
+  | New truck (0.24 m turn) | 28 | 40 | 52 |
+
+- **The cost: slaloms fit 3 of MRUK's 8 prefab rooms, down from 6.** The old 6 used cones 0.5–0.8 m apart, which no truck we've tested could weave. The 7 × 5 m mock living room still gets all 5 gates, at 1.0 m, and Albie says the room is tight. The 4.5 m mock bedroom gets `no_free_floor`.
+  - A 0.9 m minimum fits the same 3 rooms.
+  - Allowing 2-gate courses would add LivingRoom04.
+- **Regenerated:** the mock laps and mock autopilot for Nandani's brain view (same shapes), and the pretrained fallback (seed 1, 15/15 mock starts; 15/15 on the physics truck).
+- **On the old mock course with the new truck:**
+  - Five in a row still passes 5/5. Candidate 1 drove 3 of the 5 (it was 5).
+  - In the 40-driver sweep, a trained candidate drove 39; the fallback drove the last one.
+  - Behaviour cloning closed loop: 14, 15 and 0 of 15 for the three seeds.
+  - The ML template: 99.0% (the rule: 85.8%), so Albie now says 99%.
+- **Asked of Person 2:** a real truck that turns in about 0.25 m or less (`Controllers/README.md`, "For the Thing runtime").
+- **Next (part 2):** the Autopilot on room courses: laps, training and the fallback on `FloorSlalom` layouts.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.

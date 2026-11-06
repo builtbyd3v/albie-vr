@@ -33,12 +33,14 @@ OUT = HUB.parent / "unity" / "Assets" / "_Forge" / "Mocks" / "Resources" / "Mock
 # --- the mock truck (true scale, metres). Bicycle model; top speed = MAX_ACCEL / DRAG. -------------------------------
 HZ = 50
 DT = 1.0 / HZ
-WHEELBASE = 0.28
-MAX_STEER = math.radians(30)          # steer.angle 1.0 = 30 degrees left
+# A 1:16-ish truck: 0.24 m turning radius, so it can weave a room slalom with cones 1.0-1.2 m apart (PROJECT_CONTEXT 16.8,
+# "room slalom"). Until 2026-11-06 it was 0.28 m and 30 degrees (0.48 m), which couldn't pass cones 0.8 m apart.
+WHEELBASE = 0.17
+MAX_STEER = math.radians(35)          # steer.angle 1.0 = 35 degrees left
 MAX_ACCEL = 3.0
 DRAG = 1.0
 TOP_SPEED = MAX_ACCEL / DRAG          # 3 m/s: the scale for speed.forward
-TRUCK_RADIUS = 0.12
+TRUCK_RADIUS = 0.09
 
 # --- sensors: one ray fan, d0 leftmost (contract 2.1) ---------------------------------------------------------------
 RAYS = 7
@@ -51,6 +53,7 @@ CONE_SPACING = 1.6
 CONES = [(1.5 + CONE_SPACING * i, 0.0) for i in range(5)]
 CONE_RADIUS = 0.08
 WEAVE = 0.4                            # how far the driver passes to each side of a cone
+WOBBLE = 0.13                          # the hand's steering wobble: the same wobble in the path the 0.25 gave the old truck
 WALLS = (-0.5, 9.8, -1.5, 1.5)         # x_min, x_max, y_min, y_max
 FINISH_X = CONES[-1][0] + 1.0
 LAP_TIMEOUT_S = 30.0
@@ -142,7 +145,7 @@ def drive_lap(lap_id: int, seed: int, cruise: float, y0: float, heading0: float)
         tx = truck.x + 0.5
         alpha = math.atan2(_path_y(tx) - truck.y, tx - truck.x) - truck.heading
         lookahead = math.hypot(tx - truck.x, _path_y(tx) - truck.y)
-        noise = 0.9 * noise + 0.1 * float(rng.normal(0.0, 0.25))
+        noise = 0.9 * noise + 0.1 * float(rng.normal(0.0, WOBBLE))
         steer = math.atan(2 * WHEELBASE * math.sin(alpha) / max(lookahead, 0.3)) / MAX_STEER + noise
         throttle = DRAG * cruise / MAX_ACCEL + 1.5 * (cruise - truck.speed)
         steer, throttle = max(-1.0, min(1.0, steer)), max(-1.0, min(1.0, throttle))

@@ -60,7 +60,7 @@ var learned = t.WithLearnedBrake(truckCruise);  // a graph controller with the m
 host.Attach(ControllerFile.Parse(learned.ToString(), out _));
 ```
 
-**By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "98% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
+**By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "99% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
 
 The Python templates (`ml-examples/cifar10`, `text-classification`) need the laptop hub to train (PROJECT_CONTEXT 16.8, Nov 14 decision).
 
@@ -124,12 +124,14 @@ When only the tunables, version or notes change, the PID state is kept. Any othe
 - **recording laps** (`BeginLap` / `EndLap`);
 - **registering the Thing** under its name, so Albie's tools reach it (`template_status`, `learned_brake`).
 
+**Size the truck so it can weave the room slalom.** Its cones are 1.0–1.2 m apart, so the truck has to turn in about 0.25 m or less. The mock truck turns in 0.24 m (0.17 m wheelbase, 35° steering, 0.09 m body radius), and every mock brain and the pretrained fallback learned that. A truck that turns in 0.48 m (0.28 m, 30°) can't pass cones 0.8 m apart at all.
+
 ```csharp
 public sealed class TruckBody : MonoBehaviour, IThingBody   // a sketch for a WheelCollider truck
 {
     public Rigidbody body; public WheelCollider frontLeft, frontRight, rearLeft, rearRight;
     public Transform sensorOrigin; public LayerMask obstacles;   // obstacles: not the floor
-    public float topSpeed = 3f, maxSteerDeg = 30f, maxTorque = 2f;
+    public float topSpeed = 3f, maxSteerDeg = 35f, maxTorque = 2f;   // the mock truck's 35° (0.17 m wheelbase)
 
     public string[] SensorNames => MockTruckSim.SensorNames;     // ray_front.d0-d6, speed.forward
     public string[] ActuatorNames => MockTruckSim.ActuatorNames; // steer.angle, drive.throttle

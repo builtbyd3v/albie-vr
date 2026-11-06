@@ -13,6 +13,9 @@ namespace Forge.Artifacts
     /// each cone on alternating sides (the side the truck passes), and the finish one spacing past the last cone.
     /// Every slot is on the floor (y = 0); a node's own <c>pos</c> lifts it (a cone's centre is half its height up).
     ///
+    /// The spacing never goes below 1.0 m by default, even in a tight room: the truck turns in about 0.24 m, and closer
+    /// cones can't be weaved at all (PROJECT_CONTEXT 16.8, "room slalom"; until 2026-11-06 it shrank to 0.6 m, then 0.5 m).
+    ///
     /// Fit rules (shrink and say so, never fail silently): the requested size; then less spacing, down to the minimum;
     /// then fewer gates, down to the minimum; then a narrow course (less free floor either side, the gates where they
     /// were) with the spacing down to the tight minimum; then <c>no_free_floor</c>. No floor data at all is
@@ -34,7 +37,7 @@ namespace Forge.Artifacts
             public string Around;  // an MRUK label, or null
 
             public static Settings Default => new Settings
-                { Gates = 5, MinGates = 3, Spacing = 0.8f, MinSpacing = 0.6f, Lane = 0.6f, Clearance = 0.15f, NarrowLane = 0.4f, TightSpacing = 0.5f };
+                { Gates = 5, MinGates = 3, Spacing = 1.2f, MinSpacing = 1.0f, Lane = 0.6f, Clearance = 0.15f, NarrowLane = 0.4f, TightSpacing = 1.0f };
         }
 
         public sealed class Result

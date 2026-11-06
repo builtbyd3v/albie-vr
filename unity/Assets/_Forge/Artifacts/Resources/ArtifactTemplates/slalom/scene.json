@@ -8,7 +8,8 @@
       "params": {
         "gates": "$gates",
         "spacing_m": "$spacing_m",
-        "min_spacing_m": 0.6,
+        "min_spacing_m": 1.0,
+        "tight_spacing_m": 1.0,
         "min_gates": 3,
         "lane_width_m": 0.6,
         "clearance_m": 0.15,

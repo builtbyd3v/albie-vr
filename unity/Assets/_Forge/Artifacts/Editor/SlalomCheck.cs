@@ -53,13 +53,13 @@ public static class SlalomCheck
         bool ok = true;
         try
         {
-            ok &= Check(sb, "living room: the full course, beside the couch", LivingRoom);
-            ok &= Check(sb, "small room: shrinks and says so", SmallRoom);
+            ok &= Check(sb, "living room: all 5 gates beside the couch, closer together, and says so", LivingRoom);
+            ok &= Check(sb, "small room: too small for a course the truck can weave, and says what it needs", SmallRoom);
             ok &= Check(sb, "closet: no_free_floor, with the size it needs", Closet);
-            ok &= Check(sb, "hallway: a narrow course, says so, reused on rerun", Hallway);
+            ok &= Check(sb, "long hallway: a narrow course, says so, reused on rerun", Hallway);
             ok &= Check(sb, "never scanned: no_room_data", Unscanned);
             ok &= Check(sb, "no couch: full course, and says so", Loft);
-            ok &= Check(sb, "turned room: still on free floor", Turned);
+            ok &= Check(sb, "turned room: still on free floor, along the couch", Turned);
             ok &= Check(sb, "spacing shrinks before gates", FitOrder);
             ok &= Check(sb, "the same room gives the same course", Deterministic);
             ok &= Check(sb, "slots: cones, alternating gates, start, finish", Slots);
@@ -136,8 +136,10 @@ public static class SlalomCheck
         var s = Default();
         var fit = Fit(room, s, out double ms);
         if (!fit.Ok) return fit.Code + ": " + fit.Message;
-        if (fit.Gates != 5 || Mathf.Abs(fit.Spacing - 0.8f) > 0.001f || fit.Shrunk) return $"placed {fit.Gates} gates at {F(fit.Spacing)}";
-        if (!fit.AroundFound || fit.Message != null) return "around/message: " + fit.Message;
+        // 5 gates at the default 1.2 m need 7.8 m and the room is 7 m, so the spacing shrinks to the 1.0 m minimum
+        // before any gate goes (the truck can't weave closer cones, PROJECT_CONTEXT 16.8 "room slalom").
+        if (fit.Gates != 5 || Mathf.Abs(fit.Spacing - 1.0f) > 0.001f || !fit.Shrunk) return $"placed {fit.Gates} gates at {F(fit.Spacing)}, shrunk {fit.Shrunk}";
+        if (!fit.AroundFound || fit.Message == null || !fit.Message.Contains("5 gates, 1.0 m apart")) return "around/message: " + fit.Message;
         string free = OnFreeFloor(room, fit, s);
         if (free != null) return free;
         room.TryFind("COUCH", out var couch, out float couchYaw, out _);
@@ -148,7 +150,7 @@ public static class SlalomCheck
         // The coffee table sits between the couch and the floor in front of it, so "beside" is just past the table.
         if (distance > 2.5f) return $"the course's middle is {F(distance)} m from the couch";
         if (parallel > 1f) return $"the course is {parallel:0}° off the couch's line";
-        note = $"5 gates, 0.8 m, middle {F(distance)} m from the couch and parallel to it; {fit.Tried} placements tried in {ms:0} ms";
+        note = $"\"{fit.Message}\" Middle {F(distance)} m from the couch and parallel to it; {fit.Tried} placements tried in {ms:0} ms";
         return null;
     }
 
@@ -158,11 +160,10 @@ public static class SlalomCheck
         var room = MockFloorPlan.SmallRoom();
         var s = Default();
         var fit = Fit(room, s, out double ms);
-        if (!fit.Ok) return fit.Code + ": " + fit.Message;
-        if (!fit.Shrunk || fit.Gates < 3 || fit.Spacing < 0.6f - 0.001f) return $"{fit.Gates} gates at {F(fit.Spacing)}, shrunk {fit.Shrunk}";
-        if (fit.AroundFound || fit.Message == null || !fit.Message.Contains("tight") || !fit.Message.Contains("couch")) return "message: " + fit.Message;
-        string free = OnFreeFloor(room, fit, s);
-        if (free != null) return free;
+        // 4.5 m long with a bed: the smallest course the truck can weave (3 gates, 1.0 m apart) needs a 4.6 m strip. It
+        // used to squeeze in 3 gates at 0.6 m, which the truck couldn't drive.
+        if (fit.Ok) return $"placed {fit.Gates} gates at {F(fit.Spacing)}";
+        if (fit.Code != "no_free_floor" || !fit.Message.Contains("3 gates, 1.0 m apart") || !fit.Message.Contains("4.6 by 0.8 m")) return fit.Code + ": " + fit.Message;
         note = $"\"{fit.Message}\" ({ms:0} ms)";
         return null;
     }
@@ -172,8 +173,8 @@ public static class SlalomCheck
         note = null;
         var fit = Fit(MockFloorPlan.Closet(), Default(), out double ms);
         if (fit.Ok) return $"placed {fit.Gates} gates in a closet";
-        // The size it quotes is the tight course: 3 gates at 0.5 m on the narrow lane.
-        if (fit.Code != "no_free_floor" || !fit.Message.Contains("3 gates") || !fit.Message.Contains("0.5 m apart") || !fit.Message.Contains("2.6 by 0.8 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
+        // The size it quotes is the tight course: 3 gates at 1.0 m on the narrow lane.
+        if (fit.Code != "no_free_floor" || !fit.Message.Contains("3 gates") || !fit.Message.Contains("1.0 m apart") || !fit.Message.Contains("4.6 by 0.8 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
         note = $"\"{fit.Message}\" ({ms:0} ms)";
         return null;
     }
@@ -181,7 +182,7 @@ public static class SlalomCheck
     static string Hallway(out string note)
     {
         note = null;
-        var room = MockFloorPlan.Hallway();
+        var room = MockFloorPlan.LongHallway();
         var normal = Default();
         normal.NarrowLane = normal.Lane;
         normal.TightSpacing = normal.MinSpacing;
@@ -191,9 +192,9 @@ public static class SlalomCheck
         var s = Default();
         var fit = Fit(room, s, out double ms);
         if (!fit.Ok) return fit.Code + ": " + fit.Message;
-        if (!fit.Narrow || !fit.Shrunk || fit.Gates != 3 || Mathf.Abs(fit.Spacing - 0.5f) > 0.001f || Mathf.Abs(fit.Lane - 0.4f) > 0.001f)
+        if (!fit.Narrow || !fit.Shrunk || fit.Gates != 3 || Mathf.Abs(fit.Spacing - 1.0f) > 0.001f || Mathf.Abs(fit.Lane - 0.4f) > 0.001f)
             return $"{fit.Gates} gates at {F(fit.Spacing)}, lane {F(fit.Lane)}, narrow {fit.Narrow}";
-        if (fit.Message == null || !fit.Message.Contains("narrow") || !fit.Message.Contains("3 gates, 0.5 m apart") || !fit.Message.Contains("can't find a couch")) return "message: " + fit.Message;
+        if (fit.Message == null || !fit.Message.Contains("narrow") || !fit.Message.Contains("3 gates, 1.0 m apart") || !fit.Message.Contains("can't find a couch")) return "message: " + fit.Message;
         // Gates stay half the full lane out (the same gate as a wide course), inside the narrow footprint.
         foreach (var gate in fit.Slots["course.gates"])
             if (Mathf.Abs(Mathf.Abs(gate.position.x) - 0.5f * s.Lane) > 0.001f) return "a gate moved to " + F(gate.position.x);
@@ -245,12 +246,12 @@ public static class SlalomCheck
         var room = MockFloorPlan.TurnedLivingRoom();
         var s = Default();
         var fit = Fit(room, s, out double ms);
-        if (!fit.Ok || fit.Shrunk || !fit.AroundFound) return $"ok {fit.Ok}, shrunk {fit.Shrunk}, around {fit.AroundFound}: {fit.Message}";
+        if (!fit.Ok || !fit.AroundFound) return $"ok {fit.Ok}, shrunk {fit.Shrunk}, around {fit.AroundFound}: {fit.Message}";
         // The couch runs along the room's long side, which points at 30 + 90 = 120° once the room is turned 30°.
         room.TryFind("COUCH", out _, out float couchYaw, out _);
         float off = Mathf.Abs(Mathf.DeltaAngle(fit.Yaw, couchYaw)) % 180f;
         if (Mathf.Abs(Mathf.DeltaAngle(couchYaw, 120f)) > 0.01f || Mathf.Min(off, 180f - off) > 1f) return $"course yaw {fit.Yaw:0}, couch {couchYaw:0}, in a room turned 30°";
-        note = $"course at {fit.Yaw:0}°, along the couch, in a room turned 30° ({ms:0} ms)";
+        note = $"{fit.Gates} gates at {F(fit.Spacing)} m, at {fit.Yaw:0}°, along the couch, in a room turned 30° ({ms:0} ms)";
         return OnFreeFloor(room, fit, s);
     }
 
@@ -259,7 +260,10 @@ public static class SlalomCheck
         note = null;
         // 5 m long: 5 gates fit at 0.6 m (4.2 m + 0.5 m clearance) but not 0.7 m (4.8 m); 4 gates at 0.8 m would need 4.6 m.
         var room = new MockFloorPlan("corridor", new Vector2(5.0f, 2.1f));
-        var wide = Default(null);  // the contract's first guess, which these room sizes were worked out for
+        // The fit order itself, with the contract's first guess, which these room sizes were worked out for (the
+        // slalom's own spacings are 1.2 m down to 1.0 m now, for the truck).
+        var wide = Default(null);
+        wide.Spacing = 0.8f; wide.MinSpacing = 0.6f; wide.TightSpacing = 0.5f;
         wide.Lane = 0.7f;
         wide.Clearance = 0.25f;
         var fit = FloorSlalom.Fit(room, wide);
@@ -331,12 +335,12 @@ public static class SlalomCheck
         var forced = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, true);
         if ((string)forced.Layout["layout_id"] != "lay_0002") return "relayout gave " + forced.Layout["layout_id"];
 
-        inputs.TrySet("spacing_m", 0.7);
+        inputs.TrySet("spacing_m", 1.1);
         var other = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, false);
         if (other.Reused || (string)other.Layout["layout_id"] != "lay_0003") return "a new spacing reused a layout";
-        inputs.TrySet("spacing_m", 0.8);
+        inputs.TrySet("spacing_m", 1.2);
 
-        // A box dropped in the middle of the newest 0.8 m course: the saved layout no longer fits.
+        // A box dropped on the newest course (5 gates at 1.0 m, 6 m long): the saved layout no longer fits.
         var middle = forced.Origin.position + forced.Origin.rotation * new Vector3(0f, 0f, 2.4f);
         var local = Quaternion.Euler(0f, -room.Yaw, 0f) * (middle - room.Origin);
         room.Add("OTHER", new Vector2(local.x, local.z), new Vector3(0.4f, 0.4f, 0.4f));

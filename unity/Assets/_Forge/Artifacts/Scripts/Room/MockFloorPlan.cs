@@ -148,6 +148,12 @@ namespace Forge.Artifacts
         /// </summary>
         public static MockFloorPlan Hallway() => new MockFloorPlan("hallway", new Vector2(3.2f, 1.35f));
 
-        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom(), Unlabelled(), Attic(), Hallway() };
+        /// <summary>
+        /// A 5.6 x 1.35 m hallway: too narrow for the full slalom (1.5 m with its clearance), long enough for the narrow
+        /// one at the slalom's 1.0 m minimum spacing.
+        /// </summary>
+        public static MockFloorPlan LongHallway() => new MockFloorPlan("long_hallway", new Vector2(5.6f, 1.35f));
+
+        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom(), Unlabelled(), Attic(), Hallway(), LongHallway() };
     }
 }
