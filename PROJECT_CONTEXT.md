@@ -2470,6 +2470,20 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Mirrored laps are off by default.** This corrects 15.11. On a slalom, a mirror teaches "pass left" and "pass right" for the same view, and the net averages them into "straight into the cone". Mirroring and ensembles both made results worse.
 - **Train 3 candidates and let the arena run decide.** One training run finishes the course about 60-90% of the time; the best of 3 seeds reached 98-100%. Validation loss can't pick the good one (in a live run, the lowest-loss net scored 0/15 and the other two 15/15), so the autopilot (Nov 10) tries the candidates in order. The pretrained fallback stays necessary (16.3, Nov 12).
 
+**ML A rehearsal for Nov 16: "live training worked 5 times in a row" (2026-11-05, mock truck in the Editor; the Quest and the real truck are still to do).** Each attempt is the demo loop from scratch: two laps, 3 candidates, then the Autopilot from a hand-placed start (`FiveInARowCheck`, and key 9 in the Controllers sandbox for the live frame loop).
+- **It passes: 5 out of 5 live, with no fallback.** In the check, a trained candidate drove all 5. In the live sandbox rehearsal it also drove all 5, and candidate 1 drove 2 of them.
+- **But candidate 1 usually crashes first.** With demo-style laps (both from the start line at one steady speed), candidate 1 drove the course in about half of the attempts: 0/5 in the check, 2/5 live, and 15/30 in the sweep. The Autopilot then switches to candidate 2, so **on camera the truck crashes once before it succeeds.** Over 30 drivers, a trained candidate drove 28 times and the fallback 2 times, so the odds of 5 live in a row are about 0.93⁵ ≈ 70%.
+- **The cause is too little variety in the laps, not the start.** How far off the line the truck is put down made no difference: candidate 1 drove 10/30 from exactly on the line, 12/30 within 0.05 m and 12/30 within 0.15 m and 0.08 rad. Laps at different speeds fixed most of it:
+
+  | Laps | Candidate 1 drives | Some trained candidate drives |
+  |---|---|---|
+  | Both at 1.2 m/s | 12/30 | 27/30 |
+  | Second lap at 1.5 m/s | 21/30 | 28/30 |
+  | Varied speed and start | 25/30 | 30/30 |
+
+  A person's speed varies more than the scripted driver's, so the real truck may do better than this.
+- **Next (ML A):** make training robust to steady laps, for example speed jitter while training, then rerun this check. Until then, the demo script should say "drive the second lap a bit faster".
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.

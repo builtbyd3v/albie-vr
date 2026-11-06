@@ -24,6 +24,10 @@ namespace Forge.Controllers
     /// and attaches truck_cruise with the learned brake in place of its hand-written one. 4 attaches it again after that;
     /// 2 is the hand-written brake, to compare. The mock truck is registered as the "truck" Thing (<see cref="ThingHosts"/>),
     /// so Albie's learned_brake tool drives it too.
+    /// 9 rehearses the demo 5 times in a row (PROJECT_CONTEXT 16.8, Nov 16): each attempt starts a fresh session, records
+    /// two scripted laps, trains the candidates and lets the Autopilot drive, on this frame loop. The readout and the
+    /// console say which brain drove each time and whether the pretrained fallback was needed. An Autopilot run that
+    /// hasn't finished in <see cref="RunTimeoutS"/> s counts as failed, so a stalled brain can't hang the demo.
     /// The readout is a sandbox debug overlay, not product UI.
     /// </summary>
     public sealed class ControllersSandbox : MonoBehaviour
@@ -47,6 +51,13 @@ namespace Forge.Controllers
         bool templateMine;
         Autopilot autopilot;
         bool runReported;
+        /// <summary>An Autopilot run still going after this long has stalled: it fails and the next candidate drives.</summary>
+        public const float RunTimeoutS = 30f;
+        public const int RehearsalAttempts = 5;
+        enum RehearsalStep { Laps, Training, Driving }
+        RehearsalStep rehearsalStep;
+        int rehearsalAttempt = -1, rehearsalFailedRuns;
+        readonly System.Collections.Generic.List<string> rehearsalResults = new System.Collections.Generic.List<string>();
         ControllerFileWatcher watcher;
         int stickY, handRoll, lapSeed = 1;
         float lastKeyThrottle, lastKeySteer, trainStarted;
@@ -64,6 +75,11 @@ namespace Forge.Controllers
         public string Status => status;
         public Autopilot Autopilot => autopilot;
         public ControllerFileWatcher Watcher => watcher;
+        public bool Rehearsing => rehearsalAttempt >= 0;
+        /// <summary>One line per finished rehearsal attempt: "1. candidate 1 drove it" (cleared when a rehearsal starts).</summary>
+        public System.Collections.Generic.IReadOnlyList<string> RehearsalResults => rehearsalResults;
+        /// <summary>Attempts a trained candidate drove, in the last rehearsal.</summary>
+        public int RehearsalPassed { get; private set; }
         /// <summary>The ML template run (null before M or template_train).</summary>
         public ObstacleTemplate Template => TemplateRun.Current;
         public bool TemplateTraining => TemplateRun.Training;
@@ -200,6 +216,74 @@ namespace Forge.Controllers
 
         public void ResetTruck() { sim.Reset(); host.ResetState(); runReported = false; status = "reset"; }
 
+        /// <summary>Forgets the laps, the trained candidates and the Autopilot: a new person's session.</summary>
+        public void NewSession()
+        {
+            if (recorder.Recording) StopLap("aborted");
+            recorder.Set.Laps.Clear();
+            cloners = null; candidateJson = null; autopilot = null; training = 0;
+            if (host.Current == null || host.Current.Kind != "manual") Use(0);
+            ResetTruck();
+            status = "new session: no laps";
+        }
+
+        /// <summary>Rehearses the demo <see cref="RehearsalAttempts"/> times in a row (key 9). Results in <see cref="RehearsalResults"/>.</summary>
+        public string StartRehearsal()
+        {
+            if (Rehearsing) return status = "already rehearsing";
+            if (Training) return status = "training: wait for it to finish";
+            rehearsalResults.Clear();
+            RehearsalPassed = 0;
+            rehearsalAttempt = 0;
+            BeginAttempt();
+            return null;
+        }
+
+        void BeginAttempt()
+        {
+            NewSession();
+            rehearsalStep = RehearsalStep.Laps;
+            rehearsalFailedRuns = 0;
+            status = $"rehearsal {rehearsalAttempt + 1}/{RehearsalAttempts}: recording 2 laps";
+        }
+
+        // Called from Update: moves the rehearsal on when the step it's waiting for is done.
+        void TickRehearsal()
+        {
+            switch (rehearsalStep)
+            {
+                case RehearsalStep.Laps:
+                    if (recorder.Recording) return;
+                    if (recorder.Set.CompletedLaps < 2) { StartLap(true); status = $"rehearsal {rehearsalAttempt + 1}/{RehearsalAttempts}: " + status; return; }
+                    Train();
+                    rehearsalStep = RehearsalStep.Training;
+                    return;
+                case RehearsalStep.Training:
+                    if (Training) return;
+                    StartAutopilot();
+                    rehearsalStep = RehearsalStep.Driving;
+                    return;
+                case RehearsalStep.Driving:
+                    if (autopilot == null) { EndAttempt("NOTHING (no autopilot)", false); return; }
+                    if (autopilot.Kept) EndAttempt(autopilot.UsingFallback ? "the FALLBACK" : $"candidate {autopilot.Index + 1}", !autopilot.UsingFallback);
+                    else if (autopilot.Exhausted) EndAttempt("NOTHING", false);
+                    return;
+            }
+        }
+
+        void EndAttempt(string who, bool trained)
+        {
+            if (trained) RehearsalPassed++;
+            rehearsalResults.Add($"{rehearsalAttempt + 1}. {who} drove it{(rehearsalFailedRuns > 0 ? $" after {rehearsalFailedRuns} failed {(rehearsalFailedRuns == 1 ? "run" : "runs")}" : "")}");
+            if (++rehearsalAttempt < RehearsalAttempts) { BeginAttempt(); return; }
+            rehearsalAttempt = -1;
+            string verdict = RehearsalPassed == RehearsalAttempts
+                ? $"REHEARSAL PASSED: live training worked {RehearsalAttempts} times in a row"
+                : $"REHEARSAL: {RehearsalPassed}/{RehearsalAttempts} by a trained brain; the rest needs the fallback, and the demo must say so";
+            status = verdict + ". " + string.Join("  ", rehearsalResults);
+            Debug.Log("[Controllers] " + status);
+        }
+
         /// <summary>Starts recording a lap from the start line. With <paramref name="scripted"/>, the scripted driver drives it.</summary>
         public void StartLap(bool scripted)
         {
@@ -262,10 +346,12 @@ namespace Forge.Controllers
                 if (k.bKey.wasPressedThisFrame) Train();
                 if (k.mKey.wasPressedThisFrame) StartTemplate();
                 if (k.digit4Key.wasPressedThisFrame) UseLearnedBrake();
+                if (k.digit9Key.wasPressedThisFrame) StartRehearsal();
             }
 #endif
             if (Training && cloners[training].Step(trainBudgetMs) && ++training == cloners.Length) Finished();
             TemplateRun.BudgetMs = trainBudgetMs;
+            if (Rehearsing) TickRehearsal();
             watcher?.Poll(Time.unscaledTimeAsDouble);
             DrawTruck();
             if (Time.unscaledTime >= nextReadout) { nextReadout = Time.unscaledTime + 0.2f; BuildReadout(); }
@@ -326,10 +412,12 @@ namespace Forge.Controllers
             sim.Step(host.IO.Actuators, dt);
             if (recorder.Recording && (sim.Finished || sim.Crashed)) StopLap(sim.Finished ? "completed" : "crashed");
             // The Autopilot's run ended: keep the candidate, or reset and let the next one try.
-            if (autopilot != null && !runReported && (sim.Finished || sim.Crashed))
+            bool stalled = !sim.Finished && !sim.Crashed && sim.Time >= RunTimeoutS;
+            if (autopilot != null && !runReported && (sim.Finished || sim.Crashed || stalled))
             {
                 runReported = true;
-                status = autopilot.RunEnded(host, sim.Finished);
+                if (!sim.Finished) rehearsalFailedRuns++;
+                status = (stalled ? $"stalled for {RunTimeoutS:0} s. " : "") + autopilot.RunEnded(host, sim.Finished);
                 if (!sim.Finished && !autopilot.Exhausted) { sim.Reset(); host.ResetState(); runReported = false; }
             }
         }
@@ -377,7 +465,7 @@ namespace Forge.Controllers
             sb.Append("\n").Append(status);
             if (autopilot != null) sb.Append(autopilot.Exhausted ? "   AUTOPILOT: nothing left" : $"   AUTOPILOT {autopilot.Describe()}{(autopilot.Kept ? " (kept)" : "")}");
             if (watcher != null) sb.Append($"   LIVE FILE ({watcher.Reloads} reloads)");
-            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot  E edit file live  M ML template  4 learned brake");
+            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot  E edit file live  M ML template  4 learned brake  9 rehearse 5 in a row");
             readout = sb.ToString();
         }
 
