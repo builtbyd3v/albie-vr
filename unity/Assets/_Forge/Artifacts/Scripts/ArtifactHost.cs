@@ -28,6 +28,8 @@ namespace Forge.Artifacts
         ArtifactPackage open;
         ArtifactBuild build;
         ArtifactRun run;
+        ForgeVolume volume;
+        bool fitOnLoad;
         Coroutine reveal;
         Pose courseOrigin;
 
@@ -152,6 +154,8 @@ namespace Forge.Artifacts
                 Destroy(go);
             }
             spawned.Clear();
+            volume = null;
+            fitOnLoad = false;
             nodes.Clear();
             generatorInputs.Clear();
             if (run != null)
@@ -219,12 +223,14 @@ namespace Forge.Artifacts
                 else if (verb == "arm") ArmRun();
                 return;
             }
-            string target = action.Value<string>("set");
-            if (target == null)
+            string timeline = action.Value<string>("timeline");
+            if (timeline != null)
             {
-                Debug.Log($"[Artifacts] {action} waits for timelines (Nov 14)");
+                Clock(timeline, action.Value<string>("action"));
                 return;
             }
+            string target = action.Value<string>("set");
+            if (target == null) return;
             var parts = target.Split('.');
             if (parts.Length == 2 && parts[1] == "visible" && nodes.TryGetValue(parts[0], out var node))
                 node.SetActive(action.Value<bool>("value"));
@@ -237,6 +243,20 @@ namespace Forge.Artifacts
             if (verb == "play") sim.Play();
             else if (verb == "pause") sim.Pause();
             else if (verb == "restart") sim.Restart();
+        }
+
+        void Clock(string id, string verb)
+        {
+            if (!nodes.TryGetValue(id, out var node) || !node.TryGetComponent<ArtifactTimeline>(out var clock)) return;
+            if (verb == "play") clock.Play();
+            else if (verb == "pause") clock.Pause();
+            else if (verb == "restart") clock.Restart();
+        }
+
+        /// <summary>A <c>gltf</c> node finished loading. A volume fitted to its contents as they stood fits again.</summary>
+        public void ModelLoaded()
+        {
+            if (volume != null && fitOnLoad) volume.Fit();
         }
 
         void AskPermission()
@@ -275,6 +295,13 @@ namespace Forge.Artifacts
             {
                 LastErrors = new List<ArtifactError> { new ArtifactError("no_data", "data", dataProblem) };
                 Refuse(open.Title, dataProblem);
+                return;
+            }
+            var assets = ArtifactAssets.Resolve(open, out var assetError);
+            if (assets == null)
+            {
+                LastErrors = new List<ArtifactError> { assetError };
+                Refuse(open.Title, $"One of its files can't be used, so it didn't open.\n\n{assetError}");
                 return;
             }
             if (open.Scene["nodes"] is JArray tableNodes)
@@ -321,7 +348,7 @@ namespace Forge.Artifacts
             }
 
             var root = new GameObject("Content").transform;
-            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots, Tables = tables };
+            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots, Tables = tables, Assets = assets };
 
             var list = open.Scene["nodes"] as JArray ?? new JArray();
             foreach (JObject node in list) nodes[node.Value<string>("id")] = ArtifactNodes.Build(node, build);
@@ -456,14 +483,15 @@ namespace Forge.Artifacts
         // stands. Returns the scale the root should end at.
         float ShowVolume(Transform root)
         {
-            var volume = Instantiate(volumePrefab, transform);
+            volume = Instantiate(volumePrefab, transform);
             volume.name = "Volume " + open.Title;
             volume.Title = open.Title;
             volume.SetAccent(accent);
             volume.SetSize(volumeSize);
             spawned.Add(volume.gameObject);
             float radius = open.Scene["view"]?.Value<float?>("radius") ?? 0f;
-            if (radius <= 0f)
+            fitOnLoad = radius <= 0f;
+            if (fitOnLoad)
             {
                 volume.SetContent(root.gameObject);
                 return 1f;

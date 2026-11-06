@@ -324,17 +324,17 @@ public static class RepoActivityCheck
         if ((string)refused["status"] != "invalid" || !(refused["errors"] is JArray list) || list.Count == 0 || (string)list[0]["code"] != "unknown_kind") return "refusal: " + refused;
         if (Directory.Exists(ArtifactLibrary.Folder("never_saved"))) return "an invalid artifact was written";
 
-        var gltf = (JObject)fixture.Scene.DeepClone();
-        ((JArray)gltf["nodes"]).Add(new JObject { ["id"] = "model", ["kind"] = "gltf", ["asset"] = "assets/m.glb" });
-        var withAsset = (JObject)manifest.DeepClone();
-        withAsset["id"] = "needs_gltf";
-        withAsset["assets"] = new JArray(new JObject { ["path"] = "assets/m.glb", ["sha256"] = "0" });
-        var cant = ArtifactLibrary.FromScene(withAsset, gltf, out errors);
+        var gridless = (JObject)fixture.Scene.DeepClone();
+        foreach (JObject n in (JArray)gridless["nodes"])
+            if ((string)n["kind"] == "array") ((JObject)n["source"]).Remove("grid");
+        var unbuilt = (JObject)manifest.DeepClone();
+        unbuilt["id"] = "needs_a_grid";
+        var cant = ArtifactLibrary.FromScene(unbuilt, gridless, out errors);
         if (cant != null || errors.Count == 0 || errors[0].code != "cant_build") return "a node this host can't build: " + (errors.Count > 0 ? errors[0].ToString() : "saved");
 
         try { ArtifactTools.Create(new JObject { ["template"] = "repo_activity", ["manifest"] = manifest, ["scene"] = fixture.Scene }); return "template and manifest together was accepted"; }
         catch (ArgumentException e) when (e.Message.StartsWith("bad_value")) { }
-        note = $"v1, unchanged, v2; refused as data: {list[0]["code"]} at {list[0]["path"]}; gltf: {errors[0].code}";
+        note = $"v1, unchanged, v2; refused as data: {list[0]["code"]} at {list[0]["path"]}; an array with no grid: {errors[0].code}";
         return null;
     }
 

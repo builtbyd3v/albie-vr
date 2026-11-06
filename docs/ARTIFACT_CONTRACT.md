@@ -137,6 +137,26 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
 | `timeline` | `duration_s`, `loop`, `autoplay`. A clock that `animate` rules follow. | Nov 14 |
 | `camera_rig` | Reserved. Refused with `unsupported_kind`. | Not built |
 
+**`gltf` and `timeline` (as built, 2026-11-05, host runtime 4).**
+- **`gltf`.** Phase 1 reads binary glTF only. Each manifest asset is `{path: "assets/<name>.glb", sha256, license}`, and each of the three fields is required.
+  - Before anything is built, the host reads each file a `gltf` node names, in this order: the artifact's device folder, the bundled fixture (`<name>.glb.bytes`), then the template it came from.
+  - It refuses the artifact with `asset_missing`, with `too_big` if a file is over 8 MB, with `hash_mismatch`, or with `bad_value` if the file isn't a glb.
+  - glTFast then loads it under the node, spread over frames in play mode. The model is in metres, at its own scale. Use the node's `scale` to change its size.
+  - A volume with no `view` fits again once the model arrives. Textures over 2048 px are logged, not refused.
+- **`timeline`.** `duration_s` (above 0) is required. `loop` and `autoplay` default to false. At the end it stops on the last frame, and `play` after the end starts over.
+- **`animate` rules.** `property` is one of:
+  - `pos`, `rot` or `scale`, each `[x, y, z]`. `scale` can also be a single number.
+  - `visible`, `true` or `false`. It steps at each key rather than blending.
+  - `color`, `#RRGGBB`. It tints the target's meshes, or a `text` node.
+
+  Keys are `[t, value]`, times going up, within the timeline, up to 64 per rule. Values are linear between keys and hold before the first and after the last. Rotation blends each Euler angle separately.
+
+  The validator refuses:
+  - a target that's a panel or a timeline;
+  - `pos` or `rot` on a node that stands on a slot (`at`);
+  - the same target and property animated twice.
+- **The `timeline` action.** `{timeline, action}` takes `play`, `pause` or `restart`. `restart` jumps to 0 and plays.
+
 **`panel` widgets:**
 
 | Widget | Fields | Shows |
@@ -385,7 +405,8 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 | `unknown_input` | `generators[0].params.gates: no input "gate_count"` |
 | `output_mismatch` | `outputs: "collisions" has no metric rule` |
 | `asset_not_listed` | `nodes[4].asset: "assets/cone.glb" isn't in the manifest` |
-| `hash_mismatch` | `assets[0]: sha256 doesn't match` |
+| `hash_mismatch` | `assets[0]: sha256 doesn't match` (on open, as built) |
+| `asset_missing` | `assets[0]: assets/rocket.glb is missing` (on open, as built) |
 | `permission_denied` | `permissions.network must be empty in Phase 1` |
 | `permission_missing` | `space is room, so permissions.room must be read` |
 | `script_not_allowed` | `script must be null in Phase 1` |
@@ -433,6 +454,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `slalom/runs/run_0001.json` to `run_0004.json` | Failed (rolled over), completed by hand, completed by the Autopilot, completed with a cone hit. All on truck v2 or v3, so they don't assume an answer to question 7. |
 | `repo_city/manifest.json`, `repo_city/scene.json`, `repo_city/data/repo_activity.json` | `volume` space, an `array` from a table, a null cell, a `sample` label |
 | `stance/manifest.json`, `stance/scene.json` | A standalone artifact the host builds today: no permissions, live `slider` inputs, `on_input` rules |
+| `launch/manifest.json`, `launch/scene.json`, `launch/assets/rocket.glb.bytes` | A `gltf` node (the v1 rocket from the CAD mocks) on a `timeline`, with `animate` rules for each property and a Launch button that restarts it |
 | `broken/manifest.json`, `broken/scene.json` | Fails validation on purpose (`unknown_kind`), for the refusal path |
 | `three_body/manifest.json`, `three_body/scene.json` | A live `sim` artifact (section 14): the figure-eight orbit, with trails, live stats and sliders |
 
