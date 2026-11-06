@@ -2520,6 +2520,28 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **The kit's APK has the same app id as Albie** (Project Settings, which ML A doesn't change). Installing it replaces Albie on the headset: reinstall `Forge.apk` afterwards.
 - **Still to do:** run it on a Quest 3 and paste the JSON here.
 
+**ML A handoff to the Thing runtime (2026-11-06, Editor, Unity physics; the real truck is still to do).** Person 2 (or whoever builds the Thing runtime) now has a plug and a worked example in `Controllers/Scripts/Thing/`, with the steps in `Controllers/README.md`, "For the Thing runtime".
+- **The plug:** the Thing implements `IThingBody`:
+  - sensors in;
+  - forward speed out;
+  - actuators to physics.
+
+  `ControllerThing` does the rest:
+  - the C-19 call order each physics step;
+  - swapping controllers;
+  - recording laps;
+  - registering the Thing with `ThingHosts`, so `template_status` and `learned_brake` reach it.
+
+  `RayFan` is the contract's sphere-cast ray fan on real colliders.
+- **Checked on Unity physics** (`ThingRuntimeCheck`: the slalom built from colliders, with the mock truck's driving model on a transform):
+  - Albie's tools reach the truck by name.
+  - A step allocates nothing (about 6 µs with 7 sphere casts).
+  - **The real-laps loop works end to end:** two laps driven by hand, recorded, saved and read back, then 3 candidates trained on them. Candidate 1 drove the truck from all 3 hand-placed starts.
+- **Finding: brains trained on the mock carry over badly, and the pretrained fallback crashed on the physics truck.**
+  - Candidates trained on mock laps needed candidate 3.
+  - The likely cause is that the mock casts plain rays at walls, where the contract's sphere cast reads walls up to 0.21 m nearer. Cones agree exactly.
+  - **So the Nov 16 safety net needs one step once the real truck drives: rebuild the pretrained fallback from the real truck's laps.** Until then, the bundled fallback is only good on the mock.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.
