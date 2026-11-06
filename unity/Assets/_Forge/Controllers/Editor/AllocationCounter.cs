@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using Unity.Profiling;
 
 /// <summary>
@@ -8,6 +9,11 @@ using Unity.Profiling;
 /// happens. The counter starts again each Editor frame, so measure work that runs inside one call (a check does).
 /// <see cref="Start"/> first proves the counter counts a known allocation, and throws if it doesn't, so a check can't
 /// pass on a counter that reads 0.
+///
+/// The counter counts every thread, not just this one. So <see cref="Start"/> also waits until nothing in the process
+/// allocates for two short windows in a row, and throws if that doesn't happen within a second. A check that starts
+/// background work (the notebook writes its files on a worker thread) should let it finish before measuring
+/// (<c>NotebookFiles.Flush()</c>).
 /// </summary>
 public sealed class AllocationCounter : IDisposable
 {
@@ -34,7 +40,25 @@ public sealed class AllocationCounter : IDisposable
             recorder.Dispose();
             throw new InvalidOperationException("the allocation counter didn't count a 1 KB probe");
         }
+        if (!WaitForQuiet(recorder))
+        {
+            recorder.Dispose();
+            throw new InvalidOperationException("another thread kept allocating for a second, so allocations here can't be measured: let background work finish first");
+        }
         return new AllocationCounter(recorder);
+    }
+
+    // Two 5 ms windows in a row with nothing allocated anywhere in the process. Sleeping allocates nothing.
+    static bool WaitForQuiet(ProfilerRecorder recorder)
+    {
+        int quiet = 0;
+        for (int window = 0; window < 200 && quiet < 2; window++)
+        {
+            long before = recorder.CurrentValue;
+            Thread.Sleep(5);
+            quiet = recorder.CurrentValue == before ? quiet + 1 : 0;
+        }
+        return quiet >= 2;
     }
 
     /// <summary>Bytes allocated while <paramref name="work"/> runs.</summary>

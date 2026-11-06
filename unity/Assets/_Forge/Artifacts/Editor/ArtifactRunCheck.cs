@@ -351,11 +351,15 @@ public static class ArtifactRunCheck
         run.Tick(0.02f);
         thing.SpeedMs = 1.2f;
         for (int i = 0; i < 10; i++) run.Tick(0.02f);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 5000; i++) run.Tick(0.02f);
-        long grew = GC.GetAllocatedBytesForCurrentThread() - before;
+        // AllocationCounter (Controllers/Editor): GC.GetAllocatedBytesForCurrentThread reads 0 under Unity's GC. It
+        // counts every thread, so the notebook's background writes from the earlier steps must be on disk first.
+        if (!NotebookFiles.Flush()) return "the notebook's writes didn't finish";
+        // 4000 ticks is 80 s, inside the slalom's 90 s timeout: the run must still be going, so every tick measured is
+        // a live one. The tick that ends a run builds its record (once), which is fine.
+        long grew = AllocationCounter.BytesDuring(() => { for (int i = 0; i < 4000; i++) run.Tick(0.02f); });
+        if (run.State != ArtifactRunState.Running) return "the run ended during the measured ticks (" + run.State + "): measure a live run";
         if (grew != 0) return "allocated " + grew + " bytes";
-        note = "5000 ticks";
+        note = "4000 ticks of a live run, 0 bytes";
         return null;
     }
 
