@@ -425,6 +425,9 @@ namespace Forge.Notebook
         /// <summary>
         /// Called when a training run ends (ML A, through <c>Forge.Controllers.TrainingLog</c>): a <c>training</c> entry
         /// on the current version with the controller's training block copied as it is (C-19 section 3.4).
+        /// Two kinds of run, told apart by the block's <c>task</c>: none is behaviour cloning on recorded laps (the
+        /// Autopilot); <c>binary</c> is a classifier such as the ML template's <c>obstacle_ahead</c>, plugged into
+        /// <paramref name="controller"/> as its brake (C-19 section 3.5).
         /// Returns the entry id, or null when no project is open.
         /// </summary>
         public static string LogTraining(string controller, int controllerVersion, JObject training)
@@ -433,9 +436,24 @@ namespace Forge.Notebook
             var block = training == null ? new JObject() : (JObject)training.DeepClone();
             block["controller"] = controller;
             block["controller_version"] = controllerVersion;
-            int laps = block["laps"] is JArray lapList ? lapList.Count : block["laps"]?.Type == JTokenType.Integer ? (int)block["laps"] : 0;
-            string id = Log("training", laps > 0 ? $"Trained {controller} on {laps} {(laps == 1 ? "lap" : "laps")}." : $"Trained {controller}.",
-                            "Learn to drive from the recorded laps.", "albie", "The Autopilot drives the course.", new[] { "ml", "control" });
+            string change, rationale, expected;
+            if ((string)block["task"] == "binary")
+            {
+                string model = (string)block["model"] ?? "a classifier";
+                int samples = Samples(block);
+                change = samples > 0 ? $"Trained {model} on {samples} samples, as the brake in {controller}." : $"Trained {model}, as the brake in {controller}.";
+                string label = (string)block["data"]?["label"];
+                rationale = label != null ? $"Learn to tell from its sensors whether it {label}." : "Learn when there's an obstacle ahead from the Thing's own sensors.";
+                expected = "The learned brake stops it before it hits something.";
+            }
+            else
+            {
+                int laps = block["laps"] is JArray lapList ? lapList.Count : block["laps"]?.Type == JTokenType.Integer ? (int)block["laps"] : 0;
+                change = laps > 0 ? $"Trained {controller} on {laps} {(laps == 1 ? "lap" : "laps")}." : $"Trained {controller}.";
+                rationale = "Learn to drive from the recorded laps.";
+                expected = "The Autopilot drives the course.";
+            }
+            string id = Log("training", change, rationale, "albie", expected, new[] { "ml", "control" });
             var entry = Entry(id);
             entry["observed"]["training"] = block;
             entry["observed"]["note"] = TrainingNote(block);
@@ -443,15 +461,32 @@ namespace Forge.Notebook
             return id;
         }
 
+        // Samples at the top (behaviour cloning) or in data (a classifier).
+        static int Samples(JObject block)
+        {
+            var s = block["samples"] ?? block["data"]?["samples"];
+            return s?.Type == JTokenType.Integer ? (int)s : 0;
+        }
+
+        static bool IsNumber(JToken t) => t != null && (t.Type == JTokenType.Float || t.Type == JTokenType.Integer);
+
         // Every number in the note comes from the training block (C-17: the model never invents data).
         static string TrainingNote(JObject block)
         {
             var parts = new List<string>();
-            if (block["samples"] != null) parts.Add($"{block["samples"]} samples");
+            if (Samples(block) > 0) parts.Add($"{Samples(block)} samples");
             if (block["epochs"] != null) parts.Add($"{block["epochs"]} epochs");
             if (block["candidates"] is JArray candidates) parts.Add($"{candidates.Count} candidates");
             if (block["val_loss"]?.Type == JTokenType.Float || block["val_loss"]?.Type == JTokenType.Integer)
                 parts.Add("validation loss " + ((double)block["val_loss"]).ToString("0.0000", CultureInfo.InvariantCulture));
+            if (IsNumber(block["val_accuracy"]))
+            {
+                string right = ((double)block["val_accuracy"]).ToString("0.0%", CultureInfo.InvariantCulture) + " right on held-out samples";
+                var baseline = block["baseline"];
+                if (IsNumber(baseline?["val_accuracy"]) && (string)baseline["rule"] != null)
+                    right += $" (the rule {baseline["rule"]}: " + ((double)baseline["val_accuracy"]).ToString("0.0%", CultureInfo.InvariantCulture) + ")";
+                parts.Add(right);
+            }
             if ((block["seconds"]?.Type == JTokenType.Float || block["seconds"]?.Type == JTokenType.Integer) && (double)block["seconds"] >= 0.05)
                 parts.Add(((double)block["seconds"]).ToString("0.0", CultureInfo.InvariantCulture) + " s of training");
             return parts.Count == 0 ? null : string.Join(", ", parts) + ".";

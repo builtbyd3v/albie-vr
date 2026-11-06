@@ -19,6 +19,8 @@ namespace Forge.Controllers
         /// <summary>The brake the learned node replaces in a graph (the mock <c>truck_cruise</c> calls its hand-written one this).</summary>
         public const string BrakeNode = "brake";
         public const float BrakeThrottle = -1f;
+        /// <summary>Added to the base controller's name: <c>truck_cruise</c> becomes <c>truck_cruise_learned_brake</c>.</summary>
+        public const string LearnedSuffix = "_learned_brake";
 
         public readonly ObstacleData Data;
         public readonly ObstacleClassifier Classifier;
@@ -36,13 +38,16 @@ namespace Forge.Controllers
         /// <summary>
         /// A copy of a graph controller with the trained net as its brake: the node called <see cref="BrakeNode"/> is
         /// replaced (or the model node is added last), and the name gets <c>_learned_brake</c>. The new node is last in the
-        /// list or where the old brake was, so it still overrides the cruise throttle (contract section 3.3).
+        /// list or where the old brake was, so it still overrides the cruise throttle (contract section 3.3). A controller that
+        /// already has a learned brake keeps its name.
         /// </summary>
         public JObject WithLearnedBrake(JObject controller)
         {
             if (controller == null || (string)controller["kind"] != "graph") throw new ArgumentException("the learned brake goes into a graph controller");
             var copy = (JObject)controller.DeepClone();
-            copy["name"] = (string)controller["name"] + "_learned_brake";
+            string name = (string)controller["name"];
+            // Retraining on a controller that already has a learned brake replaces it; the name doesn't grow.
+            copy["name"] = name.EndsWith(LearnedSuffix, StringComparison.Ordinal) ? name : name + LearnedSuffix;
             var brake = Classifier.ToGraphNode(BrakeNode, new JObject { ["drive.throttle"] = BrakeThrottle });
             var nodes = copy["nodes"] as JArray ?? new JArray();
             int at = -1;

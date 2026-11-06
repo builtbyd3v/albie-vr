@@ -309,8 +309,13 @@ The recorder (ML A) writes one file per recording session. Training reads it, an
 | `brain_record {start\|stop}` | Records laps while you drive. | No |
 | `brain_train {laps?, epochs?}` | Trains on the device and writes `controllers/<thing>_autopilot.json`. | No |
 | `autopilot_on` / `autopilot_off` | Attaches the learned or the manual controller. | No |
+| `template_train` | Runs the on-device ML template (section 3.5): makes the data, trains, saves `obstacle_ahead.json` and `<base>_learned_brake.json`, and logs a notebook `training` entry. A slow tool: it answers when training is done (about 24 frames). | No |
+| `template_status {thing?}` | The template's state (idle, training with the epoch, done with its accuracy and the rule it was compared with, failed) and whether the learned brake is on the Thing. | No |
+| `learned_brake {on, thing?}` | Puts the learned brake on a Thing, or gives it back the controller it had before. | No |
 
 None of these send anything off the device or spend money, so none of them need a confirm step under the 14.6 rules.
+
+**As built (ML A, 2026-11-05):** the three template tools are in `Controllers/Resources/AlbieTools/controllers.json` (handlers in `TemplateTools.cs`), not in `ML/`: they're ML A's, and the `ml_` prefix is taken by the cloud tools. They reach a Thing through `ThingHosts`: whoever runs a Thing registers its `ControllerHost` by Thing name (`ThingHosts.Register("truck", host)`). Today that's the Controllers sandbox's mock truck. **Person 2's Thing runtime should do the same** when it attaches a controller.
 
 ## 6. Hot reload
 

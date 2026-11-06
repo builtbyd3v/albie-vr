@@ -2483,6 +2483,7 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   | Held-out samples | 97% right. The best single front-ray rule gets 86%. |
   | Closed loop, 180 saveable starts aimed at cones and walls | The learned brake crashed 4 times, the same as the best fixed rule, and drove 15% further before stopping (0.97 m vs 0.84 m). `truck_cruise`'s hand-written brake (`d3 < 0.15`) crashed 161 times. |
 
+- **Voice and notebook (2026-11-05, Editor):** Albie's `template_train`, `template_status` and `learned_brake {on}` tools run on the headset (C-19 section 5). Each run logs a notebook `training` entry worded as a classifier (C-17 section 3). In Play, `template_train` answered 24 frames after the call, and with `learned_brake` on the truck finished the slalom in 8.0 s. **Person 2:** register the Thing runtime's `ControllerHost` with `ThingHosts` so these tools reach the real truck. **Person 3:** `AlbieVoice`'s tool rules say ML training runs on the cloud (the `ml_` tools); one line saying the template tools run on the headset would stop Albie sending "train the ML template" to the cloud. Not yet tried with the live voice model.
 - **The speed floor in the label matters.** With the plain "at its current speed" label, the net scored 96% offline but still crashed 28 of 60 starts in closed loop. A truck that braked and was crawling next to a cone read "clear", and the cruise control sped it back up.
 
 ---

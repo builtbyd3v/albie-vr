@@ -62,7 +62,7 @@ Fixtures are in `unity/Assets/_Forge/Mocks/Resources/Mocks/notebook/` (section 1
 | `rationale_by` | `person` or `albie`: your words or Albie's (15.8). |
 | `observed.runs` | `run_id`s (C-12). The numbers stay in the run record and are shown from there. They're never copied into the text. |
 | `observed.incidents` | Copied from `thing.incident` events (section 11, question 1). |
-| `observed.training` | The controller's `training` block, copied as it is (C-19, 3.4), plus `controller` and `controller_version`. |
+| `observed.training` | The controller's `training` block, copied as it is (C-19, 3.4), plus `controller` and `controller_version`. A block with `task: "binary"` is a classifier plugged into the controller (C-19, 3.5: the ML template's `obstacle_ahead`), and its entry is worded that way (section 3). |
 | `observed.note` | The only free-text part. Albie's or your summary. Any number in it must come from the records above. |
 | `outcome` | `open`, `worked`, `partly` or `failed`. |
 | `outcome_by` | `person`, `albie` or `run`. |
@@ -83,6 +83,7 @@ Fixtures are in `unity/Assets/_Forge/Mocks/Resources/Mocks/notebook/` (section 1
 |---|---|---|
 | A project version is cut (section 4) | Project module | New `attempt`, `open`, with `change` from the cut |
 | A training run ends | ML A's `BehaviourCloner` | New `training` entry on the current version, with `observed.training` |
+| The ML template finishes | ML A's `TemplateRun` (M in the sandbox, or `template_train`) | The same, worded as a classifier: "Trained obstacle_ahead on 3000 samples, as the brake in truck_cruise_learned_brake." The note adds its held-out accuracy and the rule's, both from the block. |
 | A run ends | Artifact host | The run id is added to the newest entry on that version that is still `open` or was only judged by a run (`outcome_by: run`). If there's none, a new `attempt` is opened. A run's suggested outcome doesn't close the entry to later runs: `ent_0002` in the fixtures has a failed run, then a completed one. |
 | The Thing rolls over | Notebook, on `thing.incident` | The incident is added to the newest `open` entry, or a new one, the same way. It doesn't change the outcome on its own. |
 | "That didn't work", or tapping ✗ | Agent, through `notebook_mark` | `failed`, `outcome_by: person`. Albie asks one question, then writes the lesson with a second `notebook_mark`. |

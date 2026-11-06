@@ -22,8 +22,11 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Learning/ObstacleData.cs` | The ML template's dataset: "obstacle ahead?" from the truck's sensors, labelled by physics (driving straight for 0.6 s at its speed, at least 1 m/s). Balanced and deterministic. |
 | `Scripts/Learning/ObstacleClassifier.cs` | Trains the classifier on the device a few ms a frame, with no allocations. It scores it against the best front-ray rule and writes `albie.model/1` and the graph `model` node. |
 | `Scripts/Learning/ObstacleTemplate.cs` | **The bundled on-device ML template:** data, then training, then `WithLearnedBrake(truck_cruise)`. It saves `obstacle_ahead.json` and `truck_cruise_learned_brake.json`. |
+| `Scripts/Learning/TemplateRun.cs` | One template run, shared by the sandbox's M and Albie's tools: trains a few ms a frame, saves the files, reports it to the notebook, and attaches or detaches the learned brake. |
+| `Scripts/TemplateTools.cs`, `Resources/AlbieTools/controllers.json` | Albie's tools for the template: `template_train`, `template_status`, `learned_brake {on}`. They run on the headset with no hub. |
+| `Scripts/ThingHosts.cs` | The Things running a controller, by name, so the tools can reach them. The sandbox registers its truck as `truck`. |
 | `Scripts/Sandbox/ObstacleTrial.cs` | Closed-loop brake test: cruise straight at a cone or wall from seeded starts that a perfect brake can always stop from. |
-| `Editor/MLTemplateCheck.cs` | **Forge > Controllers > Check ML Template**: 10 headless checks (data, label, training budget, accuracy against the rule, the model file, bad nodes, ticking allocates nothing, closed loop, plugging in, `learned` still loads). |
+| `Editor/MLTemplateCheck.cs` | **Forge > Controllers > Check ML Template**: 13 headless checks (data, label, training budget, accuracy against the rule, the model file, bad nodes, ticking allocates nothing, closed loop, plugging in, `learned` still loads, and the three tools). |
 | `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. |
 | `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. |
 | `Scripts/Sandbox/MockTrial.cs` | Scores a trained net on the mock slalom from 15 starts (sandbox and checks only). |
@@ -47,6 +50,8 @@ while (!t.Step(4.0)) yield return null;         // train, 4 ms a frame
 var learned = t.WithLearnedBrake(truckCruise);  // a graph controller with the model node
 host.Attach(ControllerFile.Parse(learned.ToString(), out _));
 ```
+
+**By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "97% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
 
 The Python templates (`ml-examples/cifar10`, `text-classification`) need the laptop hub to train (PROJECT_CONTEXT 16.8, Nov 14 decision).
 
