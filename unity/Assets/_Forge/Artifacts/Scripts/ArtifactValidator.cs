@@ -28,6 +28,7 @@ namespace Forge.Artifacts
         static readonly Regex NodeIdRule = new Regex("^[a-z0-9_]+$");
         static readonly Regex InputRef = new Regex(@"^\$[a-z][a-z0-9_]*$");
         static readonly Regex SourceRule = new Regex(@"^(builtin:[a-z0-9_]+|connector:[a-z0-9_]+/[a-z0-9_]+)$");
+        static readonly Regex SnapshotRule = new Regex(@"^data/[a-z0-9_-]+\.json$");
         static readonly HashSet<string> FreeText = new HashSet<string> { "text", "title", "label" };
 
         // Common slips, so the agent gets a fix and not just a refusal.
@@ -127,6 +128,11 @@ namespace Forge.Artifacts
                         if (name != null) tables.Add(name);
                         if (source == null || !SourceRule.IsMatch(source))
                             Add("bad_value", $"data[{i}].source", "use builtin:<name> or connector:<connector>/<tool>");
+                        else if (source.StartsWith("connector:") && !Asks(ArtifactData.Permission(source)))
+                            Add("permission_missing", $"data[{i}].source", $"{source} needs \"{ArtifactData.Permission(source)}\" in permissions.connectors");
+                        string snapshot = data[i].Value<string>("snapshot");
+                        if (snapshot != null && !SnapshotRule.IsMatch(snapshot))
+                            Add("bad_value", $"data[{i}].snapshot", "use data/<name>.json");
                     }
 
                 if (manifest["assets"] is JArray list)
@@ -195,6 +201,13 @@ namespace Forge.Artifacts
             }
 
             string Permission(string key) => (manifest["permissions"] as JObject)?.Value<string>(key);
+
+            bool Asks(string connector)
+            {
+                if (manifest["permissions"]?["connectors"] is JArray list)
+                    foreach (var c in list) if ((string)c == connector) return true;
+                return false;
+            }
 
             void Generators(string space)
             {

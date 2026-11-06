@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Forge.Artifacts;
 using Forge.Notebook;
@@ -265,7 +266,8 @@ public static class HoopCheck
         try { ArtifactLibrary.FromTemplate("hoop_course", new JObject { ["hoops"] = 20 }); return "20 hoops wasn't refused"; }
         catch (ArgumentException e) when (e.Message.StartsWith("bad_value")) { }
         var json = Resources.Load<TextAsset>("AlbieTools/artifacts");
-        if (json == null || !json.text.Contains("\"hoop_course\"]")) return "artifact_create's enum doesn't list hoop_course";
+        var templates = json == null ? null : JArray.Parse(json.text).SelectToken("[?(@.name == 'artifact_create')].parameters.properties.template.enum") as JArray;
+        if (templates == null || !templates.Any(t => (string)t == "hoop_course")) return "artifact_create's enum doesn't list hoop_course";
         note = $"made {made["id"]} v{made["version"]} ({made["change"]})";
         return null;
     }

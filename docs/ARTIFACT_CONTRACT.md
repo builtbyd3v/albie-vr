@@ -335,6 +335,29 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
 
 `sample: true` makes the host show a "Sample data" label (9.6). Sample rows must be fictional (competition rule 4, section 0).
 
+**As built, 2026-11-05 (host runtime 3).**
+- **Where a table comes from.** For each manifest `data` entry, the host tries these sources in order:
+  1. `ArtifactData.Provider`, the seam for C-18's connector host. Until that lands it's null.
+  2. The artifact's own `data/<name>.json` snapshot.
+  3. A bundled sample in `Artifacts/Resources/ArtifactData/<connector>_<tool>.json`. This is always treated as `sample: true`, whatever the file says.
+
+  If none of them has the table, the artifact doesn't open and the result is `no_data`.
+- **Checking a table.** A table is refused if:
+  - it has no columns or no rows;
+  - a column type is anything other than `number` or `string`;
+  - a row has the wrong number of cells;
+  - a cell's type doesn't match its column.
+
+  `null` is allowed in any cell.
+- **Arrays from a table.** An `array` node with `source: {table, grid: {columns, gap_m}}` builds one copy per row, on a grid centred on the node, with every copy standing on y = 0.
+  - `map.height` and `map.width` scale a number column linearly into `[min, max]`.
+  - `map.color` gives each distinct value its own palette colour.
+  - A `null` cell is grey (`#5A5F66`) at the bottom of the range. It is never drawn as zero.
+  - Past 256 rows, the copies are cut, and `say` gives the row count.
+  - A mapped column the table doesn't have, or a height or width mapped to a string column, is `unknown_ref` before anything is built.
+- **Sample data.** When any table is sample data, the host places a "Sample data" label above the scene. `artifact_open` then returns `data: [{name, source, rows, fetched_at, sample, from}]`, and `say` tells the person the data isn't theirs. A snapshot says which day it was saved.
+- **Templates.** `repo_activity` ("what shipped this week?") is commits as a small city. Height is lines changed, colour is the author, and the source is `connector:source_control/list_commits`.
+
 ## 8. Permissions
 
 | Key | Values | First-open sheet says |
@@ -368,6 +391,8 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 | `script_not_allowed` | `script must be null in Phase 1` |
 | `too_big` | `nodes: 900 is over the limit of 512` |
 | `bad_value` | `inputs[0]: default 20 is above max 12` |
+| `cant_build` | `scene: valid, but this version can't build: gltf` (from `artifact_create {manifest, scene}`) |
+| `no_data` | `It needs "commits" from connector:issues/list_issues, and there's no copy of it on this headset.` (on open) |
 
 **Limits (proposed, not yet measured: 9.11, question 2):** 512 nodes, 256 copies in one `array`, 1,024 copies in a scene, 64 zones, 64 rules, 256 KB for `scene.json`, 2048 px textures.
 
@@ -385,8 +410,8 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 
 | Tool | Does | Confirm? |
 |---|---|---|
-| `artifact_list` | The library, the project's artifacts and the templates. | No |
-| `artifact_create {template, inputs?, open?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. As built, `open` (default true) opens it straight away, and the result's `say` is the layout's `fit.message` for Albie to speak. Making the same thing again changes nothing; a different one bumps `version`. | No |
+| `artifact_list` | The library, the project's artifacts and the templates. As built, also `data_sources`: `{source, permission, columns, sample_only}` for each source this headset can read. | No |
+| `artifact_create {template, inputs?, open?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. As built, `open` (default true) opens it straight away, and the result's `say` is the layout's `fit.message` for Albie to speak. Making the same thing again changes nothing; a different one bumps `version`. As built, `{manifest, scene}` that fails validation saves nothing and returns `{status: "invalid", errors: [{code, path, message}], next}`. | No |
 | `artifact_open {id}` / `artifact_close {id}` | Opens it, with the permissions sheet on first open. | Sheet on first open |
 | `artifact_run {id, scenario?}` | Arms a run on the current version. | No |
 | `artifact_compare {id, runs?}` | Run metrics side by side, with the like-for-like flag. | No |
