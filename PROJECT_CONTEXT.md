@@ -2576,7 +2576,11 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - **All the Controllers checks now use it** (`Controllers/Editor/AllocationCounter.cs`): `ControllersCheck`, `AutopilotCheck`, `BehaviourCloningCheck`, `ThingRuntimeCheck` and `MLTemplateCheck`. The counter first proves it counts a 1 KB probe, so a check can't pass on a counter that reads 0.
     - Every one still passes: ticking, recording, training and the physics truck really allocate nothing.
     - Proof the checks can fail now: with a temporary 1-float allocation in the controller tick and in training, every allocation step failed, at 36 bytes a step.
-  - Three checks, all ML A / Person 5's, still use the old counter, so their allocation steps can't fail yet: `NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts).
+  - **`NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts) use it too**, so no check uses the old counter any more. With a temporary 1-float allocation in each hot path (`NNNetwork.Forward`, the artifact solver's `Step`, `ArtifactRun.Tick`), each failed, at 36 bytes a step.
+  - **The profiler counter counts every thread, not just the one measured.** The notebook writes its files on a worker thread, so `ArtifactRunCheck` sometimes failed, at 1-8 KB, after its earlier steps had logged runs. Two fixes:
+    - `AllocationCounter` now waits until the whole process is quiet (two 5 ms windows with nothing allocated) before measuring. If another thread keeps allocating, it refuses with a clear error rather than give a wrong number.
+    - The check calls `NotebookFiles.Flush()` first. It now passes 8 times out of 8.
+  - **`ArtifactRunCheck` had also been measuring past the end of the run.** Its 5000 ticks (100 s) ran past the slalom's 90 s timeout, and the tick that ends a run builds the run record. It now ticks 4000 times (80 s) and fails if the run isn't still going, so every tick it measures is a live one. Live ticks allocate nothing.
 - **Still to do:** the kit on a Quest 3.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**

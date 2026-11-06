@@ -275,13 +275,16 @@ public static class ArtifactChecks
         // The per-frame path has to be free of garbage (CLAUDE.md, Quest performance).
         var (quiet, _, _) = Orbits();
         Run(quiet, 0.1);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 5000; i++)
+        // AllocationCounter (Controllers/Editor): GC.GetAllocatedBytesForCurrentThread reads 0 under Unity's GC.
+        long bytes = AllocationCounter.BytesDuring(() =>
         {
-            quiet.Step();
-            quiet.Position(0);
-        }
-        Check(GC.GetAllocatedBytesForCurrentThread() == before, "stepping allocates nothing");
+            for (int i = 0; i < 5000; i++)
+            {
+                quiet.Step();
+                quiet.Position(0);
+            }
+        });
+        Check(bytes == 0, $"stepping allocates nothing ({bytes} bytes over 5000 steps)");
     }
 
     static void Looks()

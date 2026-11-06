@@ -116,15 +116,17 @@ public static class NNNetworkCheck
         var net = new NNNetwork(8, new[] { 8, 8 }, 2, NNActivation.Tanh, 1);
         float[] x = new float[8], y = { 0.2f, 0.5f }, result = new float[2];
         net.Forward(x, result); net.Accumulate(x, y); net.Apply(0.01f);   // warm up
-        long start = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++)
+        // AllocationCounter (Controllers/Editor): GC.GetAllocatedBytesForCurrentThread reads 0 under Unity's GC.
+        long bytes = AllocationCounter.BytesDuring(() =>
         {
-            x[i % 8] = (i % 13) / 13f;
-            net.Forward(x, result);
-            net.Accumulate(x, y);
-            if (i % 10 == 9) net.Apply(0.01f);
-        }
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - start;
+            for (int i = 0; i < 1000; i++)
+            {
+                x[i % 8] = (i % 13) / 13f;
+                net.Forward(x, result);
+                net.Accumulate(x, y);
+                if (i % 10 == 9) net.Apply(0.01f);
+            }
+        });
         bool ok = bytes == 0;
         sb.Append(ok ? "  ok   " : "  FAIL ").Append("allocations: ").Append(bytes)
           .Append(" bytes over 1000 forward + accumulate steps\n");
