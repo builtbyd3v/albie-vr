@@ -34,7 +34,10 @@ public static class AutopilotCheck
         ok &= Check(sb, "mock autopilot drives the slalom", MockAutopilotDrives);
         ok &= Check(sb, "max_speed up drives faster", (out string note) => MaxSpeedDrivesFaster(cloners, out note));
         ok &= Check(sb, "bad learned files refused", BadFilesRefused);
-        ok &= Check(sb, "autopilot skips a failing candidate", (out string note) => AutopilotSkipsFailure(cloners[0], out note));
+        // The candidate that drives the most mock starts is the "good" one: which seed that is changes when the inputs do.
+        var good = cloners[0];
+        foreach (var c in cloners) if (MockTrial.Finishes(c) > MockTrial.Finishes(good)) good = c;
+        ok &= Check(sb, "autopilot skips a failing candidate", (out string note) => AutopilotSkipsFailure(good, out note));
         ok &= Check(sb, "autopilot reports when none is left", NoneLeft);
         ok &= Check(sb, "no allocations per step", (out string note) => NoAllocations(cloners[0], out note));
         return (ok ? "PASS" : "FAIL") + " autopilot check\n" + sb;
@@ -154,7 +157,7 @@ public static class AutopilotCheck
             ("unknown actuator", f => { f["outputs"][1]["actuator"] = "rotor.thrust"; return f; }, "unknown_channel"),
             ("missing weight row", f => { ((JArray)f["net"]["weights"][0]).RemoveAt(0); return f; }, "shape_mismatch"),
             ("short weight row", f => { ((JArray)f["net"]["weights"][1][0]).RemoveAt(0); return f; }, "shape_mismatch"),
-            ("sizes vs inputs", f => { f["net"]["sizes"][0] = 9; return f; }, "shape_mismatch"),
+            ("sizes vs inputs", f => { f["net"]["sizes"][0] = ((JArray)f["inputs"]).Count + 1; return f; }, "shape_mismatch"),
             ("too big", f => { f["net"]["sizes"][1] = 64; return f; }, "too_big"),
             ("NaN weight", f => { f["net"]["weights"][0][0][0] = double.NaN; return f; }, "bad_value"),
             ("unsupported output activation", f => { f["net"]["output_activation"] = "linear"; return f; }, "bad_value"),

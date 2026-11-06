@@ -8,13 +8,19 @@ using UnityEngine;
 /// <summary>
 /// Builds the Autopilot's pretrained fallback (PROJECT_CONTEXT 16.3, Nov 12: "Pretrained fallback ready"): the
 /// controller the Autopilot uses when every candidate trained live fails, so the demo's brain beat always lands.
-/// Drives 4 scripted laps through the real manual controller and recorder, trains 5 candidates, scores each on the
-/// mock slalom, and keeps the best. Deterministic: rebuilding gives the same weights (only the timing fields differ).
 ///
-/// Today it's trained on the fake truck (MockTruckSim), whose sensors match a sphere-cast ray fan on real colliders
-/// (walls too since 2026-11-06), and ThingRuntimeCheck checks it drives the physics example from all 15 starts. If the
-/// video uses it, the Devpost text says so (16.3).
-/// Forge > Controllers > Build Pretrained Fallback.
+/// It has to drive a room slalom it has never seen, so it learns from many rooms (16.8, "room slalom, part 2"):
+/// - laps: 4 scripted laps of the corridor, plus 2 of each of <see cref="Rooms"/> random rooms
+///   (<see cref="RoomCourses.Random"/>, seeds from 1000), all through the real manual controller and recorder;
+/// - <see cref="Seeds"/> candidates, 16×16 (one room's 8×8 is too small for many rooms);
+/// - it keeps the one that drives every corridor start (the physics check's slalom is the corridor) and the most starts
+///   on the 6 mock rooms and <see cref="SelectionRooms"/> other random rooms (seeds from 3000). RoomSlalomCheck tests it
+///   on rooms from seed 5000, which nothing here has seen.
+/// Deterministic: rebuilding gives the same weights (only the timing fields differ). About 5 minutes.
+///
+/// It's trained on the fake truck (MockTruckSim), whose sensors match a sphere-cast ray fan on real colliders, and
+/// ThingRuntimeCheck checks it drives the physics example from all 15 starts. If the video uses it, the Devpost text says
+/// so (16.3). Forge > Controllers > Build Pretrained Fallback.
 ///
 /// On the real truck, the proof is a brain that drove the real course: after laps by hand, B trains the candidates and
 /// the Autopilot keeps the one that finishes. Pull its file off the headset and make it the fallback with
@@ -25,38 +31,63 @@ public static class PretrainedFallbackBuilder
 {
     public const string ResourcePath = "Controllers/truck_autopilot_fallback";
     const string AssetPath = "Assets/_Forge/Controllers/Resources/Controllers/truck_autopilot_fallback.json";
-    const int Laps = 4, Seeds = 5;
+    public const int CorridorLaps = 4, Rooms = 32, SelectionRooms = 20, Seeds = 6;
+    static readonly int[] Hidden = { 16, 16 };
 
     [MenuItem("Forge/Controllers/Build Pretrained Fallback")]
     static void Menu() => Debug.Log("[Controllers] " + Build());
 
     public static string Build()
     {
-        var laps = BehaviourCloningCheck.DriveLaps(400, Laps);
-        if (laps.CompletedLaps < Laps) return $"only {laps.CompletedLaps}/{Laps} scripted laps completed; not written";
+        var laps = BehaviourCloningCheck.DriveLaps(400, CorridorLaps);
+        if (laps.CompletedLaps < CorridorLaps) return $"only {laps.CompletedLaps}/{CorridorLaps} scripted corridor laps completed; not written";
+        int rooms = 0;
+        for (int seed = 1000; rooms < Rooms; seed++)
+        {
+            var (_, course) = RoomCourses.Random(seed);
+            if (course == null) continue;
+            var set = MockLaps.Record(seed, 1f, MockLaps.Style.Varied, out _, out _, course);
+            foreach (var lap in set.Laps) if (lap.Outcome == "completed") laps.Laps.Add(lap);
+            rooms++;
+        }
+        var selection = new System.Collections.Generic.List<MockCourse>();
+        foreach (var (_, course) in RoomCourses.MockRooms()) selection.Add(course);
+        for (int seed = 3000, added = 0; added < SelectionRooms; seed++)
+        {
+            var (_, course) = RoomCourses.Random(seed);
+            if (course == null) continue;
+            selection.Add(course);
+            added++;
+        }
+        int roomStarts = selection.Count * MockTrial.RoomStarts;
+
         BehaviourCloner best = null;
-        int bestScore = -1;
+        int bestCorridor = -1, bestRooms = -1;
         var scores = new System.Text.StringBuilder();
         for (int seed = 1; seed <= Seeds; seed++)
         {
-            var cloner = new BehaviourCloner(laps, new BehaviourCloner.Options { Seed = seed });
+            var cloner = new BehaviourCloner(laps, new BehaviourCloner.Options { Seed = seed, Hidden = Hidden });
             cloner.TrainToEnd();
-            int score = MockTrial.Finishes(cloner);
-            scores.Append(seed == 1 ? "" : ", ").Append($"seed {seed}: {score}/{MockTrial.Starts}");
-            if (score > bestScore) { best = cloner; bestScore = score; }
+            int corridor = MockTrial.Finishes(cloner);
+            int inRooms = 0;
+            foreach (var course in selection) inRooms += MockTrial.Finishes(cloner, course);
+            scores.Append(seed == 1 ? "" : ", ").Append($"seed {seed}: corridor {corridor}/{MockTrial.Starts}, rooms {inRooms}/{roomStarts}");
+            bool better = corridor == MockTrial.Starts && (bestCorridor < MockTrial.Starts || inRooms > bestRooms);
+            if (best == null || better) { best = cloner; bestCorridor = corridor; bestRooms = inRooms; }
         }
-        if (bestScore < MockTrial.Starts) return $"no candidate finished every start ({scores}); not written";
+        if (bestCorridor < MockTrial.Starts) return $"no candidate drove every corridor start ({scores}); not written";
 
         var file = JObject.Parse(best.ToControllerJson("truck_autopilot_fallback", 1, 1.5f));
-        file["training"]["sim_check"] = $"{bestScore}/{MockTrial.Starts} mock slalom starts ({scores})";
+        file["training"]["sim_check"] = $"{bestCorridor}/{MockTrial.Starts} corridor starts, {bestRooms}/{roomStarts} starts in {selection.Count} rooms ({scores})";
+        file["training"]["rooms"] = rooms;
         file["notes"] = "Pretrained fallback for the Autopilot: used only when every candidate trained live fails. " +
-                        "Trained on the fake truck (MockTruckSim) from 4 scripted laps, with sphere-cast walls like a real ray fan. " +
-                        "Once the real truck has driven, replace it with a candidate that drove the real course " +
+                        $"Trained on the fake truck (MockTruckSim): 4 scripted corridor laps and 2 laps in each of {rooms} random room slaloms, " +
+                        "with course.bearing toward the next gate. Once the real truck has driven, replace it with a candidate that drove the real course " +
                         "(Forge > Controllers > Use Controller File As Fallback). If the video uses it, the Devpost text says so.";
         Directory.CreateDirectory(Path.GetDirectoryName(AssetPath));
         File.WriteAllText(AssetPath, file.ToString(Formatting.Indented) + "\n");
         AssetDatabase.Refresh();
-        return $"wrote {AssetPath}: seed {best.Settings.Seed}, {bestScore}/{MockTrial.Starts} starts, val loss {best.ValidationLoss:0.0000} ({scores})";
+        return $"wrote {AssetPath}: seed {best.Settings.Seed}, {bestCorridor}/{MockTrial.Starts} corridor starts, {bestRooms}/{roomStarts} room starts, val loss {best.ValidationLoss:0.0000} ({scores})";
     }
 
     [MenuItem("Forge/Controllers/Use Controller File As Fallback...")]

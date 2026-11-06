@@ -87,8 +87,16 @@ All values are **normalised**, so a controller works at desk scale and at true s
 | `sensor` (contact) | `<id>.hit` | 0 or 1 | Touching anything other than the floor this step. |
 | `body` | `<id>.upright` | -1 to 1 | Dot of the body's up and world up. Below about 0.3 means it has rolled over. |
 | `battery` | `<id>.charge` | 0 to 1 | Remaining charge. |
+| *(the course, proposed)* | `course.bearing` | -1 to 1 | Angle from the Thing's forward to the running course's next target, about its up axis, / 90°, clamped. Positive is left. The target is the next gate in order, then the finish. **0 when no course is running.** Every Thing has it; the arena's run engine sets the target (below). |
 
 **As built (ML A, 2026-11-06): the mock truck now follows this at walls too.** Until 2026-11-06, `MockTruckSim` and the Python mock gave only cones the beam and cast plain rays at walls. A sphere-cast fan on real colliders read those walls up to 0.21 m nearer, and the pretrained fallback crashed on the physics example. Both mocks now sphere-cast walls: the mock and `RayFan` on colliders agree to 0.0 mm on cones and walls (`ThingRuntimeCheck`), and the rebuilt fallback drives the physics example from all 15 starts.
+
+**Proposed (ML A with Person 5, 2026-11-06; needs Person 2 and the Core owner): `course.bearing`.** A ray fan alone can't drive a room slalom. Once the truck is behind a cone, the cone is dead ahead, and nothing in the rays says which side the next gate is on (in the old 3 m corridor the side rays saw both walls, which gave it away). On the six mock room slaloms, two laps then three candidates drove 5 of 48 attempts. Bigger nets, more epochs, more laps, a wider weave and gate posts got no better than 4 of 18. **With `course.bearing` added, it drove 48 of 48**, candidate 1 42 of 48.
+- **Where it comes from.** The run engine (`ArtifactRun`, C-12 section 5) knows the next gate, because it scores the gates in order. While a run is armed or running, it sets `CourseBeacon.Target` to the centre of the next zone in the ordered set, then to the finish. It clears it otherwise. A Thing's body computes the channel from its own pose (`CourseBeacon.Bearing`). It isn't a cheat on a real truck: the truck in the demo is a virtual Thing in the room, and the course is the artifact's.
+- **The Thing runtime (Person 2):** add `course.bearing` to every Thing's sensors, after its parts' channels, and fill it from `CourseBeacon.Bearing(position, forward, up)` each step, as `ExampleTruckBody` does.
+- **The mirror map** negates it (`"negate": [..., "course.bearing"]`).
+- **Mocks:** `MockTruckSim` and the Python mock both have it, and agree to 0.000003. The mock corridor is a course too: a gate on the side the scripted driver passes each cone, 0.4 m out, counted in order, so the channel means the same everywhere. The corridor's lap still ends at its finish line. The truck's mock sensors are now `ray_front.d0`-`d6`, `speed.forward`, `course.bearing`. A controller written for the 8 old channels still loads, because inputs bind by name.
+- **The 0 case.** With no course running, a learned driver gets a constant 0, which isn't what it learned from. When the corridor read 0, the backup brain had to learn two regimes, and only 1 seed in 6 drove the corridor. With the corridor's gates, all 6 do.
 
 ### 2.2 Actuators
 
@@ -105,7 +113,7 @@ Behaviour cloning doubles its data by mirroring each lap left to right (15.11). 
 
 ```json
 { "swap":   [["ray_front.d0", "ray_front.d6"], ["ray_front.d1", "ray_front.d5"], ["ray_front.d2", "ray_front.d4"]],
-  "negate": ["imu.roll", "imu.yaw_rate", "steer.angle"] }
+  "negate": ["imu.roll", "imu.yaw_rate", "steer.angle", "course.bearing"] }
 ```
 
 The recorder writes it into each lap file (section 4). For a centred ray fan, `d_i` pairs with `d_{n-1-i}`.

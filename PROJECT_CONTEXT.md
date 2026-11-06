@@ -2605,6 +2605,38 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Asked of Person 2:** a real truck that turns in about 0.25 m or less (`Controllers/README.md`, "For the Thing runtime").
 - **Next (part 2):** the Autopilot on room courses: laps, training and the fallback on `FloorSlalom` layouts.
 
+**ML A room slalom, part 2: the Autopilot on room courses (2026-11-06, Editor, mock truck).** The demo's brain beat on the courses `FloorSlalom` lays out in rooms, not the mock corridor.
+- **A course for the mock truck** (`MockCourse`, built from a room by `RoomCourses`): the slalom template's own fit, with the room's walls and furniture as segments. It's scored as the artifact scores it: gates in order, then the finish box (`missed_gate`, `missed_finish`).
+  - The corridor rebuilt as a course senses exactly like the built-in one, to 0.0 mm.
+  - Plain rays agree with each room's own free-floor test, to 2 mm.
+- **Finding: a ray fan alone can't drive a room slalom.** Two laps, then three candidates, drove **5 of 48** attempts in the 6 mock rooms. The scripted laps themselves were fine (60/60).
+  - Once the truck is behind a cone, nothing in the rays says which side the next gate is on. In the 3 m corridor, the side rays saw both walls, which gave it away.
+  - Bigger nets, more epochs, more laps and a wider weave got no better than 4 of 18. Gate posts (an outer cone at each gate) got 2 of 48.
+- **The fix: a `course.bearing` sensor** (C-19 section 2.1 and C-12 section 5, proposed, the user's call): the angle to the next gate in order, then the finish, over 90°.
+  - The run engine (`ArtifactRun`) publishes the target to `CourseBeacon`, and a Thing's body reads it.
+  - The mock corridor got gates too, so the channel means the same everywhere.
+  - **With it the loop drove 48 of 48.**
+
+  | `RoomSlalomCheck` | Result |
+  |---|---|
+  | The 6 mock rooms, 5 drivers each | **30/30 live** (25 on candidate 1), the fallback never needed |
+  | 20 random rooms nobody tested | **18/20 live**, the fallback drove the other 2, none failed |
+  | The fallback alone, 20 unseen rooms | 17/20 |
+  | The fallback alone, the mock living room / long hallway | **1/9 and 0/9 starts**: weak there |
+
+- **The fallback now learns from rooms:**
+  - 4 corridor laps plus 2 laps in each of 32 random rooms, a 16×16 net and 6 seeds;
+  - it keeps the seed that drives every corridor start and the most room starts (seed 6: 15/15 corridor, 59/78 room starts);
+  - it still drives the physics truck from all 15 starts.
+  - Room skill varies a lot by seed (21-59 of 78), which is why it's weak in some rooms.
+- **The corridor, with the new sensor:**
+  - Five in a row 5/5, candidate 1 4 of 5 (was 3).
+  - A trained candidate drove 40 of the 40-driver sweep (was 39).
+  - On the physics truck, candidate 1 drove every start, from real laps and from mock laps.
+- **Regenerated for Nandani's brain view:** the mock laps and mock autopilot now have 9 inputs (`course.bearing` last). The mock autopilot is now the first seed that finishes the corridor at `max_speed` 1.5 and 1.0, and faster at 1.5.
+- **Asked of Person 2 and the Core owner:** accept `course.bearing` (C-19 2.1). The Thing runtime fills it from `CourseBeacon.Bearing` each step (`Controllers/README.md`, "For the Thing runtime").
+- **Still to do:** the fallback in tight rooms (the living room, the hallway), and the real truck in a real room.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Forge.Controllers
 {
     /// <summary>
-    /// Two completed laps of the mock slalom, recorded the way a person drives them: through the real manual controller
+    /// Two completed laps of the mock slalom (or a room slalom, <see cref="MockCourse"/>), recorded the way a person drives them: through the real manual controller
     /// and <see cref="LapRecorder"/>, with <see cref="MockDriver"/> standing in for the person. A crashed lap is driven
     /// again. Used by <c>FiveInARowCheck</c> and the Quest timing kit (<see cref="QuestTimingKit"/>). Runs in one call
     /// and allocates, so don't call it every frame.
@@ -19,17 +19,19 @@ namespace Forge.Controllers
 
         const float Dt = 0.02f;
 
-        public static LapSet Record(int driverSeed, float noise, Style style, out float lapSeconds, out int redos)
+        public static LapSet Record(int driverSeed, float noise, Style style, out float lapSeconds, out int redos, MockCourse course = null)
         {
+            // A room course is driven slower and tighter (MockDriver.ForRoom); its faster lap is 0.9 m/s, not 1.5.
+            float cruise = course != null ? MockDriver.RoomCruise : 1.2f, faster = course != null ? 0.9f : 1.5f;
             lapSeconds = 0f; redos = 0;
             var host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
             var manual = ControllerFile.Parse(Resources.Load<TextAsset>("Mocks/controllers/truck_manual").text, out string error);
             if (manual == null) throw new InvalidOperationException(error);
             host.Attach(manual);
             var recorder = new LapRecorder(host.IO, "truck", 2, "truck_manual", MockTruckSim.MirrorSwap, MockTruckSim.MirrorNegate);
-            var sim = new MockTruckSim();
+            var sim = new MockTruckSim(course);
             // One driver for the session, so each lap (and a redo) has its own noise, like a person's.
-            var driver = new MockDriver(driverSeed, 1.2f, noise);
+            var driver = course != null ? MockDriver.ForRoom(driverSeed, noise) : new MockDriver(driverSeed, 1.2f, noise);
             int lap = 0;
             try
             {
@@ -37,11 +39,11 @@ namespace Forge.Controllers
                 {
                     if (lap >= 6) throw new InvalidOperationException($"driver {driverSeed} couldn't finish 2 laps in 6 tries");
                     int done2 = recorder.Set.CompletedLaps;
-                    driver.Cruise = style == Style.Varied ? 1.1f + 0.2f * (lap % 2) : style == Style.SecondLapFaster && done2 == 1 ? 1.5f : 1.2f;
+                    driver.Cruise = style == Style.Varied ? cruise - 0.1f + 0.2f * (lap % 2) : style == Style.SecondLapFaster && done2 == 1 ? faster : cruise;
                     if (style == Style.Varied) sim.Reset(0.04f * (lap % 3), 0.03f * (lap % 2)); else sim.Reset();
                     host.ResetState();
                     recorder.BeginLap();
-                    for (int i = 0; i < 1500 && !sim.Crashed && !sim.Finished; i++)
+                    for (int i = 0; i < 2000 && !sim.Crashed && !sim.Finished; i++)
                     {
                         sim.Sense(host.IO.Sensors);
                         driver.Drive(sim);

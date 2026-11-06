@@ -59,6 +59,7 @@ public static class ArtifactRunCheck
             SetupCourse();
             ok &= Check(sb, "arm → start → running, elapsed grows", Starts);
             ok &= Check(sb, "gates in order complete the course", Completes);
+            ok &= Check(sb, "course.bearing's target: each gate in order, then the finish, then none", BeaconTarget);
             ok &= Check(sb, "skipping a gate fails as missed_gate", MissedGate);
             ok &= Check(sb, "hitting a cone counts once, not per frame", Collisions);
             ok &= Check(sb, "upright below 0.3 for 1 s fails as rolled_over", RolledOver);
@@ -417,6 +418,50 @@ public static class ArtifactRunCheck
         if (run.State != ArtifactRunState.Running) return "the run ended during the measured ticks (" + run.State + "): measure a live run";
         if (grew != 0) return "allocated " + grew + " bytes";
         note = "4000 ticks of a live run, 0 bytes";
+        return null;
+    }
+
+    // The run publishes the Thing's next target for course.bearing (C-19 2.1, C-12 section 5, proposed 2026-11-06).
+    static string BeaconTarget(out string note)
+    {
+        note = null;
+        var (run, thing) = Fresh();
+        Forge.Controllers.CourseBeacon.Clear();
+        string Expect(Vector3 want, string when)
+        {
+            if (!Forge.Controllers.CourseBeacon.HasTarget) return when + ": no target";
+            float off = (Forge.Controllers.CourseBeacon.Target - want).magnitude;
+            return off > 1e-4f ? $"{when}: target {Forge.Controllers.CourseBeacon.Target}, expected {want}" : null;
+        }
+        run.Arm();
+        string error = Expect(gates[0].center, "armed");
+        if (error != null) return error;
+        thing.Position = start.center;
+        thing.SpeedMs = 1.4f;
+        run.Tick(0.02f);
+        if ((error = Expect(gates[0].center, "started")) != null) return error;
+        // Skipping gate 1 doesn't move the target on: it's still the next one in order.
+        thing.Position = gates[1].center;
+        run.Tick(0.02f);
+        if ((error = Expect(gates[0].center, "a gate skipped")) != null) return error;
+        for (int i = 0; i < gates.Length; i++)
+        {
+            thing.Position = gates[i].center;
+            run.Tick(0.02f);
+            if ((error = Expect(i + 1 < gates.Length ? gates[i + 1].center : finish.center, $"after gate {i + 1}")) != null) return error;
+        }
+        thing.Position = finish.center;
+        run.Tick(0.02f);
+        if (run.State != ArtifactRunState.Finished) return "the run didn't finish: " + run.State;
+        if (Forge.Controllers.CourseBeacon.HasTarget) return "a finished run left a target";
+        // The bearing itself: a truck at the start facing +z sees gate 1 on its right (negative).
+        run.Arm();
+        float bearing = Forge.Controllers.CourseBeacon.Bearing(start.center, Vector3.forward, Vector3.up);
+        float want = Forge.Controllers.MockTruckSim.BearingValue(-Mathf.Atan2(gates[0].center.x - start.center.x, gates[0].center.z - start.center.z));
+        run.Abort();
+        if (Mathf.Abs(bearing - want) > 1e-4f) return $"bearing from the start {bearing:0.000}, expected {want:0.000}";
+        if (Forge.Controllers.CourseBeacon.HasTarget) return "an aborted run left a target";
+        note = $"armed: gate 1; a skipped gate keeps it; then gates 2-{gates.Length}, the finish, none; from the start course.bearing is {bearing:+0.000;-0.000}";
         return null;
     }
 

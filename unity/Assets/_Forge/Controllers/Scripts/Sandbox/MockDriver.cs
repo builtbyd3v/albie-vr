@@ -4,13 +4,15 @@ namespace Forge.Controllers
 {
     /// <summary>
     /// A scripted stand-in for a person driving the mock slalom: pure pursuit along a weave (left of cone 0, right of
-    /// cone 1, ...) with smoothed noise on the steering, like a hand on a transmitter. Ported from
+    /// cone 1, ...; on a room course, through each gate's side, <see cref="MockCourse.PathY"/>) with smoothed noise on the steering, like a hand on a transmitter. Ported from
     /// hub/ml/make_controller_mocks.py. It writes <see cref="ManualInputs"/> (stick.y, hand.roll), so laps it drives go
     /// through the real manual controller, host and recorder. For checks and the sandbox's auto-lap key.
     /// </summary>
     public sealed class MockDriver
     {
-        const float Weave = 0.4f, Lookahead = 0.5f;
+        /// <summary>How far to each side of a cone the driver passes, and how far ahead it aims (the corridor's 0.4 and 0.5).</summary>
+        public float Weave = 0.4f, Lookahead = 0.5f;
+        const float CorridorWeave = 0.4f;
         /// <summary>
         /// The hand's wobble, in steer.angle units. 0.13 gives the path the same wobble the 0.25 did on the old, bigger
         /// truck (0.28 m, 30°): a stick wobble turns the 0.17 m, 35° truck about twice as sharply.
@@ -22,6 +24,13 @@ namespace Forge.Controllers
         public float Cruise;
         public float NoiseScale;
 
+        /// <summary>How a room slalom is driven: through the middle of each gate (0.3 m out), aiming 0.35 m ahead, at 0.7 m/s.</summary>
+        public const float RoomWeave = 0.3f, RoomLookahead = 0.35f, RoomCruise = 0.7f;
+
+        /// <summary>A driver for a room slalom (<see cref="MockCourse"/>). All 60 laps of 10 drivers in the 6 mock rooms finish.</summary>
+        public static MockDriver ForRoom(int seed, float noiseScale = 1f) =>
+            new MockDriver(seed, RoomCruise, noiseScale) { Weave = RoomWeave, Lookahead = RoomLookahead };
+
         public MockDriver(int seed, float cruise = 1.2f, float noiseScale = 1f)
         {
             rng = new Random(seed);
@@ -32,7 +41,7 @@ namespace Forge.Controllers
         /// <summary>Writes this step's stick inputs for the truck's current state.</summary>
         public void Drive(MockTruckSim sim)
         {
-            float tx = sim.X + Lookahead, ty = PathY(tx);
+            float tx = sim.X + Lookahead, ty = sim.Course != null ? sim.Course.PathY(tx, Weave) : PathY(tx);  // the corridor's weave is fixed
             float alpha = (float)Math.Atan2(ty - sim.Y, tx - sim.X) - sim.Heading;
             float distance = (float)Math.Sqrt((tx - sim.X) * (tx - sim.X) + (ty - sim.Y) * (ty - sim.Y));
             noise = 0.9f * noise + 0.1f * Gaussian() * Wobble * NoiseScale;
@@ -49,7 +58,7 @@ namespace Forge.Controllers
             float first = MockTruckSim.ConeX[0], last = MockTruckSim.ConeX[MockTruckSim.ConeX.Length - 1];
             float easeIn = Clamp01((x - 0.3f) / (first - 0.3f));
             float easeOut = Clamp01((MockTruckSim.FinishX + 0.3f - x) / (MockTruckSim.FinishX + 0.3f - last));
-            return Weave * (float)Math.Cos(Math.PI * (x - first) / MockTruckSim.ConeSpacing) * easeIn * easeOut;
+            return CorridorWeave * (float)Math.Cos(Math.PI * (x - first) / MockTruckSim.ConeSpacing) * easeIn * easeOut;
         }
 
         float Gaussian()

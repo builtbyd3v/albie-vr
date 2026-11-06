@@ -28,14 +28,18 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Sandbox/ObstacleTrial.cs` | Closed-loop brake test: cruise straight at a cone or wall from seeded starts that a perfect brake can always stop from. |
 | `Editor/MLTemplateCheck.cs` | **Forge > Controllers > Check ML Template**: 14 headless checks (data, label, training budget, the dataset made over frames, accuracy against the rule, the model file, bad nodes, ticking allocates nothing, closed loop, plugging in, `learned` still loads, and the three tools; every frame of a `template_train` run within budget). |
 | `Editor/AllocationCounter.cs` | How every Controllers check counts allocations: the profiler's "GC Allocated In Frame" counter. `GC.GetAllocatedBytesForCurrentThread` reads 0 under Unity's garbage collector, so a check built on it can't fail. `AllocationCounter.Start()` first proves the counter counts a 1 KB probe, and throws if it doesn't. The counter counts every thread, so `Start()` also waits until nothing allocates for two 5 ms windows in a row. A check that starts background work should let it finish first (`NotebookFiles.Flush()`). The ML and Artifacts checks use it too. |
-| `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. |
-| `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. |
+| `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. Give it a `MockCourse` and it drives that instead, scored as the artifact scores it (gates in order, then the finish box). |
+| `Scripts/Sandbox/MockCourse.cs` | A room slalom for the mock truck: cones, the room's walls and furniture as segments, gate and finish boxes, and the weave a driver follows. Allocation-free sphere casts. |
+| `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. `MockDriver.ForRoom` drives a room course (0.3 m weave, 0.7 m/s). |
+| `Scripts/Thing/CourseBeacon.cs` | Where `course.bearing` points (contract 2.1, proposed): the running course's next gate, then its finish. Person 5's run engine sets it; a Thing's body reads `CourseBeacon.Bearing`. |
+| `Editor/RoomCourses.cs` | Room slaloms for the mock truck: the slalom template's own fit in each mock room, or in random rooms nobody tested, as a `MockCourse`. |
+| `Editor/RoomSlalomCheck.cs` | **Forge > Controllers > Check Room Slalom** (about a minute): the demo loop on room slaloms. Geometry against the rooms, `course.bearing`, scripted laps, 5 demo attempts in each mock room, and 20 random rooms nobody tested, with the fallback alone too. |
 | `Scripts/Sandbox/MockTrial.cs` | Scores a trained net on the mock slalom from 15 starts (sandbox and checks only). |
 | `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`, lap recording, training. **9** rehearses the demo 5 times in a row on the live frame loop (about 2.5 min). An Autopilot run that hasn't finished in 30 s now counts as failed, so a stalled brain can't hang the demo. |
 | `Editor/ControllersSandboxBuilder.cs` | **Forge > Controllers > Build Sandbox** builds `ControllersSandbox.unity`. |
 | `Editor/ControllersCheck.cs` | **Forge > Controllers > Check Runner**: 9 headless checks. |
 | `Editor/HotReloadCheck.cs` | **Forge > Controllers > Check Hot Reload**: 9 headless checks (reload state rules, bad files, watcher, live max_speed, fallback, training record). |
-| `Editor/PretrainedFallbackBuilder.cs` | Builds the fallback from 4 scripted laps and 5 seeds, keeping the best on the mock slalom. **Use Controller File As Fallback** replaces it with a candidate that drove the real course. |
+| `Editor/PretrainedFallbackBuilder.cs` | Builds the fallback from 4 corridor laps plus 2 laps in each of 32 random room slaloms: a 16×16 net, 6 seeds, keeping the one that drives every corridor start and the most room starts (about 5 minutes). **Use Controller File As Fallback** replaces it with a candidate that drove the real course. |
 | `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
 | `Editor/FiveInARowCheck.cs` | **Forge > Controllers > Check Five In A Row** (about 30 s): the Nov 16 bar. The whole demo loop 5 times from scratch: two demo-style laps, 3 candidates trained 4 ms a frame, the Autopilot from a hand-placed start. It says who drove each time and gives the odds from 40 more drivers. |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
@@ -123,6 +127,8 @@ When only the tunables, version or notes change, the PID state is kept. Any othe
 - **swapping controllers** (`Attach(json)`; a bad file leaves the old one running);
 - **recording laps** (`BeginLap` / `EndLap`);
 - **registering the Thing** under its name, so Albie's tools reach it (`template_status`, `learned_brake`).
+
+**Add `course.bearing` to every Thing's sensors** (contract 2.1, proposed): after its parts' channels, filled each step with `CourseBeacon.Bearing(position, forward, up)`, as `ExampleTruckBody` does. Person 5's run engine sets the target. Without it a learned driver can't do a room slalom (5 of 48 attempts, against 48 of 48 with it).
 
 **Size the truck so it can weave the room slalom.** Its cones are 1.0–1.2 m apart, so the truck has to turn in about 0.25 m or less. The mock truck turns in 0.24 m (0.17 m wheelbase, 35° steering, 0.09 m body radius), and every mock brain and the pretrained fallback learned that. A truck that turns in 0.48 m (0.28 m, 30°) can't pass cones 0.8 m apart at all.
 
