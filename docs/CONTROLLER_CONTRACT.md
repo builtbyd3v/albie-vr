@@ -61,6 +61,15 @@ namespace Forge.Controllers
 - If `Tick` throws, the runtime zeroes the actuators, marks the controller **faulted**, shows the reason and stops calling it. It never crashes the scene.
 - The controller doesn't touch Rigidbodies, colliders or transforms. It only reads `Sensors` and writes `Actuators`.
 
+**As built (ML A, 2026-11-06): a reference plug for the runtime.** `Controllers/Scripts/Thing/` has an optional adapter. It adds nothing to the contract; it's one way to meet it. The Thing implements `IThingBody`:
+- `SensorNames` and `ActuatorNames`;
+- the mirror map;
+- `Sense(float[])`;
+- `ForwardSpeed`;
+- `Apply(float[], dt)`.
+
+`ControllerThing` then does the call order above each `FixedUpdate`, records laps (section 4) and registers the Thing with `ThingHosts` (section 5). `RayFan` is the section 2.1 ray fan on real colliders. `ExampleTruckBody` is a worked example, and `ThingRuntimeCheck` runs it on a slalom of real colliders. The steps are in `Controllers/README.md`, "For the Thing runtime".
+
 ## 2. Channel names
 
 A channel is `<part_id>.<channel>`. Part ids come from the Thing spec (C-16), so the truck spec decides that its motor is `drive` and its servo is `steer`. Channel names per part kind are part of this contract, and Person 2 confirms them against C-16.
@@ -78,6 +87,8 @@ All values are **normalised**, so a controller works at desk scale and at true s
 | `sensor` (contact) | `<id>.hit` | 0 or 1 | Touching anything other than the floor this step. |
 | `body` | `<id>.upright` | -1 to 1 | Dot of the body's up and world up. Below about 0.3 means it has rolled over. |
 | `battery` | `<id>.charge` | 0 to 1 | Remaining charge. |
+
+**As built (ML A, 2026-11-06): the mock truck differs from this at walls.** `MockTruckSim` and the Python mock give only cones the beam. They cast plain rays at walls, so a sphere-cast fan on real colliders reads walls up to 0.21 m nearer (`ThingRuntimeCheck`; cones agree to 0.0 mm). Laps from the real truck follow this section either way. **Brains and the pretrained fallback trained on the mock carry over badly** (on the physics example the fallback crashed), so they're retrained on the real truck's laps.
 
 ### 2.2 Actuators
 

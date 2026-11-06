@@ -38,6 +38,10 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
 | `Editor/FiveInARowCheck.cs` | **Forge > Controllers > Check Five In A Row** (about 30 s): the Nov 16 bar. The whole demo loop 5 times from scratch: two demo-style laps, 3 candidates trained 4 ms a frame, the Autopilot from a hand-placed start. It says who drove each time and gives the odds from 40 more drivers. |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
+| `Scripts/Thing/ControllerThing.cs` | **The plug for the Thing runtime:** `IThingBody` (sensors, speed, actuators) plus `ControllerThing`, which does the contract's call order each physics step, swaps controllers, records laps and registers the Thing with `ThingHosts`. |
+| `Scripts/Thing/RayFan.cs` | The ray-fan sensor on real colliders (contract section 2.1): sphere casts, d0 leftmost, 1 = nothing hit. Allocation-free. |
+| `Scripts/Thing/ExampleTruckBody.cs` | A worked `IThingBody`: the mock truck's driving model on a Unity transform, sensing real colliders. |
+| `Editor/ThingRuntimeCheck.cs` | **Forge > Controllers > Check Thing Runtime**: the example truck on a slalom of real colliders. It checks plugging in, sensors against the mock, Albie's tools reaching it, 0 bytes per step, and the real-laps loop (record, save, train, drive). |
 
 All three kinds run: manual, graph and learned. Graphs can also hold a `model` node, which is proposed in C-19 section 3.5.
 
@@ -76,13 +80,80 @@ When only the tunables, version or notes change, the PID state is kept. Any othe
 
 ## For the Thing runtime (Person 2)
 
-One host per Thing. In `FixedUpdate`:
+**The plug is `ControllerThing` plus your `IThingBody`** (`Scripts/Thing/`). Put both on the Thing. Your body does three things, and `ControllerThing` does everything else:
+- **the controller's call order each `FixedUpdate`:** sense, tick (NaN to 0, clamp, `limits.speed`), record, apply;
+- **swapping controllers** (`Attach(json)`; a bad file leaves the old one running);
+- **recording laps** (`BeginLap` / `EndLap`);
+- **registering the Thing** under its name, so Albie's tools reach it (`template_status`, `learned_brake`).
+
+```csharp
+public sealed class TruckBody : MonoBehaviour, IThingBody   // a sketch for a WheelCollider truck
+{
+    public Rigidbody body; public WheelCollider frontLeft, frontRight, rearLeft, rearRight;
+    public Transform sensorOrigin; public LayerMask obstacles;   // obstacles: not the floor
+    public float topSpeed = 3f, maxSteerDeg = 30f, maxTorque = 2f;
+
+    public string[] SensorNames => MockTruckSim.SensorNames;     // ray_front.d0-d6, speed.forward
+    public string[] ActuatorNames => MockTruckSim.ActuatorNames; // steer.angle, drive.throttle
+    public string[][] MirrorSwap => MockTruckSim.MirrorSwap;
+    public string[] MirrorNegate => MockTruckSim.MirrorNegate;
+    public float ForwardSpeed => Vector3.Dot(body.linearVelocity, transform.forward);
+
+    public void Sense(float[] sensors)
+    {
+        RayFan.Sense(gameObject.scene.GetPhysicsScene(), sensorOrigin.position, transform.forward, transform.up,
+                     7, 120f, 0.1f, 2f, obstacles, sensors, 0);            // 7 rays over 120°, 0.1 m beam, 2 m range
+        sensors[7] = Mathf.Clamp(ForwardSpeed / topSpeed, -1f, 1f);
+    }
+
+    public void Apply(float[] a, float dt)
+    {
+        frontLeft.steerAngle = frontRight.steerAngle = -a[0] * maxSteerDeg; // contract: + is left; WheelCollider: + is right
+        rearLeft.motorTorque = rearRight.motorTorque = a[1] * maxTorque;
+    }
+}
+```
+
+Then on the same GameObject, add `ControllerThing` with `thingName = "truck"`, `thingVersion` from the spec, and `controller = truck_manual.json`. For two laps by hand:
+
+```csharp
+thing.BeginLap();  /* drive */  thing.EndLap("completed");
+File.WriteAllText(path, thing.Recorder.Set.ToJson());   // albie.laps/1 (contract section 4), mirror map included
+```
+
+Then `BehaviourCloner` trains on them, as the sandbox's B key does.
+
+**The rules that bite:**
+- **`RayFan` follows contract section 2.1:** d0 is the leftmost ray, and 1 means nothing was hit. Each ray is a sphere cast with a `beam` radius, so a thin cone can't slip between two rays.
+- **Keep the beam smaller than the truck's half-width.** A sphere cast can't see what it already touches. If something is inside the beam at the origin, `RayFan` falls back to plain rays.
+- **Leave the floor out of `obstacles`.**
+- **`speed.forward` is speed / the drive's rated top speed** (a fixed scale), not `max_speed`.
+- **The actuators arrive already clamped to [-1, 1] and speed-limited.** Map them to torque and angle. Mind the steering sign: the contract's + is left, and `WheelCollider.steerAngle`'s + is right.
+- **`ControllerThing` allocates nothing per step.** Keep `Sense` and `Apply` that way too.
+
+**The worked example and its check:**
+- `ExampleTruckBody` is the mock truck's driving model on a Unity transform, with `RayFan` on real colliders.
+- **Forge > Controllers > Check Thing Runtime** builds the slalom from colliders in a preview scene and checks:
+  1. plugging in and refusing a bad file;
+  2. sensors against the mock's maths;
+  3. Albie's tools reaching the truck;
+  4. 0 bytes per step (about 6 µs, with 7 sphere casts);
+  5. **the real-laps loop on Unity physics:** two laps driven by hand, recorded, saved and read back, then trained. The new candidates drove it from 3 hand-placed starts, candidate 1 every time.
+
+**Train on the real truck's laps.** Brains trained on the mock truck carry over badly. On the physics example, only candidate 3 drove it, and the **pretrained fallback crashed**.
+
+The likely cause is the mock's walls. The mock (C# and Python) casts plain rays at walls, and gives only cones the beam. A sphere cast reads walls up to 0.21 m nearer, as the contract says it should.
+
+So **rebuild the pretrained fallback from the real truck's laps** before the demo relies on it. `Editor/PretrainedFallbackBuilder.cs` builds it from mock laps today.
+
+**The lower-level path, with no MonoBehaviour,** is one host per Thing. In `FixedUpdate`:
 
 ```csharp
 // once per Thing version
 var io = new ControllerIO(sensorNames, actuatorNames);   // e.g. "ray_front.d0" ... "speed.forward"; "steer.angle", "drive.throttle"
 var host = new ControllerHost(io);
 string why = host.Attach(ControllerFile.Parse(json, out string parseError));   // null = running
+ThingHosts.Register("truck", host);                      // so Albie's tools reach it; Unregister when it goes
 
 // every physics step
 WriteSensors(io.Sensors);                    // normalised, contract section 2
