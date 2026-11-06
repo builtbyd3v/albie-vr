@@ -47,6 +47,10 @@ public static class MLTemplateCheck
         ok &= Check(sb, "learned brake in closed loop: as safe as the best rule, drives further", ClosedLoop);
         ok &= Check(sb, "plugs into truck_cruise in place of its hand-written brake", PlugsIn);
         ok &= Check(sb, "learned controllers still load (shared net parser)", LearnedStillLoads);
+        ok &= Check(sb, "voice tools: definitions match the handlers", ToolDefinitions);
+        ok &= Check(sb, "template_train answers when done, saves the files, reports one training run", TrainTool);
+        ok &= Check(sb, "learned_brake on/off swaps the truck's controller and gives it back", BrakeTool);
+        TemplateRun.Reset();
         return (ok ? "PASS" : "FAIL") + " ML template check\n" + sb;
     }
 
@@ -310,5 +314,146 @@ public static class MLTemplateCheck
         if (refused == null || !refused.StartsWith("shape_mismatch: net.sizes[0]")) return "a wrong input count gave: " + (refused ?? "accepted");
         note = "truck_autopilot and the pretrained fallback attach; a bad shape still says net.sizes[0]";
         return null;
+    }
+
+    // ---- Albie's template tools (Resources/AlbieTools/controllers.json) ------------------------------------------
+
+    static string ToolDefinitions(out string note)
+    {
+        note = null;
+        var asset = Resources.Load<TextAsset>("AlbieTools/controllers");
+        if (asset == null) return "no Resources/AlbieTools/controllers.json";
+        var handlers = TemplateTools.Handlers();
+        var names = new List<string>();
+        foreach (JObject def in JArray.Parse(asset.text))
+        {
+            string name = (string)def["name"];
+            names.Add(name);
+            if (def["parameters"]?["type"]?.ToString() != "object") return name + " has no object parameters";
+            if (string.IsNullOrEmpty((string)def["description"])) return name + " has no description";
+            if (!handlers.ContainsKey(name)) return name + " has no handler";
+            if (name.StartsWith("ml_")) return name + ": ml_ tools are the cloud's, and Albie says they need the internet";
+        }
+        if (names.Count != handlers.Count) return $"{names.Count} definitions for {handlers.Count} handlers";
+        note = string.Join(", ", names);
+        return null;
+    }
+
+    static string checkFolder;
+
+    // Calls a tool the way AlbieTools does: a refusal (ArgumentException) comes back as {"error"}.
+    static List<JObject> CallTool(string name, JObject args)
+    {
+        var answers = new List<JObject>();
+        try { TemplateTools.Handlers()[name](args ?? new JObject(), r => answers.Add(r)); }
+        catch (ArgumentException e) { answers.Add(AlbieTools.Error(e.Message)); }
+        return answers;
+    }
+
+    static ControllerHost FakeTruck()
+    {
+        var host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
+        var manual = ControllerFile.Parse(Resources.Load<TextAsset>("Mocks/controllers/truck_manual").text, out string error);
+        if (error != null) throw new InvalidOperationException(error);
+        host.Attach(manual);
+        return host;
+    }
+
+    static void FreshRun()
+    {
+        TemplateRun.Reset();
+        checkFolder = Path.Combine(Path.GetTempPath(), "albie_ml_template_check");
+        if (Directory.Exists(checkFolder)) Directory.Delete(checkFolder, true);
+        TemplateRun.FolderOverride = checkFolder;
+    }
+
+    static string TrainTool(out string note)
+    {
+        note = null;
+        FreshRun();
+        var host = FakeTruck();
+        ThingHosts.Register("truck", host);
+        var reports = new List<(string controller, int version, JObject training)>();
+        void OnReport(string c, int v, JObject t) => reports.Add((c, v, t));
+        TrainingLog.Finished += OnReport;
+        try
+        {
+            var idle = CallTool("template_status", null)[0];
+            if ((string)idle["state"] != "idle" || (bool)idle["brake_on"]) return "status before training: " + idle.ToString(Newtonsoft.Json.Formatting.None);
+            var noModel = CallTool("learned_brake", new JObject { ["on"] = true })[0];
+            if (!((string)noModel["error"] ?? "").StartsWith("no_model")) return "learned_brake before training: " + noModel.ToString(Newtonsoft.Json.Formatting.None);
+
+            var answers = CallTool("template_train", null);
+            if (answers.Count != 0) return "template_train answered before training: " + answers[0].ToString(Newtonsoft.Json.Formatting.None);
+            var joined = CallTool("template_train", null);   // a second call joins the run
+            var mid = CallTool("template_status", null)[0];
+            if ((string)mid["state"] != "training") return "status while training: " + mid["state"];
+            int frames = 0;
+            while (!TemplateRun.Pump(FrameBudgetMs)) if (++frames > 2000) return "training never finished";
+            if (answers.Count != 1 || joined.Count != 1) return $"answers: {answers.Count} and {joined.Count} (expected one each)";
+            var r = answers[0];
+            if (r["error"] != null) return "template_train: " + r["error"];
+            if ((string)r["state"] != "done" || (string)r["controller"] != "truck_cruise_learned_brake" || !(bool)r["saved"]) return "result " + r.ToString(Newtonsoft.Json.Formatting.None);
+            if ((double)r["val_accuracy"] < 0.9 || (double)r["val_accuracy"] <= (double)r["rule_accuracy"]) return $"accuracy {r["val_accuracy"]} vs the rule's {r["rule_accuracy"]}";
+            string say = (string)r["say"];
+            string expected = $"{Math.Round((double)r["val_accuracy"] * 100)}% right on examples it hadn't seen; the simple front-sensor rule gets {Math.Round((double)r["rule_accuracy"] * 100)}%.";
+            if (say != expected) return $"say \"{say}\", expected \"{expected}\"";
+            if (!((string)r["next"]).Contains("learned_brake")) return "next doesn't offer the brake: " + r["next"];
+            if (!File.Exists(Path.Combine(checkFolder, "obstacle_ahead.json")) || !File.Exists(Path.Combine(checkFolder, "truck_cruise_learned_brake.json")))
+                return "files not saved in " + checkFolder;
+            if (reports.Count != 1) return reports.Count + " training reports for one run";
+            var rep = reports[0];
+            if (rep.controller != "truck_cruise_learned_brake" || (string)rep.training["task"] != "binary" || (string)rep.training["model"] != "obstacle_ahead")
+                return $"report {rep.controller} task {rep.training["task"]} model {rep.training["model"]}";
+            var done = CallTool("template_status", null)[0];
+            if ((string)done["state"] != "done" || (bool)done["brake_on"] || (string)done["controller"] != "truck_manual") return "status after training: " + done.ToString(Newtonsoft.Json.Formatting.None);
+            note = $"{frames + 1} frames; \"{say}\"";
+            return null;
+        }
+        finally
+        {
+            TrainingLog.Finished -= OnReport;
+            ThingHosts.Unregister("truck", host);
+        }
+    }
+
+    static string BrakeTool(out string note)
+    {
+        note = null;
+        if (TemplateRun.State != TemplateRun.Phase.Done) return "needs the run from the previous check";
+        var host = FakeTruck();
+        var noThing = CallTool("learned_brake", new JObject { ["on"] = true })[0];
+        if (!((string)noThing["error"] ?? "").StartsWith("no_thing")) return "with no truck: " + noThing.ToString(Newtonsoft.Json.Formatting.None);
+        ThingHosts.Register("truck", host);
+        try
+        {
+            var bad = CallTool("learned_brake", new JObject { ["on"] = "yes" })[0];
+            if (!((string)bad["error"] ?? "").StartsWith("bad_value")) return "on \"yes\": " + bad.ToString(Newtonsoft.Json.Formatting.None);
+            var on = CallTool("learned_brake", new JObject { ["on"] = true })[0];
+            if (on["error"] != null) return "on: " + on["error"];
+            if (host.File.Name != "truck_cruise_learned_brake" || (string)on["replaced"] != "truck_manual") return $"on: running {host.File.Name}, replaced {on["replaced"]}";
+            if (!(host.Current is GraphController)) return "the learned brake isn't a graph controller";
+            var again = CallTool("learned_brake", new JObject { ["on"] = true })[0];
+            if ((bool)again["changed"]) return "turning it on twice attached it twice";
+            if (!(bool)CallTool("template_status", null)[0]["brake_on"]) return "status doesn't say the brake is on";
+
+            // Retraining with the brake on goes into the same controller: the name doesn't grow.
+            var retrain = CallTool("template_train", null);
+            while (!TemplateRun.Pump(FrameBudgetMs)) { }
+            if ((string)retrain[0]["controller"] != "truck_cruise_learned_brake") return "retrained into " + retrain[0]["controller"];
+
+            var off = CallTool("learned_brake", new JObject { ["on"] = false })[0];
+            if (off["error"] != null) return "off: " + off["error"];
+            if (host.File.Name != "truck_manual") return "off: running " + host.File.Name + ", expected truck_manual back";
+            var offAgain = CallTool("learned_brake", new JObject { ["on"] = false })[0];
+            if (!((string)offAgain["error"] ?? "").StartsWith("not_on")) return "off twice: " + offAgain.ToString(Newtonsoft.Json.Formatting.None);
+            note = "truck_manual → truck_cruise_learned_brake → truck_manual; refusals no_model, no_thing, bad_value, not_on";
+            return null;
+        }
+        finally
+        {
+            ThingHosts.Unregister("truck", host);
+            if (checkFolder != null && Directory.Exists(checkFolder)) Directory.Delete(checkFolder, true);
+        }
     }
 }

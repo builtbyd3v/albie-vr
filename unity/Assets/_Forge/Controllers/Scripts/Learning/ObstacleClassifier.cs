@@ -168,13 +168,17 @@ namespace Forge.Controllers
             }
         }
 
-        /// <summary>Provenance for the model file and the notebook (C-17 <c>observed.training</c>).</summary>
-        public JObject TrainingBlock()
+        /// <summary>
+        /// Provenance for the model file and the notebook (C-17 <c>observed.training</c>). <c>task</c> is <c>binary</c>
+        /// and <c>model</c> names the classifier, so the notebook words the entry as a classifier, not as laps.
+        /// </summary>
+        public JObject TrainingBlock(string modelName = "obstacle_ahead")
         {
             Evaluate(out var model, out var baseline, out float threshold);
             JToken R(float v, int digits = 4) => float.IsNaN(v) || float.IsInfinity(v) ? JValue.CreateNull() : new JValue(Math.Round(v, digits));
             return new JObject
             {
+                ["task"] = "binary", ["model"] = modelName,
                 ["data"] = new JObject
                 {
                     ["source"] = "mock_truck_sim", ["samples"] = Data.Count, ["obstacle"] = Data.Positives,
@@ -210,7 +214,7 @@ namespace Forge.Controllers
             ["inputs"] = Inputs(),
             ["net"] = NetFile.Write(Net),
             ["threshold"] = 0.5,
-            ["training"] = TrainingBlock(),
+            ["training"] = TrainingBlock(name),
         };
 
         /// <summary>

@@ -50,6 +50,7 @@ public static class NotebookCheck
             ok &= Check(sb, "runs attach to the open entry", Runs);
             ok &= Check(sb, "an incident is added, outcome unchanged", Incident);
             ok &= Check(sb, "a training run becomes an entry", Training);
+            ok &= Check(sb, "the ML template's run is worded as a classifier", TemplateTraining);
             ok &= Check(sb, "versions are cut and pinned", Versions);
             ok &= Check(sb, "damaged files are moved aside", Damaged);
             ok &= Check(sb, "lessons carry across projects; hidden skipped", LessonsCarry);
@@ -305,6 +306,34 @@ public static class NotebookCheck
         // The next run is added to the training entry (demo step 8).
         if (NotebookStore.AttachRun("run_0002", "completed") != (string)e["id"]) return "the Autopilot's run didn't go to the training entry";
         note = $"{e["id"]}: \"{noteText}\"";
+        return null;
+    }
+
+    // The ML template (ML A): a classifier plugged into truck_cruise as its brake, not laps for the Autopilot.
+    static string TemplateTraining(out string note)
+    {
+        note = null;
+        Fresh();
+        var template = new ObstacleTemplate(600);
+        template.Classifier.TrainToEnd();
+        var block = template.Classifier.TrainingBlock(ObstacleTemplate.ModelName);
+        NotebookTools.ConnectTraining();
+        int before = NotebookStore.Entries.Count;
+        TrainingLog.Report("truck_cruise_learned_brake", 1, block);
+        if (NotebookStore.Entries.Count != before + 1) return $"{NotebookStore.Entries.Count - before} entries for one template run";
+        var e = OnDisk("proj_check", (string)NotebookStore.Newest()["id"]);
+        if ((string)e["kind"] != "training") return "kind " + e["kind"];
+        if ((string)e["change"] != "Trained obstacle_ahead on 600 samples, as the brake in truck_cruise_learned_brake.") return "change: " + e["change"];
+        if (!((string)e["rationale"]).StartsWith("Learn to tell from its sensors whether it hits a cone or wall within 0.6 s")) return "rationale: " + e["rationale"];
+        if ((string)e["expected"] != "The learned brake stops it before it hits something.") return "expected: " + e["expected"];
+        var training = (JObject)e["observed"]["training"];
+        foreach (var field in block) if (!JToken.DeepEquals(field.Value, training[field.Key])) return $"training.{field.Key} wasn't copied as it is";
+        string noteText = (string)e["observed"]["note"];
+        string accuracy = ((double)block["val_accuracy"]).ToString("0.0%", System.Globalization.CultureInfo.InvariantCulture);
+        string rule = ((double)block["baseline"]["val_accuracy"]).ToString("0.0%", System.Globalization.CultureInfo.InvariantCulture);
+        if (noteText == null || !noteText.StartsWith("600 samples, 60 epochs") || !noteText.Contains(accuracy + " right on held-out samples (the rule " + block["baseline"]["rule"] + ": " + rule + ")"))
+            return "note: " + noteText;
+        note = $"{e["id"]}: \"{e["change"]}\" / \"{noteText}\"";
         return null;
     }
 
