@@ -30,12 +30,13 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. |
 | `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. |
 | `Scripts/Sandbox/MockTrial.cs` | Scores a trained net on the mock slalom from 15 starts (sandbox and checks only). |
-| `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`, lap recording, training. |
+| `Scripts/Sandbox/ControllersSandbox.cs` | Desktop sandbox: keyboard driving, controller switching, live `max_speed`, lap recording, training. **9** rehearses the demo 5 times in a row on the live frame loop (about 2.5 min). An Autopilot run that hasn't finished in 30 s now counts as failed, so a stalled brain can't hang the demo. |
 | `Editor/ControllersSandboxBuilder.cs` | **Forge > Controllers > Build Sandbox** builds `ControllersSandbox.unity`. |
 | `Editor/ControllersCheck.cs` | **Forge > Controllers > Check Runner**: 9 headless checks. |
 | `Editor/HotReloadCheck.cs` | **Forge > Controllers > Check Hot Reload**: 9 headless checks (reload state rules, bad files, watcher, live max_speed, fallback, training record). |
 | `Editor/PretrainedFallbackBuilder.cs` | Builds the fallback from 4 scripted laps and 5 seeds, keeping the best on the mock slalom. Rebuild it on the real Thing runtime. |
 | `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
+| `Editor/FiveInARowCheck.cs` | **Forge > Controllers > Check Five In A Row** (about 30 s): the Nov 16 bar. The whole demo loop 5 times from scratch: two demo-style laps, 3 candidates trained 4 ms a frame, the Autopilot from a hand-placed start. It says who drove each time and gives the odds from 40 more drivers. |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
 
 All three kinds run: manual, graph and learned. Graphs can also hold a `model` node, which is proposed in C-19 section 3.5.
