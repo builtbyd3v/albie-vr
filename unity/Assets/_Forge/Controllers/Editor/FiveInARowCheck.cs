@@ -117,6 +117,9 @@ public static class FiveInARowCheck
     }
 
     /// <summary>One demo attempt from scratch.</summary>
+    /// <summary>The training settings for candidate seed 1-3 (null: the trainer's defaults, as the sandbox uses).</summary>
+    public static Func<int, BehaviourCloner.Options> OptionsFor;
+
     public static Attempt Attempt1(int driverSeed, float noise, ControllerFile fallback, LapStyle style = LapStyle.Demo)
     {
         var a = new Attempt { DriverSeed = driverSeed, Noise = noise };
@@ -125,7 +128,7 @@ public static class FiveInARowCheck
         var cloners = new BehaviourCloner[Candidates];
         for (int i = 0; i < Candidates; i++)
         {
-            cloners[i] = new BehaviourCloner(laps, new BehaviourCloner.Options { Seed = i + 1 });
+            cloners[i] = new BehaviourCloner(laps, OptionsFor?.Invoke(i + 1) ?? new BehaviourCloner.Options { Seed = i + 1 });
             while (!cloners[i].Step(FrameBudgetMs)) a.Frames++;
             a.Frames++;
             a.ComputeMs += cloners[i].ComputeSeconds * 1000;
@@ -173,7 +176,7 @@ public static class FiveInARowCheck
     public enum LapStyle { Demo, SecondLapFaster, Varied }
 
     // Two completed laps, like a person: a crashed lap is driven again (by the next driver seed).
-    static LapSet RecordLaps(int driverSeed, float noise, Attempt a, LapStyle style)
+    public static LapSet RecordLaps(int driverSeed, float noise, Attempt a, LapStyle style)
     {
         var host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
         var manual = ControllerFile.Parse(Resources.Load<TextAsset>("Mocks/controllers/truck_manual").text, out string error);

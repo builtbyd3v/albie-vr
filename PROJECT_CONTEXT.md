@@ -2482,7 +2482,22 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   | Varied speed and start | 25/30 | 30/30 |
 
   A person's speed varies more than the scripted driver's, so the real truck may do better than this.
-- **Next (ML A):** make training robust to steady laps, for example speed jitter while training, then rerun this check. Until then, the demo script should say "drive the second lap a bit faster".
+- **Fixed with speed jitter (2026-11-05, Editor).** `BehaviourCloner` now adds Gaussian noise (σ 0.06 of `speed.forward`, about 0.18 m/s) to the speed input of each training row, fresh every epoch. Validation rows stay clean, it allocates nothing, and the noise has its own random generator.
+  - **Why it works:** with two laps at one steady speed, the net uses speed as a cue for where it is on the course. The noise takes that cue away.
+  - **Results** (tuned on drivers 2000+, confirmed on drivers 3000+ and 4000+):
+
+    | Laps | Candidate 1 before | Candidate 1 after | A trained candidate, before → after |
+    |---|---|---|---|
+    | Demo-style, 60 drivers | 23/60 | 56/60 | 55/60 → 60/60 |
+    | Sloppy drivers (2× noise), 30 | 11/30 | 24/30 | 25/30 → 29/30 |
+    | Varied, tuning set | 25/30 | 25/30 | unchanged |
+    | Second lap faster | 22/30 | 25/30 | 29/30 → 30/30 |
+
+  - **The check and the live rehearsal:** `FiveInARowCheck` now has candidate 1 driving all 5 (it was 0/5), and the live sandbox rehearsal (key 9) too (it was 2/5), so nothing crashes before it works.
+  - **Two traps found along the way:**
+    - Noise on the rays made things worse (8/30), so it stays off.
+    - At first the noise shared the shuffle's random generator. Then even tiny noise changed the training order and made varied laps look 2× worse. That was a lottery effect, not the noise.
+  - **The demo no longer needs a "drive the second lap faster" tip.** Still to do: confirm on the Quest and Person 2's real truck.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.

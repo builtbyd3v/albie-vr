@@ -17,7 +17,7 @@ namespace Forge.Controllers
     /// the training rows' mean and std. Every <see cref="Options.ValidationEvery"/>-th row is held out for validation.
     ///
     /// Defaults come from closed-loop sweeps on the mock slalom (PROJECT_CONTEXT 16.8, Nov 8 decision): 8×8 tanh,
-    /// 120 epochs, no mirroring. Mirroring hurts on a course with a handedness, like a slalom: it teaches "pass left"
+    /// 120 epochs, no mirroring, and (Nov 16) speed jitter 0.06 so two steady laps still train a good first candidate. Mirroring hurts on a course with a handedness, like a slalom: it teaches "pass left"
     /// and "pass right" for the same view, and the net averages them into "straight into the cone". One training run
     /// finishes the mock slalom about 70-90% of the time; the best of 3 seeds about 99%. Validation loss can't tell
     /// the good seed apart (it picked worse than chance), so train a few and let the first arena run decide.
@@ -38,6 +38,16 @@ namespace Forge.Controllers
             public bool Mirror;
             public int ValidationEvery = 7;
             public int Seed = 1;
+            /// <summary>
+            /// Gaussian noise (σ, in channel units: 0.06 of speed.forward is about 0.18 m/s on the truck) added to each
+            /// training row's <c>speed.*</c> inputs, fresh every epoch; validation rows stay clean. Two laps at one steady
+            /// speed let the net use speed as a cue for where it is on the course, which it can't rely on when it drives.
+            /// With demo-style laps candidate 1 drove the mock slalom 56/60 times with it, 23/60 without; varied laps
+            /// were unchanged (PROJECT_CONTEXT 16.8, Nov 16 findings). 0 = off.
+            /// </summary>
+            public float SpeedJitter = 0.06f;
+            /// <summary>The same for the <c>ray*</c> inputs (sensor noise). Off: 0.02 made candidate 1 worse (8/30 vs 12/30).</summary>
+            public float RayJitter;
         }
 
         public readonly Options Settings;
@@ -61,6 +71,13 @@ namespace Forge.Controllers
         readonly Random rng;
         readonly Stopwatch compute = new Stopwatch(), slice = new Stopwatch();
         readonly float[] scratch;
+        // Training-time input noise: σ per input in standardised units, and the row it's added to.
+        readonly float[] jitter, noisy;
+        readonly bool jittering;
+        // Its own generator, so turning jitter on doesn't change the shuffle order (that alone moves results a lot).
+        readonly Random noiseRng;
+        bool haveSpare;
+        double spare;
         int cursor;
         double epochLoss;
 
@@ -106,7 +123,16 @@ namespace Forge.Controllers
 
             Net = new NNNetwork(sensors, Settings.Hidden, actuators, Settings.Activation, Settings.Seed);
             scratch = new float[sensors];
+            jitter = new float[sensors]; noisy = new float[sensors];
+            for (int f = 0; f < sensors; f++)
+            {
+                string channel = laps.Sensors[f];
+                float sigma = channel.StartsWith("speed.", StringComparison.Ordinal) ? Settings.SpeedJitter
+                            : channel.StartsWith("ray", StringComparison.Ordinal) ? Settings.RayJitter : 0f;
+                if (sigma > 0f) { jitter[f] = sigma / Std[f]; jittering = true; }
+            }
             rng = new Random(Settings.Seed);
+            noiseRng = new Random(Settings.Seed * 7919 + 17);
             Shuffle();
         }
 
@@ -150,13 +176,29 @@ namespace Forge.Controllers
             {
                 // A whole batch at a time, so the time check stays cheap.
                 for (int b = 0; b < batch && cursor < train.Length; b++, cursor++)
-                    epochLoss += Net.Accumulate(xs[train[cursor]], ys[train[cursor]]);
+                    epochLoss += Net.Accumulate(jittering ? Jittered(xs[train[cursor]]) : xs[train[cursor]], ys[train[cursor]]);
                 Net.Apply(Settings.LearningRate);
                 if (cursor >= train.Length) EndEpoch();
                 if (slice.Elapsed.TotalMilliseconds >= budgetMs) break;
             }
             compute.Stop();
             return Done;
+        }
+
+        float[] Jittered(float[] row)
+        {
+            for (int f = 0; f < row.Length; f++) noisy[f] = jitter[f] == 0f ? row[f] : row[f] + jitter[f] * (float)Gaussian();
+            return noisy;
+        }
+
+        // Box-Muller, two values per pair of uniforms; no allocations.
+        double Gaussian()
+        {
+            if (haveSpare) { haveSpare = false; return spare; }
+            double u = 1.0 - noiseRng.NextDouble(), v = noiseRng.NextDouble();
+            double r = Math.Sqrt(-2.0 * Math.Log(u)), a = 2.0 * Math.PI * v;
+            spare = r * Math.Sin(a); haveSpare = true;
+            return r * Math.Cos(a);
         }
 
         /// <summary>Trains to the end in one call (tests, the Editor, a background thread).</summary>
@@ -198,7 +240,7 @@ namespace Forge.Controllers
         public JObject TrainingBlock()
         {
             JToken Loss(float v) => float.IsNaN(v) || float.IsInfinity(v) ? JValue.CreateNull() : new JValue(Math.Round(v, 5));
-            return new JObject
+            var block = new JObject
             {
                 ["samples"] = train.Length + validation.Length,
                 ["mirrored"] = Settings.Mirror,
@@ -211,6 +253,9 @@ namespace Forge.Controllers
                 ["seed"] = Settings.Seed,
                 ["hidden"] = JArray.FromObject(Settings.Hidden),
             };
+            if (Settings.SpeedJitter > 0f) block["speed_jitter"] = Math.Round(Settings.SpeedJitter, 4);
+            if (Settings.RayJitter > 0f) block["ray_jitter"] = Math.Round(Settings.RayJitter, 4);
+            return block;
         }
 
         /// <summary>The <c>albie.controller/1</c> learned file (contract section 3.4) for the trained net.</summary>
