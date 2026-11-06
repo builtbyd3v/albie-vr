@@ -189,6 +189,7 @@ Nodes run **in list order** each tick. A later write to an actuator overrides an
 | `gain` | `a`, optional `b`, `k`, optional `offset`, `output` | `k * (a - b) + offset`. `a` and `b` are channel names or numbers. |
 | `pid` | `input`, `setpoint`, `kp`, `ki`, `kd`, optional `i_limit`, `output` | Standard PID on `setpoint - input`. The integral is clamped to ±`i_limit` (default 1). |
 | `rule` | `if: [channel, op, value]`, `set: {actuator: value}` | Writes each value only when the condition holds. `op` is one of `<`, `<=`, `>`, `>=`. |
+| `model` (proposed, 3.5) | `model: {inputs, net}`, `threshold`, `set` | Like `rule`, but the condition is a trained classifier's probability ≥ `threshold`. |
 
 There's deliberately **no expression language and no script**: the agent writes these, and the file is data, not code (D-10, D-18). Sandboxed scripts are Phase 2.
 
@@ -232,6 +233,34 @@ There's deliberately **no expression language and no script**: the agent writes 
 | `training` | Provenance only. The runner ignores it. The notebook (C-17) copies it into the attempt record. Optional extras: `sim_check` (a sim result, as text) and `candidates` (every candidate's block when several were trained). |
 
 The weights are stored as plain decimals, not base64, so a diff in code mode shows which layer changed. A net this small is a few KB.
+
+### 3.5 `model` node and `albie.model/1` (proposed, ML A, 2026-11-05: needs Person 2's OK)
+
+The ML template (PROJECT_CONTEXT 15.5: "train a model, then plug it into a Thing") needs a trained classifier to drive part of a controller. The smallest way to do that without adding expressions or scripts is a graph node that works like a `rule` whose condition was learned:
+
+```json
+{ "id": "brake", "type": "model",
+  "model": { "name": "obstacle_ahead",
+             "inputs": [ { "channel": "ray_front.d0", "mean": 0.62, "std": 0.28 }, "... one per input" ],
+             "net": { "sizes": [8, 8, 1], "activation": "tanh", "output_activation": "tanh", "weights": [], "biases": [] } },
+  "threshold": 0.5,
+  "set": { "drive.throttle": -1 } }
+```
+
+| Field | Rule |
+|---|---|
+| `model.inputs`, `model.net` | The same blocks and checks as a `learned` controller (section 3.4), with **one** output. The probability is `(y + 1) / 2` of the tanh output. |
+| `threshold` | A probability from 0 to 1, or a `$tunable`. Default 0.5. |
+| `set` | The same as `rule`: these actuators get these values on every tick where the probability is at or above `threshold`. |
+
+- Put it last, like a safety rule, so it overrides the cruise throttle (section 3.3).
+- The net is **inline**, so the controller file stays one self-contained file that code mode can diff. There's no file reference to resolve.
+- The errors use the same codes: `unknown_channel`, `shape_mismatch`, `too_big`, `bad_value`. Paths are prefixed with the node, for example `nodes[3].model.net.sizes[0]`.
+- It ticks with no allocations, like a `learned` controller.
+
+**`albie.model/1`** is the trained classifier on its own (`controllers/obstacle_ahead.json`), for the notebook and code mode. It has `schema`, `name`, `version`, `thing`, `task` (`binary`), `classes`, `inputs`, `net` and `threshold`, plus `training` (data, accuracy, precision, recall, confusion, and the front-ray baseline it was compared with). The runner never reads it: the graph node carries its own copy of the net.
+
+**As built:** `GraphController` (the `model` node), `NetFile` (the parser shared with `learned`), and `ObstacleClassifier.ToModelJson` / `ToGraphNode`. The checks are **Forge > Controllers > Check ML Template**. If Person 2 prefers a reference to a model file over an inline net, only `ToGraphNode` and the node's `model` field change.
 
 ## 4. Lap recording: `albie.laps/1`
 
@@ -280,8 +309,13 @@ The recorder (ML A) writes one file per recording session. Training reads it, an
 | `brain_record {start\|stop}` | Records laps while you drive. | No |
 | `brain_train {laps?, epochs?}` | Trains on the device and writes `controllers/<thing>_autopilot.json`. | No |
 | `autopilot_on` / `autopilot_off` | Attaches the learned or the manual controller. | No |
+| `template_train` | Runs the on-device ML template (section 3.5): makes the data, trains, saves `obstacle_ahead.json` and `<base>_learned_brake.json`, and logs a notebook `training` entry. A slow tool: it answers when training is done (about 24 frames). | No |
+| `template_status {thing?}` | The template's state (idle, training with the epoch, done with its accuracy and the rule it was compared with, failed) and whether the learned brake is on the Thing. | No |
+| `learned_brake {on, thing?}` | Puts the learned brake on a Thing, or gives it back the controller it had before. | No |
 
 None of these send anything off the device or spend money, so none of them need a confirm step under the 14.6 rules.
+
+**As built (ML A, 2026-11-05):** the three template tools are in `Controllers/Resources/AlbieTools/controllers.json` (handlers in `TemplateTools.cs`), not in `ML/`: they're ML A's, and the `ml_` prefix is taken by the cloud tools. They reach a Thing through `ThingHosts`: whoever runs a Thing registers its `ControllerHost` by Thing name (`ThingHosts.Register("truck", host)`). Today that's the Controllers sandbox's mock truck. **Person 2's Thing runtime should do the same** when it attaches a controller.
 
 ## 6. Hot reload
 

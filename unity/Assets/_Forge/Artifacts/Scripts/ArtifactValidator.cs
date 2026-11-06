@@ -28,6 +28,9 @@ namespace Forge.Artifacts
         static readonly Regex NodeIdRule = new Regex("^[a-z0-9_]+$");
         static readonly Regex InputRef = new Regex(@"^\$[a-z][a-z0-9_]*$");
         static readonly Regex SourceRule = new Regex(@"^(builtin:[a-z0-9_]+|connector:[a-z0-9_]+/[a-z0-9_]+)$");
+        static readonly Regex SnapshotRule = new Regex(@"^data/[a-z0-9_-]+\.json$");
+        static readonly Regex HashRule = new Regex("^[0-9a-fA-F]{64}$");
+        static readonly Regex ColorRule = new Regex("^#[0-9a-fA-F]{6}$");
         static readonly HashSet<string> FreeText = new HashSet<string> { "text", "title", "label" };
 
         // Common slips, so the agent gets a fix and not just a refusal.
@@ -127,11 +130,22 @@ namespace Forge.Artifacts
                         if (name != null) tables.Add(name);
                         if (source == null || !SourceRule.IsMatch(source))
                             Add("bad_value", $"data[{i}].source", "use builtin:<name> or connector:<connector>/<tool>");
+                        else if (source.StartsWith("connector:") && !Asks(ArtifactData.Permission(source)))
+                            Add("permission_missing", $"data[{i}].source", $"{source} needs \"{ArtifactData.Permission(source)}\" in permissions.connectors");
+                        string snapshot = data[i].Value<string>("snapshot");
+                        if (snapshot != null && !SnapshotRule.IsMatch(snapshot))
+                            Add("bad_value", $"data[{i}].snapshot", "use data/<name>.json");
                     }
 
                 if (manifest["assets"] is JArray list)
-                    foreach (var asset in list)
-                        if (asset.Value<string>("path") != null) assets.Add(asset.Value<string>("path"));
+                    for (int i = 0; i < list.Count; i++)
+                    {
+                        string path = list[i].Value<string>("path"), at = $"assets[{i}]";
+                        if (path == null || !ArtifactPackage.SafeAsset.IsMatch(path)) Add("bad_value", at + ".path", "use assets/<name>.glb");
+                        else if (!assets.Add(path)) Add("bad_value", at + ".path", $"\"{path}\" is listed twice");
+                        if (!HashRule.IsMatch(list[i].Value<string>("sha256") ?? "")) Add("bad_value", at + ".sha256", "needs the file's sha256, as 64 hex digits");
+                        if (string.IsNullOrEmpty(list[i].Value<string>("license"))) Add("bad_value", at + ".license", "required (CC0, CC-BY-4.0, own)");
+                    }
             }
 
             void Inputs()
@@ -196,6 +210,13 @@ namespace Forge.Artifacts
 
             string Permission(string key) => (manifest["permissions"] as JObject)?.Value<string>(key);
 
+            bool Asks(string connector)
+            {
+                if (manifest["permissions"]?["connectors"] is JArray list)
+                    foreach (var c in list) if ((string)c == connector) return true;
+                return false;
+            }
+
             void Generators(string space)
             {
                 if (!(scene["generators"] is JArray list)) return;
@@ -234,6 +255,8 @@ namespace Forge.Artifacts
             static bool IsZone(JObject n) =>
                 n.Value<string>("kind") == "zone" || (n.Value<string>("kind") == "array" && n["template"]?.Value<string>("kind") == "zone");
 
+            static bool IsNumber(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
+
             void Node(JObject n, string path)
             {
                 string kind = n.Value<string>("kind");
@@ -268,6 +291,12 @@ namespace Forge.Artifacts
                     case "gltf":
                         string asset = n.Value<string>("asset");
                         if (asset == null || !assets.Contains(asset)) Add("asset_not_listed", path + ".asset", $"\"{asset}\" isn't in the manifest");
+                        break;
+                    case "timeline":
+                        var duration = n["duration_s"];
+                        if (!IsNumber(duration) || duration.Value<double>() <= 0.0) Add("bad_value", path + ".duration_s", "needs a number of seconds above 0");
+                        foreach (string flag in new[] { "loop", "autoplay" })
+                            if (n[flag] != null && n[flag].Type != JTokenType.Boolean) Add("bad_value", path + "." + flag, "true or false");
                         break;
                     case "line":
                         if (n["points"] == null && n["source"] == null && n["follow"] == null) Add("bad_value", path, "needs points, a source or follow");
@@ -375,23 +404,89 @@ namespace Forge.Artifacts
                     if (type == "on_input" && !buttons.Contains(rules[i].Value<string>("input") ?? ""))
                         Add("unknown_ref", path + ".input", $"no button \"{rules[i].Value<string>("input")}\"");
                     if (type == "on_zone") ZoneRef(rules[i].Value<string>("zone"), path + ".zone");
+                    if (type == "animate") Animate(rules[i], path);
                     if (rules[i]["do"] is JArray actions)
                         for (int a = 0; a < actions.Count; a++)
                         {
                             string target = actions[a].Value<string>("set");
                             if (target != null && !nodes.ContainsKey(target.Split('.')[0]))
                                 Add("unknown_ref", $"{path}.do[{a}].set", $"no node \"{target.Split('.')[0]}\"");
+                            string timeline = actions[a].Value<string>("timeline");
+                            if (timeline == null) continue;
+                            TimelineRef(timeline, $"{path}.do[{a}].timeline");
+                            if (!ArtifactSchema.TimelineActions.Contains(actions[a].Value<string>("action") ?? ""))
+                                Add("bad_value", $"{path}.do[{a}].action", "play, pause or restart");
                         }
                 }
             }
 
+            readonly HashSet<string> animated = new HashSet<string>();
+
+            void Animate(JToken rule, string path)
+            {
+                string target = rule.Value<string>("target"), property = rule.Value<string>("property");
+                JObject clock = TimelineRef(rule.Value<string>("timeline"), path + ".timeline");
+                if (target == null || !nodes.TryGetValue(target, out var node)) Add("unknown_ref", path + ".target", $"no node \"{target}\"");
+                else if (node.Value<string>("kind") == "timeline" || node.Value<string>("kind") == "panel")
+                    Add("bad_value", path + ".target", $"a {node.Value<string>("kind")} can't be animated");
+                else if (node["at"] != null && (property == "pos" || property == "rot"))
+                    Add("bad_value", path + ".property", $"\"{target}\" stands on a slot, so its {property} can't be animated");
+                if (property == null || !ArtifactSchema.AnimateProperties.TryGetValue(property, out string shape))
+                {
+                    Add("bad_value", path + ".property", "use pos, rot, scale, visible or color");
+                    return;
+                }
+                if (target != null && !animated.Add(target + "." + property)) Add("bad_value", path, $"{target}.{property} is animated twice");
+                if (!(rule["keys"] is JArray keys) || keys.Count == 0)
+                {
+                    Add("bad_value", path + ".keys", "at least one [t, value] is required");
+                    return;
+                }
+                if (keys.Count > ArtifactSchema.MaxKeys) Add("too_big", path + ".keys", $"{keys.Count} is over the limit of {ArtifactSchema.MaxKeys}");
+                double end = clock != null && IsNumber(clock["duration_s"]) ? clock.Value<double>("duration_s") : double.MaxValue, before = -1.0;
+                for (int k = 0; k < keys.Count; k++)
+                {
+                    string at = $"{path}.keys[{k}]";
+                    if (!(keys[k] is JArray key) || key.Count != 2 || !IsNumber(key[0])) { Add("bad_value", at, "use [t, value]"); continue; }
+                    double t = key[0].Value<double>();
+                    if (t < 0.0 || t > end) Add("bad_value", at, $"t {t} is outside the timeline (0 to {end} s)");
+                    else if (t < before) Add("bad_value", at, "times have to go up");
+                    before = t;
+                    if (!KeyValue(property, key[1])) Add("bad_value", at, $"{property} takes {shape}");
+                }
+            }
+
+            static bool KeyValue(string property, JToken v)
+            {
+                switch (property)
+                {
+                    case "visible": return v.Type == JTokenType.Boolean;
+                    case "color": return v.Type == JTokenType.String && ColorRule.IsMatch((string)v);
+                    case "scale" when IsNumber(v): return true;
+                    default: return v is JArray xyz && xyz.Count == 3 && IsNumber(xyz[0]) && IsNumber(xyz[1]) && IsNumber(xyz[2]);
+                }
+            }
+
+            JObject TimelineRef(string id, string path)
+            {
+                if (id == null || !nodes.TryGetValue(id, out var node)) Add("unknown_ref", path, $"no node \"{id}\"");
+                else if (node.Value<string>("kind") != "timeline") Add("unknown_ref", path, $"\"{id}\" isn't a timeline");
+                else return node;
+                return null;
+            }
+
             void Metric(JToken rule, string path)
             {
-                string op = rule.Value<string>("op"), probe = rule.Value<string>("probe"), target = rule.Value<string>("nodes");
+                string op = rule.Value<string>("op"), probe = rule.Value<string>("probe");
                 if (op == null || !ArtifactSchema.MetricOps.Contains(op)) Add("bad_value", path + ".op", $"unknown op \"{op}\"");
                 if (probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", path + ".probe", $"unknown probe \"{probe}\"");
                 if (rule["zones"] != null) ZoneRef(rule.Value<string>("zones"), path + ".zones");
-                if (target != null && !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                var targets = rule["nodes"] as JArray ?? (rule["nodes"] != null ? new JArray(rule["nodes"]) : new JArray());
+                foreach (var t in targets)
+                {
+                    string target = (string)t;
+                    if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                }
                 if (op == "sim") SimMetric(rule, path);
             }
 

@@ -1,0 +1,32 @@
+{
+  "fetched_at": "2026-11-12T09:00:00Z",
+  "source": "connector:source_control/list_commits",
+  "sample": true,
+  "columns": [
+    { "name": "sha", "type": "string" },
+    { "name": "author", "type": "string" },
+    { "name": "message", "type": "string" },
+    { "name": "lines_changed", "type": "number" },
+    { "name": "day", "type": "string" }
+  ],
+  "rows": [
+    ["a1f3c20", "Sample Author A", "Add the slalom course", 412, "Mon"],
+    ["b27d9e1", "Sample Author B", "Fix the truck's steering", 38, "Mon"],
+    ["c90e4a7", "Sample Author C", "Notebook: log failed runs", 156, "Mon"],
+    ["d14b8f2", "Sample Author A", "Score a run", 268, "Tue"],
+    ["e5c7a03", "Sample Author B", "Tune the wheel friction", 12, "Tue"],
+    ["f06d2b9", "Sample Author C", "Plan revision", 201, "Tue"],
+    ["0a8e5c4", "Sample Author D", "Update the readme", null, "Tue"],
+    ["1b9f6d5", "Sample Author A", "Saved anchors", 330, "Wed"],
+    ["2c0a7e6", "Sample Author B", "Wider truck", 64, "Wed"],
+    ["3d1b8f7", "Sample Author C", "Compare v1 and v2", 145, "Wed"],
+    ["4e2c9a8", "Sample Author D", "Brain panel layout", 97, "Wed"],
+    ["5f3d0b9", "Sample Author A", "Hoop course", 520, "Thu"],
+    ["6a4e1c0", "Sample Author B", "Drone props", 73, "Thu"],
+    ["7b5f2d1", "Sample Author C", "Lessons at session start", 88, "Thu"],
+    ["8c6a3e2", "Sample Author D", "Loss curve colours", 21, "Thu"],
+    ["9d7b4f3", "Sample Author A", "Hoop course fixes", 70, "Thu"],
+    ["ae8c5a4", "Sample Author B", "Controller hot reload", 189, "Fri"],
+    ["bf9d6b5", "Sample Author C", null, 44, "Fri"]
+  ]
+}

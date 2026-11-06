@@ -27,10 +27,25 @@ public static class SlalomCheck
         if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
     }
 
+    /// <summary>For -executeMethod.</summary>
+    public static void RunBatch()
+    {
+        string report = Run();
+        if (report.StartsWith("PASS")) Debug.Log(report); else Debug.LogError(report);
+        EditorApplication.Exit(report.StartsWith("PASS") ? 0 : 1);
+    }
+
+    // The notebook goes beside the artifact library, never inside it: its writer runs on a worker thread, and a folder
+    // it creates in the library while ArtifactRuns.NextId lists the library can hide another artifact's runs from
+    // that listing on macOS (HoopCheck's run-id check failed about 1 run in 30). On the device the notebook is
+    // persistentDataPath/projects, beside artifacts/, so only the checks had this.
+    static string NotebookRoot => root + "_nb";
+
     public static string Run()
     {
         root = Path.Combine(Application.temporaryCachePath, "slalom_check");
         if (Directory.Exists(root)) Directory.Delete(root, true);
+        if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         string before = ArtifactLibrary.RootOverride;
         string notebookProject = NotebookStore.ProjectId, notebookRoot = NotebookStore.Root;
         ArtifactLibrary.RootOverride = root;
@@ -58,6 +73,7 @@ public static class SlalomCheck
             NotebookStore.Close();
             if (notebookProject != null) NotebookStore.Open(notebookProject, notebookRoot);
             if (Directory.Exists(root)) Directory.Delete(root, true);
+            if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         }
         return (ok ? "PASS" : "FAIL") + " slalom check\n" + sb;
     }
@@ -263,6 +279,8 @@ public static class SlalomCheck
         if (!File.Exists(path)) return "no file at " + path;
         var saved = (JObject)NotebookFiles.Parse(File.ReadAllText(path));
         if ((string)saved["room"]["key"] != "mock:living_room" || (int)saved["fit"]["placed"]["gates"] != 5 || saved["room"]["origin"] == null) return "saved " + saved["room"] + saved["fit"];
+        string anchor = (string)saved["room"]["anchor"];
+        if (string.IsNullOrEmpty(anchor) || !ArtifactAnchors.Exists(anchor)) return "no saved spatial anchor: " + saved["room"]["anchor"];
 
         var again = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, false);
         if (!again.Ok || !again.Reused || (string)again.Layout["layout_id"] != "lay_0001") return "a rerun didn't reuse lay_0001";
@@ -293,9 +311,12 @@ public static class SlalomCheck
         File.WriteAllText(Path.Combine(root, "slalom", "layouts", "lay_0099.json"), "{ broken");
         var afterDamage = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Loft(), false);
         if (!afterDamage.Ok || !afterDamage.Reused) return "a damaged layout file broke the lookup";
+        ArtifactAnchors.Forget((string)afterDamage.Layout["room"]["anchor"]);
+        var lost = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Loft(), false);
+        if (!lost.Ok || lost.Reused || lost.Message == null || !lost.Message.StartsWith("I can't find the saved course")) return "lost anchor: " + lost.Message;
         var none = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Unscanned(), false);
         if (none.Ok || none.Code != "no_room_data") return "unscanned: " + none.Code;
-        note = "lay_0001 reused on rerun; relayout, a new spacing, moved furniture and another room each made a new one";
+        note = "lay_0001 reused on rerun; relayout, a new spacing, moved furniture, another room and a lost anchor each made a new one";
         return null;
     }
 
@@ -339,7 +360,7 @@ public static class SlalomCheck
         if (Refused(new JObject { ["cones"] = 4 }) != "unknown_input") return "an unknown input wasn't refused";
         if (Refused(null, "hoops") != "unknown_template") return "an unknown template wasn't refused";
 
-        string nb = Path.Combine(root, "nb");
+        string nb = NotebookRoot;
         NotebookStore.Open("proj_truck", nb);
         NotebookStore.CutVersion("thing", "Wider truck.");
         NotebookStore.CutVersion("thing", "Wider still.");

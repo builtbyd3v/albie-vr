@@ -35,13 +35,14 @@ public static class MLSandboxBuilder
         results.GetComponent<ResultsWall>().dotMaterialAsset = AssetDatabase.LoadAssetAtPath<Material>(Folder+"DotUI.mat");
         Save(results,"ResultsWall");
         Save(Panel<TrainingDash>("TrainingDash", "ml-training", "Training dashboard", new Vector2(.78f,.58f)),"TrainingDash");
+        Save(Panel<ControllerBrainView>("ControllerBrain", "ml-controller-brain", "Controller brain", new Vector2(.78f,.58f)),"ControllerBrain");
         Save(Panel<VizCard>("VizCard", "ml-viz-card", "Visualization", new Vector2(.78f,.42f)),"VizCard");
         Save(Panel<RegressionResults>("RegressionResults", "ml-regression-results", "Regression results", new Vector2(.78f,.42f)),"RegressionResults");
         CopyToResources("DataStack"); CopyToResources("Model3D"); CopyToResources("ResultsWall");
-        CopyToResources("TrainingDash"); CopyToResources("VizCard"); CopyToResources("RegressionResults");
+        CopyToResources("TrainingDash"); CopyToResources("ControllerBrain"); CopyToResources("VizCard"); CopyToResources("RegressionResults");
         BuildScene();
         AssetDatabase.SaveAssets();
-        Debug.Log("[ML] Built six prefabs and MLSandbox. Open sandbox and press Play; hub is not required.");
+        Debug.Log("[ML] Built seven prefabs and MLSandbox. Open sandbox and press Play; hub is not required.");
     }
     // The sandbox scene alone, from the saved prefabs.
     public static void BuildScene()
@@ -76,6 +77,7 @@ public static class MLSandboxBuilder
         Place("Model3D", new Vector3(-.39f,1.35f,0), camera);
         Place("ResultsWall", new Vector3(.31f,1.35f,0), camera);
         Place("TrainingDash", new Vector3(.02f,1.95f,.15f), camera);
+        Place("ControllerBrain", new Vector3(.02f,1.95f,.15f), camera).SetActive(false);
         Place("VizCard", new Vector3(.76f,1.35f,.1f), camera).SetActive(false);
         Place("RegressionResults", new Vector3(.76f,1.35f,.1f), camera).SetActive(false);
         EditorSceneManager.SaveScene(scene, "Assets/_Forge/ML/MLSandbox.unity");

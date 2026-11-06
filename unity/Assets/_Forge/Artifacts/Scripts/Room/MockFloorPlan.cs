@@ -23,6 +23,7 @@ namespace Forge.Artifacts
         public readonly Vector3 Origin;        // where the room's centre is on the floor, world
         public readonly float Yaw;
         public readonly bool Scanned;
+        public float Ceiling = 2.5f;           // floor to ceiling, metres; NaN when the scan has no ceiling
         public readonly List<Furniture> Items = new List<Furniture>();
 
         public MockFloorPlan(string id, Vector2 size, bool scanned = true, Vector3 origin = default, float yaw = 0f)
@@ -32,6 +33,12 @@ namespace Forge.Artifacts
             Scanned = scanned;
             Origin = origin;
             Yaw = yaw;
+        }
+
+        public MockFloorPlan WithCeiling(float height)
+        {
+            Ceiling = height;
+            return this;
         }
 
         public MockFloorPlan Add(string label, Vector2 at, Vector3 size, float yaw = 0f)
@@ -44,6 +51,7 @@ namespace Forge.Artifacts
         public string Name => "mock " + Id;
         public bool HasFloor => Scanned;
         public float FloorY => Origin.y;
+        public float CeilingHeight => Scanned ? Ceiling : float.NaN;
         public float AxisYaw => Yaw;
         public Matrix4x4 RoomToWorld => Matrix4x4.TRS(Origin, Quaternion.Euler(0f, Yaw, 0f), Vector3.one);
 
@@ -122,6 +130,18 @@ namespace Forge.Artifacts
             return room;
         }
 
-        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom() };
+        /// <summary>
+        /// 5 x 4 m room whose scan labelled nothing: two boxes of OTHER and no ceiling. Courses still go on free floor;
+        /// hoops say they couldn't check the ceiling.
+        /// </summary>
+        public static MockFloorPlan Unlabelled() => new MockFloorPlan("unlabelled", new Vector2(5f, 4f))
+            .Add("OTHER", new Vector2(-1.6f, -1.3f), new Vector3(1.2f, 0.8f, 0.8f))
+            .Add("OTHER", new Vector2(1.8f, 1.4f), new Vector3(0.8f, 1.5f, 0.6f))
+            .WithCeiling(float.NaN);
+
+        /// <summary>A 6 x 4 m attic with a 1.4 m ceiling: plenty of floor, but the hoops don't fit under it (<c>no_headroom</c>).</summary>
+        public static MockFloorPlan Attic() => new MockFloorPlan("attic", new Vector2(6f, 4f)).WithCeiling(1.4f);
+
+        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom(), Unlabelled(), Attic() };
     }
 }

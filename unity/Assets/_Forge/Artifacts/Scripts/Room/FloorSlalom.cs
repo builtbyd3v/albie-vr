@@ -36,7 +36,7 @@ namespace Forge.Artifacts
         {
             public bool Ok;
             public string Code, Message;           // Code is null when Ok
-            public int Gates;
+            public int Gates;                      // gates, or hoops for room_hoops
             public float Spacing;
             public bool Shrunk, AroundFound;
             public Vector3 Origin;                 // the start, on the floor (world)
@@ -50,16 +50,34 @@ namespace Forge.Artifacts
 
         public static Result Fit(IFloorPlan room, Settings s, string id = "course")
         {
-            if (room == null || !room.HasFloor)
-                return Fail("no_room_data", "I don't have a scan of this room, so I can't place a course. Run Space Setup on the headset first.");
+            if (room == null || !room.HasFloor) return NoRoomData();
             s.MinGates = Mathf.Clamp(s.MinGates, 1, Mathf.Max(1, s.Gates));
             s.MinSpacing = Mathf.Clamp(s.MinSpacing, 0.1f, Mathf.Max(0.1f, s.Spacing));
+            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around,
+                             (gates, spacing) => Slots(id, gates, spacing, s.Lane));
+            if (fit.Ok) fit.Message = Message(fit.Shrunk, fit.Gates, fit.Spacing, s.Around, fit.AroundFound);
+            else fit.Message = string.Format(CultureInfo.InvariantCulture,
+                "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
+                s.MinGates, s.MinSpacing, Length(s.MinGates, s.MinSpacing), 2f * s.Lane, s.Clearance * 100f);
+            return fit;
+        }
 
-            var grid = new FloorGrid(room, s.Clearance);
+        internal static Result NoRoomData() =>
+            Fail("no_room_data", "I don't have a scan of this room, so I can't place a course. Run Space Setup on the headset first.");
+
+        /// <summary>
+        /// The fit rules' search, shared by every straight-line course: <paramref name="count"/> markers
+        /// <paramref name="spacing"/> apart along +z, with ±<paramref name="lane"/> of free floor either side, end to end.
+        /// Fewer spacing first, then fewer markers. A failure has code <c>no_free_floor</c> and no message.
+        /// </summary>
+        internal static Result Search(IFloorPlan room, int count, int minCount, float spacing, float minSpacing, float lane, float clearance,
+                                      string around, Func<int, float, Dictionary<string, List<Pose>>> slots)
+        {
+            var grid = new FloorGrid(room, clearance);
             Vector3 target = grid.Centroid;
             float baseYaw = room.AxisYaw;
             bool aroundFound = false;
-            if (!string.IsNullOrEmpty(s.Around) && room.TryFind(s.Around, out var aroundAt, out float aroundYaw, out _))
+            if (!string.IsNullOrEmpty(around) && room.TryFind(around, out var aroundAt, out float aroundYaw, out _))
             {
                 aroundFound = true;
                 target = aroundAt;
@@ -70,42 +88,41 @@ namespace Forge.Artifacts
             var passes = new[] { new[] { baseYaw, baseYaw + 180f, baseYaw + 90f, baseYaw + 270f }, Angled(baseYaw) };
             int tried = 0;
 
-            for (int gates = s.Gates; gates >= s.MinGates; gates--)
-                foreach (float spacing in Spacings(s.Spacing, s.MinSpacing))
+            for (int n = count; n >= minCount; n--)
+                foreach (float gap in Spacings(spacing, minSpacing))
                 {
-                    float length = Length(gates, spacing);
-                    if (length > grid.Diagonal) continue;
+                    if (Length(n, gap) > grid.Diagonal) continue;
                     foreach (var yaws in passes)
                     foreach (var centre in centres)
                         foreach (float yaw in yaws)
                         {
                             tried++;
                             var forward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
-                            var origin = centre - forward * (spacing * (gates + 1) * 0.5f);
-                            if (!grid.Clear(origin, yaw, gates, spacing, s.Lane)) continue;
-                            bool shrunk = gates != s.Gates || Mathf.Abs(spacing - s.Spacing) > 0.001f;
+                            var origin = centre - forward * (gap * (n + 1) * 0.5f);
+                            if (!grid.Clear(origin, yaw, n, gap, lane)) continue;
                             return new Result
                             {
-                                Ok = true, Gates = gates, Spacing = spacing, Shrunk = shrunk, AroundFound = aroundFound,
+                                Ok = true, Gates = n, Spacing = gap, AroundFound = aroundFound,
+                                Shrunk = n != count || Mathf.Abs(gap - spacing) > 0.001f,
                                 Origin = new Vector3(origin.x, room.FloorY, origin.z), Yaw = Normalise(yaw),
-                                Slots = Slots(id, gates, spacing, s.Lane), Tried = tried,
-                                Message = Message(shrunk, gates, spacing, s.Around, aroundFound),
+                                Slots = slots(n, gap), Tried = tried,
                             };
                         }
                 }
-            var fail = Fail("no_free_floor", string.Format(CultureInfo.InvariantCulture,
-                "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
-                s.MinGates, s.MinSpacing, Length(s.MinGates, s.MinSpacing), 2f * s.Lane, s.Clearance * 100f));
+            var fail = Fail("no_free_floor", null);
             fail.AroundFound = aroundFound;
             fail.Tried = tried;
             return fail;
         }
 
         /// <summary>Whether a saved course still has free floor (furniture can move between sessions).</summary>
-        public static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int gates, float spacing, Settings s)
+        public static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int gates, float spacing, Settings s) =>
+            StillFits(room, origin, yaw, gates, spacing, s.Lane, s.Clearance);
+
+        internal static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int count, float spacing, float lane, float clearance)
         {
             if (room == null || !room.HasFloor) return false;
-            return new FloorGrid(room, s.Clearance).Clear(origin, yaw, gates, spacing, s.Lane);
+            return new FloorGrid(room, clearance).Clear(origin, yaw, count, spacing, lane);
         }
 
         /// <summary>The slots, local to the course origin, all on the floor.</summary>

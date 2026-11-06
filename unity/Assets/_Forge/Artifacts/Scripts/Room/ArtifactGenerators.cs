@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -7,11 +8,11 @@ namespace Forge.Artifacts
     /// <summary>
     /// Runs a scene's generator against the room and gives the host its slots and where the course goes (C-12 3.3, 6.1).
     /// Reuses the saved layout for this room when there is one and it still has free floor, so reruns compare like for
-    /// like. A new generator type is a host change (it bumps <c>min_runtime</c>). <c>room_hoops</c> isn't built yet.
+    /// like. A new generator type is a host change (it bumps <c>min_runtime</c>): <c>room_hoops</c> needs host 2.
     /// </summary>
     public static class ArtifactGenerators
     {
-        public static bool CanRun(string type) => type == "floor_slalom";
+        public static bool CanRun(string type) => type == "floor_slalom" || type == "room_hoops";
 
         public sealed class Placement
         {
@@ -23,11 +24,38 @@ namespace Forge.Artifacts
             public Dictionary<string, List<Pose>> Slots;
         }
 
-        /// <param name="forceNew">Make a new layout even if one is saved (<c>artifact_relayout</c>).</param>
-        public static Placement Place(JObject manifest, JObject generator, ArtifactInputs inputs, JObject scenario, IFloorPlan room, bool forceNew)
+        /// <summary>One generator type: what it was asked for, how to fit it, and how to check a saved one.</summary>
+        sealed class Course
         {
-            string id = generator.Value<string>("id");
-            var p = generator["params"] as JObject ?? new JObject();
+            public string CountKey;
+            public JObject Requested;
+            public Func<IFloorPlan, FloorSlalom.Result> Fit;
+            public Func<IFloorPlan, Vector3, float, int, float, bool> StillFits;
+        }
+
+        static Course Read(string type, string id, JObject p, ArtifactInputs inputs)
+        {
+            if (type == "room_hoops")
+            {
+                var d = RoomHoops.Settings.Default;
+                var s = new RoomHoops.Settings
+                {
+                    Hoops = Mathf.RoundToInt(inputs.Number(p["hoops"], d.Hoops)),
+                    Spacing = inputs.Number(p["spacing_m"], d.Spacing),
+                    MinSpacing = inputs.Number(p["min_spacing_m"], d.MinSpacing),
+                    MinHoops = Mathf.RoundToInt(inputs.Number(p["min_hoops"], d.MinHoops)),
+                    Diameter = inputs.Number(p["diameter_m"], d.Diameter),
+                    Height = inputs.Number(p["height_m"], d.Height),
+                    Clearance = inputs.Number(p["clearance_m"], d.Clearance),
+                };
+                return new Course
+                {
+                    CountKey = "hoops",
+                    Requested = new JObject { ["hoops"] = s.Hoops, ["spacing_m"] = Math.Round(s.Spacing, 2) },
+                    Fit = room => RoomHoops.Fit(room, s, id),
+                    StillFits = (room, origin, yaw, n, spacing) => RoomHoops.StillFits(room, origin, yaw, n, spacing, s),
+                };
+            }
             var settings = new FloorSlalom.Settings
             {
                 Gates = Mathf.RoundToInt(inputs.Number(p["gates"], 5)),
@@ -38,7 +66,20 @@ namespace Forge.Artifacts
                 Clearance = inputs.Number(p["clearance_m"], 0.15f),
                 Around = p.Value<string>("around"),
             };
-            var requested = new JObject { ["gates"] = settings.Gates, ["spacing_m"] = System.Math.Round(settings.Spacing, 2) };
+            return new Course
+            {
+                CountKey = "gates",
+                Requested = new JObject { ["gates"] = settings.Gates, ["spacing_m"] = Math.Round(settings.Spacing, 2) },
+                Fit = room => FloorSlalom.Fit(room, settings, id),
+                StillFits = (room, origin, yaw, n, spacing) => FloorSlalom.StillFits(room, origin, yaw, n, spacing, settings),
+            };
+        }
+
+        /// <param name="forceNew">Make a new layout even if one is saved (<c>artifact_relayout</c>).</param>
+        public static Placement Place(JObject manifest, JObject generator, ArtifactInputs inputs, JObject scenario, IFloorPlan room, bool forceNew)
+        {
+            string id = generator.Value<string>("id");
+            var course = Read(generator.Value<string>("type"), id, generator["params"] as JObject ?? new JObject(), inputs);
             string artifactId = manifest.Value<string>("id");
             int version = manifest.Value<int?>("version") ?? 1;
             string scenarioId = scenario?.Value<string>("id") ?? "default";
@@ -46,33 +87,40 @@ namespace Forge.Artifacts
 
             if (room == null || !room.HasFloor)
             {
-                var none = FloorSlalom.Fit(null, settings, id);
+                var none = FloorSlalom.NoRoomData();
                 return new Placement { Code = none.Code, Message = none.Message };
             }
 
-            bool moved = false;
+            bool moved = false, lostAnchor = false;
             if (!forceNew)
             {
-                var saved = ArtifactLayouts.Find(artifactId, version, scenarioId, room.Key, requested);
+                var saved = ArtifactLayouts.Find(artifactId, version, scenarioId, room.Key, course.Requested);
                 if (saved != null)
                 {
-                    var origin = ArtifactLayouts.Origin(saved, room);
-                    float yaw = origin.rotation.eulerAngles.y;
-                    if (FloorSlalom.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, "gates"), ArtifactLayouts.PlacedNumber(saved, "spacing_m"), settings))
-                        return new Placement
-                        {
-                            Ok = true, Layout = saved, Reused = true, Origin = origin, Slots = ArtifactLayouts.Slots(saved),
-                            Message = (string)saved["fit"]?["message"],
-                        };
-                    moved = true;
+                    string anchor = (string)saved["room"]?["anchor"];
+                    if (anchor != null && !ArtifactAnchors.Exists(anchor))
+                        lostAnchor = true;
+                    else
+                    {
+                        var origin = ArtifactLayouts.Origin(saved, room);
+                        float yaw = origin.rotation.eulerAngles.y;
+                        if (course.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, course.CountKey), ArtifactLayouts.PlacedNumber(saved, "spacing_m")))
+                            return new Placement
+                            {
+                                Ok = true, Layout = saved, Reused = true, Origin = origin, Slots = ArtifactLayouts.Slots(saved),
+                                Message = (string)saved["fit"]?["message"],
+                            };
+                        moved = true;
+                    }
                 }
             }
 
-            var fit = FloorSlalom.Fit(room, settings, id);
+            var fit = course.Fit(room);
             if (!fit.Ok) return new Placement { Code = fit.Code, Message = fit.Message };
             string message = fit.Message;
-            if (moved) message = "Something in the room has moved since I made the course, so I made a new one." + (message != null ? " " + message : "");
-            var layout = ArtifactLayouts.Make(artifactId, version, scenarioId, seed, room, requested, fit, message);
+            if (lostAnchor) message = "I can't find the saved course in this room, so I made a new one." + (message != null ? " " + message : "");
+            else if (moved) message = "Something in the room has moved since I made the course, so I made a new one." + (message != null ? " " + message : "");
+            var layout = ArtifactLayouts.Make(artifactId, version, scenarioId, seed, room, course.Requested, fit, message, course.CountKey);
             ArtifactLayouts.Save(layout);
             return new Placement
             {

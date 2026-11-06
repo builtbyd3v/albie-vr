@@ -137,6 +137,26 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
 | `timeline` | `duration_s`, `loop`, `autoplay`. A clock that `animate` rules follow. | Nov 14 |
 | `camera_rig` | Reserved. Refused with `unsupported_kind`. | Not built |
 
+**`gltf` and `timeline` (as built, 2026-11-05, host runtime 4).**
+- **`gltf`.** Phase 1 reads binary glTF only. Each manifest asset is `{path: "assets/<name>.glb", sha256, license}`, and each of the three fields is required.
+  - Before anything is built, the host reads each file a `gltf` node names, in this order: the artifact's device folder, the bundled fixture (`<name>.glb.bytes`), then the template it came from.
+  - It refuses the artifact with `asset_missing`, with `too_big` if a file is over 8 MB, with `hash_mismatch`, or with `bad_value` if the file isn't a glb.
+  - glTFast then loads it under the node, spread over frames in play mode. The model is in metres, at its own scale. Use the node's `scale` to change its size.
+  - A volume with no `view` fits again once the model arrives. Textures over 2048 px are logged, not refused.
+- **`timeline`.** `duration_s` (above 0) is required. `loop` and `autoplay` default to false. At the end it stops on the last frame, and `play` after the end starts over.
+- **`animate` rules.** `property` is one of:
+  - `pos`, `rot` or `scale`, each `[x, y, z]`. `scale` can also be a single number.
+  - `visible`, `true` or `false`. It steps at each key rather than blending.
+  - `color`, `#RRGGBB`. It tints the target's meshes, or a `text` node.
+
+  Keys are `[t, value]`, times going up, within the timeline, up to 64 per rule. Values are linear between keys and hold before the first and after the last. Rotation blends each Euler angle separately.
+
+  The validator refuses:
+  - a target that's a panel or a timeline;
+  - `pos` or `rot` on a node that stands on a slot (`at`);
+  - the same target and property animated twice.
+- **The `timeline` action.** `{timeline, action}` takes `play`, `pause` or `restart`. `restart` jumps to 0 and plays.
+
 **`panel` widgets:**
 
 | Widget | Fields | Shows |
@@ -175,11 +195,21 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 | `type` | Params | Slots it fills |
 |---|---|---|
 | `floor_slalom` | `gates`, `spacing_m`, `min_spacing_m`, `min_gates`, `lane_width_m`, `clearance_m`, optional `around` (an MRUK label) | `<id>.cones`, `<id>.gates`, `<id>.start`, `<id>.finish` |
-| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m` | `<id>.hoops`, `<id>.start`, `<id>.finish` |
+| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m`, optional `height_m` (the hoop centre, default 1.0) | `<id>.hoops`, `<id>.start`, `<id>.finish` |
 
 A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin. **Every slot is on the floor (`y` = 0)**: a node's own `pos` lifts it. Adding a generator type is a host change, so it bumps `min_runtime`.
 
 **`floor_slalom` geometry (as built, 2026-11-04).** The course runs along its local +z from the start (z = 0): a cone every `spacing_m`, a gate beside each cone on alternating sides at ±`lane_width_m`/2 (the side the Thing passes), and the finish one spacing past the last cone. Its footprint is ±`lane_width_m` either side of the cones, from 0.3 m before the start to 0.3 m after the finish, all on free floor. The search tries courses along or across the room (or the `around` object) first, nearest that object (or the middle of the free floor), and turns a course only when no square one fits at that size.
+
+**`room_hoops` geometry (as built, 2026-11-05, Nov 14).** This generator needs host runtime 2, so the `hoop_course` template sets `min_runtime` 2.
+- **Layout.** A hoop every `spacing_m` along +z, weaving ±0.3 × `diameter_m` sideways on alternating sides. The finish is one spacing past the last hoop. The slots stay on the floor; the scene lifts each frame so the hoop's centre is at `height_m`.
+- **Footprint.** It uses the same search as the slalom. Its half-width is the weave, plus half a hoop, plus the 4 cm post.
+- **Ceiling.** The frame top plus `clearance_m` must be under the ceiling (`IFloorPlan.CeilingHeight`). If it isn't, the layout fails with **`no_headroom`** (new) and Albie says both heights. A scan with no ceiling anchor still gets a course, and the `say` line notes that the ceiling couldn't be checked. A missing label is never a reason to fail.
+- **Template defaults.** 4 hoops at 1.0 m, minimum 3 hoops at 0.6 m, 0.7 m hoops at 1.0 m, `clearance_m` 0.15.
+- **Scoring.** `collisions` uses `hit_count` over a list of the four frame arrays.
+- **Fail reasons.** A missed hoop fails as `missed_hoop`, and upside down for 1 s fails as `crashed`.
+- **Mock-room results.** The 7 × 5 m living room gets the full course. The 4.5 × 3.8 m bedroom shrinks to 3 hoops at 0.6 m. An unlabelled 5 × 4 m room with no ceiling gets 4 hoops at 0.8 m. A 1.4 m attic gives `no_headroom`. The closet gives `no_free_floor`.
+- **Not yet measured.** It hasn't been run on MRUK's prefab rooms or a Quest.
 
 **Default size.** 5 gates at 0.8 m makes a 4.8 m course, which is meant to fit a living room. These are starting guesses until someone drives a truck through one on a Quest.
 
@@ -212,7 +242,7 @@ Whenever a step other than 1 ran, `fit.shrunk` is true and `fit.message` says wh
 |---|---|---|
 | `elapsed` | | Seconds since the run started |
 | `zone_count` | `zones` (an array or zone id), `ordered` | Zones entered. With `ordered`, only the next one in order counts. |
-| `hit_count` | `nodes` (an array or node id) | Times the Thing touched those nodes |
+| `hit_count` | `nodes` (an array or node id) | Times the Thing touched those nodes. As built, a list of ids is summed |
 | `max`, `min`, `mean` | `probe` | Over the run |
 | `last` | `probe` | The final value |
 
@@ -260,6 +290,8 @@ Every metric named in `outputs` must have a `metric` rule, and every `metric` ke
 
 A `run` block doesn't stop a scene opening: the course shows, and the run engine scores it (Nov 10, second step).
 
+**As built, 2026-11-05.** `ArtifactRun` is the engine: it ticks from `FixedUpdate` with no allocations, tests zones with `ArtifactZone.Contains` (no trigger colliders), writes `albie.run/1` off that step, and calls `NotebookStore.AttachRun`. The probes come from `IArtifactThing` (C-12 question 1): Person 2's Thing runtime can implement it; until then the slalom sandbox drives `ArtifactThing`. `artifact_run` arms a lap; `artifact_compare` flags anything that isn't like for like as `"different course"`. Closing the artifact, or tapping Run again, aborts a running attempt.
+
 ## 6. Device records
 
 ### 6.1 Layout: `albie.layout/1`
@@ -282,6 +314,7 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 - `slots` are relative to `room.anchor`, a spatial anchor the host places on the floor and saves (`OVRSpatialAnchor.SaveAnchorAsync`). This is the persistent anchor beat (15.3).
 - **Anchor can't be found:** the host says so and makes a new layout with a new `layout_id`. Old runs stay, but they no longer compare like for like.
 - **Before Nov 12** (saved anchors), the host may set `room.anchor` to null and use the floor anchor. Reruns in one session still match. As built, `room.origin {pos, yaw}` then holds the course start in the room's floor frame (the floor anchor's position, turned to the room's main axis), and `slots` are local to it.
+- **As built, 2026-11-05 (Nov 12).** `ArtifactAnchors.Save` writes a uuid into `room.anchor` and a copy on the device. On a Quest it also calls `OVRSpatialAnchor.SaveAnchorAsync`. If the uuid is gone, the host makes a new layout and the `say` line is "I can't find the saved course in this room, so I made a new one." Furniture that has moved still uses the existing message. `room.origin` is kept so Editor and mock rooms can place the course without waiting on headset localisation.
 - In the Editor, MRUK gives a prefab room a new UUID every time it loads, so layouts aren't reused across loads there. On a headset the scanned room keeps its UUID (question 3).
 
 ### 6.2 Run record: `albie.run/1`
@@ -302,6 +335,7 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 ```
 
 - Runs are never overwritten (9.7). The host writes one when a run ends, off the physics step.
+- **`run_id` is unique across every artifact on the device, not just its own folder** (as built, 2026-11-05). The notebook stores bare run ids (C-17 `observed.runs`). With per-artifact numbering, a hoop course's `run_0001` matched the slalom's `run_0001`, so the notebook dropped it as a duplicate. The file still lives in `artifacts/<id>/runs/`.
 - `controller` is recorded here because training doesn't cut a project version (C-17, section 4). The project version alone can't say which brain drove.
 - A `failed` run keeps the metrics it reached. Metrics that never got a value are null, never zero.
 
@@ -320,6 +354,29 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
 ```
 
 `sample: true` makes the host show a "Sample data" label (9.6). Sample rows must be fictional (competition rule 4, section 0).
+
+**As built, 2026-11-05 (host runtime 3).**
+- **Where a table comes from.** For each manifest `data` entry, the host tries these sources in order:
+  1. `ArtifactData.Provider`, the seam for C-18's connector host. Until that lands it's null.
+  2. The artifact's own `data/<name>.json` snapshot.
+  3. A bundled sample in `Artifacts/Resources/ArtifactData/<connector>_<tool>.json`. This is always treated as `sample: true`, whatever the file says.
+
+  If none of them has the table, the artifact doesn't open and the result is `no_data`.
+- **Checking a table.** A table is refused if:
+  - it has no columns or no rows;
+  - a column type is anything other than `number` or `string`;
+  - a row has the wrong number of cells;
+  - a cell's type doesn't match its column.
+
+  `null` is allowed in any cell.
+- **Arrays from a table.** An `array` node with `source: {table, grid: {columns, gap_m}}` builds one copy per row, on a grid centred on the node, with every copy standing on y = 0.
+  - `map.height` and `map.width` scale a number column linearly into `[min, max]`.
+  - `map.color` gives each distinct value its own palette colour.
+  - A `null` cell is grey (`#5A5F66`) at the bottom of the range. It is never drawn as zero.
+  - Past 256 rows, the copies are cut, and `say` gives the row count.
+  - A mapped column the table doesn't have, or a height or width mapped to a string column, is `unknown_ref` before anything is built.
+- **Sample data.** When any table is sample data, the host places a "Sample data" label above the scene. `artifact_open` then returns `data: [{name, source, rows, fetched_at, sample, from}]`, and `say` tells the person the data isn't theirs. A snapshot says which day it was saved.
+- **Templates.** `repo_activity` ("what shipped this week?") is commits as a small city. Height is lines changed, colour is the author, and the source is `connector:source_control/list_commits`.
 
 ## 8. Permissions
 
@@ -348,12 +405,15 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 | `unknown_input` | `generators[0].params.gates: no input "gate_count"` |
 | `output_mismatch` | `outputs: "collisions" has no metric rule` |
 | `asset_not_listed` | `nodes[4].asset: "assets/cone.glb" isn't in the manifest` |
-| `hash_mismatch` | `assets[0]: sha256 doesn't match` |
+| `hash_mismatch` | `assets[0]: sha256 doesn't match` (on open, as built) |
+| `asset_missing` | `assets[0]: assets/rocket.glb is missing` (on open, as built) |
 | `permission_denied` | `permissions.network must be empty in Phase 1` |
 | `permission_missing` | `space is room, so permissions.room must be read` |
 | `script_not_allowed` | `script must be null in Phase 1` |
 | `too_big` | `nodes: 900 is over the limit of 512` |
 | `bad_value` | `inputs[0]: default 20 is above max 12` |
+| `cant_build` | `scene: valid, but this version can't build: gltf` (from `artifact_create {manifest, scene}`) |
+| `no_data` | `It needs "commits" from connector:issues/list_issues, and there's no copy of it on this headset.` (on open) |
 
 **Limits (proposed, not yet measured: 9.11, question 2):** 512 nodes, 256 copies in one `array`, 1,024 copies in a scene, 64 zones, 64 rules, 256 KB for `scene.json`, 2048 px textures.
 
@@ -371,8 +431,8 @@ The validator is C# in `Artifacts/`, runs on the device, and runs before anythin
 
 | Tool | Does | Confirm? |
 |---|---|---|
-| `artifact_list` | The library, the project's artifacts and the templates. | No |
-| `artifact_create {template, inputs?, open?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. As built, `open` (default true) opens it straight away, and the result's `say` is the layout's `fit.message` for Albie to speak. Making the same thing again changes nothing; a different one bumps `version`. | No |
+| `artifact_list` | The library, the project's artifacts and the templates. As built, also `data_sources`: `{source, permission, columns, sample_only}` for each source this headset can read. | No |
+| `artifact_create {template, inputs?, open?}` or `{manifest, scene}` | Makes an artifact. A template needs no model output, so "Make me a slalom" works with no network. Validation errors come back as data. As built, `open` (default true) opens it straight away, and the result's `say` is the layout's `fit.message` for Albie to speak. Making the same thing again changes nothing; a different one bumps `version`. As built, `{manifest, scene}` that fails validation saves nothing and returns `{status: "invalid", errors: [{code, path, message}], next}`. | No |
 | `artifact_open {id}` / `artifact_close {id}` | Opens it, with the permissions sheet on first open. | Sheet on first open |
 | `artifact_run {id, scenario?}` | Arms a run on the current version. | No |
 | `artifact_compare {id, runs?}` | Run metrics side by side, with the like-for-like flag. | No |
@@ -394,6 +454,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `slalom/runs/run_0001.json` to `run_0004.json` | Failed (rolled over), completed by hand, completed by the Autopilot, completed with a cone hit. All on truck v2 or v3, so they don't assume an answer to question 7. |
 | `repo_city/manifest.json`, `repo_city/scene.json`, `repo_city/data/repo_activity.json` | `volume` space, an `array` from a table, a null cell, a `sample` label |
 | `stance/manifest.json`, `stance/scene.json` | A standalone artifact the host builds today: no permissions, live `slider` inputs, `on_input` rules |
+| `launch/manifest.json`, `launch/scene.json`, `launch/assets/rocket.glb.bytes` | A `gltf` node (the v1 rocket from the CAD mocks) on a `timeline`, with `animate` rules for each property and a Launch button that restarts it |
 | `broken/manifest.json`, `broken/scene.json` | Fails validation on purpose (`unknown_kind`), for the refusal path |
 | `three_body/manifest.json`, `three_body/scene.json` | A live `sim` artifact (section 14): the figure-eight orbit, with trails, live stats and sliders |
 

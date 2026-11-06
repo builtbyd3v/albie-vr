@@ -17,6 +17,12 @@ namespace Forge.Artifacts
         public Dictionary<string, List<Pose>> Slots = new Dictionary<string, List<Pose>>();
         /// <summary>Each <c>array</c> node's copies, in slot order, for runs to count gates and hits.</summary>
         public readonly Dictionary<string, List<GameObject>> Arrays = new Dictionary<string, List<GameObject>>();
+        /// <summary>The manifest's data tables (C-12 section 7), resolved before the build.</summary>
+        public Dictionary<string, ArtifactTable> Tables = new Dictionary<string, ArtifactTable>();
+        /// <summary>The <c>gltf</c> nodes' files, by path, read and hash-checked before the build.</summary>
+        public Dictionary<string, byte[]> Assets = new Dictionary<string, byte[]>();
+        /// <summary>Things the build had to change that Albie should say (an array cut to the copy limit).</summary>
+        public readonly List<string> Notes = new List<string>();
         public readonly ArtifactMetrics Metrics = new ArtifactMetrics();
         readonly List<Action> bound = new List<Action>();
         readonly List<Action> after = new List<Action>();
@@ -69,6 +75,8 @@ namespace Forge.Artifacts
             { "line", ArtifactTrail.Build },
             { "zone", ArtifactZone.Build },
             { "array", ArtifactArray.Build },
+            { "gltf", ArtifactGltf.Build },
+            { "timeline", ArtifactTimeline.Build },
         };
 
         public static void Register(string kind, Builder builder) => builders[kind] = builder;
@@ -86,7 +94,8 @@ namespace Forge.Artifacts
                 {
                     string kind = node.Value<string>("kind");
                     if (!CanBuild(kind) && !missing.Contains(kind)) missing.Add(kind);
-                    if (kind == "array" && node["source"] is JObject && !missing.Contains("array from a table")) missing.Add("array from a table");
+                    if (kind == "array" && node["source"] is JObject s && s["grid"] == null && !missing.Contains("array from a table without a grid"))
+                        missing.Add("array from a table without a grid");
                 }
             if (scene["generators"] is JArray generators)
                 foreach (var generator in generators)
@@ -94,7 +103,7 @@ namespace Forge.Artifacts
                     string type = generator.Value<string>("type");
                     if (!ArtifactGenerators.CanRun(type) && !missing.Contains(type + " generator")) missing.Add(type + " generator");
                 }
-            // Runs (C-12 section 5) don't stop a scene opening: the course shows, and scoring arrives with the run engine.
+            // A run block doesn't stop a scene opening: the course shows, and the run engine scores it.
             return missing;
         }
 
@@ -124,10 +133,49 @@ namespace Forge.Artifacts
             text.rectTransform.sizeDelta = new Vector2(2f, 0.5f);
             var height = n["height"];
             build.Apply(() => text.fontSize = build.Inputs.Number(height, 0.05f) * 10f, ArtifactInputs.IsBound(height));
-            text.text = ArtifactLook.WithoutMetrics(n.Value<string>("text"));
+            string raw = n.Value<string>("text");
+            text.text = ArtifactLook.WithoutMetrics(raw);
             text.ForceMeshUpdate();
+            if (ArtifactLook.HasMetrics(raw)) go.AddComponent<ArtifactMetricLabel>().Bind(raw, build.Metrics);
             if (n.Value<bool?>("billboard") == true) go.AddComponent<ArtifactBillboard>();
             return go;
+        }
+    }
+
+    /// <summary>
+    /// A <c>text</c> node with one <c>{metric}</c>. TMP formats the number itself, so a live timer doesn't allocate.
+    /// Stays on "--" until the metric has a value.
+    /// </summary>
+    public sealed class ArtifactMetricLabel : MonoBehaviour
+    {
+        TMP_Text text;
+        ArtifactMetrics metrics;
+        int slot;
+        string format, empty;
+        double last = double.PositiveInfinity;
+
+        public void Bind(string template, ArtifactMetrics board)
+        {
+            text = GetComponent<TMP_Text>();
+            metrics = board;
+            int open = template.IndexOf('{'), close = template.IndexOf('}');
+            string name = open >= 0 && close > open ? template.Substring(open + 1, close - open - 1) : "";
+            string prefix = open > 0 ? template.Substring(0, open) : "";
+            string suffix = close >= 0 && close + 1 < template.Length ? template.Substring(close + 1) : "";
+            slot = board.Slot(name);
+            format = prefix + "{0:2}" + suffix;
+            empty = prefix + ArtifactLook.NoValue + suffix;
+            if (text != null) text.SetText(empty);
+        }
+
+        void LateUpdate()
+        {
+            if (metrics == null || text == null) return;
+            double v = metrics.Value(slot);
+            if (v == last || (double.IsNaN(v) && double.IsNaN(last))) return;
+            last = v;
+            if (double.IsNaN(v)) text.SetText(empty);
+            else text.SetText(format, (float)v);
         }
     }
 

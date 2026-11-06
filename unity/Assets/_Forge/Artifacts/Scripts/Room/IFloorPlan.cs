@@ -17,6 +17,8 @@ namespace Forge.Artifacts
         /// <summary>False when there's no floor data at all: nothing is placed from a guess (<c>no_room_data</c>).</summary>
         bool HasFloor { get; }
         float FloorY { get; }
+        /// <summary>Floor to ceiling, metres, or NaN when the scan has no ceiling (a missing label isn't a reason to fail).</summary>
+        float CeilingHeight { get; }
         /// <summary>A world-axis box around the floor, for the search grid.</summary>
         Bounds FloorBounds { get; }
         /// <summary>The room's main axis (degrees about Y). Courses prefer to run along it or across it.</summary>

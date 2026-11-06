@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using Meta.XR.MRUtilityKit;
 using Newtonsoft.Json.Linq;
@@ -10,8 +11,11 @@ namespace Forge.Artifacts
     /// SlalomSandbox only, hub off: "Make me a slalom" in a room, with no headset. Rooms are MRUK's own prefab rooms
     /// (the real MRUK code path: IsPositionInRoom, scene volumes, labels) or the mock rooms the checks use.
     ///
-    /// Keys: 2 make me a slalom (the artifact_create tool), R relayout, [ ] spacing -/+ 0.1 m, G gates (3 to 8),
-    /// M next MRUK room, N next mock room, O overhead / first-person view, 0 close, 9 forget approvals.
+    /// Keys: 2 make me a slalom (the artifact_create tool), 7 make me a hoop course (a scripted lap then flies the
+    /// hoops at hoop height), 3 arm a run, 4 drive a scripted lap, 5 roll over,
+    /// WASD drive the truck, R relayout, 6 forget the saved spatial anchor (next 2 remakes the course),
+    /// [ ] spacing -/+ 0.1 m, G gates (3 to 8), M next MRUK room, N next mock room, O overhead / first-person view,
+    /// 0 close, 9 forget approvals.
     /// </summary>
     public sealed class SlalomSandbox : MonoBehaviour
     {
@@ -22,7 +26,9 @@ namespace Forge.Artifacts
 
         readonly MockFloorPlan[] mocks = MockFloorPlan.All();
         int mock = -1, mruk = -1;
-        GameObject mockView;
+        GameObject mockView, thingGo;
+        ArtifactThing thing;
+        Coroutine lap;
         string roomName = "", status = "", say = "";
         GUIStyle style;
 
@@ -42,6 +48,11 @@ namespace Forge.Artifacts
             var k = Keyboard.current;
             if (k == null) return;
             if (k.digit2Key.wasPressedThisFrame) MakeSlalom();
+            if (k.digit7Key.wasPressedThisFrame) MakeHoops();
+            if (k.digit3Key.wasPressedThisFrame) Report(Tool("artifact_run", new JObject()));
+            if (k.digit4Key.wasPressedThisFrame) ScriptedLap();
+            if (k.digit5Key.wasPressedThisFrame) RollOver();
+            if (k.digit6Key.wasPressedThisFrame) ForgetAnchor();
             if (k.rKey.wasPressedThisFrame) Report(Tool("artifact_relayout", new JObject()));
             if (k.leftBracketKey.wasPressedThisFrame) Nudge("spacing_m", -0.1);
             if (k.rightBracketKey.wasPressedThisFrame) Nudge("spacing_m", 0.1);
@@ -51,6 +62,7 @@ namespace Forge.Artifacts
             if (k.oKey.wasPressedThisFrame && overhead != null) overhead.gameObject.SetActive(!overhead.gameObject.activeSelf);
             if (k.digit0Key.wasPressedThisFrame) host.Close();
             if (k.digit9Key.wasPressedThisFrame) ArtifactApprovals.Forget();
+            Drive(k);
         }
 
         /// <summary>What Albie does for "Make me a slalom".</summary>
@@ -58,12 +70,23 @@ namespace Forge.Artifacts
         {
             var result = Tool("artifact_create", new JObject { ["template"] = "slalom" });
             Report(result);
+            if (result["error"] == null) SpawnThing();
+            return result;
+        }
+
+        /// <summary>What Albie does for "Make me a hoop course".</summary>
+        public JObject MakeHoops()
+        {
+            var result = Tool("artifact_create", new JObject { ["template"] = "hoop_course" });
+            Report(result);
+            if (result["error"] == null) SpawnThing();
             return result;
         }
 
         public void UseMock(int index)
         {
             host.Close();
+            ClearThing();
             ClearMruk();
             mock = ((index % mocks.Length) + mocks.Length) % mocks.Length;
             host.Room = mocks[mock];
@@ -76,6 +99,7 @@ namespace Forge.Artifacts
         {
             if (mrukRooms == null || mrukRooms.Length == 0 || MRUK.Instance == null) { status = "no MRUK rooms in this scene"; return; }
             host.Close();
+            ClearThing();
             ClearMock();
             mruk = ((index % mrukRooms.Length) + mrukRooms.Length) % mrukRooms.Length;
             status = "loading " + mrukRooms[mruk].name + "...";
@@ -113,7 +137,105 @@ namespace Forge.Artifacts
             status = opened.ToString(Newtonsoft.Json.Formatting.None);
         }
 
+        void ForgetAnchor()
+        {
+            string uuid = (string)host.LastLayout?["room"]?["anchor"];
+            if (string.IsNullOrEmpty(uuid)) { status = "no saved course to forget"; return; }
+            ArtifactAnchors.Forget(uuid);
+            status = "forgot " + uuid + " — press 2 to open again";
+        }
+
+        void SpawnThing()
+        {
+            if (thingGo == null)
+            {
+                thingGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                thingGo.name = "Thing";
+                thingGo.transform.localScale = new Vector3(0.22f, 0.1f, 0.3f);
+                var renderer = thingGo.GetComponent<Renderer>();
+                if (renderer != null) renderer.sharedMaterial = ArtifactLook.Material("#4C8DFF");
+                thing = thingGo.AddComponent<ArtifactThing>();
+            }
+            // The stand-in plays whatever Thing the open artifact links (the slalom a truck, the hoop course a drone),
+            // so run records don't say a truck flew the hoops.
+            string linked = (string)host.OpenManifest?["links"]?["thing"];
+            if (string.IsNullOrEmpty(linked)) linked = "truck";
+            thing.ThingName = linked;
+            thing.ThingVersion = linked == "truck" ? 2 : 1;
+            thing.ControllerName = linked + "_manual";
+            host.Thing = thing;
+            var at = host.SceneOrigin;
+            thing.Place(at.position + Vector3.up * 0.06f, at.rotation);
+        }
+
+        void Drive(Keyboard k)
+        {
+            if (thing == null) return;
+            float dt = Time.deltaTime, speed = 1.4f, turn = 90f;
+            var f = thing.transform.forward; f.y = 0f; f.Normalize();
+            if (k.wKey.isPressed) thing.transform.position += f * speed * dt;
+            if (k.sKey.isPressed) thing.transform.position -= f * speed * dt;
+            if (k.aKey.isPressed) thing.transform.Rotate(0f, -turn * dt, 0f);
+            if (k.dKey.isPressed) thing.transform.Rotate(0f, turn * dt, 0f);
+        }
+
+        void ScriptedLap()
+        {
+            if (host.Run == null || host.Build == null) { status = "open the slalom first"; return; }
+            if (lap != null) StopCoroutine(lap);
+            SpawnThing();
+            lap = StartCoroutine(DriveLap());
+        }
+
+        IEnumerator DriveLap()
+        {
+            Report(Tool("artifact_run", new JObject()));
+            var origin = host.SceneOrigin;
+            bool hoops = host.Build.Slots.TryGetValue("course.hoops", out var markers);
+            if (!hoops) host.Build.Slots.TryGetValue("course.gates", out markers);
+            // Fly at the height the scene actually put the hoop zones (the template's height_m), not a default.
+            float lift = 0.06f;
+            if (hoops && host.Build.Arrays.TryGetValue("hoops", out var hoopZones) && hoopZones.Count > 0)
+                lift = hoopZones[0].transform.position.y - origin.position.y;
+            Vector3 World(Pose local) => origin.position + origin.rotation * local.position + Vector3.up * lift;
+            thing.Place(World(new Pose(Vector3.zero, Quaternion.identity)), origin.rotation);
+            yield return new WaitForFixedUpdate();
+            yield return new WaitForFixedUpdate();
+            if (markers != null)
+                foreach (var gate in markers)
+                {
+                    thing.Place(World(gate), origin.rotation);
+                    yield return new WaitForFixedUpdate();
+                    yield return new WaitForFixedUpdate();
+                }
+            if (host.Build.Slots.TryGetValue("course.finish", out var finish) && finish.Count > 0)
+            {
+                thing.Place(World(finish[0]), origin.rotation);
+                yield return new WaitForFixedUpdate();
+                yield return new WaitForFixedUpdate();
+            }
+            var run = host.Run;
+            status = run != null ? $"run {run.RunId} {run.State} {run.Outcome}" : status;
+            lap = null;
+        }
+
+        void RollOver()
+        {
+            if (thing == null) { status = "open the slalom first"; return; }
+            thing.transform.rotation = Quaternion.Euler(180f, thing.transform.eulerAngles.y, 0f);
+            status = "rolled over (upright should fail the run in 1 s)";
+        }
+
         // ---- Room views -----------------------------------------------------------------------------------------
+
+        void ClearThing()
+        {
+            if (lap != null) { StopCoroutine(lap); lap = null; }
+            if (thingGo != null) Destroy(thingGo);
+            thingGo = null;
+            thing = null;
+            host.Thing = null;
+        }
 
         void ClearMock()
         {
@@ -161,8 +283,9 @@ namespace Forge.Artifacts
             if (style == null) style = new GUIStyle(GUI.skin.label) { fontSize = 14, richText = true, wordWrap = true };
             style.normal.textColor = Color.white;
             string layout = host.LastLayout != null ? $"   layout {host.LastLayout["layout_id"]}{(host.LayoutReused ? " (reused)" : " (new)")}" : "";
-            GUI.Label(new Rect(14, 72, Screen.width - 28, 60),  // below the desktop rig's hint bar
-                $"<b>Slalom sandbox</b>   {roomName}{layout}\n2 make me a slalom   R relayout   [ ] spacing   G gates   M MRUK room   N mock room   O view   0 close   9 forget approvals", style);
+            string run = host.Run != null ? $"   run {host.Run.State.ToString().ToLowerInvariant()}" + (host.Run.Outcome != null ? " " + host.Run.Outcome : "") : "";
+            GUI.Label(new Rect(14, 72, Screen.width - 28, 72),  // below the desktop rig's hint bar
+                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   7 hoop course   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
             if (!string.IsNullOrEmpty(say)) GUI.Label(new Rect(14, Screen.height - 80, Screen.width - 28, 30), "<b>Albie:</b> " + say, style);
             GUI.Label(new Rect(14, Screen.height - 48, Screen.width - 28, 44), status, style);
         }

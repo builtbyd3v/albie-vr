@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Forge.Notebook;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -26,6 +27,9 @@ namespace Forge.Artifacts
         readonly HashSet<string> generatorInputs = new HashSet<string>();
         ArtifactPackage open;
         ArtifactBuild build;
+        ArtifactRun run;
+        ForgeVolume volume;
+        bool fitOnLoad;
         Coroutine reveal;
         Pose courseOrigin;
 
@@ -44,11 +48,25 @@ namespace Forge.Artifacts
         public bool LayoutReused { get; private set; }
         /// <summary>What Albie should say about the layout: a shrink, a missing couch, or why nothing fits. Null if nothing to say.</summary>
         public string LayoutMessage { get; private set; }
+        /// <summary>What Albie should say about the open artifact's data (sample data, a saved copy, rows cut), or null.</summary>
+        public string DataMessage { get; private set; }
+        /// <summary>The open artifact's data tables (C-12 section 7). Empty when it reads none.</summary>
+        public IReadOnlyDictionary<string, ArtifactTable> Tables => build != null ? build.Tables : new Dictionary<string, ArtifactTable>();
         /// <summary>True while the first-open permissions sheet is waiting for a tap.</summary>
         public bool AwaitingApproval { get; private set; }
         /// <summary>Where a room-space scene's origin is (world): the course start.</summary>
         public Pose SceneOrigin => courseOrigin;
         public ArtifactBuild Build => build;
+
+        /// <summary>
+        /// The Thing this host scores (C-12 probes). The slalom sandbox sets an <see cref="ArtifactThing"/>; Person 2's
+        /// runtime can set any <see cref="IArtifactThing"/>.
+        /// </summary>
+        public IArtifactThing Thing;
+        /// <summary>The open scene's run engine, or null if the scene has no <c>run</c> block.</summary>
+        public ArtifactRun Run => run;
+        /// <summary>The scoreboard's runs row, so a finished run can refresh it.</summary>
+        public ArtifactRunsRow RunsRow;
 
         void OnEnable() => Current = this;
 
@@ -60,6 +78,8 @@ namespace Forge.Artifacts
         /// <summary>The artifact showing right now, or null.</summary>
         public string OpenId => build != null ? open.Id : null;
         public string OpenTitle => open != null ? open.Title : "";
+        /// <summary>The manifest of the artifact being opened (also while its permissions sheet waits), or null.</summary>
+        public JObject OpenManifest => open?.Manifest;
 
         /// <summary>The last reason an artifact didn't open, for tools and the agent. Null if it did.</summary>
         public string LastProblem { get; private set; }
@@ -104,6 +124,7 @@ namespace Forge.Artifacts
             LastErrors = new List<ArtifactError>();
             LastLayout = null;
             LayoutMessage = null;
+            DataMessage = null;
             LayoutReused = false;
             AwaitingApproval = false;
         }
@@ -133,8 +154,19 @@ namespace Forge.Artifacts
                 Destroy(go);
             }
             spawned.Clear();
+            volume = null;
+            fitOnLoad = false;
             nodes.Clear();
             generatorInputs.Clear();
+            if (run != null)
+            {
+                run.Abort();
+                FlushRun();
+                run.ZoneChanged -= OnZone;
+                run.StateChanged -= OnRunState;
+                run = null;
+            }
+            RunsRow = null;
             build = null;
         }
 
@@ -178,12 +210,27 @@ namespace Forge.Artifacts
                 Control(sim, action.Value<string>("action"));
                 return;
             }
-            string target = action.Value<string>("set");
-            if (target == null)
+            string verb = action.Value<string>("run");
+            if (verb != null)
             {
-                Debug.Log($"[Artifacts] {action} waits for runs and timelines (Nov 10 and Nov 14)");
+                if (verb == "reset")
+                {
+                    PlaceThingAtStart();
+                    run?.Abort();
+                    FlushRun();
+                    ArmRun();
+                }
+                else if (verb == "arm") ArmRun();
                 return;
             }
+            string timeline = action.Value<string>("timeline");
+            if (timeline != null)
+            {
+                Clock(timeline, action.Value<string>("action"));
+                return;
+            }
+            string target = action.Value<string>("set");
+            if (target == null) return;
             var parts = target.Split('.');
             if (parts.Length == 2 && parts[1] == "visible" && nodes.TryGetValue(parts[0], out var node))
                 node.SetActive(action.Value<bool>("value"));
@@ -196,6 +243,20 @@ namespace Forge.Artifacts
             if (verb == "play") sim.Play();
             else if (verb == "pause") sim.Pause();
             else if (verb == "restart") sim.Restart();
+        }
+
+        void Clock(string id, string verb)
+        {
+            if (!nodes.TryGetValue(id, out var node) || !node.TryGetComponent<ArtifactTimeline>(out var clock)) return;
+            if (verb == "play") clock.Play();
+            else if (verb == "pause") clock.Pause();
+            else if (verb == "restart") clock.Restart();
+        }
+
+        /// <summary>A <c>gltf</c> node finished loading. A volume fitted to its contents as they stood fits again.</summary>
+        public void ModelLoaded()
+        {
+            if (volume != null && fitOnLoad) volume.Fit();
         }
 
         void AskPermission()
@@ -228,6 +289,30 @@ namespace Forge.Artifacts
                 Refuse(open.Title, $"This artifact is valid, but this version can't show it yet. It needs: {string.Join(", ", missing)}.");
                 return;
             }
+
+            var tables = ArtifactData.Resolve(open, out string dataProblem);
+            if (tables == null)
+            {
+                LastErrors = new List<ArtifactError> { new ArtifactError("no_data", "data", dataProblem) };
+                Refuse(open.Title, dataProblem);
+                return;
+            }
+            var assets = ArtifactAssets.Resolve(open, out var assetError);
+            if (assets == null)
+            {
+                LastErrors = new List<ArtifactError> { assetError };
+                Refuse(open.Title, $"One of its files can't be used, so it didn't open.\n\n{assetError}");
+                return;
+            }
+            if (open.Scene["nodes"] is JArray tableNodes)
+                foreach (JObject node in tableNodes)
+                {
+                    string problem = node.Value<string>("kind") == "array" ? ArtifactArray.Problem(node, tables) : null;
+                    if (problem == null) continue;
+                    LastErrors = new List<ArtifactError> { new ArtifactError("unknown_ref", "nodes." + node.Value<string>("id"), problem) };
+                    Refuse(open.Title, problem);
+                    return;
+                }
 
             var scenario = (open.Manifest["scenarios"] as JArray)?[0] as JObject;
             var inputs = keep ?? new ArtifactInputs(open.Manifest, scenario?["params"] as JObject);
@@ -263,12 +348,18 @@ namespace Forge.Artifacts
             }
 
             var root = new GameObject("Content").transform;
-            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots };
+            build = new ArtifactBuild { Host = this, Inputs = inputs, Root = root, Nodes = nodes, Slots = slots, Tables = tables, Assets = assets };
 
             var list = open.Scene["nodes"] as JArray ?? new JArray();
             foreach (JObject node in list) nodes[node.Value<string>("id")] = ArtifactNodes.Build(node, build);
             foreach (JObject node in list) Arrange(node, root);
             build.Finish();
+            LabelSample(root);
+            var said = new List<string>();
+            string aboutData = ArtifactData.Say(tables);
+            if (aboutData != null) said.Add(aboutData);
+            said.AddRange(build.Notes);
+            DataMessage = said.Count > 0 ? string.Join(" ", said) : null;
 
             float scale = 1f;
             if (open.Scene.Value<string>("space") == "volume") scale = ShowVolume(root);
@@ -276,7 +367,87 @@ namespace Forge.Artifacts
             else Hold(root);
 
             inputs.Changed += OnInputChanged;
+            BindRun();
             reveal = StartCoroutine(Reveal(root, scale));
+        }
+
+        // C-12 section 7: sample rows always carry a "Sample data" label, floating just above everything else in the scene.
+        void LabelSample(Transform root)
+        {
+            bool sample = false;
+            foreach (var t in build.Tables.Values) sample |= t.Sample;
+            if (!sample) return;
+            var label = ArtifactNodes.Build(new JObject
+            {
+                ["id"] = "sample_label", ["kind"] = "text", ["text"] = "Sample data", ["height"] = 0.04, ["color"] = "#FFD24C", ["billboard"] = true,
+            }, build);
+            var bounds = new Bounds(root.position, Vector3.zero);
+            foreach (var r in root.GetComponentsInChildren<Renderer>()) bounds.Encapsulate(r.bounds);
+            label.transform.SetParent(root, false);
+            label.transform.localPosition = root.InverseTransformPoint(new Vector3(bounds.center.x, bounds.max.y + 0.06f, bounds.center.z));
+            nodes["_sample_label"] = label;  // not a legal node id, so it can't clash with the scene's own
+        }
+
+        void BindRun()
+        {
+            if (!(open.Scene["run"] is JObject)) return;
+            if (Thing == null) Thing = FindFirstObjectByType<ArtifactThing>();
+            run = new ArtifactRun();
+            run.Bind(open.Manifest, open.Scene, LastLayout, build.Inputs, Thing, build.Metrics, build);
+            run.ZoneChanged += OnZone;
+            run.StateChanged += OnRunState;
+        }
+
+        /// <summary>Arms a run on the open scene (C-12 <c>artifact_run</c>). Places a sandbox Thing at the start.</summary>
+        public string ArmRun()
+        {
+            if (run == null) return "no_run: this scene isn't scored";
+            if (Thing == null) Thing = FindFirstObjectByType<ArtifactThing>();
+            run.SetThing(Thing);
+            PlaceThingAtStart();
+            return run.Arm();
+        }
+
+        void PlaceThingAtStart()
+        {
+            if (!(Thing is ArtifactThing body)) return;
+            body.Place(courseOrigin.position + Vector3.up * 0.06f, courseOrigin.rotation);
+        }
+
+        void OnZone(string zone, bool enter)
+        {
+            if (!(open?.Scene["rules"] is JArray rules)) return;
+            string ev = enter ? "enter" : "exit";
+            foreach (var rule in rules)
+                if (rule.Value<string>("type") == "on_zone" && rule.Value<string>("zone") == zone
+                    && rule.Value<string>("event") == ev && rule["do"] is JArray actions)
+                    foreach (var action in actions) Do(action);
+        }
+
+        void OnRunState()
+        {
+            if (run == null) return;
+            Emit("artifact.run", run.Event());
+        }
+
+        void FlushRun()
+        {
+            if (run == null) return;
+            var record = run.TakeRecord();
+            if (record == null) return;
+            if (open?.Manifest["links"] is JObject links)
+            {
+                record["project_id"] = links["project"] ?? JValue.CreateNull();
+                record["project_version"] = links["project_version"] ?? JValue.CreateNull();
+            }
+            if (NotebookStore.IsOpen)
+            {
+                record["project_id"] = NotebookStore.ProjectId;
+                record["project_version"] = NotebookStore.CurrentVersion();
+            }
+            ArtifactRuns.Save(record);
+            NotebookStore.AttachRun((string)record["run_id"], (string)record["outcome"]);
+            RunsRow?.Refresh();
         }
 
         // A room scene stands on the real floor at the course origin, at true scale. It isn't parented to the host, so
@@ -312,14 +483,15 @@ namespace Forge.Artifacts
         // stands. Returns the scale the root should end at.
         float ShowVolume(Transform root)
         {
-            var volume = Instantiate(volumePrefab, transform);
+            volume = Instantiate(volumePrefab, transform);
             volume.name = "Volume " + open.Title;
             volume.Title = open.Title;
             volume.SetAccent(accent);
             volume.SetSize(volumeSize);
             spawned.Add(volume.gameObject);
             float radius = open.Scene["view"]?.Value<float?>("radius") ?? 0f;
-            if (radius <= 0f)
+            fitOnLoad = radius <= 0f;
+            if (fitOnLoad)
             {
                 volume.SetContent(root.gameObject);
                 return 1f;
@@ -409,6 +581,7 @@ namespace Forge.Artifacts
 
         void Update()
         {
+            FlushRun();
             if (relayoutAt < 0f || Time.unscaledTime < relayoutAt) return;
             relayoutAt = -1f;
             if (build == null) return;
@@ -416,6 +589,8 @@ namespace Forge.Artifacts
             Teardown();
             Show(inputs, false);
         }
+
+        void FixedUpdate() => run?.Tick(Time.fixedDeltaTime);
 
         // Grows in rather than popping, so it feels placed. Scales the root's child space only, never the Fit.
         IEnumerator Reveal(Transform root, float scale)

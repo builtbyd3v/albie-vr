@@ -1,0 +1,7 @@
+[
+  {"name":"brain_record","description":"Start or stop the controller brain's lap recording view while the user drives the Thing.","parameters":{"type":"object","properties":{"start":{"type":"boolean"}},"required":["start"]}},
+  {"name":"brain_train","description":"Start the controller brain training preview from the recorded lap samples and show its live loss curve.","parameters":{"type":"object","properties":{"epochs":{"type":"integer"}}}},
+  {"name":"autopilot_on","description":"Show the learned-controller Autopilot preview in the controller brain view.","parameters":{"type":"object","properties":{}}},
+  {"name":"autopilot_off","description":"Return the controller brain view from Autopilot preview to its ready state.","parameters":{"type":"object","properties":{}}},
+  {"name":"brain_status","description":"Read the controller brain view state, current sample and whether it is a preview.","parameters":{"type":"object","properties":{}}}
+]

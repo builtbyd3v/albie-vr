@@ -24,6 +24,8 @@ namespace Forge.Notebook
                 ["notebook_log"] = LogTool,
                 ["notebook_mark"] = MarkTool,
                 ["notebook_lessons"] = LessonsTool,
+                ["plan_revise"] = RevisePlanTool,
+                ["notebook_compare"] = CompareTool,
             });
             ConnectTraining();
             Application.quitting -= OnQuit;
@@ -112,6 +114,30 @@ namespace Forge.Notebook
                     ["from"] = lesson.Json["from"]?.DeepClone(),
                 });
             return new JObject { ["lessons"] = list };
+        }
+
+        public static JObject RevisePlanTool(JObject args)
+        {
+            Require();
+            int version = NotebookStore.RevisePlan((string)args["reason"], (string)args["goal"], (string)args["test"], args["milestones"] as JArray);
+            var plan = NotebookStore.CurrentPlan;
+            return new JObject
+            {
+                ["version"] = version,
+                ["postmortem"] = plan["postmortem"],
+                ["goal"] = plan["goal"],
+                ["test"] = plan["test"],
+            };
+        }
+
+        /// <summary>v1 vs v2 (C-12 question 7): a version with no run is labelled "free drive, not this course".</summary>
+        public static JObject CompareTool(JObject args)
+        {
+            Require();
+            int to = args.Value<int?>("to") ?? NotebookStore.CurrentVersion();
+            int from = args.Value<int?>("from") ?? to - 1;
+            if (from < 1) throw new ArgumentException("bad_value: this project has no earlier version to compare");
+            return NotebookStore.CompareVersions(from, to, (string)args["artifact"] ?? "slalom");
         }
 
         static void Require()
