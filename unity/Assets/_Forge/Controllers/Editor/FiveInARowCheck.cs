@@ -120,10 +120,11 @@ public static class FiveInARowCheck
     public static Func<int, BehaviourCloner.Options> OptionsFor;
 
     /// <summary>One demo attempt from scratch.</summary>
-    public static Attempt Attempt1(int driverSeed, float noise, ControllerFile fallback, LapStyle style = LapStyle.Demo)
+    /// <summary>One demo attempt from scratch, on the corridor or on a room slalom (<paramref name="course"/>).</summary>
+    public static Attempt Attempt1(int driverSeed, float noise, ControllerFile fallback, LapStyle style = LapStyle.Demo, MockCourse course = null)
     {
         var a = new Attempt { DriverSeed = driverSeed, Noise = noise };
-        var laps = RecordLaps(driverSeed, noise, a, style);
+        var laps = RecordLaps(driverSeed, noise, a, style, course);
 
         var cloners = new BehaviourCloner[Candidates];
         for (int i = 0; i < Candidates; i++)
@@ -153,7 +154,7 @@ public static class FiveInARowCheck
             host.ResetState();
             float y0 = (float)(placement.NextDouble() * 2 - 1) * StartOffset, turn = (float)(placement.NextDouble() * 2 - 1) * StartTurn;
             if (a.FailedRuns == 0) { a.StartY = y0; a.StartTurn = turn; }
-            var sim = new MockTruckSim(y0, turn);
+            var sim = course != null ? new MockTruckSim(course, y0, turn) : new MockTruckSim(y0, turn);
             while (!sim.Crashed && !sim.Finished && sim.Time < RunTimeoutS)
             {
                 sim.Sense(host.IO.Sensors);
@@ -163,7 +164,8 @@ public static class FiveInARowCheck
             autopilot.RunEnded(host, sim.Finished);
             if (sim.Finished) { a.Kept = fallbackDriving ? 0 : index + 1; break; }
             a.FailedRuns++;
-            failures.Add($"{(fallbackDriving ? "fallback" : "candidate " + (index + 1))} {(sim.Crashed ? $"crashed at x {sim.X:0.0} m" : "stalled")}");
+            string how = sim.Missed != null ? $"{sim.Missed} at x {sim.X:0.0} m" : sim.Crashed ? $"crashed at x {sim.X:0.0} m" : "stalled";
+            failures.Add($"{(fallbackDriving ? "fallback" : "candidate " + (index + 1))} {how}");
         }
         a.Failures = string.Join(", ", failures);
         return a;
@@ -173,15 +175,15 @@ public static class FiveInARowCheck
     public enum LapStyle { Demo, SecondLapFaster, Varied }
 
     // Two completed laps, like a person: a crashed lap is driven again.
-    public static LapSet RecordLaps(int driverSeed, float noise, Attempt a, LapStyle style)
+    public static LapSet RecordLaps(int driverSeed, float noise, Attempt a, LapStyle style, MockCourse course = null)
     {
-        var set = MockLaps.Record(driverSeed, noise, (MockLaps.Style)style, out float seconds, out int redos);
+        var set = MockLaps.Record(driverSeed, noise, (MockLaps.Style)style, out float seconds, out int redos, course);
         a.LapSeconds += seconds;
         a.Redos += redos;
         return set;
     }
 
-    static ControllerFile LoadFallback()
+    public static ControllerFile LoadFallback()
     {
         var asset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
         if (asset == null) return null;

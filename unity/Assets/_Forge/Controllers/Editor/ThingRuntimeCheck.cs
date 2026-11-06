@@ -51,6 +51,8 @@ public static class ThingRuntimeCheck
         public ExampleTruckBody Body;
         /// <summary>A candidate trained on the physics truck's own laps that drove it (from RealLaps).</summary>
         public ControllerFile DroveIt;
+        /// <summary>The corridor's gates passed in order, for course.bearing's target.</summary>
+        public int Gates;
     }
 
     public static string Run()
@@ -74,6 +76,7 @@ public static class ThingRuntimeCheck
         {
             world.Thing?.Unregister();
             ManualInputs.Clear();
+            CourseBeacon.Clear();
             EditorSceneManager.ClosePreviewScene(world.Scene);
         }
         return (failed == 0 ? "PASS" : $"FAIL ({failed})") + " thing runtime check (example truck on Unity physics, Editor)\n" + sb;
@@ -134,6 +137,26 @@ public static class ThingRuntimeCheck
     {
         w.Body.Place(new Vector3(x, 0f, y), Heading(heading));
         w.Thing.Host.ResetState();
+        w.Gates = 0;
+        Beacon(w);
+    }
+
+    // What a run engine does for course.bearing (CourseBeacon, contract 2.1, proposed): the corridor's next gate in
+    // order (MockTruckSim.CorridorGateY), then the finish line's centre. Called before each tick, as the mock counts
+    // a gate after each move.
+    static void Beacon(World w)
+    {
+        var p = w.Body.transform.position;
+        int n = MockTruckSim.ConeX.Length;
+        if (w.Gates < n && Mathf.Abs(p.x - MockTruckSim.ConeX[w.Gates]) <= MockTruckSim.GateHalfAlong &&
+            Mathf.Abs(p.z - MockTruckSim.CorridorGateY[w.Gates]) <= MockTruckSim.GateHalfAcross) w.Gates++;
+        CourseBeacon.Set(w.Gates < n ? new Vector3(MockTruckSim.ConeX[w.Gates], 0f, MockTruckSim.CorridorGateY[w.Gates]) : new Vector3(MockTruckSim.FinishX, 0f, 0f));
+    }
+
+    static void Tick(World w)
+    {
+        Beacon(w);
+        w.Thing.Tick(Dt);
     }
 
     // Mirrors the physics truck's pose into a MockTruckSim, for the scripted driver and the sensor comparison.
@@ -152,7 +175,7 @@ public static class ThingRuntimeCheck
         for (float t = 0f; t < RunTimeoutS; t += Dt)
         {
             if (driver != null) { Mirror(w, view); driver.Drive(view); }
-            w.Thing.Tick(Dt);
+            Tick(w);
             if (w.Body.Crashed) return "crashed";
             if (w.Body.transform.position.x > MockTruckSim.FinishX) return "finished";
         }
@@ -166,20 +189,20 @@ public static class ThingRuntimeCheck
         string error = w.Thing.Init();
         if (error != null) return "FAIL " + error;
         var io = w.Thing.Host.IO;
-        if (io.Sensors.Length != 8 || io.Actuators.Length != 2) return $"FAIL channels: {io.Sensors.Length} sensors, {io.Actuators.Length} actuators";
+        if (io.Sensors.Length != MockTruckSim.SensorNames.Length || io.Actuators.Length != 2) return $"FAIL channels: {io.Sensors.Length} sensors, {io.Actuators.Length} actuators";
         if (w.Thing.Host.File?.Name != "truck_manual") return "FAIL the starting controller isn't attached";
         string bad = w.Thing.Attach("{\"schema\": \"albie.controller/1\", \"kind\": \"graph\"}");
         if (bad == null) return "FAIL a bad controller file attached";
         if (w.Thing.Host.File?.Name != "truck_manual") return "FAIL a bad file replaced the running controller";
         if (w.Thing.Recorder.Set.MirrorSwap.Length != 3) return "FAIL the recorder has no mirror map";
-        return $"ok: 8 sensors, 2 actuators, truck_manual attached; a bad file is refused ({Short(bad)}) and truck_manual keeps running";
+        return $"ok: {io.Sensors.Length} sensors, 2 actuators, truck_manual attached; a bad file is refused ({Short(bad)}) and truck_manual keeps running";
     }
 
     static string Sensors(World w)
     {
         var view = new MockTruckSim();
-        var fromMock = new float[8];
-        var fromPhysics = new float[8];
+        var fromMock = new float[MockTruckSim.SensorNames.Length];
+        var fromPhysics = new float[MockTruckSim.SensorNames.Length];
         double worstCone = 0, worstWall = 0;
         int poses = 0, wallRays = 0, wallOff = 0;
         float range = MockTruckSim.RayRange;
@@ -239,13 +262,13 @@ public static class ThingRuntimeCheck
         string error = w.Thing.Attach(fallback.text);
         if (error != null) return "FAIL " + error;
         Place(w, 0f, 0f, 0f);
-        for (int i = 0; i < 20; i++) w.Thing.Tick(Dt); // warm up
+        for (int i = 0; i < 20; i++) Tick(w); // warm up
         var watch = new System.Diagnostics.Stopwatch();
         int steps = 0;
         long bytes = AllocationCounter.BytesDuring(() =>
         {
             watch.Start();
-            for (; steps < 200 && !w.Body.Crashed; steps++) w.Thing.Tick(Dt);
+            for (; steps < 200 && !w.Body.Crashed; steps++) Tick(w);
             watch.Stop();
         });
         if (bytes > 0) return $"FAIL {bytes} bytes allocated in {steps} steps";

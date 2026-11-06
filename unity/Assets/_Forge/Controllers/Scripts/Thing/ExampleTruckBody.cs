@@ -37,6 +37,7 @@ namespace Forge.Controllers
             RayFan.Sense(Physics, t.position + t.up * sensorHeight, t.forward, t.up, MockTruckSim.Rays, MockTruckSim.FovDeg,
                          beam, MockTruckSim.RayRange, obstacles, sensors, 0, RayMetres);
             sensors[MockTruckSim.Rays] = Mathf.Clamp(Speed / MockTruckSim.TopSpeed, -1f, 1f);
+            sensors[MockTruckSim.BearingIndex] = CourseBeacon.Bearing(t.position, t.forward, t.up);
         }
 
         public void Apply(float[] actuators, float dt)

@@ -56,12 +56,18 @@ WEAVE = 0.4                            # how far the driver passes to each side 
 WOBBLE = 0.13                          # the hand's steering wobble: the same wobble in the path the 0.25 gave the old truck
 WALLS = (-0.5, 9.8, -1.5, 1.5)         # x_min, x_max, y_min, y_max
 FINISH_X = CONES[-1][0] + 1.0
+# The corridor is a course too, so course.bearing means the same everywhere: a gate on the side the driver passes each
+# cone (left of the first), WEAVE out, 0.2 m deep and 0.6 m wide, counted in order. A lap still ends at FINISH_X.
+GATES = [(cx, WEAVE if i % 2 == 0 else -WEAVE) for i, (cx, _) in enumerate(CONES)]
+GATE_HALF_ALONG, GATE_HALF_ACROSS = 0.1, 0.3
 LAP_TIMEOUT_S = 30.0
 
-SENSORS = [f"ray_front.d{i}" for i in range(RAYS)] + ["speed.forward"]
+# course.bearing (proposed, C-19 section 2): the angle to the course's next gate (then the finish) over 90 degrees.
+# On a room slalom the run engine sets the target (CourseBeacon in Unity); here it's the corridor's GATES.
+SENSORS = [f"ray_front.d{i}" for i in range(RAYS)] + ["speed.forward", "course.bearing"]
 ACTUATORS = ["steer.angle", "drive.throttle"]
 MIRROR = {"swap": [[f"ray_front.d{i}", f"ray_front.d{RAYS - 1 - i}"] for i in range(RAYS // 2)],
-          "negate": ["steer.angle"]}
+          "negate": ["steer.angle", "course.bearing"]}
 
 MAX_SPEED_TUNABLE = {"value": 1.5, "min": 0.2, "max": 4.0, "unit": "m/s", "label": "Top speed"}
 
@@ -72,6 +78,7 @@ class Truck:
     y: float = 0.0
     heading: float = 0.0
     speed: float = 0.0
+    gates: int = 0                     # corridor gates passed in order
 
     def step(self, steer: float, throttle: float) -> None:
         steer = min(1.0, max(-1.0, steer))
@@ -81,6 +88,10 @@ class Truck:
         self.heading += self.speed / WHEELBASE * math.tan(steer * MAX_STEER) * DT
         self.x += self.speed * math.cos(self.heading) * DT
         self.y += self.speed * math.sin(self.heading) * DT
+        if self.gates < len(GATES):
+            gx, gy = GATES[self.gates]
+            if abs(self.x - gx) <= GATE_HALF_ALONG and abs(self.y - gy) <= GATE_HALF_ACROSS:
+                self.gates += 1
 
     def crashed(self) -> bool:
         if any(math.hypot(self.x - cx, self.y - cy) < CONE_RADIUS + TRUCK_RADIUS for cx, cy in CONES):
@@ -89,10 +100,18 @@ class Truck:
         return not (x0 + TRUCK_RADIUS < self.x < x1 - TRUCK_RADIUS and y0 + TRUCK_RADIUS < self.y < y1 - TRUCK_RADIUS)
 
 
-def _ray(px: float, py: float, dx: float, dy: float) -> float:
-    """Distance to the first cone or wall along a unit ray, capped at RAY_RANGE."""
+def _inside_beam(px: float, py: float) -> bool:
+    """Something already within BEAM_RADIUS of the sensor (RayFan's OverlapSphere): then every ray is a plain ray."""
+    if any(math.hypot(px - cx, py - cy) < CONE_RADIUS + BEAM_RADIUS for cx, cy in CONES):
+        return True
+    x0, x1, y0, y1 = WALLS
+    return min(px - x0, x1 - px, py - y0, y1 - py) < BEAM_RADIUS
+
+
+def _ray(px: float, py: float, dx: float, dy: float, beam: float = BEAM_RADIUS) -> float:
+    """Distance to the first cone or wall along a unit ray, capped at RAY_RANGE (a sphere cast of radius beam)."""
     best = RAY_RANGE
-    r = CONE_RADIUS + BEAM_RADIUS
+    r = CONE_RADIUS + beam
     for cx, cy in CONES:
         ox, oy = cx - px, cy - py
         along = ox * dx + oy * dy
@@ -109,9 +128,9 @@ def _ray(px: float, py: float, dx: float, dy: float) -> float:
             t = (wall - p) / d
             if t <= 0:
                 continue
-            sphere = (wall - math.copysign(BEAM_RADIUS, d) - p) / d
+            sphere = (wall - math.copysign(beam, d) - p) / d
             if sphere > 0:
-                t = sphere          # inside the beam already (crashed by then): a plain ray
+                t = sphere
             if t < best:
                 best = t
     return best
@@ -120,10 +139,16 @@ def _ray(px: float, py: float, dx: float, dy: float) -> float:
 def sense(truck: Truck) -> list[float]:
     """The sensor row, in SENSORS order, normalised as in contract 2.1."""
     row = []
+    # As RayFan does on real colliders: with something already inside the beam, every ray is a plain ray. The small
+    # truck can be 0.17-0.18 m from a cone's centre, inside the beam but not touching it.
+    beam = 0.0 if _inside_beam(truck.x, truck.y) else BEAM_RADIUS
     for i in range(RAYS):
         a = truck.heading + FOV / 2 - i * FOV / (RAYS - 1)
-        row.append(_ray(truck.x, truck.y, math.cos(a), math.sin(a)) / RAY_RANGE)
+        row.append(_ray(truck.x, truck.y, math.cos(a), math.sin(a), beam) / RAY_RANGE)
     row.append(max(-1.0, min(1.0, truck.speed / TOP_SPEED)))
+    tx, ty = GATES[truck.gates] if truck.gates < len(GATES) else (FINISH_X, 0.0)
+    bearing = math.remainder(math.atan2(ty - truck.y, tx - truck.x) - truck.heading, 2 * math.pi)
+    row.append(max(-1.0, min(1.0, bearing / (math.pi / 2))))   # course.bearing: the next gate, then the finish
     return row
 
 
@@ -327,8 +352,12 @@ def build(out: Path = OUT, epochs: int = 300) -> dict:
     for seed in range(10):
         net = train_mlp(x, y, hidden=[8, 8], epochs=epochs, seed=seed)
         check, seconds = run_learned(net, MAX_SPEED_TUNABLE["value"])
-        tried.append(check)
-        if check == "completed":
+        # The checks also drive it with max_speed at 1.0 and edit it up live (hot reload), so it must finish there too,
+        # and a higher max_speed must make the lap faster (at least 10%), or the edit shows nothing.
+        slow, slow_seconds = run_learned(net, 1.0)
+        faster = check == "completed" and slow == "completed" and seconds < 0.9 * slow_seconds
+        tried.append(check if faster else f"{check}, {slow} at 1.0 m/s" + (f" ({seconds:.1f} s vs {slow_seconds:.1f} s)" if slow == "completed" else ""))
+        if faster:
             break
 
     autopilot = {
@@ -348,7 +377,7 @@ def build(out: Path = OUT, epochs: int = 300) -> dict:
                      "device": "mock", "seed": len(tried) - 1,
                      "sim_check": f"{check} in {seconds:.1f} s; seeds tried: {', '.join(tried)}"},
         "notes": "Mock weights from scripted laps, for sandboxes and the brain view. Not the demo fallback. "
-                 "Picked as the first training seed that finishes the mock slalom.",
+                 "Picked as the first training seed that finishes the mock slalom at max_speed 1.5 and 1.0, and faster at 1.5.",
     }
 
     _write(out / "laps" / "truck_v2.json", laps_file)

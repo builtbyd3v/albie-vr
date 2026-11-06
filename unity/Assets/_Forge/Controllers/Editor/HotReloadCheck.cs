@@ -176,7 +176,8 @@ public static class HotReloadCheck
     static string LiveMaxSpeed(out string note)
     {
         var json = Mock("truck_autopilot");
-        json["tunables"]["max_speed"]["value"] = 1.0;
+        // Well under the net's own pace (about 1.2 m/s on the corridor), so raising it live shows (1.0 was too close).
+        json["tunables"]["max_speed"]["value"] = 0.8;
         var host = NewHost();
         host.Attach(Parse(json));
         var sim = new MockTruckSim();
@@ -192,7 +193,7 @@ public static class HotReloadCheck
             sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt);
             if (i < 150) topBefore = Math.Max(topBefore, sim.Speed); else topAfter = Math.Max(topAfter, sim.Speed);
         }
-        note = $"top {topBefore:0.00} m/s at max_speed 1.0, then {topAfter:0.00} m/s after the save; {(sim.Finished ? "finished" : "crashed")} in {sim.Time:0.0} s";
+        note = $"top {topBefore:0.00} m/s at max_speed 0.8, then {topAfter:0.00} m/s after the save; {(sim.Finished ? "finished" : "crashed")} in {sim.Time:0.0} s";
         return topAfter > topBefore + 0.1f ? null : note;
     }
 

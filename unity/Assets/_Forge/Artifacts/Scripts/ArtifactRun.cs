@@ -379,11 +379,40 @@ namespace Forge.Artifacts
             for (int i = 0; i < failN; i++) fails[i].Held = 0f;
             board.Reset();
             State = ArtifactRunState.Armed;
+            PublishTarget();
             StateChanged?.Invoke();
         }
 
         /// <summary>One physics step. No allocations.</summary>
         public void Tick(float dt)
+        {
+            TickZones(dt);
+            PublishTarget();
+        }
+
+        /// <summary>
+        /// The target of the Thing's <c>course.bearing</c> sensor (C-19 section 2, proposed 2026-11-06): the centre of
+        /// the next zone in an ordered set (the next gate), then the finish. Cleared when no run is armed or running.
+        /// Without it a learned driver can't tell which side of a cone the next gate is on (PROJECT_CONTEXT 16.8).
+        /// </summary>
+        void PublishTarget()
+        {
+            if (State != ArtifactRunState.Armed && State != ArtifactRunState.Running) { Forge.Controllers.CourseBeacon.Clear(); return; }
+            for (int z = 0; z < zoneN; z++)
+                if (zones[z].Ordered && zones[z].Next < zones[z].Copies) { Forge.Controllers.CourseBeacon.Set(ZoneCentre(z, zones[z].Next)); return; }
+            for (int z = 0; z < zoneN; z++)
+                if (zones[z].IsFinish && zones[z].Copies > 0) { Forge.Controllers.CourseBeacon.Set(ZoneCentre(z, 0)); return; }
+            Forge.Controllers.CourseBeacon.Clear();
+        }
+
+        Vector3 ZoneCentre(int z, int i)
+        {
+            var live = zones[z].Live;
+            if (live != null) return live[i] != null ? live[i].transform.position : Vector3.zero;
+            return zones[z].Boxes[i].center;
+        }
+
+        void TickZones(float dt)
         {
             if (State != ArtifactRunState.Armed && State != ArtifactRunState.Running) return;
             if (thing == null || !thing.Bound) return;
@@ -561,6 +590,7 @@ namespace Forge.Artifacts
             Outcome = outcome;
             Reason = reason;
             PendingRecord = Record();
+            PublishTarget();
             StateChanged?.Invoke();
         }
 

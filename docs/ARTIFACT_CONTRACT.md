@@ -310,6 +310,8 @@ A `run` block doesn't stop a scene opening: the course shows, and the run engine
 
 **As built, 2026-11-05.** `ArtifactRun` is the engine: it ticks from `FixedUpdate` with no allocations, tests zones with `ArtifactZone.Contains` (no trigger colliders), writes `albie.run/1` off that step, and calls `NotebookStore.AttachRun`. The probes come from `IArtifactThing` (C-12 question 1): Person 2's Thing runtime can implement it; until then the slalom sandbox drives `ArtifactThing`. `artifact_run` arms a lap; `artifact_compare` flags anything that isn't like for like as `"different course"`. Closing the artifact, or tapping Run again, aborts a running attempt.
 
+**The next target, for the Thing's `course.bearing` (proposed, Person 5 with ML A, 2026-11-06; C-19 section 2.1).** While a run is armed or running, `ArtifactRun` publishes where the Thing should head next: the centre of the next zone in an ordered set (for the slalom, the next gate that `gates_passed` would count), then the centre of the `finish` zone. It publishes after every tick, when a run arms, and when it finishes. It clears the target when no run is armed or running. The target goes to `CourseBeacon` (Controllers), so the Thing runtime reads it without depending on Artifacts. A learned driver needs it on a room slalom: without it, two laps trained a net that drove 5 of 48 room attempts, and with it 48 of 48 (PROJECT_CONTEXT 16.8).
+
 ## 6. Device records
 
 ### 6.1 Layout: `albie.layout/1`
