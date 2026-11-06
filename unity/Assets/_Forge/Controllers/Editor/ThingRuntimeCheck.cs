@@ -18,7 +18,10 @@ using UnityEngine.SceneManagement;
 /// 4. a step allocates nothing, with a learned controller;
 /// 5. the real-laps loop: two laps driven by hand on the physics truck (the scripted driver through the manual
 ///    controller), recorded, saved and read back, train 3 candidates that then drive it from hand-placed starts;
-/// 6. how well brains trained on the mock truck (and the pretrained fallback) drive the physics truck.
+/// 6. brains trained on mock-truck laps drive the physics truck;
+/// 7. the pretrained fallback (the Nov 16 safety net) drives it from the 15 starts it's scored on in the mock;
+/// 8. the real-truck way to replace it: a candidate that drove (from step 5) promoted with
+///    <see cref="PretrainedFallbackBuilder.Promote"/> to a scratch path loads and drives as the fallback; bad files are refused.
 /// Forge > Controllers > Check Thing Runtime; <see cref="Run"/> returns the report (a few seconds).
 /// </summary>
 public static class ThingRuntimeCheck
@@ -46,6 +49,8 @@ public static class ThingRuntimeCheck
         public Scene Scene;
         public ControllerThing Thing;
         public ExampleTruckBody Body;
+        /// <summary>A candidate trained on the physics truck's own laps that drove it (from RealLaps).</summary>
+        public ControllerFile DroveIt;
     }
 
     public static string Run()
@@ -62,6 +67,8 @@ public static class ThingRuntimeCheck
             failed += Step(sb, "NoAllocations", () => NoAllocations(world));
             failed += Step(sb, "RealLaps", () => RealLaps(world));
             failed += Step(sb, "MockBrains", () => MockBrains(world));
+            failed += Step(sb, "Fallback", () => FallbackDrives(world));
+            failed += Step(sb, "Promote", () => PromoteDrives(world));
         }
         finally
         {
@@ -173,7 +180,7 @@ public static class ThingRuntimeCheck
         var view = new MockTruckSim();
         var fromMock = new float[8];
         var fromPhysics = new float[8];
-        double worstCone = 0, worstAll = 0;
+        double worstCone = 0, worstWall = 0;
         int poses = 0, wallRays = 0, wallOff = 0;
         float range = MockTruckSim.RayRange;
         for (float x = 0f; x <= 8.5f; x += 0.5f)
@@ -190,17 +197,17 @@ public static class ThingRuntimeCheck
                     for (int i = 0; i < MockTruckSim.Rays; i++)
                     {
                         double diff = Math.Abs(fromMock[i] - fromPhysics[i]);
-                        worstAll = Math.Max(worstAll, diff);
                         // Which did the mock's ray hit? A cone if a cone is that far along it, else a wall (or nothing).
                         if (HitsCone(view, i, fromMock[i] * range)) worstCone = Math.Max(worstCone, diff);
-                        else if (fromMock[i] < 1f) { wallRays++; if (diff > 0.02) wallOff++; }
+                        else if (fromMock[i] < 1f) { wallRays++; worstWall = Math.Max(worstWall, diff); if (diff > 0.005) wallOff++; }
                     }
                 }
         if (Math.Abs(fromPhysics[7] - fromMock[7]) > 1e-4) return "FAIL speed.forward differs";
-        if (worstCone > 0.01) return $"FAIL cone distances differ by up to {worstCone * range:0.000} m";
-        return $"ok: {poses} poses × 7 rays. Cones agree within {worstCone * range * 1000:0.0} mm. " +
-               $"Walls: {wallOff}/{wallRays} wall rays read up to {worstAll * range:0.00} m shorter, because the mock casts plain rays at walls " +
-               "and a sphere cast stops when the beam touches the wall (the contract's sphere cast)";
+        if (worstCone > 0.005) return $"FAIL cone distances differ by up to {worstCone * range:0.000} m";
+        // Until 2026-11-06 the mock cast plain rays at walls and every wall ray here read up to 0.21 m nearer.
+        if (wallOff > 0) return $"FAIL {wallOff}/{wallRays} wall rays differ, by up to {worstWall * range:0.000} m: the mock and the contract's sphere cast disagree at walls";
+        return $"ok: {poses} poses × 7 rays agree with the mock: cones within {worstCone * range * 1000:0.0} mm, " +
+               $"{wallRays} wall rays within {worstWall * range * 1000:0.0} mm (both sphere casts, contract 2.1)";
     }
 
     static bool HitsCone(MockTruckSim view, int ray, float metres)
@@ -274,6 +281,7 @@ public static class ThingRuntimeCheck
         var files = Train(laps);
         string drove = Autopilot(w, files, null, out int firstTry);
         if (drove == null) return "FAIL no candidate trained on the physics laps drove the physics truck";
+        w.DroveIt = files[int.Parse(drove.Split(',')[0].Trim().Substring("candidate ".Length)) - 1];
         return $"ok: {laps.CompletedLaps} laps driven by hand on the physics truck ({tries - laps.CompletedLaps} redone), saved and read back; " +
                $"3 candidates trained on them drove it from {Starts.Length} hand-placed starts: {drove}";
     }
@@ -282,13 +290,60 @@ public static class ThingRuntimeCheck
     {
         var attempt = new FiveInARowCheck.Attempt { DriverSeed = 501 };
         var laps = FiveInARowCheck.RecordLaps(501, 1f, attempt, FiveInARowCheck.LapStyle.Demo);
-        var files = Train(laps);
-        var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
-        var fallback = ControllerFile.Parse(fallbackAsset.text, out _);
-        string drove = Autopilot(w, files, fallback, out _);
-        string fallbackAlone = Autopilot(w, new List<ControllerFile>(), fallback, out _);
-        return $"ok (information, not a pass condition): candidates trained on mock-truck laps: {drove ?? "none drove it"}. " +
-               $"The pretrained fallback alone: {fallbackAlone ?? "didn't drive it"}. Real laps from the real truck are what count";
+        string drove = Autopilot(w, Train(laps), null, out int firstTry);
+        if (drove == null) return "FAIL no candidate trained on mock-truck laps drove the physics truck";
+        return $"ok: candidates trained on mock-truck laps drove it from {Starts.Length} starts: {drove}";
+    }
+
+    // The fallback alone, from MockTrial's 15 starts (5 offsets × 3 headings), as PretrainedFallbackBuilder scores it.
+    static string FallbackDrives(World w)
+    {
+        var asset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
+        if (asset == null) return "FAIL no pretrained fallback in Resources/Controllers";
+        var fallback = ControllerFile.Parse(asset.text, out string error);
+        if (fallback == null) return "FAIL " + error;
+        error = w.Thing.Host.Attach(fallback);
+        if (error != null) return "FAIL " + error;
+        int finished = 0, starts = 0;
+        var misses = new List<string>();
+        foreach (float y in new[] { 0f, 0.1f, -0.1f, 0.3f, -0.3f })
+            foreach (float heading in new[] { 0f, 0.1f, -0.1f })
+            {
+                starts++;
+                Place(w, 0f, y, heading);
+                string outcome = Drive(w);
+                if (outcome == "finished") finished++; else misses.Add($"{y:+0.0;-0.0} m {heading:+0.0;-0.0} rad {outcome}");
+            }
+        if (finished < starts) return $"FAIL the pretrained fallback drove {finished}/{starts} starts on the physics truck ({string.Join(", ", misses)}): rebuild it (Forge > Controllers > Build Pretrained Fallback)";
+        return $"ok: the pretrained fallback drove all {starts} starts on the physics truck";
+    }
+
+    static string PromoteDrives(World w)
+    {
+        if (w.DroveIt == null) return "FAIL RealLaps didn't leave a candidate that drove";
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "albie_promote_check");
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            string source = System.IO.Path.Combine(dir, "truck_autopilot.json"), target = System.IO.Path.Combine(dir, "fallback.json");
+            System.IO.File.WriteAllText(source, w.DroveIt.Raw.ToString());
+            string report = PretrainedFallbackBuilder.Promote(source, target);
+            if (!report.StartsWith("wrote")) return "FAIL " + report;
+            var promoted = ControllerFile.Parse(System.IO.File.ReadAllText(target), out string error);
+            if (promoted == null) return "FAIL the promoted file doesn't load: " + error;
+            if (promoted.Name != "truck_autopilot_fallback") return $"FAIL the promoted file is named {promoted.Name}";
+
+            string graph = System.IO.Path.Combine(dir, "truck_cruise.json"), junk = System.IO.Path.Combine(dir, "junk.json");
+            System.IO.File.WriteAllText(graph, Resources.Load<TextAsset>("Mocks/controllers/truck_cruise").text);
+            System.IO.File.WriteAllText(junk, "{not json");
+            if (PretrainedFallbackBuilder.Promote(graph, target).StartsWith("wrote")) return "FAIL a graph controller was promoted";
+            if (PretrainedFallbackBuilder.Promote(junk, target).StartsWith("wrote")) return "FAIL a broken file was promoted";
+
+            string drove = Autopilot(w, new List<ControllerFile>(), promoted, out _);
+            if (drove == null) return "FAIL the promoted fallback didn't drive the physics truck";
+            return $"ok: a candidate that drove, promoted, loads as truck_autopilot_fallback and drove {Starts.Length} starts as the fallback; a graph and a broken file are refused";
+        }
+        finally { System.IO.Directory.Delete(dir, true); }
     }
 
     static List<ControllerFile> Train(LapSet laps)

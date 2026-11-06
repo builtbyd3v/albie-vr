@@ -98,11 +98,18 @@ def _ray(px: float, py: float, dx: float, dy: float) -> float:
         miss2 = ox * ox + oy * oy - along * along
         if miss2 <= r * r:
             best = min(best, max(0.0, along - math.sqrt(r * r - miss2)))
+    # Walls are sphere casts too (contract 2.1): the beam's centre stops BEAM_RADIUS short of the wall. Until
+    # 2026-11-06 they got a plain ray, which a sphere-cast fan on real colliders reads up to 0.21 m nearer.
     x0, x1, y0, y1 = WALLS
     for wall, p, d in ((x0, px, dx), (x1, px, dx), (y0, py, dy), (y1, py, dy)):
         if abs(d) > 1e-9:
             t = (wall - p) / d
-            if 0 < t < best:
+            if t <= 0:
+                continue
+            sphere = (wall - math.copysign(BEAM_RADIUS, d) - p) / d
+            if sphere > 0:
+                t = sphere          # inside the beam already (crashed by then): a plain ray
+            if t < best:
                 best = t
     return best
 

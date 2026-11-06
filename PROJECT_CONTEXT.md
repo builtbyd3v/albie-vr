@@ -2537,10 +2537,27 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - Albie's tools reach the truck by name.
   - A step allocates nothing (about 6 µs with 7 sphere casts).
   - **The real-laps loop works end to end:** two laps driven by hand, recorded, saved and read back, then 3 candidates trained on them. Candidate 1 drove the truck from all 3 hand-placed starts.
-- **Finding: brains trained on the mock carry over badly, and the pretrained fallback crashed on the physics truck.**
+- **Finding: brains trained on the mock carried over badly, and the pretrained fallback crashed on the physics truck.**
   - Candidates trained on mock laps needed candidate 3.
   - The likely cause is that the mock casts plain rays at walls, where the contract's sphere cast reads walls up to 0.21 m nearer. Cones agree exactly.
-  - **So the Nov 16 safety net needs one step once the real truck drives: rebuild the pretrained fallback from the real truck's laps.** Until then, the bundled fallback is only good on the mock.
+  - **Fixed the same day:** see the next paragraph.
+
+**ML A fallback fix (2026-11-06, Editor).** The Nov 16 safety net now works on a truck that senses like the contract.
+- **The cause is confirmed.** Both mocks (`MockTruckSim` and `hub/ml/make_controller_mocks.py`) now sphere-cast walls, as C-19 section 2.1 says. On the physics example, every sensor reading agrees with the mock to 0.0 mm (425 poses × 7 rays). Before, every wall ray was off, by up to 0.21 m.
+- **The mock files are regenerated:** `laps/truck_v2.json` and `truck_autopilot.json`. The pretrained fallback is rebuilt: seed 1, 15/15 mock starts.
+
+  | On the physics example truck | Before | After |
+  |---|---|---|
+  | The pretrained fallback, 15 starts | 4/15 | **15/15** |
+  | Candidates trained on mock laps | candidate 3 | candidate 1 |
+
+  `ThingRuntimeCheck` now fails if the fallback misses a start.
+- **The demo loop still holds on the new mock:**
+  - `FiveInARowCheck`: 5/5 on candidate 1.
+  - Demo laps, 60 drivers: candidate 1 58/60, a trained candidate 59/60; the fallback drove the last one.
+  - Behaviour cloning closed loop: 15/15 for all three seeds (was 14, 14, 15).
+  - The ML template: 97.5% held out (the rule: 86.0%).
+- **On the real truck:** replace the fallback with a candidate that drove the real course (**Forge > Controllers > Use Controller File As Fallback**; steps in `Controllers/README.md`). Laps alone can't pick one: validation loss doesn't say which net drives.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
