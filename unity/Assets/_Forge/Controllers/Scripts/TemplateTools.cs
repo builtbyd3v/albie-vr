@@ -55,8 +55,14 @@ namespace Forge.Controllers
             switch (TemplateRun.State)
             {
                 case TemplateRun.Phase.Training:
-                    var c = TemplateRun.Current.Classifier;
-                    result = new JObject { ["state"] = "training", ["epoch"] = c.Epoch, ["epochs"] = c.Settings.Epochs, ["samples"] = TemplateRun.Current.Data.Count };
+                    // making_data first (no epochs yet), then training, then saving.
+                    var t = TemplateRun.Current;
+                    result = new JObject
+                    {
+                        ["state"] = "training", ["step"] = TemplateRun.Activity, ["epoch"] = t.Classifier?.Epoch ?? 0,
+                        ["epochs"] = t.Settings.Epochs, ["samples"] = t.Samples,
+                    };
+                    if (t.MakingData) result["made"] = t.Made;
                     break;
                 case TemplateRun.Phase.Done:
                     result = Summary();

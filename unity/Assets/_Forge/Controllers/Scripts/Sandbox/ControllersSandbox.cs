@@ -181,12 +181,10 @@ namespace Forge.Controllers
         public string StartTemplate()
         {
             if (TemplateTraining) return status = "the ML template is already training";
-            var started = System.Diagnostics.Stopwatch.StartNew();
             string error = TemplateRun.Start(TemplateRun.LoadDefaultBase());
             if (error != null) return status = error;
             templateMine = true;
-            var t = TemplateRun.Current;
-            status = $"ML template: {t.Data.Count} samples made in {started.ElapsedMilliseconds} ms ({t.Data.Positives} obstacle ahead); training";
+            status = $"ML template: making {TemplateRun.Current.Samples} samples, then training (a few ms a frame)";
             return null;
         }
 
@@ -206,11 +204,12 @@ namespace Forge.Controllers
             bool mine = templateMine;
             templateMine = false;
             if (TemplateRun.State != TemplateRun.Phase.Done) { status = TemplateRun.Error; return; }
-            var c = TemplateRun.Current.Classifier;
-            c.Evaluate(out var model, out var baseline, out float threshold);
+            // The run already scored the net: read its training block rather than scoring it again in this frame.
+            var t = TemplateRun.Current;
+            var block = TemplateRun.TrainingBlock;
             string saved = TemplateRun.SaveError == null ? "saved to " + TemplateRun.ModelPath : "saving failed: " + TemplateRun.SaveError;
-            status = $"ML template trained in {c.Steps} frames ({TemplateRun.WallSeconds:0.0} s, {c.ComputeSeconds * 1000:0} ms compute): " +
-                     $"{model.Accuracy:P1} right on held-out samples, vs {baseline.Accuracy:P1} for \"{ObstacleClassifier.FrontRay} < {threshold:0.00}\". {saved}";
+            status = $"ML template: {t.Data.Count} samples in {t.Maker?.Steps ?? 0} frames, trained in {t.Classifier.Steps} frames ({TemplateRun.WallSeconds:0.0} s, {t.ComputeSeconds * 1000:0} ms compute): " +
+                     $"{(double)block["val_accuracy"]:P1} right on held-out samples, vs {(double)block["baseline"]["val_accuracy"]:P1} for \"{block["baseline"]["rule"]}\". {saved}";
             if (mine) { string result = status; ResetTruck(); string error = UseLearnedBrake(); status = result + (error == null ? "  Attached the learned brake." : "  " + error); }
         }
 
@@ -459,8 +458,10 @@ namespace Forge.Controllers
                 sb.Append("   P(obstacle ahead) ").Append(graph.ModelProbability.ToString("0.00"));
             if (TemplateTraining)
             {
-                var tc = TemplateRun.Current.Classifier;
-                sb.Append($"   ML template epoch {tc.Epoch}/{tc.Settings.Epochs} val loss {tc.ValidationLoss:0.0000}");
+                var t = TemplateRun.Current;
+                if (t.MakingData) sb.Append($"   ML template making data {t.Made}/{t.Samples}");
+                else if (!t.Done) sb.Append($"   ML template epoch {t.Classifier.Epoch}/{t.Settings.Epochs} val loss {t.Classifier.ValidationLoss:0.0000}");
+                else sb.Append("   ML template saving");
             }
             sb.Append("\n").Append(status);
             if (autopilot != null) sb.Append(autopilot.Exhausted ? "   AUTOPILOT: nothing left" : $"   AUTOPILOT {autopilot.Describe()}{(autopilot.Kept ? " (kept)" : "")}");

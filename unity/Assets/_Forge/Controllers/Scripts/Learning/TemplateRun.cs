@@ -9,14 +9,15 @@ namespace Forge.Controllers
     /// <summary>
     /// One run of the on-device ML template (<see cref="ObstacleTemplate"/>), shared by the sandbox's M key and Albie's
     /// tools (<see cref="TemplateTools"/>), so both go down the same path:
-    /// 1. <see cref="Start"/> makes the dataset and starts training. A hidden pump trains it a few ms a frame in Play
-    ///    (<see cref="BudgetMs"/>); edit-mode checks call <see cref="Pump"/> themselves.
-    /// 2. When it's done, it saves <c>obstacle_ahead.json</c> and the learned-brake controller to the controllers
-    ///    folder, reports the run to the lab notebook (<see cref="TrainingLog"/>, C-17 section 3) and raises
-    ///    <see cref="Finished"/>.
+    /// 1. <see cref="Start"/> starts a run. A hidden pump works on it a few ms a frame in Play (<see cref="BudgetMs"/>):
+    ///    it makes the dataset, then trains. Edit-mode checks call <see cref="Pump"/> themselves.
+    /// 2. When training is done, the next frames score the net, save <c>obstacle_ahead.json</c> and the learned-brake
+    ///    controller to the controllers folder (a file a frame), then report the run to the lab notebook
+    ///    (<see cref="TrainingLog"/>, C-17 section 3) and raise <see cref="Finished"/>.
     /// 3. <see cref="AttachBrake"/> puts the learned brake on a Thing, and <see cref="DetachBrake"/> gives it back the
     ///    controller it had before.
-    /// One run at a time. No allocations per frame while training (the classifier's own rule).
+    /// One run at a time. No frame does all of it: on the headset a whole dataset or the whole finish in one frame was
+    /// a dropped frame. No allocations per frame while making data or training (the classifier's own rule).
     /// </summary>
     public static class TemplateRun
     {
@@ -29,7 +30,12 @@ namespace Forge.Controllers
 
         public static Phase State { get; private set; }
         public static ObstacleTemplate Current { get; private set; }
+        /// <summary>A run is going: making data, training or saving. The results are set when it's <see cref="Phase.Done"/>.</summary>
         public static bool Training => State == Phase.Training;
+        /// <summary>What a run is doing now: <c>making_data</c>, <c>training</c> or <c>saving</c> (null when no run is going).</summary>
+        public static string Activity => !Training ? null : finishing > 0 ? "saving" : Current.MakingData ? "making_data" : "training";
+        /// <summary>Time spent in <see cref="Pump"/> since the run started, in seconds (the timing kit reads it each frame).</summary>
+        public static double PumpSeconds { get; private set; }
         /// <summary>The base controller with the trained net as its brake (null until a run is done).</summary>
         public static JObject LearnedBrake { get; private set; }
         public static JObject TrainingBlock { get; private set; }
@@ -43,6 +49,9 @@ namespace Forge.Controllers
 
         static string folder;
         static float started;
+        // 0 while making data and training; then the finish's steps, one a frame (see FinishStep).
+        static int finishing;
+        static string modelText;
         static readonly List<Action> waiting = new List<Action>();
         // What each Thing ran before the learned brake, so turning it off gives that back.
         static readonly Dictionary<ControllerHost, ControllerFile> before = new Dictionary<ControllerHost, ControllerFile>();
@@ -55,6 +64,7 @@ namespace Forge.Controllers
         {
             State = Phase.Idle; Current = null; LearnedBrake = null; TrainingBlock = null; pendingBase = null;
             ModelPath = ControllerPath = SaveError = Error = null; WallSeconds = 0f;
+            finishing = 0; modelText = null; PumpSeconds = 0;
             waiting.Clear(); before.Clear(); BudgetMs = 4.0; FolderOverride = null;
         }
 
@@ -64,7 +74,7 @@ namespace Forge.Controllers
         public static string SaveFolder => FolderOverride ?? Path.Combine(Application.persistentDataPath, "controllers");
 
         /// <summary>
-        /// Makes the dataset and starts training. <paramref name="baseController"/> is the graph the learned brake goes
+        /// Starts a run: the pump makes the dataset, then trains. <paramref name="baseController"/> is the graph the learned brake goes
         /// into (default: the bundled <c>truck_cruise</c>); <paramref name="saveFolder"/> is where the files go (default
         /// <see cref="SaveFolder"/>). Returns an error, or null. A run already training is left alone (null).
         /// </summary>
@@ -78,7 +88,8 @@ namespace Forge.Controllers
             folder = saveFolder ?? SaveFolder;
             Error = SaveError = ModelPath = ControllerPath = null;
             LearnedBrake = null; TrainingBlock = null;
-            try { Current = new ObstacleTemplate(); }
+            finishing = 0; modelText = null; PumpSeconds = 0; WallSeconds = 0f;
+            try { Current = ObstacleTemplate.Begin(); }
             catch (Exception e) { Fail(e.Message); return Error; }
             started = Time.realtimeSinceStartup;
             State = Phase.Training;
@@ -103,17 +114,29 @@ namespace Forge.Controllers
             return LoadDefaultBase();
         }
 
-        /// <summary>Trains for one frame's budget; finishes the run when the classifier is done. Returns true when it isn't training any more.</summary>
+        /// <summary>
+        /// One frame's work within the budget: making data, training, or one step of the finish. Returns true when the
+        /// run isn't going any more (done or failed).
+        /// </summary>
         public static bool Pump(double budgetMs = -1)
         {
             if (!Training) return true;
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             try
             {
-                if (!Current.Step(budgetMs < 0 ? BudgetMs : budgetMs)) return false;
-                Finish();
+                if (finishing == 0)
+                {
+                    if (Current.Step(budgetMs < 0 ? BudgetMs : budgetMs))
+                    {
+                        WallSeconds = Time.realtimeSinceStartup - started;
+                        finishing = 1;
+                    }
+                }
+                else FinishStep();
             }
             catch (Exception e) { Debug.LogException(e); Fail(e.Message); }
-            return true;
+            PumpSeconds += (System.Diagnostics.Stopwatch.GetTimestamp() - t0) / (double)System.Diagnostics.Stopwatch.Frequency;
+            return !Training;
         }
 
         /// <summary>Calls <paramref name="done"/> when the current run ends (now if it isn't training).</summary>
@@ -123,28 +146,60 @@ namespace Forge.Controllers
             waiting.Add(done);
         }
 
-        static void Finish()
+        // The finish, a step a frame after the last training frame. Each is about a millisecond in the Editor; together
+        // they were 3 ms in one frame.
+        static void FinishStep()
         {
-            WallSeconds = Time.realtimeSinceStartup - started;
-            TrainingBlock = Current.Classifier.TrainingBlock(ObstacleTemplate.ModelName);
-            TrainingBlock["wall_seconds"] = Math.Round(WallSeconds, 2);
-            LearnedBrake = Current.WithLearnedBrake(pendingBase);
-            try
+            switch (finishing)
             {
-                var paths = Current.Save(folder, pendingBase);
-                ModelPath = paths.model; ControllerPath = paths.controller;
+                case 1:  // score the net on the held-out samples and the front-ray rule
+                    TrainingBlock = Current.Classifier.TrainingBlock(ObstacleTemplate.ModelName);
+                    TrainingBlock["wall_seconds"] = Math.Round(WallSeconds, 2);
+                    break;
+                case 2:  // the learned-brake controller and the model file's text
+                    LearnedBrake = Current.WithLearnedBrake(pendingBase);
+                    modelText = Current.ModelJson((JObject)TrainingBlock.DeepClone()).ToString();
+                    break;
+                case 3:
+                    Save(() =>
+                    {
+                        Directory.CreateDirectory(folder);
+                        string path = Path.Combine(folder, ObstacleTemplate.ModelName + ".json");
+                        ControllerFileWatcher.WriteAtomic(path, modelText);
+                        ModelPath = path;
+                    });
+                    modelText = null;
+                    break;
+                case 4:
+                    if (SaveError == null) Save(() =>
+                    {
+                        string path = Path.Combine(folder, (string)LearnedBrake["name"] + ".json");
+                        ControllerFileWatcher.WriteAtomic(path, LearnedBrake.ToString());
+                        ControllerPath = path;
+                    });
+                    break;
+                default:
+                    finishing = 0;
+                    State = Phase.Done;
+                    // One notebook entry per run (C-17 section 3), on the controller the net was trained for.
+                    TrainingLog.Report((string)LearnedBrake["name"], (int?)LearnedBrake["version"] ?? 1, (JObject)TrainingBlock.DeepClone());
+                    Raise();
+                    return;
             }
+            finishing++;
+        }
+
+        static void Save(Action write)
+        {
+            try { write(); }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { SaveError = e.Message; }
-            State = Phase.Done;
-            // One notebook entry per run (C-17 section 3), on the controller the net was trained for.
-            TrainingLog.Report((string)LearnedBrake["name"], (int?)LearnedBrake["version"] ?? 1, (JObject)TrainingBlock.DeepClone());
-            Raise();
         }
 
         static void Fail(string message)
         {
             Error = "training_failed: " + message;
             State = Phase.Failed;
+            finishing = 0; modelText = null;
             Raise();
         }
 
@@ -199,7 +254,11 @@ namespace Forge.Controllers
         static bool IsLearnedBrake(ControllerFile file) => file.Name != null && file.Name.EndsWith(ObstacleTemplate.LearnedSuffix, StringComparison.Ordinal);
     }
 
-    /// <summary>Trains the template run a few ms a frame in Play. Made on demand and kept across scenes.</summary>
+    /// <summary>
+    /// Works on the template run a few ms a frame in Play. Made on demand and kept across scenes. It runs before other
+    /// scripts' Update, so a script reading <see cref="TemplateRun.PumpSeconds"/> in its Update sees this frame's work.
+    /// </summary>
+    [DefaultExecutionOrder(-1000)]
     sealed class TemplatePump : MonoBehaviour
     {
         static TemplatePump instance;

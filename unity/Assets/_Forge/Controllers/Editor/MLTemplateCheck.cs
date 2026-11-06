@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using Forge.Controllers;
 using Newtonsoft.Json.Linq;
+using Unity.Profiling;
 using UnityEditor;
 using UnityEngine;
 
@@ -12,6 +13,8 @@ using UnityEngine;
 /// dataset, frame-budgeted training, the albie.model/1 file, the graph <c>model</c> node (contract section 3.5,
 /// proposed), and the learned brake in closed loop on the mock truck. Forge > Controllers > Check ML Template logs the
 /// report; <see cref="Run"/> returns it (for `unity command eval`). Timings are Editor timings.
+/// Allocations are counted by the profiler (<see cref="BytesAllocated"/>): GC.GetAllocatedBytesForCurrentThread reads 0
+/// under Unity's garbage collector, so a check on it can't fail.
 /// </summary>
 public static class MLTemplateCheck
 {
@@ -40,6 +43,7 @@ public static class MLTemplateCheck
         ok &= Check(sb, "dataset: balanced, deterministic, labelled by physics", Dataset);
         ok &= Check(sb, "the label sees speed: faster needs more room", LabelSeesSpeed);
         ok &= Check(sb, "frame-budgeted training, no allocations per step", Training);
+        ok &= Check(sb, "dataset made a slice a frame: same samples, within budget, no allocations", MadeOverFrames);
         ok &= Check(sb, "beats the best front-ray rule on held-out samples", BeatsRule);
         ok &= Check(sb, "albie.model/1 file: same predictions after a round trip", ModelFile);
         ok &= Check(sb, "graph model node: bad files refused with the contract's codes", BadNodes);
@@ -124,24 +128,75 @@ public static class MLTemplateCheck
         note = null;
         var t = new ObstacleTemplate();
         t.Step(FrameBudgetMs);  // warm up (JIT)
-        long before = GC.GetAllocatedBytesForCurrentThread();
         int frames = 1;
         double worst = 0;
         var frame = new System.Diagnostics.Stopwatch();
-        while (true)
+        long bytes = BytesAllocated(() =>
         {
-            frame.Restart();
-            bool done = t.Step(FrameBudgetMs);
-            worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
-            frames++;
-            if (done) break;
-        }
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            while (true)
+            {
+                frame.Restart();
+                bool done = t.Step(FrameBudgetMs);
+                worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
+                frames++;
+                if (done) break;
+            }
+        });
         if (bytes > 0) return $"training allocated {bytes} bytes";
         if (worst > FrameBudgetMs + 2.5) return $"a frame took {worst:0.0} ms (budget {FrameBudgetMs} ms)";
         if (t.Classifier.Epoch != t.Classifier.Settings.Epochs) return "stopped at epoch " + t.Classifier.Epoch;
         template = t;
         note = $"{t.Classifier.Settings.Epochs} epochs in {frames} frames, {t.Classifier.ComputeSeconds * 1000:0} ms compute, worst frame {worst:0.0} ms, 0 bytes";
+        return null;
+    }
+
+    // What the headset runs (TemplateRun): the dataset a slice a frame, then the classifier's setup, then training.
+    static string MadeOverFrames(out string note)
+    {
+        note = null;
+        var whole = ObstacleData.Generate(3000, 7);
+        var t = ObstacleTemplate.Begin();
+        if (!t.MakingData || t.Data != null || t.Classifier != null) return "Begin made the data at once";
+        var frame = new System.Diagnostics.Stopwatch();
+        double worst = 0, setupFrame = 0;
+        int dataFrames = 0, trainFrames = 0;
+        // Only the last slice allocates: it wraps the rows it filled.
+        long bytes = BytesAllocated(() =>
+        {
+            while (!t.Maker.Done)
+            {
+                frame.Restart();
+                t.Step(FrameBudgetMs);
+                worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
+                dataFrames++;
+            }
+        });
+        if (bytes > 256) return $"making the data allocated {bytes} bytes (expected none but the result)";
+        if (dataFrames < 2) return "the dataset was made in one frame";
+        if (worst > FrameBudgetMs + 2.5) return $"a data frame took {worst:0.0} ms (budget {FrameBudgetMs} ms)";
+        bool done = false;
+        while (!done)
+        {
+            frame.Restart();
+            done = t.Step(FrameBudgetMs);
+            double ms = frame.Elapsed.TotalMilliseconds;
+            if (trainFrames++ == 0) setupFrame = ms;
+            worst = Math.Max(worst, ms);
+        }
+        if (worst > FrameBudgetMs + 2.5) return $"a frame took {worst:0.0} ms (budget {FrameBudgetMs} ms)";
+        var a = t.Data;
+        if (a.Count != whole.Count || a.Tried != whole.Tried) return $"{a.Count} samples from {a.Tried} poses, at once {whole.Count} from {whole.Tried}";
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a.Y[i] != whole.Y[i]) return "a different label at " + i;
+            for (int f = 0; f < a.X[i].Length; f++) if (a.X[i][f] != whole.X[i][f]) return "a different feature at " + i;
+        }
+        var trained = Trained().Classifier.TrainingBlock();
+        var spread = t.Classifier.TrainingBlock();
+        if ((double)spread["val_accuracy"] != (double)trained["val_accuracy"] || (double)spread["val_loss"] != (double)trained["val_loss"])
+            return $"trained to {spread["val_accuracy"]} (loss {spread["val_loss"]}), at once {trained["val_accuracy"]} ({trained["val_loss"]})";
+        note = $"3000 samples in {dataFrames} frames ({t.Maker.ComputeSeconds * 1000:0.0} ms, {bytes} bytes), the same samples and net as at once; " +
+               $"setup + first training frame {setupFrame:0.0} ms, worst frame {worst:0.0} ms";
         return null;
     }
 
@@ -187,6 +242,21 @@ public static class MLTemplateCheck
         if (worst > 0.002f) return $"probabilities differ by up to {worst:0.0000} after the round trip";
         note = $"{size / 1024f:0.0} KB; 200 samples agree within {worst:0.00000}";
         return null;
+    }
+
+    /// <summary>
+    /// Bytes allocated while <paramref name="work"/> runs, from the profiler's "GC Allocated In Frame" counter, which
+    /// counts each allocation as it happens (a check runs inside one Editor frame, so the counter doesn't restart).
+    /// </summary>
+    static long BytesAllocated(Action work)
+    {
+        using (var recorder = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame"))
+        {
+            if (!recorder.Valid) throw new InvalidOperationException("the profiler's GC Allocated In Frame counter isn't available");
+            long before = recorder.CurrentValue;
+            work();
+            return recorder.CurrentValue - before;
+        }
     }
 
     static ControllerHost Host() => new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
@@ -236,13 +306,14 @@ public static class MLTemplateCheck
         if (error != null) return error;
         var sim = new MockTruckSim { StopAtFinish = false };
         for (int i = 0; i < 10; i++) { sim.Sense(host.IO.Sensors); host.Step(0.02f, sim.Speed); sim.Step(host.IO.Actuators, 0.02f); }
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 5000; i++)
+        long bytes = BytesAllocated(() =>
         {
-            if (sim.Crashed) sim.Reset();
-            sim.Sense(host.IO.Sensors); host.Step(0.02f, sim.Speed); sim.Step(host.IO.Actuators, 0.02f);
-        }
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            for (int i = 0; i < 5000; i++)
+            {
+                if (sim.Crashed) sim.Reset();
+                sim.Sense(host.IO.Sensors); host.Step(0.02f, sim.Speed); sim.Step(host.IO.Actuators, 0.02f);
+            }
+        });
         if (bytes > 0) return $"{bytes} bytes over 5000 ticks";
         float p = ((GraphController)host.Current).ModelProbability;
         if (float.IsNaN(p) || p < 0 || p > 1) return "ModelProbability is " + p;
@@ -388,8 +459,19 @@ public static class MLTemplateCheck
             var joined = CallTool("template_train", null);   // a second call joins the run
             var mid = CallTool("template_status", null)[0];
             if ((string)mid["state"] != "training") return "status while training: " + mid["state"];
+            // Every frame of the run within budget: making data, training, and the finish (scoring, a file a frame, the report).
             int frames = 0;
-            while (!TemplateRun.Pump(FrameBudgetMs)) if (++frames > 2000) return "training never finished";
+            double worst = 0;
+            var frame = new System.Diagnostics.Stopwatch();
+            while (true)
+            {
+                frame.Restart();
+                bool over = TemplateRun.Pump(FrameBudgetMs);
+                worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
+                if (over) break;
+                if (++frames > 2000) return "training never finished";
+            }
+            if (worst > FrameBudgetMs + 2.5) return $"a frame of the run took {worst:0.0} ms (budget {FrameBudgetMs} ms)";
             if (answers.Count != 1 || joined.Count != 1) return $"answers: {answers.Count} and {joined.Count} (expected one each)";
             var r = answers[0];
             if (r["error"] != null) return "template_train: " + r["error"];
@@ -407,7 +489,7 @@ public static class MLTemplateCheck
                 return $"report {rep.controller} task {rep.training["task"]} model {rep.training["model"]}";
             var done = CallTool("template_status", null)[0];
             if ((string)done["state"] != "done" || (bool)done["brake_on"] || (string)done["controller"] != "truck_manual") return "status after training: " + done.ToString(Newtonsoft.Json.Formatting.None);
-            note = $"{frames + 1} frames; \"{say}\"";
+            note = $"{frames + 1} frames, worst {worst:0.0} ms; \"{say}\"";
             return null;
         }
         finally

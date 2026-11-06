@@ -19,14 +19,14 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Learning/LapRecorder.cs` | Records (sensors → `host.Commanded`) each physics step, with no allocations. It drops idle stretches. |
 | `Scripts/Learning/BehaviourCloner.cs` | On-device training with `NNNetwork`. `Step(ms)` trains within a frame budget; `ToControllerJson` writes the learned file. |
 | `Scripts/NetFile.cs` | Reads and checks the `inputs` and `net` blocks, shared by `learned` controllers and graph `model` nodes. |
-| `Scripts/Learning/ObstacleData.cs` | The ML template's dataset: "obstacle ahead?" from the truck's sensors, labelled by physics (driving straight for 0.6 s at its speed, at least 1 m/s). Balanced and deterministic. |
+| `Scripts/Learning/ObstacleData.cs` | The ML template's dataset: "obstacle ahead?" from the truck's sensors, labelled by physics (driving straight for 0.6 s at its speed, at least 1 m/s). Balanced and deterministic. `ObstacleData.Maker` makes it a few ms a frame, with the same samples as `Generate`. |
 | `Scripts/Learning/ObstacleClassifier.cs` | Trains the classifier on the device a few ms a frame, with no allocations. It scores it against the best front-ray rule and writes `albie.model/1` and the graph `model` node. |
 | `Scripts/Learning/ObstacleTemplate.cs` | **The bundled on-device ML template:** data, then training, then `WithLearnedBrake(truck_cruise)`. It saves `obstacle_ahead.json` and `truck_cruise_learned_brake.json`. |
-| `Scripts/Learning/TemplateRun.cs` | One template run, shared by the sandbox's M and Albie's tools: trains a few ms a frame, saves the files, reports it to the notebook, and attaches or detaches the learned brake. |
+| `Scripts/Learning/TemplateRun.cs` | One template run, shared by the sandbox's M and Albie's tools: makes the dataset and trains a few ms a frame, then scores the net and saves the files a step a frame, reports it to the notebook, and attaches or detaches the learned brake. |
 | `Scripts/TemplateTools.cs`, `Resources/AlbieTools/controllers.json` | Albie's tools for the template: `template_train`, `template_status`, `learned_brake {on}`. They run on the headset with no hub. |
 | `Scripts/ThingHosts.cs` | The Things running a controller, by name, so the tools can reach them. The sandbox registers its truck as `truck`. |
 | `Scripts/Sandbox/ObstacleTrial.cs` | Closed-loop brake test: cruise straight at a cone or wall from seeded starts that a perfect brake can always stop from. |
-| `Editor/MLTemplateCheck.cs` | **Forge > Controllers > Check ML Template**: 13 headless checks (data, label, training budget, accuracy against the rule, the model file, bad nodes, ticking allocates nothing, closed loop, plugging in, `learned` still loads, and the three tools). |
+| `Editor/MLTemplateCheck.cs` | **Forge > Controllers > Check ML Template**: 14 headless checks (data, label, training budget, the dataset made over frames, accuracy against the rule, the model file, bad nodes, ticking allocates nothing, closed loop, plugging in, `learned` still loads, and the three tools; every frame of a `template_train` run within budget). Allocations are counted by the profiler, because `GC.GetAllocatedBytesForCurrentThread` reads 0 under Unity's garbage collector. |
 | `Scripts/Sandbox/MockTruckSim.cs` | The fake Thing (PROJECT_CONTEXT 16.5): the Python mock's truck and slalom, ported, with 0.1 m beam rays. |
 | `Scripts/Sandbox/MockDriver.cs` | A scripted driver that writes `ManualInputs`, for auto laps and checks. |
 | `Scripts/Sandbox/MockTrial.cs` | Scores a trained net on the mock slalom from 15 starts (sandbox and checks only). |
@@ -50,11 +50,11 @@ All three kinds run: manual, graph and learned. Graphs can also hold a `model` n
 
 ## The ML template (Nov 14)
 
-The bundled template runs with no network: **"train a model, then plug it into a Thing"**. In `ControllersSandbox.unity`, press **M**. It makes 3,000 samples, trains the obstacle-ahead net about 4 ms a frame, saves it, and attaches `truck_cruise` with the learned brake in place of its hand-written one. Press **4** to attach it again, or **2** for the hand-written brake. The readout shows `P(obstacle ahead)` live. To see it brake, set `steer_gain` to 0: the hand-written brake hits the wall, and the learned one stops short of it.
+The bundled template runs with no network: **"train a model, then plug it into a Thing"**. In `ControllersSandbox.unity`, press **M**. It makes 3,000 samples and trains the obstacle-ahead net, about 4 ms a frame, saves it, and attaches `truck_cruise` with the learned brake in place of its hand-written one. Press **4** to attach it again, or **2** for the hand-written brake. The readout shows `P(obstacle ahead)` live. To see it brake, set `steer_gain` to 0: the hand-written brake hits the wall, and the learned one stops short of it.
 
 ```csharp
-var t = new ObstacleTemplate();                 // data (about 10 ms)
-while (!t.Step(4.0)) yield return null;         // train, 4 ms a frame
+var t = ObstacleTemplate.Begin();               // nothing made yet
+while (!t.Step(4.0)) yield return null;         // the data, then training, 4 ms a frame
 var learned = t.WithLearnedBrake(truckCruise);  // a graph controller with the model node
 host.Attach(ControllerFile.Parse(learned.ToString(), out _));
 ```
@@ -80,19 +80,20 @@ What it runs:
 1. 300 idle frames, the baseline.
 2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame (key B).
 3. The Autopilot drives the mock slalom from a hand-placed start (in the Editor, candidate 1 drives it). Each controller tick is timed.
-4. The ML template, as `template_train` runs it: the dataset in one frame, then training a few ms a frame.
+4. The ML template, as `template_train` runs it: the dataset and training a few ms a frame, then the scoring and saving a step a frame.
 
 How to read it:
 - A slow frame took more than 1.5× the refresh interval.
 - Training holds the frame rate when it adds no slow frames beyond idle's share plus 1%.
 - The kit writes nothing to the lab notebook or the real controllers folder.
+- Bytes allocated come from the profiler's "GC Allocated In Frame" counter. A build without it leaves them out rather than print a false 0.
 
 | Measure | Editor (M4 Pro) | What to look for on the Quest |
 |---|---|---|
 | Autopilot training | 3 nets, about 130 frames (1.1 s), 3.97 ms a frame | More frames is fine (a slower CPU does less per 4 ms). Slow frames shouldn't rise above idle. |
 | Autopilot driving | candidate 1 drove it, about 1 µs a tick | The same candidate. A tick well under 1 ms. |
-| Template dataset | about 15 ms, in one frame | Over about 14 ms is a hitch at 72 Hz. Tens of ms means it should be spread over frames. |
-| Template training | 36 frames, 3.9 ms a frame | Like Autopilot training. |
+| Template dataset | 3,000 samples in 2 frames (7.8 ms in all) | More frames is fine. Each one stays within the 4 ms budget. |
+| Template, the whole run | 29 frames (data, training, saving), at most 4.1 ms a frame, 0 slow | Like Autopilot training: no frame much over 4 ms, slow frames no higher than idle. |
 
 The panel prefab can also go into Main, to time training under Main's own load.
 

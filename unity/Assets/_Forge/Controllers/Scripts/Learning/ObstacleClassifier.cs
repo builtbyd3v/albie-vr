@@ -202,8 +202,11 @@ namespace Forge.Controllers
             return inputs;
         }
 
-        /// <summary>The <c>albie.model/1</c> file (contract section 3.5, proposed): the trained classifier on its own.</summary>
-        public JObject ToModelJson(string name = "obstacle_ahead", int version = 1, string thing = "truck") => new JObject
+        /// <summary>
+        /// The <c>albie.model/1</c> file (contract section 3.5, proposed): the trained classifier on its own. Pass
+        /// <paramref name="training"/> when you already have its <see cref="TrainingBlock"/> (scoring takes a millisecond).
+        /// </summary>
+        public JObject ToModelJson(string name = "obstacle_ahead", int version = 1, string thing = "truck", JObject training = null) => new JObject
         {
             ["schema"] = "albie.model/1",
             ["name"] = name,
@@ -214,7 +217,7 @@ namespace Forge.Controllers
             ["inputs"] = Inputs(),
             ["net"] = NetFile.Write(Net),
             ["threshold"] = 0.5,
-            ["training"] = TrainingBlock(name),
+            ["training"] = training ?? TrainingBlock(name),
         };
 
         /// <summary>
