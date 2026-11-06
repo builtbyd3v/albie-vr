@@ -36,10 +36,17 @@ public static class ArtifactRunCheck
         EditorApplication.Exit(report.StartsWith("PASS") ? 0 : 1);
     }
 
+    // The notebook goes beside the artifact library, never inside it: its writer runs on a worker thread, and a folder
+    // it creates in the library while ArtifactRuns.NextId lists the library can hide another artifact's runs from
+    // that listing on macOS (HoopCheck's run-id check failed about 1 run in 30). On the device the notebook is
+    // persistentDataPath/projects, beside artifacts/, so only the checks had this.
+    static string NotebookRoot => root + "_nb";
+
     public static string Run()
     {
         root = Path.Combine(Application.temporaryCachePath, "artifact_run_check");
         if (Directory.Exists(root)) Directory.Delete(root, true);
+        if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         string libBefore = ArtifactLibrary.RootOverride;
         string notebookProject = NotebookStore.ProjectId, notebookRoot = NotebookStore.Root;
         ArtifactLibrary.RootOverride = root;
@@ -68,6 +75,7 @@ public static class ArtifactRunCheck
             NotebookStore.Close();
             if (notebookProject != null) NotebookStore.Open(notebookProject, notebookRoot);
             if (Directory.Exists(root)) Directory.Delete(root, true);
+            if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         }
         return (ok ? "PASS" : "FAIL") + " run check\n" + sb;
     }
@@ -276,7 +284,7 @@ public static class ArtifactRunCheck
     static string Notebook(out string note)
     {
         note = null;
-        string nb = Path.Combine(root, "nb");
+        string nb = NotebookRoot;
         NotebookStore.Open("proj_truck", nb);
         NotebookStore.CutVersion("thing", "Ready for a slalom.");
         var (run, thing) = Fresh();

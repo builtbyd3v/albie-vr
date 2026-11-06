@@ -35,10 +35,17 @@ public static class SlalomCheck
         EditorApplication.Exit(report.StartsWith("PASS") ? 0 : 1);
     }
 
+    // The notebook goes beside the artifact library, never inside it: its writer runs on a worker thread, and a folder
+    // it creates in the library while ArtifactRuns.NextId lists the library can hide another artifact's runs from
+    // that listing on macOS (HoopCheck's run-id check failed about 1 run in 30). On the device the notebook is
+    // persistentDataPath/projects, beside artifacts/, so only the checks had this.
+    static string NotebookRoot => root + "_nb";
+
     public static string Run()
     {
         root = Path.Combine(Application.temporaryCachePath, "slalom_check");
         if (Directory.Exists(root)) Directory.Delete(root, true);
+        if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         string before = ArtifactLibrary.RootOverride;
         string notebookProject = NotebookStore.ProjectId, notebookRoot = NotebookStore.Root;
         ArtifactLibrary.RootOverride = root;
@@ -66,6 +73,7 @@ public static class SlalomCheck
             NotebookStore.Close();
             if (notebookProject != null) NotebookStore.Open(notebookProject, notebookRoot);
             if (Directory.Exists(root)) Directory.Delete(root, true);
+            if (Directory.Exists(NotebookRoot)) Directory.Delete(NotebookRoot, true);
         }
         return (ok ? "PASS" : "FAIL") + " slalom check\n" + sb;
     }
@@ -352,7 +360,7 @@ public static class SlalomCheck
         if (Refused(new JObject { ["cones"] = 4 }) != "unknown_input") return "an unknown input wasn't refused";
         if (Refused(null, "hoops") != "unknown_template") return "an unknown template wasn't refused";
 
-        string nb = Path.Combine(root, "nb");
+        string nb = NotebookRoot;
         NotebookStore.Open("proj_truck", nb);
         NotebookStore.CutVersion("thing", "Wider truck.");
         NotebookStore.CutVersion("thing", "Wider still.");
