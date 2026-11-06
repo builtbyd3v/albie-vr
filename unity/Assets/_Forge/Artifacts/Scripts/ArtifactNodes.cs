@@ -19,6 +19,8 @@ namespace Forge.Artifacts
         public readonly Dictionary<string, List<GameObject>> Arrays = new Dictionary<string, List<GameObject>>();
         /// <summary>The manifest's data tables (C-12 section 7), resolved before the build.</summary>
         public Dictionary<string, ArtifactTable> Tables = new Dictionary<string, ArtifactTable>();
+        /// <summary>The <c>gltf</c> nodes' files, by path, read and hash-checked before the build.</summary>
+        public Dictionary<string, byte[]> Assets = new Dictionary<string, byte[]>();
         /// <summary>Things the build had to change that Albie should say (an array cut to the copy limit).</summary>
         public readonly List<string> Notes = new List<string>();
         public readonly ArtifactMetrics Metrics = new ArtifactMetrics();
@@ -73,6 +75,8 @@ namespace Forge.Artifacts
             { "line", ArtifactTrail.Build },
             { "zone", ArtifactZone.Build },
             { "array", ArtifactArray.Build },
+            { "gltf", ArtifactGltf.Build },
+            { "timeline", ArtifactTimeline.Build },
         };
 
         public static void Register(string kind, Builder builder) => builders[kind] = builder;

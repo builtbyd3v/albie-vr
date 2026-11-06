@@ -11,11 +11,21 @@ namespace Forge.Artifacts
         public const string Manifest = "albie.artifact/1";
         public const string Scene = "albie.scene/1";
         public const string Run = "albie.run/1";
-        public const int HostRuntime = 3;  // 2: room_hoops. 3: arrays from data tables
+        public const int HostRuntime = 4;  // 2: room_hoops. 3: arrays from data tables. 4: gltf, timeline, animate
 
         public const int MaxNodes = 512, MaxZones = 64, MaxRules = 64, MaxSceneChars = 256 * 1024;
         public const int MaxBodies = 16, MaxTrailPoints = 2048;
         public const int MaxArrayCopies = 256;
+        public const int MaxAssetBytes = 8 * 1024 * 1024, MaxTextureSize = 2048, MaxKeys = 64;
+
+        /// <summary>What an <c>animate</c> rule can move, and the value each key holds.</summary>
+        public static readonly Dictionary<string, string> AnimateProperties = new Dictionary<string, string>
+        {
+            { "pos", "[x, y, z]" }, { "rot", "[x, y, z]" }, { "scale", "[x, y, z] or a number" },
+            { "visible", "true or false" }, { "color", "#RRGGBB" },
+        };
+
+        public static readonly HashSet<string> TimelineActions = new HashSet<string> { "play", "pause", "restart" };
 
         public static readonly HashSet<string> NodeKinds = new HashSet<string>
             { "primitive", "text", "panel", "array", "zone", "gltf", "line", "timeline", "sim" };

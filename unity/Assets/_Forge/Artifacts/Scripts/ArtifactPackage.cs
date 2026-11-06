@@ -87,6 +87,33 @@ namespace Forge.Artifacts
 
         static readonly Regex SafeData = new Regex(@"^data/[a-z0-9_-]+\.json$");
 
+        /// <summary>Binary glTF assets live here, and only here (C-12 section 8).</summary>
+        public static readonly Regex SafeAsset = new Regex(@"^assets/[a-z0-9_-]+\.glb$");
+
+        /// <summary>
+        /// An asset's bytes (<c>assets/rocket.glb</c>), or null with <paramref name="why"/>. The device copy comes first,
+        /// then the bundled fixture, then the template it was made from. Bundled files end in <c>.glb.bytes</c>, so Unity
+        /// keeps them as binary.
+        /// </summary>
+        public byte[] ReadAsset(string file, out string why)
+        {
+            why = null;
+            if (file == null || !SafeAsset.IsMatch(file))
+            {
+                why = $"\"{file}\" has to be assets/<name>.glb";
+                return null;
+            }
+            string path = Path.Combine(ArtifactLibrary.Folder(Id), file);
+            if (File.Exists(path)) return File.ReadAllBytes(path);
+            var bundled = Resources.Load<TextAsset>($"Mocks/artifacts/{Id}/{file}");
+            string template = Manifest?.Value<string>("template");
+            if (bundled == null && template != null && SafeId.IsMatch(template))
+                bundled = Resources.Load<TextAsset>($"ArtifactTemplates/{template}/{file}");
+            if (bundled != null) return bundled.bytes;
+            why = $"{file} is missing";
+            return null;
+        }
+
         // Dates stay strings: this data is passed along, not interpreted.
         static JObject Parse(string text)
         {
