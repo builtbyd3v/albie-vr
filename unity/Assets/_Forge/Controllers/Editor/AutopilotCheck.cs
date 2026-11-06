@@ -216,13 +216,14 @@ public static class AutopilotCheck
         host.Attach(Parse(cloner.ToControllerJson("truck_autopilot", 1, 1.5f)));
         var sim = new MockTruckSim();
         for (int i = 0; i < 10; i++) { sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt); }
-        long start = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++)
+        long bytes = AllocationCounter.BytesDuring(() =>
         {
-            if (sim.Crashed || sim.Finished) sim.Reset();
-            sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt);
-        }
-        long bytes = GC.GetAllocatedBytesForCurrentThread() - start;
+            for (int i = 0; i < 1000; i++)
+            {
+                if (sim.Crashed || sim.Finished) sim.Reset();
+                sim.Sense(host.IO.Sensors); host.Step(Dt, sim.Speed); sim.Step(host.IO.Actuators, Dt);
+            }
+        });
         note = $"{bytes} bytes over 1000 learned steps";
         return bytes == 0 ? null : note;
     }
