@@ -19,6 +19,9 @@ namespace Forge.Controllers
     /// if nothing is trained yet); when a run crashes, the next candidate takes over, then the pretrained fallback.
     /// 3 attaches the mock autopilot file. E exports the running controller to a file and watches it: save an edit
     /// (say, max_speed or a PID gain) and it hot-reloads onto the running truck.
+    /// M runs the ML template (<see cref="ObstacleTemplate"/>): it makes the "obstacle ahead" dataset, trains the net a few
+    /// ms a frame, saves obstacle_ahead.json, and attaches truck_cruise with the learned brake in place of its
+    /// hand-written one. 4 attaches it again after that; 2 is the hand-written brake, to compare.
     /// The readout is a sandbox debug overlay, not product UI.
     /// </summary>
     public sealed class ControllersSandbox : MonoBehaviour
@@ -39,6 +42,9 @@ namespace Forge.Controllers
         BehaviourCloner[] cloners;
         int training;
         string[] candidateJson;
+        ObstacleTemplate template;
+        string learnedBrakeJson;
+        float templateStarted;
         Autopilot autopilot;
         bool runReported;
         ControllerFileWatcher watcher;
@@ -58,6 +64,11 @@ namespace Forge.Controllers
         public string Status => status;
         public Autopilot Autopilot => autopilot;
         public ControllerFileWatcher Watcher => watcher;
+        /// <summary>The ML template run (null before M).</summary>
+        public ObstacleTemplate Template => template;
+        public bool TemplateTraining => template != null && !template.Done;
+        /// <summary>truck_cruise with the learned brake, once M has finished (null before).</summary>
+        public string LearnedBrakeJson => learnedBrakeJson;
         /// <summary>Where B saves the laps and the learned controller.</summary>
         public static string SaveFolder => Path.Combine(Application.persistentDataPath, "controllers");
 
@@ -138,6 +149,44 @@ namespace Forge.Controllers
             return path;
         }
 
+        /// <summary>The ML template: makes the dataset and starts training (in Update, a few ms a frame).</summary>
+        public string StartTemplate()
+        {
+            if (TemplateTraining) return status = "the ML template is already training";
+            var started = System.Diagnostics.Stopwatch.StartNew();
+            template = new ObstacleTemplate();
+            templateStarted = Time.unscaledTime;
+            status = $"ML template: {template.Data.Count} samples made in {started.ElapsedMilliseconds} ms ({template.Data.Positives} obstacle ahead); training";
+            return null;
+        }
+
+        /// <summary>Attaches truck_cruise with the learned brake (after M). Returns the error, or null.</summary>
+        public string UseLearnedBrake()
+        {
+            if (learnedBrakeJson == null) return status = "no learned brake yet: press M to train it";
+            var file = ControllerFile.Parse(learnedBrakeJson, out string error);
+            error = error ?? host.Attach(file);
+            if (error == null) autopilot = null;
+            status = error ?? $"attached {file.Name}: the trained net brakes when it sees an obstacle ahead";
+            return error;
+        }
+
+        void TemplateFinished()
+        {
+            float wall = Time.unscaledTime - templateStarted;
+            var c = template.Classifier;
+            c.Evaluate(out var model, out var baseline, out float threshold);
+            var cruise = Resources.Load<TextAsset>(ControllerFiles[1]);
+            var cruiseJson = cruise == null ? null : Newtonsoft.Json.Linq.JObject.Parse(cruise.text);
+            learnedBrakeJson = cruiseJson == null ? null : template.WithLearnedBrake(cruiseJson).ToString();
+            string saved;
+            try { saved = "saved to " + template.Save(SaveFolder, cruiseJson).model; }
+            catch (IOException e) { saved = "saving failed: " + e.Message; }
+            status = $"ML template trained in {c.Steps} frames ({wall:0.0} s, {c.ComputeSeconds * 1000:0} ms compute): " +
+                     $"{model.Accuracy:P1} right on held-out samples, vs {baseline.Accuracy:P1} for \"{ObstacleClassifier.FrontRay} < {threshold:0.00}\". {saved}";
+            if (learnedBrakeJson != null) { ResetTruck(); UseLearnedBrake(); status = status + "  Attached the learned brake."; }
+        }
+
         public void ResetTruck() { sim.Reset(); host.ResetState(); runReported = false; status = "reset"; }
 
         /// <summary>Starts recording a lap from the start line. With <paramref name="scripted"/>, the scripted driver drives it.</summary>
@@ -200,9 +249,12 @@ namespace Forge.Controllers
                 if (k.tKey.wasPressedThisFrame) { if (recorder.Recording) StopLap("aborted"); else StartLap(false); }
                 if (k.lKey.wasPressedThisFrame && !recorder.Recording) StartLap(true);
                 if (k.bKey.wasPressedThisFrame) Train();
+                if (k.mKey.wasPressedThisFrame) StartTemplate();
+                if (k.digit4Key.wasPressedThisFrame) UseLearnedBrake();
             }
 #endif
             if (Training && cloners[training].Step(trainBudgetMs) && ++training == cloners.Length) Finished();
+            if (TemplateTraining && template.Step(trainBudgetMs)) TemplateFinished();
             watcher?.Poll(Time.unscaledTimeAsDouble);
             DrawTruck();
             if (Time.unscaledTime >= nextReadout) { nextReadout = Time.unscaledTime + 0.2f; BuildReadout(); }
@@ -304,16 +356,20 @@ namespace Forge.Controllers
             var current = Cloner;
             if (current != null)
                 sb.Append($"   candidate {System.Math.Min(training + 1, cloners.Length)}/{cloners.Length} epoch {current.Epoch}/{current.Settings.Epochs} val loss {current.ValidationLoss:0.0000}");
+            if (host.Current is GraphController graph && !float.IsNaN(graph.ModelProbability))
+                sb.Append("   P(obstacle ahead) ").Append(graph.ModelProbability.ToString("0.00"));
+            if (TemplateTraining)
+                sb.Append($"   ML template epoch {template.Classifier.Epoch}/{template.Classifier.Settings.Epochs} val loss {template.Classifier.ValidationLoss:0.0000}");
             sb.Append("\n").Append(status);
             if (autopilot != null) sb.Append(autopilot.Exhausted ? "   AUTOPILOT: nothing left" : $"   AUTOPILOT {autopilot.Describe()}{(autopilot.Kept ? " (kept)" : "")}");
             if (watcher != null) sb.Append($"   LIVE FILE ({watcher.Reloads} reloads)");
-            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot  E edit file live");
+            sb.Append("\n1 manual  2 cruise  3 mock autopilot  WASD drive  [ ] max_speed  R reset  T record lap  L scripted lap  B train  P autopilot  E edit file live  M ML template  4 learned brake");
             readout = sb.ToString();
         }
 
         void OnGUI()
         {
-            GUI.Label(new Rect(12, 12, 900, 160), readout);
+            GUI.Label(new Rect(12, 12, Screen.width - 24, 200), readout);
         }
     }
 }

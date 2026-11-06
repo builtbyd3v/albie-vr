@@ -37,6 +37,8 @@ namespace Forge.Controllers
         public float BeamRadius = DefaultBeamRadius;
         public const float DefaultBeamRadius = 0.1f;
         public bool Crashed, Finished;
+        /// <summary>A lap ends at the finish line. Off for free driving (the obstacle-ahead data), where only a crash stops it.</summary>
+        public bool StopAtFinish = true;
         public float Time;
         /// <summary>The last ray distances in metres, for drawing.</summary>
         public readonly float[] RayDistance = new float[Rays];
@@ -80,10 +82,11 @@ namespace Forge.Controllers
             Y += Speed * (float)Math.Sin(Heading) * dt;
             Time += dt;
             if (HitsSomething()) { Crashed = true; Speed = 0f; }
-            if (X > FinishX) Finished = true;
+            if (StopAtFinish && X > FinishX) Finished = true;
         }
 
-        bool HitsSomething()
+        /// <summary>True when the truck's body overlaps a cone or a wall at its current pose.</summary>
+        public bool HitsSomething()
         {
             for (int i = 0; i < ConeX.Length; i++)
             {
