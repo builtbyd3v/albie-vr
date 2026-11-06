@@ -30,7 +30,7 @@ namespace Forge.Artifacts
             public string CountKey;
             public JObject Requested;
             public Func<IFloorPlan, FloorSlalom.Result> Fit;
-            public Func<IFloorPlan, Vector3, float, int, float, bool> StillFits;
+            public Func<IFloorPlan, Vector3, float, int, float, float, bool> StillFits;  // ..., count, spacing, lane (0: the full one)
         }
 
         static Course Read(string type, string id, JObject p, ArtifactInputs inputs)
@@ -47,23 +47,27 @@ namespace Forge.Artifacts
                     Diameter = inputs.Number(p["diameter_m"], d.Diameter),
                     Height = inputs.Number(p["height_m"], d.Height),
                     Clearance = inputs.Number(p["clearance_m"], d.Clearance),
+                    TightSpacing = inputs.Number(p["tight_spacing_m"], d.TightSpacing),
                 };
                 return new Course
                 {
                     CountKey = "hoops",
                     Requested = new JObject { ["hoops"] = s.Hoops, ["spacing_m"] = Math.Round(s.Spacing, 2) },
                     Fit = room => RoomHoops.Fit(room, s, id),
-                    StillFits = (room, origin, yaw, n, spacing) => RoomHoops.StillFits(room, origin, yaw, n, spacing, s),
+                    StillFits = (room, origin, yaw, n, spacing, lane) => RoomHoops.StillFits(room, origin, yaw, n, spacing, s, lane),
                 };
             }
+            var sd = FloorSlalom.Settings.Default;
             var settings = new FloorSlalom.Settings
             {
-                Gates = Mathf.RoundToInt(inputs.Number(p["gates"], 5)),
-                Spacing = inputs.Number(p["spacing_m"], 0.8f),
-                MinSpacing = inputs.Number(p["min_spacing_m"], 0.6f),
-                MinGates = Mathf.RoundToInt(inputs.Number(p["min_gates"], 3)),
-                Lane = inputs.Number(p["lane_width_m"], 0.6f),
-                Clearance = inputs.Number(p["clearance_m"], 0.15f),
+                Gates = Mathf.RoundToInt(inputs.Number(p["gates"], sd.Gates)),
+                Spacing = inputs.Number(p["spacing_m"], sd.Spacing),
+                MinSpacing = inputs.Number(p["min_spacing_m"], sd.MinSpacing),
+                MinGates = Mathf.RoundToInt(inputs.Number(p["min_gates"], sd.MinGates)),
+                Lane = inputs.Number(p["lane_width_m"], sd.Lane),
+                Clearance = inputs.Number(p["clearance_m"], sd.Clearance),
+                NarrowLane = inputs.Number(p["narrow_lane_width_m"], sd.NarrowLane),
+                TightSpacing = inputs.Number(p["tight_spacing_m"], sd.TightSpacing),
                 Around = p.Value<string>("around"),
             };
             return new Course
@@ -71,7 +75,7 @@ namespace Forge.Artifacts
                 CountKey = "gates",
                 Requested = new JObject { ["gates"] = settings.Gates, ["spacing_m"] = Math.Round(settings.Spacing, 2) },
                 Fit = room => FloorSlalom.Fit(room, settings, id),
-                StillFits = (room, origin, yaw, n, spacing) => FloorSlalom.StillFits(room, origin, yaw, n, spacing, settings),
+                StillFits = (room, origin, yaw, n, spacing, lane) => FloorSlalom.StillFits(room, origin, yaw, n, spacing, settings, lane),
             };
         }
 
@@ -104,7 +108,8 @@ namespace Forge.Artifacts
                     {
                         var origin = ArtifactLayouts.Origin(saved, room);
                         float yaw = origin.rotation.eulerAngles.y;
-                        if (course.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, course.CountKey), ArtifactLayouts.PlacedNumber(saved, "spacing_m")))
+                        if (course.StillFits(room, origin.position, yaw, ArtifactLayouts.Placed(saved, course.CountKey),
+                                             ArtifactLayouts.PlacedNumber(saved, "spacing_m"), ArtifactLayouts.PlacedNumber(saved, "lane_m")))
                             return new Placement
                             {
                                 Ok = true, Layout = saved, Reused = true, Origin = origin, Slots = ArtifactLayouts.Slots(saved),

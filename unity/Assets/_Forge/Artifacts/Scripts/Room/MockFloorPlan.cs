@@ -142,6 +142,12 @@ namespace Forge.Artifacts
         /// <summary>A 6 x 4 m attic with a 1.4 m ceiling: plenty of floor, but the hoops don't fit under it (<c>no_headroom</c>).</summary>
         public static MockFloorPlan Attic() => new MockFloorPlan("attic", new Vector2(6f, 4f)).WithCeiling(1.4f);
 
-        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom(), Unlabelled(), Attic() };
+        /// <summary>
+        /// A 3.2 x 1.35 m hallway: too narrow and short for the normal smallest course, so it gets the tight one (a
+        /// narrow slalom, or hoops in a straight line, 0.5 m apart).
+        /// </summary>
+        public static MockFloorPlan Hallway() => new MockFloorPlan("hallway", new Vector2(3.2f, 1.35f));
+
+        public static MockFloorPlan[] All() => new[] { LivingRoom(), SmallRoom(), Closet(), Loft(), Unscanned(), TurnedLivingRoom(), Unlabelled(), Attic(), Hallway() };
     }
 }

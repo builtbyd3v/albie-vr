@@ -194,8 +194,8 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 
 | `type` | Params | Slots it fills |
 |---|---|---|
-| `floor_slalom` | `gates`, `spacing_m`, `min_spacing_m`, `min_gates`, `lane_width_m`, `clearance_m`, optional `around` (an MRUK label) | `<id>.cones`, `<id>.gates`, `<id>.start`, `<id>.finish` |
-| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m`, optional `height_m` (the hoop centre, default 1.0) | `<id>.hoops`, `<id>.start`, `<id>.finish` |
+| `floor_slalom` | `gates`, `spacing_m`, `min_spacing_m`, `min_gates`, `lane_width_m`, `clearance_m`, optional `around` (an MRUK label), optional `narrow_lane_width_m` (default 0.4) and `tight_spacing_m` (default 0.5) for the narrow course | `<id>.cones`, `<id>.gates`, `<id>.start`, `<id>.finish` |
+| `room_hoops` | `hoops`, `spacing_m`, `min_spacing_m`, `min_hoops`, `diameter_m`, `clearance_m`, optional `height_m` (the hoop centre, default 1.0), optional `tight_spacing_m` (default 0.5) for the straight line | `<id>.hoops`, `<id>.start`, `<id>.finish` |
 
 A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin. **Every slot is on the floor (`y` = 0)**: a node's own `pos` lifts it. Adding a generator type is a host change, so it bumps `min_runtime`.
 
@@ -209,7 +209,7 @@ A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin.
 - **Scoring.** `collisions` uses `hit_count` over a list of the four frame arrays.
 - **Fail reasons.** A missed hoop fails as `missed_hoop`, and upside down for 1 s fails as `crashed`.
 - **Mock-room results.** The 7 × 5 m living room gets the full course. The 4.5 × 3.8 m bedroom shrinks to 3 hoops at 0.6 m. An unlabelled 5 × 4 m room with no ceiling gets 4 hoops at 0.8 m. A 1.4 m attic gives `no_headroom`. The closet gives `no_free_floor`.
-- **Not yet measured.** It hasn't been run on MRUK's prefab rooms or a Quest.
+- **MRUK prefab rooms.** Measured on 2026-11-05: 7 of 8 rooms get a course (see "Narrow courses" below). It hasn't been run on a Quest yet.
 
 **Default size.** 5 gates at 0.8 m makes a 4.8 m course, which is meant to fit a living room. These are starting guesses until someone drives a truck through one on a Quest.
 
@@ -222,10 +222,18 @@ A slot is a named list of poses (`pos`, `rot`), relative to the layout's origin.
 1. Try the requested `gates` at `spacing_m`.
 2. If that doesn't fit, reduce the spacing, down to `min_spacing_m`.
 3. Then reduce the gates, down to `min_gates`.
-4. If that still doesn't fit, the layout fails with `no_free_floor` and Albie says why.
-5. If the room has no floor data at all, it fails with `no_room_data`. Nothing is placed from a guess.
+4. Then (as built, 2026-11-05) make a **narrow course** at `min_gates`: less free floor either side, with the spacing from `min_spacing_m` down to `tight_spacing_m`. See the note below.
+5. If that still doesn't fit, the layout fails with `no_free_floor` and Albie says why, quoting the narrow course's size.
+6. If the room has no floor data at all, it fails with `no_room_data`. Nothing is placed from a guess.
 
 Whenever a step other than 1 ran, `fit.shrunk` is true and `fit.message` says what happened in plain words (section 6.1).
+
+**Narrow courses (as built, 2026-11-05, Person 5; a proposal for the Core owner).** MRUK's LivingRoom00 (3.45 × 3.69 m, three couches, a table) had no clear strip 1.2 m wide longer than 2.1 m, so it got no slalom. Step 4 handles rooms like it:
+- **`floor_slalom`.** The footprint narrows from ±`lane_width_m` to ±`narrow_lane_width_m` (default 0.4, so 0.8 m wide instead of 1.2 m), and the spacing can drop to `tight_spacing_m` (default 0.5). The gates stay at ±`lane_width_m`/2, so a narrow course scores the same way and the gate zones only reach past the narrow footprint by its clearance. Albie says: "This room is very tight, so I made a short, narrow course: 3 gates, 0.5 m apart, with less room either side. Drive carefully near the furniture."
+- **`room_hoops`.** A hoop's width is fixed, so the hoops stop weaving and stand in a straight line instead. The half-width becomes half a hoop plus the post, 0.39 m for 0.7 m hoops. The spacing can drop to `tight_spacing_m` (default 0.5). Albie says: "This room is very tight, so I put the hoops in a straight line: ..."
+- **Params.** Both new params are optional, and the templates don't set them. Setting `narrow_lane_width_m` to `lane_width_m` and `tight_spacing_m` to `min_spacing_m` turns step 4 off.
+- **Layout record.** `fit.placed.lane_m` records the half-width the course was placed with. A rerun checks that the saved course still fits at that width, so a narrow course is reused rather than remade every time. A layout without `lane_m` is checked at the full width.
+- **MRUK's 8 prefab rooms, after this change.** Slaloms fit 6 of 8 rooms, up from 4. LivingRoom00 gets 3 gates at 0.5 m, narrow. LivingRoom03 gets 3 at 0.6 m, narrow. Bedroom01 and Office00 still get `no_free_floor`. Hoop courses fit 7 of 8: LivingRoom00 and LivingRoom03 get straight lines, Bedroom01 gets 3 straight hoops at 0.6 m, and only Office00 fails. The other rooms are unchanged, because steps 1 to 3 already fit them.
 
 ## 4. Rules
 
