@@ -144,6 +144,9 @@
           "limit": 5
         },
         {
+          "type": "versions"
+        },
+        {
           "type": "slider",
           "input": "spacing_m"
         },

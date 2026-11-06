@@ -163,6 +163,7 @@ Units are metres, degrees and seconds. Axes are Unity's: Y up, left-handed, with
 |---|---|---|
 | `stat` | `metric`, `label`, `unit` | One live value |
 | `runs` | `columns` (metric names), `limit` | Run history, the current project version against the last ones (section 6.3) |
+| `versions` | none | As built, 2026-11-06 (host runtime 5). The open project's previous version against its current one, from the notebook (`notebook_compare`), for example "v1 rolled over (free drive) · v2 8.6 s". A version that only flipped on a free drive is never shown as a run on this course. It refreshes when a notebook entry changes or a version is cut, so a finished run updates it. With no project, or only one version, it says so. |
 | `button` | `id`, `label` | Fires `on_input` with that `id` |
 | `slider` | `input` | Changes a manifest input |
 | `note` | `text` | Fixed text, such as "Sample data" |
@@ -484,6 +485,12 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 **For Person 1 (demo):**
 
 7. **Demo step 7 can't work as written.** "Run v1's numbers against v2" needs a v1 run on the slalom, but v1 flipped in step 5, before the slalom existed. Proposed: compare v2's run with v1's incident from the notebook, labelled "free drive, not this course". The other option is to drive both versions on the course, which adds about 20 s to a demo that's already at 175 s.
+   - **As built, 2026-11-06 (Person 5), for Person 1 to confirm.** The proposal is built in two places:
+     - **Voice.** Albie speaks `notebook_compare`'s `say` line, for example "v1 rolled over on a free drive, not this course. v2 finished the slalom in 8.6 s."
+     - **Scoreboard.** The slalom scoreboard has a `versions` row that shows the same thing, "v1 rolled over (free drive) · v2 8.6 s". It updates by itself when v2's lap finishes.
+   - **No extra driving.** Neither version has to drive the course twice, so the step keeps its 20 s.
+   - **Runtime.** The slalom template now needs host runtime 5.
+   - **Scoreboard layout.** The scoreboard's `runs` and `versions` rows shrink a long value to fit, and end it with "…" if it still doesn't fit. Before, five runs spilled off the panel and over the label.
 8. The first-open sheet adds a tap to step 7. Section 9.10 requires it, so it stays unless you want built-in templates to skip it. Proposed: keep it.
 
 ## 13. What's out of this contract (for now)
