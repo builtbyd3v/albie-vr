@@ -116,10 +116,10 @@ public static class FiveInARowCheck
         return sb.ToString();
     }
 
-    /// <summary>One demo attempt from scratch.</summary>
     /// <summary>The training settings for candidate seed 1-3 (null: the trainer's defaults, as the sandbox uses).</summary>
     public static Func<int, BehaviourCloner.Options> OptionsFor;
 
+    /// <summary>One demo attempt from scratch.</summary>
     public static Attempt Attempt1(int driverSeed, float noise, ControllerFile fallback, LapStyle style = LapStyle.Demo)
     {
         var a = new Attempt { DriverSeed = driverSeed, Noise = noise };
@@ -169,50 +169,16 @@ public static class FiveInARowCheck
         return a;
     }
 
-    /// <summary>
-    /// Demo: both laps from the start line at 1.2 m/s, as a person drives them and as the sandbox's L key records them.
-    /// SecondLapFaster: the second lap at 1.5 m/s. Varied: speeds and start offsets vary (BehaviourCloningCheck's laps).
-    /// </summary>
+    /// <summary>How the two laps are driven (<see cref="MockLaps.Style"/>, same order).</summary>
     public enum LapStyle { Demo, SecondLapFaster, Varied }
 
-    // Two completed laps, like a person: a crashed lap is driven again (by the next driver seed).
+    // Two completed laps, like a person: a crashed lap is driven again.
     public static LapSet RecordLaps(int driverSeed, float noise, Attempt a, LapStyle style)
     {
-        var host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
-        var manual = ControllerFile.Parse(Resources.Load<TextAsset>("Mocks/controllers/truck_manual").text, out string error);
-        if (manual == null) throw new InvalidOperationException(error);
-        host.Attach(manual);
-        var recorder = new LapRecorder(host.IO, "truck", 2, "truck_manual", MockTruckSim.MirrorSwap, MockTruckSim.MirrorNegate);
-        var sim = new MockTruckSim();
-        // One driver for the session, so each lap (and a redo) has its own noise, like a person's.
-        var driver = new MockDriver(driverSeed, 1.2f, noise);
-        int lap = 0;
-        try
-        {
-            while (recorder.Set.CompletedLaps < 2)
-            {
-                if (lap >= 6) throw new InvalidOperationException($"driver {driverSeed} couldn't finish 2 laps in 6 tries");
-                int done2 = recorder.Set.CompletedLaps;
-                float cruise = style == LapStyle.Varied ? 1.1f + 0.2f * (lap % 2) : style == LapStyle.SecondLapFaster && done2 == 1 ? 1.5f : 1.2f;
-                driver.Cruise = cruise;
-                if (style == LapStyle.Varied) sim.Reset(0.04f * (lap % 3), 0.03f * (lap % 2)); else sim.Reset();
-                host.ResetState();
-                recorder.BeginLap();
-                for (int i = 0; i < 1500 && !sim.Crashed && !sim.Finished; i++)
-                {
-                    sim.Sense(host.IO.Sensors);
-                    driver.Drive(sim);
-                    host.Step(Dt, sim.Speed);
-                    recorder.Record(host.IO.Sensors, host.Commanded, Dt);
-                    sim.Step(host.IO.Actuators, Dt);
-                }
-                var done = recorder.EndLap(sim.Finished ? "completed" : sim.Crashed ? "crashed" : "aborted");
-                if (sim.Finished) a.LapSeconds += done.Seconds; else a.Redos++;
-                lap++;
-            }
-        }
-        finally { ManualInputs.Clear(); }
-        return recorder.Set;
+        var set = MockLaps.Record(driverSeed, noise, (MockLaps.Style)style, out float seconds, out int redos);
+        a.LapSeconds += seconds;
+        a.Redos += redos;
+        return set;
     }
 
     static ControllerFile LoadFallback()

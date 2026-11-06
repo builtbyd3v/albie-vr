@@ -38,6 +38,9 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
 | `Editor/FiveInARowCheck.cs` | **Forge > Controllers > Check Five In A Row** (about 30 s): the Nov 16 bar. The whole demo loop 5 times from scratch: two demo-style laps, 3 candidates trained 4 ms a frame, the Autopilot from a hand-placed start. It says who drove each time and gives the odds from 40 more drivers. |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
+| `Scripts/Sandbox/MockLaps.cs` | Two completed laps of the mock slalom through the real manual controller and recorder, with the scripted driver; a crashed lap is driven again. Used by `FiveInARowCheck` and the timing kit. |
+| `Scripts/Timing/QuestTimingKit.cs` | **The Quest timing kit:** times idle frames, Autopilot training, Autopilot driving and the ML template on the frame loop, and shows the results on its panel (also logcat and JSON). |
+| `Editor/QuestTimingBuilder.cs` | **Forge > Controllers > Build Quest Timing Panel / Scene / APK:** `Prefabs/QuestTimingPanel.prefab` (a ForgePanel variant with the kit), `ControllersQuestTiming.unity` (passthrough rig, panel 1 m ahead) and `Builds/ControllersTiming.apk` (that scene only; Main and the build settings' scene list aren't touched). |
 | `Scripts/Thing/ControllerThing.cs` | **The plug for the Thing runtime:** `IThingBody` (sensors, speed, actuators) plus `ControllerThing`, which does the contract's call order each physics step, swaps controllers, records laps and registers the Thing with `ThingHosts`. |
 | `Scripts/Thing/RayFan.cs` | The ray-fan sensor on real colliders (contract section 2.1): sphere casts, d0 leftmost, 1 = nothing hit. Allocation-free. |
 | `Scripts/Thing/ExampleTruckBody.cs` | A worked `IThingBody`: the mock truck's driving model on a Unity transform, sensing real colliders. |
@@ -59,6 +62,39 @@ host.Attach(ControllerFile.Parse(learned.ToString(), out _));
 **By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "97% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
 
 The Python templates (`ml-examples/cifar10`, `text-classification`) need the laptop hub to train (PROJECT_CONTEXT 16.8, Nov 14 decision).
+
+## Timing on a Quest (the Nov 8 and Nov 14 checks)
+
+One APK times ML A's on-device work on the headset, so nobody has to rig timers on the day.
+
+1. In Unity: **Forge > Controllers > Build Quest Timing APK** (about 3 min; it switches to Android if it isn't already).
+2. `adb install -r unity/Builds/ControllersTiming.apk`. **It has the same app id as Albie, so it replaces Albie on the headset.** Reinstall `Forge.apk` when you're done.
+3. Open it, put the headset on and keep still for about 10 s. The panel 1 m ahead shows the results, starting with **HOLDS THE FRAME RATE** or **DROPS FRAMES**. A, X, a trigger or a pinch runs it again.
+4. To get the numbers off the headset:
+   - live: `adb logcat -s Unity | grep QuestTiming`;
+   - or the JSON files: `adb pull /sdcard/Android/data/com.UnityTechnologies.com.unity.template.urpblank/files/quest_timing/`.
+
+   Paste the JSON into PROJECT_CONTEXT 16.8.
+
+What it runs:
+1. 300 idle frames, the baseline.
+2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame (key B).
+3. The Autopilot drives the mock slalom from a hand-placed start (in the Editor, candidate 1 drives it). Each controller tick is timed.
+4. The ML template, as `template_train` runs it: the dataset in one frame, then training a few ms a frame.
+
+How to read it:
+- A slow frame took more than 1.5× the refresh interval.
+- Training holds the frame rate when it adds no slow frames beyond idle's share plus 1%.
+- The kit writes nothing to the lab notebook or the real controllers folder.
+
+| Measure | Editor (M4 Pro) | What to look for on the Quest |
+|---|---|---|
+| Autopilot training | 3 nets, about 130 frames (1.1 s), 3.97 ms a frame | More frames is fine (a slower CPU does less per 4 ms). Slow frames shouldn't rise above idle. |
+| Autopilot driving | candidate 1 drove it, about 1 µs a tick | The same candidate. A tick well under 1 ms. |
+| Template dataset | about 15 ms, in one frame | Over about 14 ms is a hitch at 72 Hz. Tens of ms means it should be spread over frames. |
+| Template training | 36 frames, 3.9 ms a frame | Like Autopilot training. |
+
+The panel prefab can also go into Main, to time training under Main's own load.
 
 ## For the arena and voice (Person 5, Person 3)
 

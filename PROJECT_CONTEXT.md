@@ -2499,6 +2499,27 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
     - At first the noise shared the shuffle's random generator. Then even tiny noise changed the training order and made varied laps look 2× worse. That was a lottery effect, not the noise.
   - **The demo no longer needs a "drive the second lap faster" tip.** Still to do: confirm on the Quest and Person 2's real truck.
 
+**ML A Quest timing kit, for the Nov 8 and Nov 14 Quest checks (2026-11-06; built and run in the Editor, not yet on a headset).** One APK times ML A's on-device work on the headset's own frame loop, so the team doesn't rig timers on the day. Build it with **Forge > Controllers > Build Quest Timing APK** (about 3 min). Install it, put the headset on and keep still for about 10 s. The steps and how to get the numbers off are in `Controllers/README.md`, "Timing on a Quest".
+- **What it runs, in order:**
+  1. 300 idle frames, the baseline.
+  2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame, as key B does.
+  3. The Autopilot drives the mock slalom from a hand-placed start, with each controller tick timed.
+  4. The ML template, as `template_train` runs it.
+- **What it reports, on a panel 1 m away, in logcat and as JSON:**
+  - training ms a frame;
+  - frame time (mean, p95, max);
+  - slow frames (over 1.5× the refresh interval) next to idle;
+  - the one-frame setup costs.
+- **The verdict:** "holds the frame rate" means training added no slow frames beyond idle's share plus 1%.
+- **It's isolated:** its files go to a scratch folder, and it writes nothing to the lab notebook (`TrainingLog.Muted`).
+- **Editor numbers to compare with (M4 Pro):**
+  - Autopilot training: 3 nets in about 130 frames (1.1 s), at 3.97 ms a frame (max 4.2).
+  - Autopilot driving: candidate 1 drove it; a tick takes about 1 µs.
+  - ML template: 3,000 samples made in about 15 ms; trained in 36 frames.
+- **One thing to watch on the Quest: making the template's dataset happens in one frame.** It takes about 15 ms in the Editor, already more than a 72 Hz frame (13.9 ms). On the Quest's slower CPU it may take 40-60 ms, a visible hitch when `template_train` starts. If the kit shows that, the fix is to spread the dataset over frames, like training.
+- **The kit's APK has the same app id as Albie** (Project Settings, which ML A doesn't change). Installing it replaces Albie on the headset: reinstall `Forge.apk` afterwards.
+- **Still to do:** run it on a Quest 3 and paste the JSON here.
+
 **ML A handoff to the Thing runtime (2026-11-06, Editor, Unity physics; the real truck is still to do).** Person 2 (or whoever builds the Thing runtime) now has a plug and a worked example in `Controllers/Scripts/Thing/`, with the steps in `Controllers/README.md`, "For the Thing runtime".
 - **The plug:** the Thing implements `IThingBody`:
   - sensors in;

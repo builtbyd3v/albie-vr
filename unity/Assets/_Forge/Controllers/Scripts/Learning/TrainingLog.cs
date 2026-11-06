@@ -17,8 +17,18 @@ namespace Forge.Controllers
         /// <summary>The last report, so a notebook that opens later can still pick it up.</summary>
         public static (string controller, int version, JObject training)? Last { get; private set; }
 
+        /// <summary>
+        /// While true, runs aren't reported: a timing run (<see cref="QuestTimingKit"/>) isn't an experiment, so it
+        /// mustn't become a notebook entry. Whoever sets it puts it back.
+        /// </summary>
+        public static bool Muted;
+
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Muted = false;
+
         public static void Report(string controller, int version, JObject training)
         {
+            if (Muted) return;
             Last = (controller, version, training);
             Finished?.Invoke(controller, version, training);
         }
