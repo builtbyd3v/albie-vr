@@ -46,6 +46,15 @@ Albie calls `artifact_create {template: "repo_activity"}`. This shows commits as
 
 The template needs host runtime 3.
 
+## Models and timelines (`gltf`, `timeline`, `animate`)
+
+These are the last Phase 1 node kinds. The `launch` fixture uses all of them: the CAD mocks' v1 rocket on a pad, and a Launch button that restarts a 3.5 s timeline. On that timeline the rocket climbs and leans, and its flame lights, grows, turns orange and burns out.
+- **Models** (`Scripts/ArtifactGltf.cs`). The host only loads a `.glb` that the manifest lists, from the artifact's own `assets/`, with a matching sha256. It checks the hash before building anything, so a changed file never shows. glTFast loads the model under the node.
+- **Timelines** (`Scripts/ArtifactTimeline.cs`). This is a clock with `animate` tracks built once into arrays, so it doesn't allocate while it plays. The `timeline` action (`play`, `pause`, `restart`) drives it from a button or a zone.
+- **Player builds** need glTFast's shader graph included, or models render magenta (same as CAD: see "Notes for Core" in `CAD/README.md`). That's a Project Settings change for Core.
+
+The `launch` fixture needs host runtime 4.
+
 ## Files
 
 | Path | What it is |
@@ -60,7 +69,9 @@ The template needs host runtime 3.
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
 | `Editor/HoopCheck.cs` | 14 headless hoop checks (mock rooms, template, scored laps): **Forge > Artifacts > Check Hoops**. |
 | `Scripts/ArtifactData.cs` | Data tables: parsing and checking snapshots, the Provider → snapshot → bundled sample order, `data_sources`. |
-| `ArtifactsSandbox.unity` | Hub off. Keys: 1 stance, 2 slalom, 3 broken, 4 missing, 5 three-body, 6 repo city (its own snapshot), 7 make repo activity, 0 close, 9 forget approvals. |
+| `ArtifactsSandbox.unity` | Hub off. Keys: 1 stance, 2 slalom, 3 broken, 4 missing, 5 three-body, 6 repo city (its own snapshot), 7 make repo activity, 8 launch, 0 close, 9 forget approvals. |
+| `Scripts/ArtifactGltf.cs`, `Scripts/ArtifactTimeline.cs` | The `gltf` node and asset checks; the `timeline` node and `animate` tracks. |
+| `Editor/GltfTimelineCheck.cs` | 5 headless checks: **Forge > Artifacts > Check glTF and Timelines**. The model load runs in an open Editor: **Forge > Artifacts > Check glTF Load**. |
 | `Editor/RepoActivityCheck.cs` | 10 headless data and city checks: **Forge > Artifacts > Check Repo Activity**. |
 | `Editor/ArtifactRunCheck.cs` | 13 headless run checks: **Forge > Artifacts > Check Runs**. `Forge > Check Artifacts` runs the rest. |
 
