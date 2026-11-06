@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Forge.Notebook;
 using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
@@ -17,6 +18,7 @@ namespace Forge.Artifacts
         const float ContentWidth = PanelWidth - 2f * ForgeTheme.PanelInset;
         const float Chrome = ForgeTheme.PanelHeader + 14f + 16f;  // header and insets around ForgePanel's content
         const float Gap = 14f, StatHeight = 30f, SliderHeight = 56f, PillRow = ForgeTheme.PillHeight;
+        const float LabelWidth = 92f;  // room kept for a row's label ("v14 vs v15") before its value starts
 
         public static GameObject Build(JObject n, ArtifactBuild build)
         {
@@ -37,6 +39,7 @@ namespace Forge.Artifacts
                         case "note": y += Note(panel.Content, y, widget.Value<string>("text")) + Gap; break;
                         case "stat": y += Stat(panel.Content, y, widget, build) + Gap; break;
                         case "runs": y += Runs(panel.Content, y, widget, build) + Gap; break;
+                        case "versions": y += Versions(panel.Content, y, build) + Gap; break;
                         case "slider": y += Slider(panel, y, widget.Value<string>("input"), build) + Gap; break;
                         case "button":
                             rowX += Pill(panel.Content, y, rowX, widget.Value<string>("label"), widget.Value<string>("id"), build) + 10f;
@@ -73,6 +76,7 @@ namespace Forge.Artifacts
         static float Runs(RectTransform parent, float y, JToken widget, ArtifactBuild build)
         {
             Row(parent, y, "Runs", "None yet", null, out var value);
+            FitBesideLabel(value);
             int n = widget["columns"] is JArray cols ? cols.Count : 0;
             var columns = new string[n];
             for (int i = 0; i < n; i++) columns[i] = (string)widget["columns"][i];
@@ -83,12 +87,35 @@ namespace Forge.Artifacts
             return StatHeight;
         }
 
-        static float Row(RectTransform parent, float y, string label, string value, string unit) =>
-            Row(parent, y, label, value, unit, out _);
-
-        static float Row(RectTransform parent, float y, string label, string value, string unit, out TMP_Text shown)
+        static float Versions(RectTransform parent, float y, ArtifactBuild build)
         {
-            var left = Text(parent, "Label", 15f, ForgeTheme.PanelSubtext, TextAlignmentOptions.Left);
+            Row(parent, y, "Versions", ArtifactLook.NoValue, null, out var value, out var label);
+            FitBesideLabel(value);
+            var row = parent.gameObject.AddComponent<ArtifactVersionsRow>();
+            row.Bind(label, value, build.Host.OpenId);
+            row.Refresh();
+            return StatHeight;
+        }
+
+        // A long value shrinks, then ends in "…", and never runs over its label or off the panel.
+        static void FitBesideLabel(TMP_Text value)
+        {
+            value.margin = new Vector4(LabelWidth, 0f, 0f, 0f);
+            value.enableAutoSizing = true;
+            value.fontSizeMin = 12f;
+            value.fontSizeMax = value.fontSize;
+            value.overflowMode = TextOverflowModes.Ellipsis;
+        }
+
+        static float Row(RectTransform parent, float y, string label, string value, string unit) =>
+            Row(parent, y, label, value, unit, out _, out _);
+
+        static float Row(RectTransform parent, float y, string label, string value, string unit, out TMP_Text shown) =>
+            Row(parent, y, label, value, unit, out shown, out _);
+
+        static float Row(RectTransform parent, float y, string label, string value, string unit, out TMP_Text shown, out TMP_Text left)
+        {
+            left = Text(parent, "Label", 15f, ForgeTheme.PanelSubtext, TextAlignmentOptions.Left);
             left.text = label;
             Place(left.rectTransform, y, StatHeight);
             var right = Text(parent, "Value", 19f, ForgeTheme.PanelText, TextAlignmentOptions.Right);
@@ -266,6 +293,85 @@ namespace Forge.Artifacts
             if (v == null || v.Type == JTokenType.Null) return ArtifactLook.NoValue;
             if (col.EndsWith("_s")) return ((double)v).ToString("0.0", CultureInfo.InvariantCulture) + "s";
             return v.Type == JTokenType.Integer ? v.ToString() : ((double)v).ToString("0.0", CultureInfo.InvariantCulture);
+        }
+    }
+
+    /// <summary>
+    /// The <c>versions</c> widget: the open project's previous version against its current one, from the notebook
+    /// (<see cref="NotebookStore.CompareVersions"/>, C-12 question 7). A version that flipped before this course existed
+    /// shows as a free drive, never as a run on the course. Refreshes when an entry changes or a version is cut.
+    /// </summary>
+    public sealed class ArtifactVersionsRow : MonoBehaviour
+    {
+        TMP_Text label, text;
+        string artifactId;
+
+        public string Shown => text != null ? text.text : null;
+
+        public void Bind(TMP_Text labelText, TMP_Text value, string id)
+        {
+            label = labelText;
+            text = value;
+            artifactId = id;
+        }
+
+        void OnEnable()
+        {
+            NotebookStore.EntryUpdated += OnNotebook;
+            NotebookStore.EntryCreated += OnNotebook;
+            NotebookStore.VersionCut += OnNotebook;
+        }
+
+        void OnDisable()
+        {
+            NotebookStore.EntryUpdated -= OnNotebook;
+            NotebookStore.EntryCreated -= OnNotebook;
+            NotebookStore.VersionCut -= OnNotebook;
+        }
+
+        void OnNotebook(JObject _) => Refresh();
+
+        public void Refresh()
+        {
+            if (text == null) return;
+            int current = NotebookStore.IsOpen ? NotebookStore.CurrentVersion() : 0;
+            if (current < 2)
+            {
+                label.text = "Versions";
+                text.text = NotebookStore.IsOpen ? (current == 1 ? "Only v1 so far" : "No versions yet") : "No project open";
+                return;
+            }
+            label.text = $"v{current - 1} vs v{current}";
+            var compare = NotebookStore.CompareVersions(current - 1, current, artifactId);
+            text.text = Side((JObject)compare["from"]) + "  ·  " + Side((JObject)compare["to"]);
+        }
+
+        /// <summary>One version in a few words, from the records only.</summary>
+        public static string Side(JObject side)
+        {
+            string name = "v" + side["version"];
+            if ((string)side["label"] == "free drive, not this course")
+            {
+                string kind = (string)(side["incidents"] as JArray)?[0]?["kind"];
+                return name + (kind == "rolled_over" ? " rolled over (free drive)" : " free drive only");
+            }
+            string failedReason = null;
+            bool anyRun = false;
+            if (side["runs"] is JArray runs)
+                for (int i = runs.Count - 1; i >= 0; i--)
+                {
+                    var run = runs[i];
+                    if ((string)run["label"] == "different course") continue;
+                    anyRun = true;
+                    var time = run["metrics"]?["completion_time_s"];
+                    if ((string)run["outcome"] == "completed" && time != null && time.Type != JTokenType.Null)
+                        return name + " " + ((double)time).ToString("0.0", CultureInfo.InvariantCulture) + " s";
+                    if (failedReason == null && (string)run["outcome"] == "failed") failedReason = (string)run["reason"] ?? "failed";
+                }
+            if (failedReason != null) return name + " failed (" + failedReason.Replace('_', ' ') + ")";
+            if (anyRun) return name + " no finished run";
+            string outcome = (string)side["outcome"];
+            return name + (outcome == "failed" ? " failed" : outcome == "worked" ? " worked" : " no run yet");
         }
     }
 }

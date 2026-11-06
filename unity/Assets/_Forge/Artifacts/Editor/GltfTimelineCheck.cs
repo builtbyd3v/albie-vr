@@ -94,7 +94,7 @@ public static class GltfTimelineCheck
         if (errors.Count > 0) return errors[0].ToString();
         var missing = ArtifactNodes.Missing(p.Scene);
         if (missing.Count > 0) return "can't build: " + string.Join(", ", missing);
-        if ((int)p.Manifest["runtime"]["min_runtime"] != ArtifactSchema.HostRuntime) return "min_runtime " + p.Manifest["runtime"]["min_runtime"];
+        if ((int)p.Manifest["runtime"]["min_runtime"] != 4 || ArtifactSchema.HostRuntime < 4) return "min_runtime " + p.Manifest["runtime"]["min_runtime"];
         note = $"host runtime {ArtifactSchema.HostRuntime}; gltf and timeline both build";
         return null;
     }

@@ -38,6 +38,8 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 
 **v1 vs v2.** That's a notebook compare (`notebook_compare`), not `artifact_compare`. v1 flipped during free driving, before the slalom existed, so it is labelled "free drive, not this course".
 
+**Demo step 7 on the scoreboard.** The slalom's scoreboard has a `versions` row (`ArtifactVersionsRow` in `Scripts/ArtifactWidgets.cs`). It shows the open project's previous version against its current one, for example "v1 rolled over (free drive) · v2 8.6 s", and updates by itself when a run finishes or a version is cut. The slalom template needs host runtime 5 for it.
+
 ## "What shipped this week?" (repo activity)
 
 Albie calls `artifact_create {template: "repo_activity"}`. This shows commits as a small city on a base: one block per commit, height for lines changed, and colour for the author. The data is read through the `array` node's `source: {table, grid}` (C-12 section 7). The rows are never typed into the scene.

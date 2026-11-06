@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using Forge.Artifacts;
 using Forge.Notebook;
 using Newtonsoft.Json.Linq;
+using TMPro;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -65,6 +67,7 @@ public static class ArtifactRunCheck
             ok &= Check(sb, "records are written once and never overwritten", Records);
             ok &= Check(sb, "like-for-like compare, different course labelled", Compare);
             ok &= Check(sb, "a finished run attaches to the notebook", Notebook);
+            ok &= Check(sb, "versions row: v1 free drive vs v2's time (demo step 7)", Versions);
             ok &= Check(sb, "no Thing is refused, not thrown", NoThing);
             ok &= Check(sb, "fixture runs load as albie.run/1", Fixtures);
             ok &= Check(sb, "ticking allocates nothing", NoAlloc);
@@ -301,6 +304,60 @@ public static class ArtifactRunCheck
         if (!found) return "run id not on the entry";
         note = entry + " worked";
         return null;
+    }
+
+    // Demo step 7 (C-12 question 7): v1 flipped on a free drive before the slalom existed, v2 completes the course.
+    static string Versions(out string note)
+    {
+        note = null;
+        var go = new GameObject("versions check");
+        try
+        {
+            var label = new GameObject("label").AddComponent<TextMeshProUGUI>();
+            var value = new GameObject("value").AddComponent<TextMeshProUGUI>();
+            label.transform.SetParent(go.transform);
+            value.transform.SetParent(go.transform);
+            var row = go.AddComponent<ArtifactVersionsRow>();
+            row.Bind(label, value, "slalom");
+
+            NotebookStore.Close();
+            row.Refresh();
+            if (row.Shown != "No project open") return "closed: " + row.Shown;
+            NotebookStore.Open("proj_versions", NotebookRoot);
+            NotebookStore.CutVersion("thing", "First truck.");
+            row.Refresh();
+            if (row.Shown != "Only v1 so far") return "v1 only: " + row.Shown;
+
+            string flipped = NotebookStore.AddIncident(new JObject { ["kind"] = "rolled_over", ["thing"] = "truck", ["thing_version"] = 1, ["speed_ms"] = 2.1 });
+            string refused = NotebookStore.Mark(flipped, "failed", "person", "It rolled over on a sharp turn.");
+            if (refused != null) return refused;
+            NotebookStore.CutVersion("thing", "Lower and wider.");
+            row.Refresh();
+            if (label.text != "v1 vs v2" || row.Shown != "v1 rolled over (free drive)  ·  v2 no run yet") return $"before the run: {label.text} = {row.Shown}";
+
+            var (run, thing) = Fresh();
+            Lap(run, thing, skip: -1, hitCone: -1);
+            run.StampProject(NotebookStore.ProjectId, NotebookStore.CurrentVersion());
+            var record = run.TakeRecord();
+            ArtifactRuns.Save(record);
+            NotebookStore.AttachRun((string)record["run_id"], (string)record["outcome"]);
+            row.Refresh();
+            string time = ((double)record["metrics"]["completion_time_s"]).ToString("0.0", CultureInfo.InvariantCulture);
+            if (row.Shown != $"v1 rolled over (free drive)  ·  v2 {time} s") return "after the run: " + row.Shown;
+
+            var failed = ArtifactVersionsRow.Side(new JObject
+            {
+                ["version"] = 3, ["runs"] = new JArray(new JObject { ["outcome"] = "failed", ["reason"] = "missed_gate" }),
+            });
+            if (failed != "v3 failed (missed gate)") return "a failed run: " + failed;
+            note = $"\"{label.text}: {row.Shown}\"";
+            return null;
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(go);
+            NotebookStore.Close();
+        }
     }
 
     static string NoThing(out string note)
