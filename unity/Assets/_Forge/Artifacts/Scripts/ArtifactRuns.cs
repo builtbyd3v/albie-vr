@@ -24,6 +24,8 @@ namespace Forge.Artifacts
         /// The next unused <c>run_####</c> across every artifact on this device, not just this one. The notebook keeps
         /// bare run ids (C-17 <c>observed.runs</c>), so a slalom's run_0001 and a hoop course's run_0001 would be the
         /// same id there: the second was dropped as a duplicate. Called when a run is armed, never per tick.
+        /// Nothing may write inside the library from another thread (the notebook's writer, say): on macOS a folder
+        /// created during the listing can hide another artifact's folder from it, and its run id is handed out twice.
         /// </summary>
         public static string NextId(string artifactId)
         {
