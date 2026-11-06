@@ -2516,7 +2516,7 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - Autopilot training: 3 nets in about 130 frames (1.1 s), at 3.97 ms a frame (max 4.2).
   - Autopilot driving: candidate 1 drove it; a tick takes about 1 µs.
   - ML template: 3,000 samples made in about 15 ms; trained in 36 frames.
-- **One thing to watch on the Quest: making the template's dataset happens in one frame.** It takes about 15 ms in the Editor, already more than a 72 Hz frame (13.9 ms). On the Quest's slower CPU it may take 40-60 ms, a visible hitch when `template_train` starts. If the kit shows that, the fix is to spread the dataset over frames, like training.
+- **One thing to watch on the Quest: making the template's dataset happened in one frame.** It took about 15 ms in the Editor, already more than a 72 Hz frame (13.9 ms), and maybe 40-60 ms on the Quest. **Fixed:** see "ML A template without a stutter" below.
 - **The kit's APK has the same app id as Albie** (Project Settings, which ML A doesn't change). Installing it replaces Albie on the headset: reinstall `Forge.apk` afterwards.
 - **Still to do:** run it on a Quest 3 and paste the JSON here.
 
@@ -2558,6 +2558,23 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - Behaviour cloning closed loop: 15/15 for all three seeds (was 14, 14, 15).
   - The ML template: 97.5% held out (the rule: 86.0%).
 - **On the real truck:** replace the fallback with a candidate that drove the real course (**Forge > Controllers > Use Controller File As Fallback**; steps in `Controllers/README.md`). Laps alone can't pick one: validation loss doesn't say which net drives.
+
+**ML A template without a stutter (2026-11-06, Editor).** No frame of `template_train` does a big piece of work any more, so starting it by voice shouldn't drop a frame on the Quest.
+- **Making the dataset:** a slice a frame within the 4 ms budget (`ObstacleData.Maker`). The samples are exactly the same as before: same seed, same samples bit for bit, same net, 97.5%.
+- **The finish:** scoring the net, writing the two files and the notebook entry now take one step a frame. The run used to score the net twice in that frame; now it scores once.
+
+  | `template_train`, Editor (M4 Pro) | Before | After |
+  |---|---|---|
+  | Making the dataset | about 8 ms in one frame (15 ms the first time) | 2-3 frames, at most 4.1 ms |
+  | The finish (score, save, notebook) | 3 ms in one frame | 5 frames, at most 1.4 ms |
+  | Worst frame of the whole run | the dataset frame | 4.2 ms (the training budget) |
+  | Allocated while making data | about 190 KB (a small array per pose tried) | 48 bytes (the result) |
+
+- **`template_status` while it runs:** `step` is `making_data`, `training` or `saving`. While making data it also gives `made`.
+- **Found along the way: `GC.GetAllocatedBytesForCurrentThread` reads 0 under Unity's garbage collector.** So every "0 bytes" check built on it passed whatever the code did.
+  - `MLTemplateCheck` and the timing kit now use the profiler's "GC Allocated In Frame" counter. It counted the old dataset code's 193,440 bytes exactly. Training, ticking the learned brake and Autopilot training really are 0 bytes.
+  - These checks still use the old counter, so their allocation steps can't fail yet: `ControllersCheck`, `AutopilotCheck`, `BehaviourCloningCheck`, `ThingRuntimeCheck`, `NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts). Each owner can swap in the same counter.
+- **Still to do:** the kit on a Quest 3.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.

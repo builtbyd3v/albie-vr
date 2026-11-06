@@ -7,6 +7,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TMPro;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.XR;
 using Debug = UnityEngine.Debug;
@@ -24,8 +25,8 @@ namespace Forge.Controllers
     ///    ms a frame, as the Controllers sandbox's B key does;
     /// 3. Autopilot driving: the Autopilot drives the mock slalom with those candidates, then the pretrained fallback,
     ///    and each controller tick is timed (on a Thing it's one tick per physics step);
-    /// 4. ML template: <see cref="TemplateRun"/> makes its dataset in one frame and trains a few ms a frame, as Albie's
-    ///    template_train does. Its files go to a scratch folder, not the real controllers folder, and it isn't logged in
+    /// 4. ML template: <see cref="TemplateRun"/> makes its dataset and trains a few ms a frame, then saves a file a
+    ///    frame, as Albie's template_train does; every frame of its work is timed. Its files go to a scratch folder, not the real controllers folder, and it isn't logged in
     ///    the lab notebook (<see cref="TrainingLog.Muted"/>).
     /// The panel shows the results; they're also logged (<c>adb logcat -s Unity</c>, lines start "[QuestTiming]") and
     /// saved as JSON in <c>persistentDataPath/quest_timing/</c>. It starts by itself; A, X, a trigger, a pinch or R
@@ -83,7 +84,7 @@ namespace Forge.Controllers
         double tickTotalUs, tickMaxUs;
         string failures, drove;
         // Template
-        double templateComputeBefore;
+        double templatePumpBefore;
         string savedFolderOverride;
         bool savedMuted, templateSettings;
 
@@ -199,8 +200,8 @@ namespace Forge.Controllers
                     string error = TemplateRun.Start();
                     double ms = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
                     if (error != null) throw new InvalidOperationException(error);
-                    templateComputeBefore = 0;
-                    return new JObject { ["samples"] = TemplateRun.Current.Data.Count, ["dataset_ms"] = Round(ms) };
+                    templatePumpBefore = 0;
+                    return new JObject { ["samples"] = TemplateRun.Current.Samples, ["start_ms"] = Round(ms) };
                 }
                 default:
                     return new JObject();
@@ -268,13 +269,13 @@ namespace Forge.Controllers
         // Left mid-run (scene change, Play stopped): don't leave the notebook muted.
         void OnDisable() => RestoreTemplateSettings();
 
+        // This frame's template work: its pump runs before this Update (DefaultExecutionOrder), so the change in
+        // PumpSeconds is this frame's making data, training or saving.
         float TemplateWorkMs()
         {
-            var c = TemplateRun.Current?.Classifier;
-            if (c == null) return 0f;
-            double now = c.ComputeSeconds;
-            float ms = (float)((now - templateComputeBefore) * 1000.0);
-            templateComputeBefore = now;
+            double now = TemplateRun.PumpSeconds;
+            float ms = (float)((now - templatePumpBefore) * 1000.0);
+            templatePumpBefore = now;
             return ms;
         }
 
@@ -307,9 +308,11 @@ namespace Forge.Controllers
                     result["state"] = TemplateRun.State.ToString().ToLowerInvariant();
                     if (TemplateRun.State == TemplateRun.Phase.Done)
                     {
-                        var c = TemplateRun.Current.Classifier;
-                        result["epochs"] = c.Settings.Epochs;
-                        result["compute_ms"] = Round(c.ComputeSeconds * 1000);
+                        var t = TemplateRun.Current;
+                        result["data_frames"] = t.Maker?.Steps ?? 0;
+                        result["dataset_ms"] = Round((t.Maker?.ComputeSeconds ?? 0) * 1000);
+                        result["epochs"] = t.Settings.Epochs;
+                        result["compute_ms"] = Round(TemplateRun.PumpSeconds * 1000);
                         result["wall_seconds"] = Round(TemplateRun.WallSeconds);
                         result["val_accuracy"] = TemplateRun.TrainingBlock?["val_accuracy"];
                     }
@@ -419,9 +422,9 @@ namespace Forge.Controllers
                 s.Append($"Autopilot driving: {d["drove"]} drove it{((int)d["failed_runs"] > 0 ? $" (before that {d["before_that"]})" : "")}; a tick takes {d["tick_us_mean"]} µs (max {d["tick_us_max"]})\n");
             if (st["ml_template"] is JObject m)
             {
-                s.Append($"ML template: {m["samples"]} samples made in {m["dataset_ms"]} ms (one frame); trained in {m["frames"]} frames, {m["seconds"]} s");
+                s.Append($"ML template: {m["samples"]} samples made in {m["data_frames"]} frames ({m["dataset_ms"]} ms); made, trained and saved in {m["frames"]} frames, {m["seconds"]} s");
                 s.Append(m["val_accuracy"] != null ? $", {Math.Round((double)m["val_accuracy"] * 100, 1)}% held out\n" : $": {m["error"] ?? m["state"]}\n");
-                s.Append($"  training {m["work_ms_mean"]} ms a frame (max {m["work_ms_max"]}); frame {m["frame_ms_mean"]} ms (p95 {m["frame_ms_p95"]}, max {m["frame_ms_max"]}), {m["slow_frames"]} slow{Bytes(m)}\n");
+                s.Append($"  work {m["work_ms_mean"]} ms a frame (max {m["work_ms_max"]}); frame {m["frame_ms_mean"]} ms (p95 {m["frame_ms_p95"]}, max {m["frame_ms_max"]}), {m["slow_frames"]} slow{Bytes(m)}\n");
             }
             return s.ToString();
         }
@@ -468,20 +471,29 @@ namespace Forge.Controllers
             return screen > 1 ? (float)screen : 60f;
         }
 
-        // IL2CPP may not count allocations; then the report leaves the byte counts out rather than print a false 0.
-        static bool CheckAllocCounter()
+        // GC.GetAllocatedBytesForCurrentThread reads 0 under Unity's garbage collector. The profiler's "GC Allocated In
+        // Frame" counter counts each allocation as it happens (the Editor and development builds; a release build may
+        // not have it). If it doesn't count a probe, the report leaves the byte counts out rather than print a false 0.
+        ProfilerRecorder gcAllocated;
+
+        bool CheckAllocCounter()
         {
             try
             {
-                long before = GC.GetAllocatedBytesForCurrentThread();
+                gcAllocated = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");
+                if (!gcAllocated.Valid) return false;
+                long before = gcAllocated.CurrentValue;
                 var probe = new byte[4096];
                 probe[0] = 1;
-                return GC.GetAllocatedBytesForCurrentThread() - before >= 4096;
+                return gcAllocated.CurrentValue - before >= 4096;
             }
             catch (Exception) { return false; }
         }
 
-        long AllocatedBytes() => allocCounterWorks ? GC.GetAllocatedBytesForCurrentThread() : 0;
+        // Read twice in one Update (the counter starts again each frame).
+        long AllocatedBytes() => allocCounterWorks ? gcAllocated.CurrentValue : 0;
+
+        void OnDestroy() => gcAllocated.Dispose();
 
         static bool RunPressed()
         {

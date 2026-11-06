@@ -7,7 +7,8 @@ namespace Forge.Controllers
     /// <summary>
     /// The bundled on-device ML template (PROJECT_CONTEXT 15.5 and 16.8, ML A Nov 14): "train a model, then plug it into
     /// a Thing", with no network.
-    /// 1. <see cref="ObstacleData"/> makes a labelled dataset from the truck's own sensors.
+    /// 1. <see cref="ObstacleData"/> makes a labelled dataset from the truck's own sensors (a few ms a frame with
+    ///    <see cref="Begin"/>).
     /// 2. <see cref="ObstacleClassifier"/> trains a small net on it, a few ms a frame.
     /// 3. <see cref="WithLearnedBrake"/> puts the trained net into a graph controller as a <c>model</c> node, so the truck
     ///    brakes when the net says there's an obstacle ahead.
@@ -22,18 +23,63 @@ namespace Forge.Controllers
         /// <summary>Added to the base controller's name: <c>truck_cruise</c> becomes <c>truck_cruise_learned_brake</c>.</summary>
         public const string LearnedSuffix = "_learned_brake";
 
-        public readonly ObstacleData Data;
-        public readonly ObstacleClassifier Classifier;
+        /// <summary>The dataset (null while <see cref="MakingData"/>).</summary>
+        public ObstacleData Data { get; private set; }
+        /// <summary>The classifier (null while <see cref="MakingData"/>).</summary>
+        public ObstacleClassifier Classifier { get; private set; }
+        public readonly ObstacleClassifier.Options Settings;
+        /// <summary>Making the dataset over frames (<see cref="Begin"/>); null when it was made at once.</summary>
+        public readonly ObstacleData.Maker Maker;
 
+        /// <summary>Makes the dataset and the classifier now; <see cref="Step"/> then trains. For checks and tools off the frame loop.</summary>
         public ObstacleTemplate(int samples = 3000, int dataSeed = 7, ObstacleClassifier.Options options = null)
         {
+            Settings = options ?? new ObstacleClassifier.Options();
             Data = ObstacleData.Generate(samples, dataSeed);
-            Classifier = new ObstacleClassifier(Data, options);
+            Classifier = new ObstacleClassifier(Data, Settings);
         }
 
-        public bool Done => Classifier.Done;
-        /// <summary>Trains within <paramref name="budgetMs"/> ms (call from Update). Returns <see cref="Done"/>.</summary>
-        public bool Step(double budgetMs) => Classifier.Step(budgetMs);
+        ObstacleTemplate(ObstacleData.Maker maker, ObstacleClassifier.Options options)
+        {
+            Settings = options ?? new ObstacleClassifier.Options();
+            Maker = maker;
+        }
+
+        /// <summary>
+        /// A template that makes its dataset inside <see cref="Step"/>, a slice a frame, so nothing takes a whole frame
+        /// on the headset: the dataset first, then the classifier's setup in the next frame, then training.
+        /// </summary>
+        public static ObstacleTemplate Begin(int samples = 3000, int dataSeed = 7, ObstacleClassifier.Options options = null) =>
+            new ObstacleTemplate(new ObstacleData.Maker(samples, dataSeed), options);
+
+        public bool MakingData => Classifier == null;
+        public int Samples => Data?.Count ?? Maker.Samples;
+        /// <summary>Samples made so far.</summary>
+        public int Made => Data?.Count ?? Maker.Made;
+        public bool Done => Classifier != null && Classifier.Done;
+        /// <summary>Time spent in <see cref="Step"/>: making the data, setting up the classifier and training.</summary>
+        public double ComputeSeconds => (Maker?.ComputeSeconds ?? 0) + setupSeconds + (Classifier?.ComputeSeconds ?? 0);
+        double setupSeconds;
+
+        /// <summary>
+        /// One frame's work within <paramref name="budgetMs"/> ms (call from Update): makes data, or sets up the
+        /// classifier and trains with what's left, or trains. Returns <see cref="Done"/>.
+        /// </summary>
+        public bool Step(double budgetMs)
+        {
+            if (Classifier != null) return Classifier.Step(budgetMs);
+            if (!Maker.Done)
+            {
+                Maker.Step(budgetMs);
+                return false;
+            }
+            // Copying and standardising the rows takes under a millisecond, so training gets the rest of this frame.
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            Data = Maker.Result;
+            Classifier = new ObstacleClassifier(Data, Settings);
+            setupSeconds = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) / (double)System.Diagnostics.Stopwatch.Frequency;
+            return Classifier.Step(Math.Max(0.0, budgetMs - setupSeconds * 1000.0));
+        }
 
         /// <summary>
         /// A copy of a graph controller with the trained net as its brake: the node called <see cref="BrakeNode"/> is
@@ -58,12 +104,15 @@ namespace Forge.Controllers
             return copy;
         }
 
+        /// <summary>The <c>albie.model/1</c> file; pass the run's training block so it isn't scored again.</summary>
+        public JObject ModelJson(JObject training = null) => Classifier.ToModelJson(ModelName, training: training);
+
         /// <summary>Writes the model file and the learned-brake controller into <paramref name="folder"/>. Returns their paths.</summary>
         public (string model, string controller) Save(string folder, JObject controller)
         {
             Directory.CreateDirectory(folder);
             string modelPath = Path.Combine(folder, ModelName + ".json");
-            ControllerFileWatcher.WriteAtomic(modelPath, Classifier.ToModelJson(ModelName).ToString());
+            ControllerFileWatcher.WriteAtomic(modelPath, ModelJson().ToString());
             string controllerPath = null;
             if (controller != null)
             {
