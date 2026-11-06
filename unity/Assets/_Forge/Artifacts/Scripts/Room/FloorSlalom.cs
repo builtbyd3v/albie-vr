@@ -14,7 +14,9 @@ namespace Forge.Artifacts
     /// Every slot is on the floor (y = 0); a node's own <c>pos</c> lifts it (a cone's centre is half its height up).
     ///
     /// Fit rules (shrink and say so, never fail silently): the requested size; then less spacing, down to the minimum;
-    /// then fewer gates, down to the minimum; then <c>no_free_floor</c>. No floor data at all is <c>no_room_data</c>.
+    /// then fewer gates, down to the minimum; then a narrow course (less free floor either side, the gates where they
+    /// were) with the spacing down to the tight minimum; then <c>no_free_floor</c>. No floor data at all is
+    /// <c>no_room_data</c>.
     /// </summary>
     public static class FloorSlalom
     {
@@ -27,9 +29,12 @@ namespace Forge.Artifacts
         {
             public int Gates, MinGates;
             public float Spacing, MinSpacing, Lane, Clearance;
+            // A tight room: the free floor either side narrows to NarrowLane, then the spacing goes down to TightSpacing.
+            public float NarrowLane, TightSpacing;
             public string Around;  // an MRUK label, or null
 
-            public static Settings Default => new Settings { Gates = 5, MinGates = 3, Spacing = 0.8f, MinSpacing = 0.6f, Lane = 0.6f, Clearance = 0.15f };
+            public static Settings Default => new Settings
+                { Gates = 5, MinGates = 3, Spacing = 0.8f, MinSpacing = 0.6f, Lane = 0.6f, Clearance = 0.15f, NarrowLane = 0.4f, TightSpacing = 0.5f };
         }
 
         public sealed class Result
@@ -38,7 +43,8 @@ namespace Forge.Artifacts
             public string Code, Message;           // Code is null when Ok
             public int Gates;                      // gates, or hoops for room_hoops
             public float Spacing;
-            public bool Shrunk, AroundFound;
+            public float Lane;                     // the free floor either side of the centre line it was placed with (m)
+            public bool Shrunk, Narrow, AroundFound;
             public Vector3 Origin;                 // the start, on the floor (world)
             public float Yaw;                      // the course's direction (degrees, world)
             public Dictionary<string, List<Pose>> Slots;
@@ -53,12 +59,30 @@ namespace Forge.Artifacts
             if (room == null || !room.HasFloor) return NoRoomData();
             s.MinGates = Mathf.Clamp(s.MinGates, 1, Mathf.Max(1, s.Gates));
             s.MinSpacing = Mathf.Clamp(s.MinSpacing, 0.1f, Mathf.Max(0.1f, s.Spacing));
-            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around,
-                             (gates, spacing) => Slots(id, gates, spacing, s.Lane));
-            if (fit.Ok) fit.Message = Message(fit.Shrunk, fit.Gates, fit.Spacing, s.Around, fit.AroundFound);
+            Tight(ref s.NarrowLane, ref s.TightSpacing, s.Lane, s.MinSpacing);
+            // Gates stay half the full lane out, so a narrow course scores the same; only the floor it needs shrinks.
+            Func<int, float, Dictionary<string, List<Pose>>> slots = (gates, spacing) => Slots(id, gates, spacing, s.Lane);
+            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around, slots);
+            if (!fit.Ok && (s.NarrowLane < s.Lane || s.TightSpacing < s.MinSpacing))
+                fit = Narrow(fit, Search(room, s.MinGates, s.MinGates, s.MinSpacing, s.TightSpacing, s.NarrowLane, s.Clearance, s.Around, slots));
+            if (fit.Ok) fit.Message = Message(fit.Shrunk, fit.Narrow, fit.Gates, fit.Spacing, s.Around, fit.AroundFound);
             else fit.Message = string.Format(CultureInfo.InvariantCulture,
                 "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
-                s.MinGates, s.MinSpacing, Length(s.MinGates, s.MinSpacing), 2f * s.Lane, s.Clearance * 100f);
+                s.MinGates, s.TightSpacing, Length(s.MinGates, s.TightSpacing), 2f * s.NarrowLane, s.Clearance * 100f);
+            return fit;
+        }
+
+        /// <summary>The tight-room limits can only be smaller than the normal ones (0 or less means "no tighter").</summary>
+        internal static void Tight(ref float narrowLane, ref float tightSpacing, float lane, float minSpacing)
+        {
+            narrowLane = narrowLane > 0f ? Mathf.Clamp(narrowLane, 0.1f, lane) : lane;
+            tightSpacing = tightSpacing > 0f ? Mathf.Clamp(tightSpacing, 0.1f, minSpacing) : minSpacing;
+        }
+
+        internal static Result Narrow(Result wide, Result fit)
+        {
+            fit.Tried += wide.Tried;
+            if (fit.Ok) fit.Shrunk = fit.Narrow = true;
             return fit;
         }
 
@@ -102,7 +126,7 @@ namespace Forge.Artifacts
                             if (!grid.Clear(origin, yaw, n, gap, lane)) continue;
                             return new Result
                             {
-                                Ok = true, Gates = n, Spacing = gap, AroundFound = aroundFound,
+                                Ok = true, Gates = n, Spacing = gap, Lane = lane, AroundFound = aroundFound,
                                 Shrunk = n != count || Mathf.Abs(gap - spacing) > 0.001f,
                                 Origin = new Vector3(origin.x, room.FloorY, origin.z), Yaw = Normalise(yaw),
                                 Slots = slots(n, gap), Tried = tried,
@@ -116,8 +140,8 @@ namespace Forge.Artifacts
         }
 
         /// <summary>Whether a saved course still has free floor (furniture can move between sessions).</summary>
-        public static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int gates, float spacing, Settings s) =>
-            StillFits(room, origin, yaw, gates, spacing, s.Lane, s.Clearance);
+        public static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int gates, float spacing, Settings s, float lane = 0f) =>
+            StillFits(room, origin, yaw, gates, spacing, lane > 0f ? lane : s.Lane, s.Clearance);
 
         internal static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int count, float spacing, float lane, float clearance)
         {
@@ -165,11 +189,14 @@ namespace Forge.Artifacts
             return list.ToArray();
         }
 
-        static string Message(bool shrunk, int gates, float spacing, string around, bool aroundFound)
+        static string Message(bool shrunk, bool narrow, int gates, float spacing, string around, bool aroundFound)
         {
             bool missing = !string.IsNullOrEmpty(around) && !aroundFound;
             string thing = Thing(around);
-            string size = string.Format(CultureInfo.InvariantCulture, "{0} gates, {1:0.0} m apart", gates, spacing);
+            string size = string.Format(CultureInfo.InvariantCulture, "{0} gates, {1:0.0#} m apart", gates, spacing);
+            if (narrow)
+                return (missing ? $"I can't find {thing}, and this" : "This") +
+                       $" room is very tight, so I made a short, narrow course: {size}, with less room either side. Drive carefully near the furniture.";
             if (shrunk && missing) return $"This room is tight and I can't find {thing}, so I made a shorter course: {size}.";
             if (shrunk) return $"This room is tight, so I made a shorter course: {size}.";
             if (missing) return $"I can't find {thing}, so I put the course on the most open floor: {size}.";

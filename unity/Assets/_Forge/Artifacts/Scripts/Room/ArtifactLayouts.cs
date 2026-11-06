@@ -80,7 +80,7 @@ namespace Forge.Artifacts
                 ["fit"] = new JObject
                 {
                     ["requested"] = requested.DeepClone(),
-                    ["placed"] = new JObject { [countKey] = fit.Gates, ["spacing_m"] = R(fit.Spacing) },
+                    ["placed"] = new JObject { [countKey] = fit.Gates, ["spacing_m"] = R(fit.Spacing), ["lane_m"] = R(fit.Lane) },
                     ["shrunk"] = fit.Shrunk,
                     ["around_found"] = fit.AroundFound,
                     ["message"] = message,

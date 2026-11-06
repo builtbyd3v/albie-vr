@@ -14,7 +14,8 @@ Albie calls `artifact_create {template: "slalom"}`. That call:
 
 **When the course doesn't fit in full.** If the requested course doesn't fit, the generator follows C-12's fit rules:
 - First it reduces the spacing, then the number of gates. The tool result's `say` tells Albie what to tell the person, for example "This room is tight, so I made a shorter course: 4 gates, 0.6 m apart."
-- If even the smallest course doesn't fit, the result is `no_free_floor`, with the size it needs.
+- Then it makes a narrow course: 3 gates with 0.8 m of free floor across instead of 1.2 m, and the spacing down to 0.5 m. The gates stay where they were, so a narrow course scores the same. Albie says it's a short, narrow course and to drive carefully. The layout saves the width it used (`fit.placed.lane_m`), so reruns reuse it. A hoop course does the same by putting its hoops in a straight line.
+- If even the narrow course doesn't fit, the result is `no_free_floor`, with the size it needs.
 - If the room has no scan, the result is `no_room_data`.
 - Nothing is ever placed from a guess.
 

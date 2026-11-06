@@ -56,6 +56,7 @@ public static class SlalomCheck
             ok &= Check(sb, "living room: the full course, beside the couch", LivingRoom);
             ok &= Check(sb, "small room: shrinks and says so", SmallRoom);
             ok &= Check(sb, "closet: no_free_floor, with the size it needs", Closet);
+            ok &= Check(sb, "hallway: a narrow course, says so, reused on rerun", Hallway);
             ok &= Check(sb, "never scanned: no_room_data", Unscanned);
             ok &= Check(sb, "no couch: full course, and says so", Loft);
             ok &= Check(sb, "turned room: still on free floor", Turned);
@@ -115,7 +116,7 @@ public static class SlalomCheck
         // The grid tests cell centres; allow half a cell of slack at the clearance edge.
         float clearance = s.Clearance - FloorSlalom.Cell * 0.75f;
         for (float z = -FloorSlalom.EndMargin; z <= end; z += 0.05f)
-            for (float x = -s.Lane; x <= s.Lane; x += 0.05f)
+            for (float x = -fit.Lane; x <= fit.Lane; x += 0.05f)
             {
                 var p = fit.Origin + r * new Vector3(x, 0f, z);
                 if (!room.IsFree(p, clearance)) return $"footprint point ({x:0.00}, {z:0.00}) isn't free floor";
@@ -171,8 +172,46 @@ public static class SlalomCheck
         note = null;
         var fit = Fit(MockFloorPlan.Closet(), Default(), out double ms);
         if (fit.Ok) return $"placed {fit.Gates} gates in a closet";
-        if (fit.Code != "no_free_floor" || !fit.Message.Contains("3 gates") || !fit.Message.Contains("3.0 by 1.2 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
+        // The size it quotes is the tight course: 3 gates at 0.5 m on the narrow lane.
+        if (fit.Code != "no_free_floor" || !fit.Message.Contains("3 gates") || !fit.Message.Contains("0.5 m apart") || !fit.Message.Contains("2.6 by 0.8 m") || !fit.Message.Contains("15 cm")) return fit.Code + ": " + fit.Message;
         note = $"\"{fit.Message}\" ({ms:0} ms)";
+        return null;
+    }
+
+    static string Hallway(out string note)
+    {
+        note = null;
+        var room = MockFloorPlan.Hallway();
+        var normal = Default();
+        normal.NarrowLane = normal.Lane;
+        normal.TightSpacing = normal.MinSpacing;
+        var without = FloorSlalom.Fit(room, normal);
+        if (without.Ok) return $"the normal rules already fit {without.Gates} gates at {F(without.Spacing)}, so this room doesn't test the narrow stage";
+
+        var s = Default();
+        var fit = Fit(room, s, out double ms);
+        if (!fit.Ok) return fit.Code + ": " + fit.Message;
+        if (!fit.Narrow || !fit.Shrunk || fit.Gates != 3 || Mathf.Abs(fit.Spacing - 0.5f) > 0.001f || Mathf.Abs(fit.Lane - 0.4f) > 0.001f)
+            return $"{fit.Gates} gates at {F(fit.Spacing)}, lane {F(fit.Lane)}, narrow {fit.Narrow}";
+        if (fit.Message == null || !fit.Message.Contains("narrow") || !fit.Message.Contains("3 gates, 0.5 m apart") || !fit.Message.Contains("can't find a couch")) return "message: " + fit.Message;
+        // Gates stay half the full lane out (the same gate as a wide course), inside the narrow footprint.
+        foreach (var gate in fit.Slots["course.gates"])
+            if (Mathf.Abs(Mathf.Abs(gate.position.x) - 0.5f * s.Lane) > 0.001f) return "a gate moved to " + F(gate.position.x);
+        string free = OnFreeFloor(room, fit, s);
+        if (free != null) return free;
+
+        // Saved with its lane, so a rerun reuses it instead of finding the full lane doesn't fit and remaking it.
+        ArtifactLibrary.TryTemplate("slalom", out var manifest, out var scene);
+        manifest["id"] = "slalom_hallway";
+        var generator = (JObject)scene["generators"][0];
+        var scenario = (JObject)manifest["scenarios"][0];
+        var inputs = new ArtifactInputs(manifest);
+        var first = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, false);
+        if (!first.Ok || first.Reused) return "place: " + first.Code + " " + first.Message;
+        if (Mathf.Abs((float)first.Layout["fit"]["placed"]["lane_m"] - 0.4f) > 0.001f) return "placed " + first.Layout["fit"]["placed"];
+        var again = ArtifactGenerators.Place(manifest, generator, inputs, scenario, room, false);
+        if (!again.Ok || !again.Reused) return "a rerun didn't reuse the narrow layout: " + again.Message;
+        note = $"\"{fit.Message}\" ({fit.Tried} placements, {ms:0} ms); saved with lane_m 0.4 and reused";
         return null;
     }
 

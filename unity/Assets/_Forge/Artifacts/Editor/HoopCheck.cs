@@ -59,6 +59,7 @@ public static class HoopCheck
             ok &= Check(sb, "unlabelled room, no ceiling: placed, and says it couldn't check", Unlabelled);
             ok &= Check(sb, "low ceiling: no_headroom, with the heights", Attic);
             ok &= Check(sb, "closet: no_free_floor, with the size it needs", Closet);
+            ok &= Check(sb, "hallway: hoops in a straight line, says so", Hallway);
             ok &= Check(sb, "never scanned: no_room_data", Unscanned);
             ok &= Check(sb, "turned room: still on free floor", Turned);
             ok &= Check(sb, "slots: weaving hoops, start, finish, all on the floor", Slots);
@@ -101,7 +102,7 @@ public static class HoopCheck
     static string OnFreeFloor(IFloorPlan room, FloorSlalom.Result fit, RoomHoops.Settings s)
     {
         var r = Quaternion.Euler(0f, fit.Yaw, 0f);
-        float lane = RoomHoops.Lane(s), end = fit.Spacing * (fit.Gates + 1) + FloorSlalom.EndMargin;
+        float lane = fit.Lane, end = fit.Spacing * (fit.Gates + 1) + FloorSlalom.EndMargin;
         float clearance = s.Clearance - FloorSlalom.Cell * 0.75f;
         for (float z = -FloorSlalom.EndMargin; z <= end; z += 0.05f)
             for (float x = -lane; x <= lane; x += 0.05f)
@@ -167,9 +168,27 @@ public static class HoopCheck
     {
         note = null;
         var fit = RoomHoops.Fit(MockFloorPlan.Closet(), RoomHoops.Settings.Default);
-        if (fit.Ok || fit.Code != "no_free_floor" || !fit.Message.Contains("hoop course") || !fit.Message.Contains("3 hoops")) return fit.Code + ": " + fit.Message;
+        if (fit.Ok || fit.Code != "no_free_floor" || !fit.Message.Contains("hoop course") || !fit.Message.Contains("3 hoops in a straight line, 0.5 m apart")) return fit.Code + ": " + fit.Message;
         note = $"\"{fit.Message}\"";
         return null;
+    }
+
+    static string Hallway(out string note)
+    {
+        note = null;
+        var room = MockFloorPlan.Hallway();
+        var s = RoomHoops.Settings.Default;
+        var fit = RoomHoops.Fit(room, s);
+        if (!fit.Ok) return fit.Code + ": " + fit.Message;
+        if (!fit.Narrow || fit.Gates != 3 || Mathf.Abs(fit.Spacing - 0.5f) > 0.001f || Mathf.Abs(fit.Lane - RoomHoops.StraightLane(s)) > 0.001f)
+            return $"{fit.Gates} hoops at {F(fit.Spacing)}, lane {F(fit.Lane)}, narrow {fit.Narrow}";
+        foreach (var hoop in fit.Slots["course.hoops"])
+            if (Mathf.Abs(hoop.position.x) > 0.001f) return "a hoop still weaves: " + F(hoop.position.x);
+        if (fit.Message == null || !fit.Message.Contains("straight line") || !fit.Message.Contains("3 hoops, 0.5 m apart")) return "message: " + fit.Message;
+        if (!RoomHoops.StillFits(room, fit.Origin, fit.Yaw, fit.Gates, fit.Spacing, s, fit.Lane)) return "the straight course doesn't still fit where it was put";
+        if (RoomHoops.StillFits(room, fit.Origin, fit.Yaw, fit.Gates, fit.Spacing, s)) return "a weaving course would fit too, so the room doesn't test the straight stage";
+        note = $"\"{fit.Message}\"";
+        return OnFreeFloor(room, fit, s);
     }
 
     static string Unscanned(out string note)
