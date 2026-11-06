@@ -11,6 +11,11 @@ namespace Forge.Controllers
     public sealed class MockDriver
     {
         const float Weave = 0.4f, Lookahead = 0.5f;
+        /// <summary>
+        /// The hand's wobble, in steer.angle units. 0.13 gives the path the same wobble the 0.25 did on the old, bigger
+        /// truck (0.28 m, 30°): a stick wobble turns the 0.17 m, 35° truck about twice as sharply.
+        /// </summary>
+        public const float Wobble = 0.13f;
         readonly Random rng;
         readonly int stickY = ManualInputs.IndexOf("stick.y"), handRoll = ManualInputs.IndexOf("hand.roll");
         float noise;
@@ -30,7 +35,7 @@ namespace Forge.Controllers
             float tx = sim.X + Lookahead, ty = PathY(tx);
             float alpha = (float)Math.Atan2(ty - sim.Y, tx - sim.X) - sim.Heading;
             float distance = (float)Math.Sqrt((tx - sim.X) * (tx - sim.X) + (ty - sim.Y) * (ty - sim.Y));
-            noise = 0.9f * noise + 0.1f * Gaussian() * 0.25f * NoiseScale;
+            noise = 0.9f * noise + 0.1f * Gaussian() * Wobble * NoiseScale;
             float maxSteer = MockTruckSim.MaxSteerDeg * (float)Math.PI / 180f;
             float steer = (float)Math.Atan(2f * MockTruckSim.Wheelbase * Math.Sin(alpha) / Math.Max(distance, 0.3f)) / maxSteer + noise;
             float throttle = MockTruckSim.Drag * Cruise / MockTruckSim.MaxAccel + 1.5f * (Cruise - sim.Speed);

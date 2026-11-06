@@ -55,7 +55,7 @@ Each artifact is a folder with `manifest.json` at its root. Zip bundles wait unt
   "script": null,
   "inputs": [
     { "name": "gates", "type": "integer", "min": 3, "max": 12, "default": 5, "label": "Gates" },
-    { "name": "spacing_m", "type": "number", "min": 0.6, "max": 2.0, "default": 0.8, "label": "Spacing" }
+    { "name": "spacing_m", "type": "number", "min": 1.0, "max": 2.0, "default": 1.2, "label": "Spacing" }
   ],
   "scenarios": [ { "id": "default", "seed": 42, "params": {} } ],
   "data": [],
@@ -188,7 +188,7 @@ A generator is fixed C# in the host that turns a room into positions. **The agen
 
 ```json
 { "id": "course", "type": "floor_slalom",
-  "params": { "gates": "$gates", "spacing_m": "$spacing_m", "min_spacing_m": 0.6, "min_gates": 3,
+  "params": { "gates": "$gates", "spacing_m": "$spacing_m", "min_spacing_m": 1.0, "tight_spacing_m": 1.0, "min_gates": 3,
               "lane_width_m": 0.6, "clearance_m": 0.15, "around": "COUCH" } }
 ```
 
@@ -231,9 +231,19 @@ Whenever a step other than 1 ran, `fit.shrunk` is true and `fit.message` says wh
 **Narrow courses (as built, 2026-11-05, Person 5; a proposal for the Core owner).** MRUK's LivingRoom00 (3.45 × 3.69 m, three couches, a table) had no clear strip 1.2 m wide longer than 2.1 m, so it got no slalom. Step 4 handles rooms like it:
 - **`floor_slalom`.** The footprint narrows from ±`lane_width_m` to ±`narrow_lane_width_m` (default 0.4, so 0.8 m wide instead of 1.2 m), and the spacing can drop to `tight_spacing_m` (default 0.5). The gates stay at ±`lane_width_m`/2, so a narrow course scores the same way and the gate zones only reach past the narrow footprint by its clearance. Albie says: "This room is very tight, so I made a short, narrow course: 3 gates, 0.5 m apart, with less room either side. Drive carefully near the furniture."
 - **`room_hoops`.** A hoop's width is fixed, so the hoops stop weaving and stand in a straight line instead. The half-width becomes half a hoop plus the post, 0.39 m for 0.7 m hoops. The spacing can drop to `tight_spacing_m` (default 0.5). Albie says: "This room is very tight, so I put the hoops in a straight line: ..."
-- **Params.** Both new params are optional, and the templates don't set them. Setting `narrow_lane_width_m` to `lane_width_m` and `tight_spacing_m` to `min_spacing_m` turns step 4 off.
+- **Params.** Both new params are optional. Setting `narrow_lane_width_m` to `lane_width_m` and `tight_spacing_m` to `min_spacing_m` turns step 4 off. Since 2026-11-06 the slalom template sets `tight_spacing_m` to 1.0, so a narrow course only narrows, and the spacing stays at 1.0 m or more (next note).
 - **Layout record.** `fit.placed.lane_m` records the half-width the course was placed with. A rerun checks that the saved course still fits at that width, so a narrow course is reused rather than remade every time. A layout without `lane_m` is checked at the full width.
-- **MRUK's 8 prefab rooms, after this change.** Slaloms fit 6 of 8 rooms, up from 4. LivingRoom00 gets 3 gates at 0.5 m, narrow. LivingRoom03 gets 3 at 0.6 m, narrow. Bedroom01 and Office00 still get `no_free_floor`. Hoop courses fit 7 of 8: LivingRoom00 and LivingRoom03 get straight lines, Bedroom01 gets 3 straight hoops at 0.6 m, and only Office00 fails. The other rooms are unchanged, because steps 1 to 3 already fit them.
+- **MRUK's 8 prefab rooms, after this change (superseded by the next note).** Slaloms fit 6 of 8 rooms, up from 4. LivingRoom00 gets 3 gates at 0.5 m, narrow. LivingRoom03 gets 3 at 0.6 m, narrow. Bedroom01 and Office00 still get `no_free_floor`. Hoop courses fit 7 of 8: LivingRoom00 and LivingRoom03 get straight lines, Bedroom01 gets 3 straight hoops at 0.6 m, and only Office00 fails. The other rooms are unchanged, because steps 1 to 3 already fit them.
+
+**Spacing the truck can weave (as built, 2026-11-06, Person 5 with ML A; a proposal for the Core owner).** The mock truck turned no tighter than 0.48 m, so a scripted driver passed 0 of 60 driver settings on cones 0.8 m apart, or closer, and passes started at 1.0 m. The truck is now smaller (0.17 m wheelbase, 35° steering, a 0.24 m turn; `MockTruckSim`), and the slalom template's spacing changed:
+- `spacing_m`: default 1.2 m (was 0.8), minimum 1.0 m (was 0.6). `min_spacing_m` is 1.0, and `tight_spacing_m` is 1.0 (was 0.5), so no course has cones closer than 1.0 m. The generator's code defaults are the same.
+- The new truck passes 40/60 driver settings at 1.0 m and 52/60 at 1.2 m. It still can't pass at 0.6 m.
+- **The cost: slaloms fit 3 of MRUK's 8 prefab rooms, down from 6.** LivingRoom01 gets 3 gates at 1.0 m, narrow. LivingRoom02 gets 3 at 1.2 m, and Bedroom00 3 at 1.1 m. LivingRoom00, LivingRoom03 and LivingRoom04 now get `no_free_floor`, and so do Bedroom01 and Office00, as before. The old 6 were only on paper: no truck we've tested could weave them.
+  - A 0.9 m minimum fits the same 3 rooms.
+  - Allowing 2-gate courses (`min_gates` 2) would add LivingRoom04.
+  - LivingRoom00 and LivingRoom03 need a different course shape.
+- In the 7 × 5 m mock living room, 5 gates at 1.2 m need 7.8 m, so the course shrinks to 5 gates at 1.0 m. Albie says "This room is tight, so I made a shorter course: 5 gates, 1.0 m apart." The 4.5 m mock bedroom now gets `no_free_floor`.
+- Hoop courses are unchanged.
 
 ## 4. Rules
 
