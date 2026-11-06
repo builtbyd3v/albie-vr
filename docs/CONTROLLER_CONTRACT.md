@@ -88,7 +88,7 @@ All values are **normalised**, so a controller works at desk scale and at true s
 | `body` | `<id>.upright` | -1 to 1 | Dot of the body's up and world up. Below about 0.3 means it has rolled over. |
 | `battery` | `<id>.charge` | 0 to 1 | Remaining charge. |
 
-**As built (ML A, 2026-11-06): the mock truck differs from this at walls.** `MockTruckSim` and the Python mock give only cones the beam. They cast plain rays at walls, so a sphere-cast fan on real colliders reads walls up to 0.21 m nearer (`ThingRuntimeCheck`; cones agree to 0.0 mm). Laps from the real truck follow this section either way. **Brains and the pretrained fallback trained on the mock carry over badly** (on the physics example the fallback crashed), so they're retrained on the real truck's laps.
+**As built (ML A, 2026-11-06): the mock truck now follows this at walls too.** Until 2026-11-06, `MockTruckSim` and the Python mock gave only cones the beam and cast plain rays at walls. A sphere-cast fan on real colliders read those walls up to 0.21 m nearer, and the pretrained fallback crashed on the physics example. Both mocks now sphere-cast walls: the mock and `RayFan` on colliders agree to 0.0 mm on cones and walls (`ThingRuntimeCheck`), and the rebuilt fallback drives the physics example from all 15 starts.
 
 ### 2.2 Actuators
 

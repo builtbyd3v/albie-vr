@@ -96,7 +96,10 @@ namespace Forge.Controllers
             return !(WallXMin + TruckRadius < X && X < WallXMax - TruckRadius && WallYMin + TruckRadius < Y && Y < WallYMax - TruckRadius);
         }
 
-        // Distance to the first cone or wall along a unit ray, capped at RayRange (same maths as the Python mock).
+        // Distance to the first cone or wall along a unit ray, capped at RayRange (same maths as the Python mock). It's a
+        // sphere cast for walls too (contract 2.1): the distance the beam's centre travels until the beam touches the
+        // wall. Until 2026-11-06 walls got a plain ray, so a sphere-cast fan on real colliders read them up to 0.21 m
+        // nearer than the laps the mock brains learned from (ThingRuntimeCheck).
         float Cast(float px, float py, float dx, float dy)
         {
             float best = RayRange, r = ConeRadius + BeamRadius;
@@ -108,16 +111,21 @@ namespace Forge.Controllers
                 float miss2 = ox * ox + oy * oy - along * along;
                 if (miss2 <= r * r) best = Math.Min(best, Math.Max(0f, along - (float)Math.Sqrt(r * r - miss2)));
             }
-            best = Wall(WallXMin, px, dx, best); best = Wall(WallXMax, px, dx, best);
-            best = Wall(WallYMin, py, dy, best); best = Wall(WallYMax, py, dy, best);
+            best = Wall(WallXMin, px, dx, best, BeamRadius); best = Wall(WallXMax, px, dx, best, BeamRadius);
+            best = Wall(WallYMin, py, dy, best, BeamRadius); best = Wall(WallYMax, py, dy, best, BeamRadius);
             return best;
         }
 
-        static float Wall(float wall, float p, float d, float best)
+        // The wall is met when the beam's edge reaches it, so its centre stops beam metres short. Already inside the
+        // beam (the truck has crashed by then): a plain ray, as RayFan falls back to.
+        static float Wall(float wall, float p, float d, float best, float beam)
         {
             if (Math.Abs(d) < 1e-9f) return best;
             float t = (wall - p) / d;
-            return t > 0 && t < best ? t : best;
+            if (t <= 0) return best;
+            float sphere = (wall - Math.Sign(d) * beam - p) / d;
+            if (sphere > 0) t = sphere;
+            return t < best ? t : best;
         }
 
         static float Clamp(float v) => v < -1f ? -1f : v > 1f ? 1f : v;

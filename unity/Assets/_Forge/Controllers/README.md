@@ -34,7 +34,7 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Editor/ControllersSandboxBuilder.cs` | **Forge > Controllers > Build Sandbox** builds `ControllersSandbox.unity`. |
 | `Editor/ControllersCheck.cs` | **Forge > Controllers > Check Runner**: 9 headless checks. |
 | `Editor/HotReloadCheck.cs` | **Forge > Controllers > Check Hot Reload**: 9 headless checks (reload state rules, bad files, watcher, live max_speed, fallback, training record). |
-| `Editor/PretrainedFallbackBuilder.cs` | Builds the fallback from 4 scripted laps and 5 seeds, keeping the best on the mock slalom. Rebuild it on the real Thing runtime. |
+| `Editor/PretrainedFallbackBuilder.cs` | Builds the fallback from 4 scripted laps and 5 seeds, keeping the best on the mock slalom. **Use Controller File As Fallback** replaces it with a candidate that drove the real course. |
 | `Editor/AutopilotCheck.cs` | **Forge > Controllers > Check Autopilot**: 7 headless checks (trainer match, bad files, max_speed, candidate fallback). |
 | `Editor/FiveInARowCheck.cs` | **Forge > Controllers > Check Five In A Row** (about 30 s): the Nov 16 bar. The whole demo loop 5 times from scratch: two demo-style laps, 3 candidates trained 4 ms a frame, the Autopilot from a hand-placed start. It says who drove each time and gives the odds from 40 more drivers. |
 | `Editor/BehaviourCloningCheck.cs` | **Forge > Controllers > Check Behaviour Cloning**: 8 headless checks (recording, files, frame budget, closed loop). |
@@ -59,7 +59,7 @@ var learned = t.WithLearnedBrake(truckCruise);  // a graph controller with the m
 host.Attach(ControllerFile.Parse(learned.ToString(), out _));
 ```
 
-**By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "97% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
+**By voice:** "train the ML template" calls `template_train`. It answers when training is done, with a `say` line: "98% right on examples it hadn't seen; the simple front-sensor rule gets 86%." "Put it on the truck" calls `learned_brake {on: true}`, and `{on: false}` gives the truck back what it had. Each run also writes a `training` entry in the lab notebook.
 
 The Python templates (`ml-examples/cifar10`, `text-classification`) need the laptop hub to train (PROJECT_CONTEXT 16.8, Nov 14 decision).
 
@@ -171,16 +171,18 @@ Then `BehaviourCloner` trains on them, as the sandbox's B key does.
 - `ExampleTruckBody` is the mock truck's driving model on a Unity transform, with `RayFan` on real colliders.
 - **Forge > Controllers > Check Thing Runtime** builds the slalom from colliders in a preview scene and checks:
   1. plugging in and refusing a bad file;
-  2. sensors against the mock's maths;
+  2. sensors against the mock's maths (cones and walls agree to 0.0 mm);
   3. Albie's tools reaching the truck;
   4. 0 bytes per step (about 6 µs, with 7 sphere casts);
-  5. **the real-laps loop on Unity physics:** two laps driven by hand, recorded, saved and read back, then trained. The new candidates drove it from 3 hand-placed starts, candidate 1 every time.
+  5. **the real-laps loop on Unity physics:** two laps driven by hand, recorded, saved and read back, then trained. The new candidates drove it from 3 hand-placed starts, candidate 1 every time;
+  6. brains trained on mock laps drive the physics truck (candidate 1 from all 3 starts);
+  7. **the pretrained fallback drives the physics truck from all 15 starts** it's scored on in the mock;
+  8. promoting a candidate that drove into the fallback (below) works, and bad files are refused.
 
-**Train on the real truck's laps.** Brains trained on the mock truck carry over badly. On the physics example, only candidate 3 drove it, and the **pretrained fallback crashed**.
-
-The likely cause is the mock's walls. The mock (C# and Python) casts plain rays at walls, and gives only cones the beam. A sphere cast reads walls up to 0.21 m nearer, as the contract says it should.
-
-So **rebuild the pretrained fallback from the real truck's laps** before the demo relies on it. `Editor/PretrainedFallbackBuilder.cs` builds it from mock laps today.
+**The fallback on the real truck.** The bundled fallback is trained on the mock, whose walls are sphere casts too since 2026-11-06, so it carries over to a contract ray fan on real colliders. The real truck still differs from the mock (wheels, grip, the course), so once it drives, replace the fallback with a brain that drove the real course:
+1. Drive two laps by hand on the headset, train (B, or `brain_train`), and let the Autopilot drive (P).
+2. The candidate it keeps is in `persistentDataPath/controllers/`: `truck_autopilot.json` for candidate 1, `candidates/truck_autopilot_2.json` and `_3` for the others. `adb pull` it.
+3. In Unity: **Forge > Controllers > Use Controller File As Fallback...**, pick the file, then commit `Resources/Controllers/truck_autopilot_fallback.json`.
 
 **The lower-level path, with no MonoBehaviour,** is one host per Thing. In `FixedUpdate`:
 
