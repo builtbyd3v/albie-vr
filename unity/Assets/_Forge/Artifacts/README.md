@@ -40,6 +40,20 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 
 **Demo step 7 on the scoreboard.** The slalom's scoreboard has a `versions` row (`ArtifactVersionsRow` in `Scripts/ArtifactWidgets.cs`). It shows the open project's previous version against its current one, for example "v1 rolled over (free drive) · v2 8.6 s", and updates by itself when a run finishes or a version is cut. The slalom template needs host runtime 5 for it.
 
+**The brain beat in the app** (`Scripts/SlalomBrain.cs`, PROJECT_CONTEXT 16.8, "room slalom, part 3"). In the slalom sandbox, after 2 (make me a slalom), press **B** for the brain truck, which is ML A's physics truck (`ExampleTruckBody`) with a `ControllerThing`, standing in for Person 2's Thing runtime. Then:
+- **L** records a lap you drive by hand: W/S hold 0.8 m/s, A/D steer, through the `truck_manual` controller. **K** records a scripted lap.
+- Each lap is a scored run of the open slalom, and only completed laps train.
+- **T** trains 3 candidates, 4 ms a frame, and writes the notebook's training entry.
+- **P** runs the Autopilot: each candidate, then the pretrained fallback, gets a scored run until one completes.
+- A touch on a cone or a wall aborts the run, and the truck parks after each run.
+- The mock rooms' walls and furniture have colliders, so the truck's rays see them. **Forge > Artifacts > Check Brain Loop (Play)** runs every mock room through the whole loop in Play mode, with storage in a scratch folder.
+
+**Scoring a body that moves in physics.** These apply to any Thing, not just the truck:
+- A run counts a hit (`hit_count`) when the Thing comes within its radius of the collider's surface (`ClosestPoint`). It used to use the collider's bounds grown by the radius, which counted a clean weave 0.12 m off every cone as 4 hits.
+- Arming a run syncs physics, so a course built that frame is where it's drawn.
+- `ArtifactThing.SpeedSource` gives the body's own speed: runs tick in FixedUpdate, where a per-frame position difference reads 0.
+- `ArtifactThing.ProbeHeight` lifts the scored point off the floor.
+
 ## "What shipped this week?" (repo activity)
 
 Albie calls `artifact_create {template: "repo_activity"}`. This shows commits as a small city on a base: one block per commit, height for lines changed, and colour for the author. The data is read through the `array` node's `source: {table, grid}` (C-12 section 7). The rows are never typed into the scene.
@@ -68,7 +82,8 @@ The `launch` fixture needs host runtime 4.
 | `Scripts/Room/` | `IFloorPlan` (free floor and ceiling height), plus the MRUK and mock rooms, the `floor_slalom` and `room_hoops` generators, layout records, spatial anchors, and `ArtifactGenerators`. |
 | `Scripts/ArtifactZone.cs` | The `zone` node (with `Contains` for runs) and the `array` node over a slot. |
 | `Scripts/ArtifactLibrary.cs`, `Scripts/ArtifactTools.cs` | The templates and the device library. Tools: `artifact_list`, `artifact_create`, `artifact_open`, `artifact_close`, `artifact_relayout`, `artifact_run`, `artifact_compare`. |
-| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 7 make a hoop course, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
+| `SlalomSandbox.unity` | Hub off, no headset. Keys: 2 make a slalom, 7 make a hoop course, 3 arm a run, 4 scripted lap, 5 roll over, 6 forget the saved anchor, WASD drive, M / N next room, R relayout, [ ] spacing, G gates, O view. The brain truck: B, then L lap by hand, K scripted lap, T train, P Autopilot. Rebuild it with **Forge > Artifacts > Build Slalom Sandbox**. |
+| `Editor/SlalomBrainCheck.cs` | The brain beat in Play mode, in every mock room: **Forge > Artifacts > Check Brain Loop (Play)**, about a minute. |
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
 | `Editor/HoopCheck.cs` | 14 headless hoop checks (mock rooms, template, scored laps): **Forge > Artifacts > Check Hoops**. |
 | `Scripts/ArtifactData.cs` | Data tables: parsing and checking snapshots, the Provider → snapshot → bundled sample order, `data_sources`. |

@@ -16,6 +16,8 @@ namespace Forge.Artifacts
     /// WASD drive the truck, R relayout, 6 forget the saved spatial anchor (next 2 remakes the course),
     /// [ ] spacing -/+ 0.1 m, G gates (3 to 8), M next MRUK room, N next mock room, O overhead / first-person view,
     /// 0 close, 9 forget approvals.
+    /// The brain beat (<see cref="SlalomBrain"/>): B swaps in the physics truck with a controller, then L records a lap
+    /// you drive with WASD, K a scripted lap, T trains, P runs the Autopilot.
     /// </summary>
     public sealed class SlalomSandbox : MonoBehaviour
     {
@@ -28,6 +30,8 @@ namespace Forge.Artifacts
         int mock = -1, mruk = -1;
         GameObject mockView, thingGo;
         ArtifactThing thing;
+        /// <summary>The physics truck with a controller (B), or null for the plain stand-in.</summary>
+        public SlalomBrain Brain { get; private set; }
         Coroutine lap;
         string roomName = "", status = "", say = "";
         GUIStyle style;
@@ -62,6 +66,15 @@ namespace Forge.Artifacts
             if (k.oKey.wasPressedThisFrame && overhead != null) overhead.gameObject.SetActive(!overhead.gameObject.activeSelf);
             if (k.digit0Key.wasPressedThisFrame) host.Close();
             if (k.digit9Key.wasPressedThisFrame) ArtifactApprovals.Forget();
+            if (k.bKey.wasPressedThisFrame) UseBrainTruck();
+            if (Brain != null)
+            {
+                if (k.lKey.wasPressedThisFrame) Brain.RecordLap();
+                if (k.kKey.wasPressedThisFrame) Brain.RecordScriptedLap(Random.Range(0, 1000));
+                if (k.tKey.wasPressedThisFrame) Brain.Train();
+                if (k.pKey.wasPressedThisFrame) Brain.StartAutopilot();
+                return;  // WASD goes through the truck's manual controller instead
+            }
             Drive(k);
         }
 
@@ -145,12 +158,24 @@ namespace Forge.Artifacts
             status = "forgot " + uuid + " — press 2 to open again";
         }
 
+        /// <summary>B: the physics truck with a controller, for the brain beat (laps, training, the Autopilot).</summary>
+        public SlalomBrain UseBrainTruck()
+        {
+            if (Brain != null) return Brain;
+            ClearThing();
+            Brain = SlalomBrain.Spawn(host);
+            status = Brain.Status;
+            return Brain;
+        }
+
         void SpawnThing()
         {
+            if (Brain != null) { host.Thing = Brain.Scored; Brain.PlaceAtStart(); return; }
             if (thingGo == null)
             {
                 thingGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 thingGo.name = "Thing";
+                Destroy(thingGo.GetComponent<Collider>());  // kinematic: nothing touches it, and the brain truck's rays mustn't see it
                 thingGo.transform.localScale = new Vector3(0.22f, 0.1f, 0.3f);
                 var renderer = thingGo.GetComponent<Renderer>();
                 if (renderer != null) renderer.sharedMaterial = ArtifactLook.Material("#4C8DFF");
@@ -234,6 +259,8 @@ namespace Forge.Artifacts
             if (thingGo != null) Destroy(thingGo);
             thingGo = null;
             thing = null;
+            if (Brain != null) Destroy(Brain.gameObject);
+            Brain = null;
             host.Thing = null;
         }
 
@@ -257,20 +284,22 @@ namespace Forge.Artifacts
             var frame = mockView.transform;
             frame.SetPositionAndRotation(room.Origin, Quaternion.Euler(0f, room.Yaw, 0f));
             if (!room.Scanned) return;  // an unscanned room has nothing to draw
-            Box(frame, "Floor", new Vector3(0f, -0.01f, 0f), new Vector3(room.Size.x, 0.02f, room.Size.y), 0f, floorMaterial);
+            Box(frame, "Floor", new Vector3(0f, -0.01f, 0f), new Vector3(room.Size.x, 0.02f, room.Size.y), 0f, floorMaterial, false);
+            // Walls and furniture keep their colliders: the brain truck's ray fan sees them and crashes into them, as
+            // it would a real room's (the floor has none, so it can't touch it). Thin walls stand just outside the room.
             const float h = 0.4f, t = 0.05f;
-            Box(frame, "Wall", new Vector3(0f, h / 2, room.Size.y / 2), new Vector3(room.Size.x, h, t), 0f, wallMaterial);
-            Box(frame, "Wall", new Vector3(0f, h / 2, -room.Size.y / 2), new Vector3(room.Size.x, h, t), 0f, wallMaterial);
-            Box(frame, "Wall", new Vector3(room.Size.x / 2, h / 2, 0f), new Vector3(t, h, room.Size.y), 0f, wallMaterial);
-            Box(frame, "Wall", new Vector3(-room.Size.x / 2, h / 2, 0f), new Vector3(t, h, room.Size.y), 0f, wallMaterial);
-            foreach (var item in room.Items) Box(frame, item.Label, item.Centre, item.Size, item.Yaw, furnitureMaterial);
+            Box(frame, "Wall", new Vector3(0f, h / 2, room.Size.y / 2 + t / 2), new Vector3(room.Size.x + 2 * t, h, t), 0f, wallMaterial, true);
+            Box(frame, "Wall", new Vector3(0f, h / 2, -room.Size.y / 2 - t / 2), new Vector3(room.Size.x + 2 * t, h, t), 0f, wallMaterial, true);
+            Box(frame, "Wall", new Vector3(room.Size.x / 2 + t / 2, h / 2, 0f), new Vector3(t, h, room.Size.y), 0f, wallMaterial, true);
+            Box(frame, "Wall", new Vector3(-room.Size.x / 2 - t / 2, h / 2, 0f), new Vector3(t, h, room.Size.y), 0f, wallMaterial, true);
+            foreach (var item in room.Items) Box(frame, item.Label, item.Centre, item.Size, item.Yaw, furnitureMaterial, true);
         }
 
-        static void Box(Transform parent, string name, Vector3 at, Vector3 size, float yaw, Material material)
+        static void Box(Transform parent, string name, Vector3 at, Vector3 size, float yaw, Material material, bool solid)
         {
             var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
             box.name = name;
-            Destroy(box.GetComponent<Collider>());
+            if (!solid) Destroy(box.GetComponent<Collider>());
             box.transform.SetParent(parent, false);
             box.transform.localPosition = at;
             box.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
@@ -285,9 +314,10 @@ namespace Forge.Artifacts
             string layout = host.LastLayout != null ? $"   layout {host.LastLayout["layout_id"]}{(host.LayoutReused ? " (reused)" : " (new)")}" : "";
             string run = host.Run != null ? $"   run {host.Run.State.ToString().ToLowerInvariant()}" + (host.Run.Outcome != null ? " " + host.Run.Outcome : "") : "";
             GUI.Label(new Rect(14, 72, Screen.width - 28, 72),  // below the desktop rig's hint bar
-                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   7 hoop course   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close", style);
+                $"<b>Slalom sandbox</b>   {roomName}{layout}{run}\n2 make me a slalom   7 hoop course   3 arm   4 lap   5 roll over   6 forget anchor   WASD drive   R relayout   [ ] spacing   G gates   M/N room   O view   0 close\n" +
+                $"B brain truck{(Brain != null ? $"   L lap by hand   K scripted lap   T train   P autopilot   ({Brain.CompletedLaps} laps, {Brain.State.ToString().ToLowerInvariant()})" : "")}", style);
             if (!string.IsNullOrEmpty(say)) GUI.Label(new Rect(14, Screen.height - 80, Screen.width - 28, 30), "<b>Albie:</b> " + say, style);
-            GUI.Label(new Rect(14, Screen.height - 48, Screen.width - 28, 44), status, style);
+            GUI.Label(new Rect(14, Screen.height - 48, Screen.width - 28, 44), Brain != null ? Brain.Status : status, style);
         }
     }
 }
