@@ -175,6 +175,32 @@ Simulator > Activate). `MLSandboxBuilder.BuildScene()` rebuilds only the scene.
    and check Meta XR Simulator's connected-app status. A physical Quest is still
    needed to check Quest performance and controller/hand behavior.
 
+### ML B Quest handoff
+
+`MLSandbox.unity` is the ML B test scene. It contains the Meta `OVRCameraRig`, Interaction SDK
+hands/controllers, a non-exclusive `PointableCanvasModule`, passthrough, and a floor collider.
+When an XR loader is active, the scene requests a 72 FPS target and the Controller Brain panel
+shows a live frame monitor beside training progress. On Quest, manually open the brain panel,
+ray or poke `Record lap`, stop it, start `Train`, watch the loss curve and frame monitor for the
+full ~10 seconds, then ray or poke `Autopilot`. Repeat the flow in the Neural Net Lab and inspect
+headlines, buttons, status text, and chart labels from about 1 m. Editor smoke checks do not
+certify physical hand tracking, text readability, or sustained 72 FPS; those remain **unverified**
+until a headset session is connected.
+
+### ML B editor validation record
+
+Final Unity editor checks passed on 2026-11-06 in `MLSandbox.unity`:
+
+- ML smoke: PASS
+- Autopilot: PASS; learned file matched the trainer, worst difference `0.000029`
+- Hot reload: PASS; PID state preserved through the tunable edit
+- Controller runner: PASS; manual, cruise, and learned-autopilot files all bound
+- Behaviour cloning: PASS; 2/2 manual laps completed
+
+These are editor/code checks only. Quest headset validation is still pending and must be
+performed manually; physical hand tracking, ray/poke interaction, sustained 72 FPS during
+training, and readability at about 1 m are not certified by this record.
+
 Automated Play-mode check (builds the scene/prefabs first):
 `Unity -batchmode -nographics -projectPath <repo>/unity
 -executeMethod MLSmokeCheck.BuildAndRun -logFile <log>`.

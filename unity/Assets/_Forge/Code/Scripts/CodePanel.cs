@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using Forge.Controllers;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -24,6 +25,9 @@ public class CodePanel : MonoBehaviour
     Image highlight;
     ScrollRect scroll;
     ForgePill undo, reset;
+    TMP_InputField controllerSpeed;
+    TMP_Text controllerState;
+    ForgePill controllerApply;
     readonly List<(ForgePill pill, CodeProject.File file)> pills = new List<(ForgePill, CodeProject.File)>();
     bool dirty = true, resetArmed;
     float resetArmedUntil;
@@ -151,6 +155,19 @@ public class CodePanel : MonoBehaviour
             y += 40f;
             pills.Add((pill, file));
         }
+        // Controller code is a second live surface in the general Code panel. It is intentionally optional: when the
+        // Thing runtime is not open, the field remains visible and explains that the value will apply on the next run.
+        var controllerTitle = Text("Controller", side, 10f, ForgeTheme.PanelSubtext);
+        controllerTitle.text = "THING CONTROLLER";
+        controllerTitle.characterSpacing = 1.5f;
+        Place(controllerTitle.rectTransform, 0f, y + 2f);
+        controllerSpeed = Forge.ML.MLUI.Input(side, "max_speed", "max_speed", 0f, y + 22f, SideWidth - 6f, 28f);
+        controllerSpeed.text = "1.5";
+        controllerApply = Forge.ML.MLUI.Pill(side, "Apply max_speed", 0f, y + 56f, SideWidth - 6f, 28f, ApplyControllerSpeed);
+        controllerState = Text("Controller state", side, 10f, ForgeTheme.PanelSubtext);
+        controllerState.textWrappingMode = TextWrappingModes.Normal;
+        controllerState.rectTransform.sizeDelta = new Vector2(SideWidth - 10f, 38f);
+        Place(controllerState.rectTransform, 0f, y + 90f);
     }
 
     // ---------------------------------------------------------------- refresh
@@ -190,6 +207,40 @@ public class CodePanel : MonoBehaviour
         shownPath = open.path;
         shownStart = CodeProject.HighlightStart;
         PlaceHighlight(moved);
+        RefreshControllerState();
+    }
+
+    void RefreshControllerState()
+    {
+        if (controllerState == null) return;
+        var sandbox = FindAnyObjectByType<ControllersSandbox>();
+        if (sandbox == null || sandbox.Host == null || sandbox.Host.File == null)
+        {
+            controllerState.text = "truck_autopilot\nThing runtime not open";
+            controllerState.color = ForgeTheme.PanelSubtext;
+            return;
+        }
+        if (!controllerSpeed.isFocused && sandbox.Host.File.Tunables.TryGetValue("max_speed", out var tune))
+            controllerSpeed.text = tune.Value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+        if (sandbox.Host.File.Tunables.TryGetValue("max_speed", out var current))
+            controllerState.text = $"{sandbox.Host.File.Name}\nmax_speed {current.Value:0.0} m/s";
+        else
+            controllerState.text = $"{sandbox.Host.File.Name}\nmax_speed unavailable";
+        controllerState.color = ForgeTheme.Code;
+    }
+
+    void ApplyControllerSpeed()
+    {
+        if (controllerSpeed == null || !float.TryParse(controllerSpeed.text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out float value))
+        {
+            CodeProject.SetStatus("max_speed must be a number.");
+            return;
+        }
+        var sandbox = FindAnyObjectByType<ControllersSandbox>();
+        string error = sandbox == null ? "Thing runtime is not open" : sandbox.SetMaxSpeed(value);
+        CodeProject.SetStatus(error ?? $"truck_autopilot max_speed hot reloaded to {value:0.0} m/s.");
+        RefreshControllerState();
     }
 
     void PlaceHighlight(bool scrollTo)
