@@ -17,6 +17,7 @@ namespace Forge.ML
         {
             var manager = XRGeneralSettings.Instance != null ? XRGeneralSettings.Instance.Manager : null;
             IsXR = manager != null && manager.activeLoader != null;
+            if (IsXR) Application.targetFrameRate = 72;
             desktopCamera.gameObject.SetActive(!IsXR);
             if (!IsXR) DisableXrCameras();
             Debug.Log("[ML] " + (IsXR ? "XR rig (headset or simulator)" : "Desktop camera"));

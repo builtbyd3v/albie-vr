@@ -175,6 +175,18 @@ Simulator > Activate). `MLSandboxBuilder.BuildScene()` rebuilds only the scene.
    and check Meta XR Simulator's connected-app status. A physical Quest is still
    needed to check Quest performance and controller/hand behavior.
 
+### ML B Quest handoff
+
+`MLSandbox.unity` is the ML B test scene. It contains the Meta `OVRCameraRig`, Interaction SDK
+hands/controllers, a non-exclusive `PointableCanvasModule`, passthrough, and a floor collider.
+When an XR loader is active, the scene requests a 72 FPS target and the Controller Brain panel
+shows a live frame monitor beside training progress. On Quest, manually open the brain panel,
+ray or poke `Record lap`, stop it, start `Train`, watch the loss curve and frame monitor for the
+full ~10 seconds, then ray or poke `Autopilot`. Repeat the flow in the Neural Net Lab and inspect
+headlines, buttons, status text, and chart labels from about 1 m. Editor smoke checks do not
+certify physical hand tracking, text readability, or sustained 72 FPS; those remain **unverified**
+until a headset session is connected.
+
 Automated Play-mode check (builds the scene/prefabs first):
 `Unity -batchmode -nographics -projectPath <repo>/unity
 -executeMethod MLSmokeCheck.BuildAndRun -logFile <log>`.

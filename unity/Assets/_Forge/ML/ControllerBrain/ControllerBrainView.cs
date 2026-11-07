@@ -25,13 +25,14 @@ namespace Forge.ML
         RectTransform root;
         TMP_Text modeText, sampleText, lossText, lapText;
         TMP_Text trainingText;
+        TMP_Text performanceText;
         readonly TMP_Text[] inputValues = new TMP_Text[8];
         readonly Image[] inputBars = new Image[8];
         TMP_Text steerValue, throttleValue;
         TMP_Text controllerStatus;
         TMP_InputField maxSpeedInput;
         Image steerBar, throttleBar, trainProgress;
-        BrainSparkline sparkline;
+        MLCurve sparkline;
         readonly List<float> lossHistory = new List<float>();
         readonly List<float[]> samples = new List<float[]>();
         readonly List<float[]> outputs = new List<float[]>();
@@ -42,6 +43,9 @@ namespace Forge.ML
         JArray laps;
         string[] sensors;
         int recordedSamples;
+        float fpsClock;
+        int fpsFrames;
+        bool initialized;
 
         enum BrainMode { Ready, Recording, Training, Autopilot }
 
@@ -50,6 +54,8 @@ namespace Forge.ML
 
         void Start()
         {
+            if (initialized) return;
+            initialized = true;
             root = GetComponent<ForgePanel>().Content;
             LoadFixture();
             BuildView();
@@ -59,6 +65,14 @@ namespace Forge.ML
 
         void Update()
         {
+            fpsFrames++;
+            fpsClock += Time.unscaledDeltaTime;
+            if (fpsClock >= 0.5f)
+            {
+                float fps = fpsFrames / Mathf.Max(0.001f, fpsClock);
+                if (performanceText != null) performanceText.text = $"Frame monitor  ·  {fps:0} FPS  ·  Quest target 72";
+                fpsClock = 0; fpsFrames = 0;
+            }
             if (mode == BrainMode.Training) return;
             sampleClock += Time.unscaledDeltaTime;
             if (sampleClock < SampleSeconds) return;
@@ -136,7 +150,8 @@ namespace Forge.ML
             MLUI.Caps(root, "CONTROLLER TRACE", 2, 270, 180);
             MLUI.Well(root, 0, 292, width, 92, 10);
             var chart = MLUI.Rect("Loss sparkline", root, 12, 314, width - 24, 56).gameObject;
-            chart.AddComponent<CanvasRenderer>(); sparkline = chart.AddComponent<BrainSparkline>();
+            chart.AddComponent<CanvasRenderer>(); sparkline = chart.AddComponent<MLCurve>(); sparkline.externalColor = MLUI.Train;
+            sparkline.SetExternalValues(lossHistory);
             lossText = MLUI.Text(root, "loss  —", 14, 298, 120, 14, 9); lossText.color = MLUI.Sub;
             sampleText = MLUI.Text(root, "sample 0", width - 142, 298, 128, 14, 9); sampleText.alignment = TextAlignmentOptions.Right; sampleText.color = MLUI.Sub;
 
@@ -146,6 +161,7 @@ namespace Forge.ML
             MLUI.Button(root, "Autopilot", 262, buttonY, 132, 30, ToggleAutopilot);
             lapText = MLUI.Text(root, "Mock lap fixture  ·  2 completed laps", 2, 442, width - 4, 16, 10); lapText.color = MLUI.Faint;
             trainingText = MLUI.Text(root, "Hands only  ·  ray + poke  ·  training takes about 10 s", 2, 456, width - 4, 16, 9); trainingText.color = MLUI.Sub;
+            performanceText = MLUI.Text(root, "Frame monitor  ·  waiting  ·  Quest target 72", 2, 482, width - 4, 16, 8.5f); performanceText.color = MLUI.Faint;
             MLUI.Well(root, 2, 468, width - 4, 6, 3);
             trainProgress = MLUI.Fill(root, 2, 468, 0, 6, MLUI.Train); trainProgress.gameObject.SetActive(false);
         }
@@ -193,7 +209,7 @@ namespace Forge.ML
             {
                 float progress = i / 100f;
                 float loss = Mathf.Lerp(0.18f, 0.006f, progress * progress);
-                lossHistory.Add(loss); sparkline.SetValues(lossHistory); lossText.text = "loss  " + loss.ToString("0.000");
+                lossHistory.Add(loss); sparkline.SetExternalValues(lossHistory); lossText.text = "loss  " + loss.ToString("0.000");
                 if (trainingText != null) trainingText.text = $"Training brain  ·  {Mathf.RoundToInt(progress * 120f)}/120 epochs  ·  {progress * 10.1f:0.0} s  ·  keep hands clear";
                 trainProgress.rectTransform.sizeDelta = new Vector2((root.rect.width - 4) * progress, 6);
                 yield return new WaitForSecondsRealtime(0.1f);
@@ -272,24 +288,4 @@ namespace Forge.ML
         }
     }
 
-    /// <summary>Small allocation-free-after-build line graphic used by the controller view's live trace.</summary>
-    sealed class BrainSparkline : MaskableGraphic
-    {
-        readonly List<float> values = new List<float>();
-        public void SetValues(IList<float> next) { values.Clear(); for (int i = 0; i < next.Count; i++) values.Add(next[i]); SetVerticesDirty(); }
-        protected override void OnPopulateMesh(VertexHelper vh)
-        {
-            vh.Clear(); if (values.Count < 2) return;
-            var r = rectTransform.rect; Color color = MLUI.Train; float max = 0.2f;
-            for (int i = 0; i < values.Count; i++) max = Mathf.Max(max, values[i]);
-            for (int i = 1; i < values.Count; i++)
-            {
-                Vector2 a = new Vector2(r.xMin + r.width * (i - 1) / (values.Count - 1), r.yMin + r.height * (1 - values[i - 1] / max));
-                Vector2 b = new Vector2(r.xMin + r.width * i / (values.Count - 1), r.yMin + r.height * (1 - values[i] / max));
-                Vector2 n = new Vector2(-(b - a).y, (b - a).x).normalized * 1.5f; int start = vh.currentVertCount;
-                vh.AddVert(a - n, color, Vector2.zero); vh.AddVert(a + n, color, Vector2.zero); vh.AddVert(b + n, color, Vector2.zero); vh.AddVert(b - n, color, Vector2.zero);
-                vh.AddTriangle(start, start + 1, start + 2); vh.AddTriangle(start, start + 2, start + 3);
-            }
-        }
-    }
 }
