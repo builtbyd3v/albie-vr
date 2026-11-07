@@ -233,15 +233,17 @@ namespace Forge.ML
                 if (controllerStatus != null) controllerStatus.text = "Enter a numeric max_speed in m/s";
                 return;
             }
-            var sandbox = UnityEngine.Object.FindAnyObjectByType<ControllersSandbox>();
-            string error = sandbox == null ? null : sandbox.SetMaxSpeed(value);
+            // The running truck, wherever it runs: the Thing runtime, the controllers sandbox or the slalom's brain truck
+            // all register it with ThingHosts. FindAnyObjectByType<ControllersSandbox> only ever found the sandbox scene.
+            var host = ThingHosts.Find(TemplateTools.DefaultThing);
+            string error = host == null ? null : host.SetTunable("max_speed", value);
             if (error != null)
             {
                 if (controllerStatus != null) controllerStatus.text = "Hot reload refused  ·  " + error;
                 return;
             }
             if (controllerStatus != null)
-                controllerStatus.text = sandbox == null ? $"Preview max_speed  ·  {value:0.0} m/s  ·  Thing runtime not open" : $"Hot reloaded  ·  max_speed {value:0.0} m/s";
+                controllerStatus.text = host == null ? $"Preview max_speed  ·  {value:0.0} m/s  ·  no truck running" : $"Hot reloaded  ·  {host.File.Name} max_speed {value:0.0} m/s";
         }
 
         public bool SetAutopilotPreview(bool on)

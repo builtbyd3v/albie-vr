@@ -28,6 +28,11 @@ public class CodePanel : MonoBehaviour
     TMP_InputField controllerSpeed;
     TMP_Text controllerState;
     ForgePill controllerApply;
+    // The running truck's controller, re-read twice a second: a Thing can start or swap controllers while the panel is
+    // open, and the code panel only refreshes when its own files change.
+    float controllerPoll;
+    Forge.Controllers.ControllerFile shownFile;
+    float shownSpeed = float.NaN;
     readonly List<(ForgePill pill, CodeProject.File file)> pills = new List<(ForgePill, CodeProject.File)>();
     bool dirty = true, resetArmed;
     float resetArmedUntil;
@@ -56,6 +61,11 @@ public class CodePanel : MonoBehaviour
     void LateUpdate()
     {
         if (resetArmed && Time.unscaledTime > resetArmedUntil) ArmReset(false);
+        if (controllerState != null && Time.unscaledTime >= controllerPoll)
+        {
+            controllerPoll = Time.unscaledTime + 0.5f;
+            RefreshControllerState();
+        }
         if (!dirty || code == null) return;
         dirty = false;
         Refresh();
@@ -210,22 +220,33 @@ public class CodePanel : MonoBehaviour
         RefreshControllerState();
     }
 
-    void RefreshControllerState()
+    // The truck's controller is whatever the running Thing registered with ThingHosts (the Thing runtime, the controllers
+    // sandbox or the slalom's brain truck), so this works in Main, not only in the controllers sandbox.
+    static ControllerHost Truck() => ThingHosts.Find(TemplateTools.DefaultThing);
+
+    void RefreshControllerState(bool force = false)
     {
         if (controllerState == null) return;
-        var sandbox = FindAnyObjectByType<ControllersSandbox>();
-        if (sandbox == null || sandbox.Host == null || sandbox.Host.File == null)
+        var file = Truck()?.File;
+        float speed = file != null && file.Tunables.TryGetValue("max_speed", out var tune) ? tune.Value : float.NaN;
+        bool same = file == shownFile && (speed == shownSpeed || (float.IsNaN(speed) && float.IsNaN(shownSpeed)));
+        if (same && !force) return;
+        shownFile = file;
+        shownSpeed = speed;
+        if (file == null)
         {
-            controllerState.text = "truck_autopilot\nThing runtime not open";
+            controllerState.text = "truck\nno truck running";
             controllerState.color = ForgeTheme.PanelSubtext;
             return;
         }
-        if (!controllerSpeed.isFocused && sandbox.Host.File.Tunables.TryGetValue("max_speed", out var tune))
-            controllerSpeed.text = tune.Value.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
-        if (sandbox.Host.File.Tunables.TryGetValue("max_speed", out var current))
-            controllerState.text = $"{sandbox.Host.File.Name}\nmax_speed {current.Value:0.0} m/s";
+        if (float.IsNaN(speed))
+            controllerState.text = $"{file.Name}\nmax_speed unavailable";
         else
-            controllerState.text = $"{sandbox.Host.File.Name}\nmax_speed unavailable";
+        {
+            controllerState.text = $"{file.Name}\nmax_speed {speed:0.0} m/s";
+            if (!controllerSpeed.isFocused)
+                controllerSpeed.text = speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+        }
         controllerState.color = ForgeTheme.Code;
     }
 
@@ -237,10 +258,10 @@ public class CodePanel : MonoBehaviour
             CodeProject.SetStatus("max_speed must be a number.");
             return;
         }
-        var sandbox = FindAnyObjectByType<ControllersSandbox>();
-        string error = sandbox == null ? "Thing runtime is not open" : sandbox.SetMaxSpeed(value);
-        CodeProject.SetStatus(error ?? $"truck_autopilot max_speed hot reloaded to {value:0.0} m/s.");
-        RefreshControllerState();
+        var host = Truck();
+        string error = host == null ? "No truck is running." : host.SetTunable("max_speed", value);
+        CodeProject.SetStatus(error ?? $"{host.File.Name} max_speed hot reloaded to {value:0.0} m/s.");
+        RefreshControllerState(true);
     }
 
     void PlaceHighlight(bool scrollTo)
