@@ -2637,6 +2637,23 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Asked of Person 2 and the Core owner:** accept `course.bearing` (C-19 2.1). The Thing runtime fills it from `CourseBeacon.Bearing` each step (`Controllers/README.md`, "For the Thing runtime").
 - **Still to do:** the fallback in tight rooms (the living room, the hallway), and the real truck in a real room.
 
+**ML A / Person 5 room slalom, part 3: the brain beat in the app (2026-11-06, Editor Play mode, physics truck).** This is the loop from parts 1 and 2 with the real pieces: the slalom artifact's scored runs, its cone colliders, the run engine's `course.bearing`, the notebook, and the mock rooms' walls and furniture as colliders. The truck's body is still ML A's physics example, not Person 2's Thing runtime.
+- **In the slalom sandbox** (`SlalomBrain`): 2 makes a slalom, then B for the brain truck. L is a lap by hand (WASD), K a scripted lap, T trains 3 candidates, P runs the Autopilot on scored runs.
+- **`SlalomBrainCheck`, every mock room in Play mode: PASS.**
+  - All 6 rooms that fit a course opened one. The other 4 refused, the same rooms as the Editor checks.
+  - 12/12 scripted laps completed as scored runs, with 0 cones hit.
+  - Candidate 1 drove all 6 rooms on a scored run, and the truck parked after each.
+  - The bearing pointed at the next gate while running in 6/6, and cleared after.
+  - Each room got a notebook training entry with 3 candidates.
+  - Hand laps crashed into a cone and into a wall: the lap was recorded as a crash and the run ended.
+- **Found on the way, fixed in the run engine (Person 5):**
+  - **Cone hits:** a hit used the collider's bounds grown by the truck's radius. That's 41% too wide on the diagonal, so a lap 0.12 m clear of every cone scored 4 hits. It now uses the distance to the collider's surface.
+  - **A course built the same frame as a run:** it wasn't in the physics world yet, so it scored every cone hit at once and crashed the truck at the start. Arming now syncs physics.
+  - **Top speed read 0** for a body that moves in FixedUpdate (`ArtifactThing.SpeedSource`).
+  - **The truck's scored point sat exactly on the gate zones' bottom face** (`ArtifactThing.ProbeHeight`).
+  - The scripted driver now steps once per physics step, as on the mock.
+- **Next:** the same loop on the Quest, and on Person 2's Thing runtime once it lands.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.
