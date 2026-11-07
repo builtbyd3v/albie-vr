@@ -249,8 +249,16 @@ namespace Forge.Controllers
         void Tune(float delta)
         {
             if (host.File == null || !host.File.Tunables.TryGetValue("max_speed", out var t)) { status = "no max_speed tunable"; return; }
-            string error = host.SetTunable("max_speed", t.Value + delta);
-            status = error ?? $"max_speed {ControllerFile.Fmt(host.File.Tunables["max_speed"].Value)} m/s";
+            SetMaxSpeed(t.Value + delta);
+        }
+
+        /// <summary>Edits the live truck_autopilot max_speed, preserving the controller state like a code-panel save.</summary>
+        public string SetMaxSpeed(float value)
+        {
+            if (host.File == null || host.Current == null) return status = "no controller file attached";
+            string error = host.SetTunable("max_speed", value);
+            status = error ?? $"max_speed {ControllerFile.Fmt(host.File.Tunables["max_speed"].Value)} m/s (hot reloaded)";
+            return error;
         }
 
         void FixedUpdate()
