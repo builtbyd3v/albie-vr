@@ -27,7 +27,6 @@ using UnityEngine.SceneManagement;
 public static class ThingRuntimeCheck
 {
     const float Dt = 0.02f, RunTimeoutS = 30f;
-    const float WallHeight = 0.5f, WallThickness = 0.2f;
     static readonly (float y, float turn)[] Starts = { (0.1f, -0.01f), (-0.12f, 0.05f), (0.05f, 0.08f) };
 
     [MenuItem("Forge/Controllers/Check Thing Runtime")]
@@ -95,43 +94,11 @@ public static class ThingRuntimeCheck
 
     static void BuildSlalom(World w)
     {
-        foreach (float x in MockTruckSim.ConeX)
-        {
-            var cone = NewObject("cone", w.Scene, new Vector3(x, 0f, 0f));
-            var capsule = cone.AddComponent<CapsuleCollider>();
-            capsule.radius = MockTruckSim.ConeRadius;
-            capsule.height = 1f; // tall, so the rays (0.1 m up) hit its straight side
-            capsule.center = Vector3.zero;
-        }
-        float cx = (MockTruckSim.WallXMin + MockTruckSim.WallXMax) / 2f, lx = MockTruckSim.WallXMax - MockTruckSim.WallXMin;
-        float cz = (MockTruckSim.WallYMin + MockTruckSim.WallYMax) / 2f, lz = MockTruckSim.WallYMax - MockTruckSim.WallYMin;
-        Wall(w.Scene, new Vector3(cx, 0f, MockTruckSim.WallYMin - WallThickness / 2f), new Vector3(lx + 2 * WallThickness, WallHeight, WallThickness));
-        Wall(w.Scene, new Vector3(cx, 0f, MockTruckSim.WallYMax + WallThickness / 2f), new Vector3(lx + 2 * WallThickness, WallHeight, WallThickness));
-        Wall(w.Scene, new Vector3(MockTruckSim.WallXMin - WallThickness / 2f, 0f, cz), new Vector3(WallThickness, WallHeight, lz));
-        Wall(w.Scene, new Vector3(MockTruckSim.WallXMax + WallThickness / 2f, 0f, cz), new Vector3(WallThickness, WallHeight, lz));
-
-        var truck = NewObject("truck", w.Scene, Vector3.zero);
-        w.Body = truck.AddComponent<ExampleTruckBody>();
-        w.Thing = truck.AddComponent<ControllerThing>();
-        w.Thing.thingName = "truck";
-        w.Thing.thingVersion = 2;
-        w.Thing.tickInFixedUpdate = false;
-        w.Thing.controller = Resources.Load<TextAsset>("Mocks/controllers/truck_manual");
-        Physics.SyncTransforms();
+        w.Thing = PhysicsSlalom.Build(w.Scene);
+        w.Body = w.Thing.GetComponent<ExampleTruckBody>();
     }
 
-    static void Wall(Scene scene, Vector3 centre, Vector3 size) =>
-        NewObject("wall", scene, centre).AddComponent<BoxCollider>().size = size;
-
-    static GameObject NewObject(string name, Scene scene, Vector3 position)
-    {
-        var go = new GameObject(name);
-        SceneManager.MoveGameObjectToScene(go, scene);
-        go.transform.position = position;
-        return go;
-    }
-
-    static Quaternion Heading(float radians) => Quaternion.LookRotation(new Vector3(Mathf.Cos(radians), 0f, Mathf.Sin(radians)), Vector3.up);
+    static Quaternion Heading(float radians) => PhysicsSlalom.Heading(radians);
 
     static void Place(World w, float x, float y, float heading)
     {
@@ -144,14 +111,7 @@ public static class ThingRuntimeCheck
     // What a run engine does for course.bearing (CourseBeacon, contract 2.1, proposed): the corridor's next gate in
     // order (MockTruckSim.CorridorGateY), then the finish line's centre. Called before each tick, as the mock counts
     // a gate after each move.
-    static void Beacon(World w)
-    {
-        var p = w.Body.transform.position;
-        int n = MockTruckSim.ConeX.Length;
-        if (w.Gates < n && Mathf.Abs(p.x - MockTruckSim.ConeX[w.Gates]) <= MockTruckSim.GateHalfAlong &&
-            Mathf.Abs(p.z - MockTruckSim.CorridorGateY[w.Gates]) <= MockTruckSim.GateHalfAcross) w.Gates++;
-        CourseBeacon.Set(w.Gates < n ? new Vector3(MockTruckSim.ConeX[w.Gates], 0f, MockTruckSim.CorridorGateY[w.Gates]) : new Vector3(MockTruckSim.FinishX, 0f, 0f));
-    }
+    static void Beacon(World w) => PhysicsSlalom.Beacon(w.Body.transform.position, ref w.Gates);
 
     static void Tick(World w)
     {
