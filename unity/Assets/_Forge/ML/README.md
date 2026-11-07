@@ -187,6 +187,20 @@ headlines, buttons, status text, and chart labels from about 1 m. Editor smoke c
 certify physical hand tracking, text readability, or sustained 72 FPS; those remain **unverified**
 until a headset session is connected.
 
+### ML B editor validation record
+
+Final Unity editor checks passed on 2026-11-06 in `MLSandbox.unity`:
+
+- ML smoke: PASS
+- Autopilot: PASS; learned file matched the trainer, worst difference `0.000029`
+- Hot reload: PASS; PID state preserved through the tunable edit
+- Controller runner: PASS; manual, cruise, and learned-autopilot files all bound
+- Behaviour cloning: PASS; 2/2 manual laps completed
+
+These are editor/code checks only. Quest headset validation is still pending and must be
+performed manually; physical hand tracking, ray/poke interaction, sustained 72 FPS during
+training, and readability at about 1 m are not certified by this record.
+
 Automated Play-mode check (builds the scene/prefabs first):
 `Unity -batchmode -nographics -projectPath <repo>/unity
 -executeMethod MLSmokeCheck.BuildAndRun -logFile <log>`.
