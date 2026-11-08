@@ -13,7 +13,7 @@ namespace Forge.Artifacts
     /// - the truck is ML A's physics example (<see cref="ExampleTruckBody"/>: a ray fan on the cones' colliders, a crash
     ///   when it touches one) with a <see cref="ControllerThing"/>, standing in for Person 2's Thing runtime;
     /// - a lap is a scored run of the open slalom (<see cref="ArtifactHost.ArmRun"/>), driven through the manual
-    ///   controller (WASD, or <see cref="RecordScriptedLap"/>) and recorded by the Thing's lap recorder;
+    ///   controller (WASD, a Touch thumbstick, or <see cref="RecordScriptedLap"/>) and recorded by the Thing's lap recorder;
     /// - the run engine sets <c>course.bearing</c>'s target (<see cref="CourseBeacon"/>) as the gates are passed;
     /// - <see cref="Train"/> trains <see cref="Candidates"/> candidates a few ms a frame from the completed laps;
     /// - <see cref="StartAutopilot"/> gives each candidate (then the pretrained fallback) a scored run until one
@@ -40,7 +40,9 @@ namespace Forge.Artifacts
         public string Status { get; private set; } = "brain truck: open a slalom (2), then L to drive a lap by hand (WASD)";
         /// <summary>Who completed the last Autopilot run: "candidate 1", "the pretrained fallback" or "nothing".</summary>
         public string Drove { get; private set; }
-        /// <summary>A hand lap's keys: forward (W +1, S -1) and left (A +1, D -1). Read from the keyboard while
+        /// <summary>A hand lap is driven with WASD, a Touch controller's thumbstick (<see cref="QuestStick"/>), or any
+        /// other source writing <see cref="ManualInputs"/> (the hands transmitter): none overwrites another every frame.
+        /// The keys: forward (W +1, S -1) and left (A +1, D -1). Read from the keyboard while
         /// <see cref="KeysFromKeyboard"/>; a check sets them itself.</summary>
         public float KeyForward, KeyLeft;
         public bool KeysFromKeyboard = true;
@@ -67,7 +69,10 @@ namespace Forge.Artifacts
         // A scripted lap: the scripted driver reads the truck's pose in the course's frame (MockDriver.ForRoom).
         MockDriver script;
         MockTruckSim view;
-        readonly int stickY = ManualInputs.IndexOf("stick.y"), handRoll = ManualInputs.IndexOf("hand.roll");
+        readonly int stickX = ManualInputs.IndexOf("stick.x"), stickY = ManualInputs.IndexOf("stick.y"), handRoll = ManualInputs.IndexOf("hand.roll");
+        // What the keys and the thumbstick last wrote: each writes only when it changes (see Keys).
+        float lastKeyForward, lastKeyLeft;
+        Vector2 lastStick;
 
         /// <summary>Makes the brain truck and binds it to <paramref name="host"/>'s runs.</summary>
         public static SlalomBrain Spawn(ArtifactHost host)
@@ -115,7 +120,7 @@ namespace Forge.Artifacts
 
         // ---- Laps -----------------------------------------------------------------------------------------------
 
-        /// <summary>Arms a run and records a lap you drive with WASD (through truck_manual).</summary>
+        /// <summary>Arms a run and records a lap you drive with WASD or a thumbstick (through truck_manual).</summary>
         public string RecordLap() { StopChain(); return BeginLap(null); }
 
         /// <summary>A lap driven by the scripted driver (MockDriver.ForRoom), for checks and quick demos.</summary>
@@ -165,8 +170,12 @@ namespace Forge.Artifacts
             script = driver;
             view = driver != null ? new MockTruckSim(CourseFromSlots()) : null;
             Thing.BeginLap();
+            // The lap's own inputs start at rest (EndLap clears them): a source writes once it moves, so an untouched
+            // stick never zeroes the keys (or the transmitter) at the start.
+            lastKeyForward = lastKeyLeft = 0f;
+            lastStick = Vector2.zero;
             State = Mode.Lap;
-            Status = driver != null ? "scripted lap: recording" : "lap: drive with WASD through the gates (recording)";
+            Status = driver != null ? "scripted lap: recording" : "lap: drive through the gates with WASD or the thumbstick (recording)";
             return null;
         }
 
@@ -396,9 +405,24 @@ namespace Forge.Artifacts
             }
 #endif
             // The throttle that holds KeySpeed against drag (MockTruckSim's model, which ExampleTruckBody shares).
+            // A full thumbstick holds the same speed, so hand laps on a headset train like keyboard laps.
             const float keyThrottle = KeySpeed * MockTruckSim.Drag / MockTruckSim.MaxAccel;
-            ManualInputs.Values[stickY] = KeyForward * keyThrottle;
-            ManualInputs.Values[handRoll] = KeyLeft;
+            // Each source writes only when its own value changes, so it doesn't overwrite another writer every frame
+            // (Person 1's hands transmitter writes stick.y and hand.roll too). Letting go writes 0 once: the truck stops.
+            if (KeyForward != lastKeyForward || KeyLeft != lastKeyLeft)
+            {
+                lastKeyForward = KeyForward; lastKeyLeft = KeyLeft;
+                ManualInputs.Values[stickY] = KeyForward * keyThrottle;
+                ManualInputs.Values[handRoll] = KeyLeft;
+            }
+            // A Touch controller's thumbstick (QuestStick): forward drives, sideways steers (truck_manual's stick.x).
+            var stick = QuestStick.Read();
+            if (stick.x != lastStick.x || stick.y != lastStick.y)
+            {
+                lastStick = stick;
+                ManualInputs.Values[stickY] = Mathf.Clamp(stick.y, -1f, 1f) * keyThrottle;
+                ManualInputs.Values[stickX] = Mathf.Clamp(stick.x, -1f, 1f);
+            }
         }
 
         // The truck's pose in the course's frame (x along the course, y to the left), for the scripted driver.

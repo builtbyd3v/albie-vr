@@ -105,6 +105,7 @@ public static class SlalomBrainCheck
         // Only in Play mode: Play puts it back by itself, and a write in edit mode dirties ProjectSettings/TimeManager.
         if (EditorApplication.isPlaying && Time.timeScale != 1f) Time.timeScale = 1f;
         ManualInputs.Clear();
+        QuestStick.Override = null;
         ArtifactLibrary.RootOverride = null;
         ArtifactApprovals.FileOverride = null;
         NotebookFiles.Flush();
@@ -178,6 +179,8 @@ public static class SlalomBrainCheck
                 IEnumerator lap = HandLap(sandbox, brain, 1f, "a cone", hand);
                 while (lap.MoveNext()) yield return null;
                 lap = HandLap(sandbox, brain, -1f, "a wall", hand);
+                while (lap.MoveNext()) yield return null;
+                lap = StickLaps(sandbox, brain);
                 while (lap.MoveNext()) yield return null;
             }
 
@@ -401,6 +404,57 @@ public static class SlalomBrainCheck
         // The run ends either way: the artifact's own rule may fail it first (failed), else the brain aborts it.
         Expect(brain.Body.Crashed && outcome == "crashed" && (recorded == "aborted" || recorded == "failed") && rightThing && top > 0.3f && top <= SlalomBrain.KeySpeed + 0.01f, name,
             $"touching {what}, lap {outcome}, run {recorded}, top speed {top:0.00} m/s (keys hold {SlalomBrain.KeySpeed} m/s)");
+    }
+
+    // Hand laps on a headset: a Touch controller's thumbstick (QuestStick, overridden here: no headset), and another
+    // input writer (the hands transmitter) that the lap's own sources no longer overwrite every frame.
+    static IEnumerator StickLaps(SlalomSandbox sandbox, SlalomBrain brain)
+    {
+        brain.KeysFromKeyboard = false;
+        brain.KeyForward = brain.KeyLeft = 0f;
+
+        // Full forward: straight into the first cone, at the keys' speed.
+        QuestStick.Override = () => new Vector2(0f, 1f);
+        string error = brain.RecordLap();
+        float top = 0f, limit = Time.time + SlalomBrain.RunTimeoutS + 1f;
+        while (error == null && brain.State == SlalomBrain.Mode.Lap && Time.time < limit) { top = Mathf.Max(top, brain.Body.Speed); yield return null; }
+        var laps = brain.Thing.Recorder.Set.Laps;
+        string outcome = laps.Count > 0 ? laps[laps.Count - 1].Outcome : null;
+        Expect(error == null && brain.Body.Crashed && outcome == "crashed" && top > 0.3f && top <= SlalomBrain.KeySpeed + 0.01f,
+            "a lap by thumbstick (full forward) drives the manual controller into a cone",
+            $"{error ?? "lap " + outcome}, top speed {top:0.00} m/s (a full stick holds {SlalomBrain.KeySpeed} m/s)");
+
+        // Forward and right: the truck turns right (truck_manual binds stick.x to steer.angle, negated).
+        QuestStick.Override = () => new Vector2(1f, 1f);
+        error = brain.RecordLap();
+        var start = brain.transform.forward;
+        float turned = 0f, until = Time.time + 1f;
+        while (error == null && brain.State == SlalomBrain.Mode.Lap && Time.time < until)
+        {
+            turned = Vector3.SignedAngle(start, brain.transform.forward, Vector3.up);
+            yield return null;
+        }
+        if (brain.State == SlalomBrain.Mode.Lap) brain.StopRecording();
+        Expect(error == null && turned > 10f, "thumbstick right turns the truck right",
+            error ?? $"turned {turned:0} degrees in 1 s (+ is right)");
+
+        // Another writer holds half throttle every frame, as the transmitter would; the lap's sources leave it alone.
+        QuestStick.Override = null;
+        int stickY = ManualInputs.IndexOf("stick.y");
+        float half = 0.5f * SlalomBrain.KeySpeed * MockTruckSim.Drag / MockTruckSim.MaxAccel;
+        error = brain.RecordLap();
+        top = 0f; until = Time.time + 1.5f;
+        while (error == null && brain.State == SlalomBrain.Mode.Lap && Time.time < until)
+        {
+            ManualInputs.Values[stickY] = half;
+            top = Mathf.Max(top, brain.Body.Speed);
+            yield return null;
+        }
+        if (brain.State == SlalomBrain.Mode.Lap) brain.StopRecording();
+        Expect(error == null && top > 0.1f, "another input writer (the hands transmitter) drives the lap: the keys and stick don't overwrite it",
+            error ?? $"top speed {top:0.00} m/s with stick.y held at {half:0.00} by another writer");
+
+        brain.KeysFromKeyboard = true;
     }
 
     // The run records the scoreboard shows: scripted laps through the gates touch no cone, and top speed is the truck's.
