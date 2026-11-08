@@ -217,6 +217,8 @@ The host zeroes the actuators before each tick. It also turns NaN into 0, clamps
 
 Write `ManualInputs.Values[ManualInputs.IndexOf("stick.y")]` (cache the index) each frame, or `ManualInputs.Set(name, value)`. The inputs are `stick.x`, `stick.y`, `stick2.x`, `stick2.y`, `hand.roll`, `voice.throttle` and `voice.steer`, all in [-1, 1]. Only write when your value changes, so you don't overwrite another source.
 
+A Touch controller's thumbstick is one such source until the hands transmitter lands: `QuestStick.Read()` (whichever stick is pushed further; zero with hands or with no `OVRManager`). The brain truck's hand laps write it to `stick.x` and `stick.y`, and `truck_manual` binds `stick.x` to steering (scale -1: the stick's +1 is right, `steer.angle`'s +1 is left).
+
 ## Sandbox
 
 **Forge > Controllers > Build Sandbox**, then press Play in `ControllersSandbox.unity`:

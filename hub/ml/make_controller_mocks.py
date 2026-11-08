@@ -4,7 +4,7 @@ Builds the files in docs/CONTROLLER_CONTRACT.md from a small top-down truck sim,
 start before the Thing runtime (C-16) exists:
 
 - laps/truck_v2.json      albie.laps/1: two slalom laps from a scripted driver, 50 Hz, 7-ray fan + speed.
-- truck_manual.json       albie.controller/1 manual: stick throttle, hand-roll steering.
+- truck_manual.json       albie.controller/1 manual: stick throttle, hand-roll or stick.x steering.
 - truck_cruise.json       albie.controller/1 graph: PID cruise, steer away from the nearer side, brake rule.
 - truck_autopilot.json    albie.controller/1 learned: an MLP trained here on the mirrored laps.
 
@@ -303,10 +303,12 @@ def manual_controller() -> dict:
         "bindings": [
             {"input": "stick.y", "actuator": "drive.throttle", "scale": 1.0, "deadzone": 0.05},
             {"input": "hand.roll", "actuator": "steer.angle", "scale": 1.0, "deadzone": 0.08, "expo": 0.3},
+            # The thumb stick (a Touch controller's, or the desk joystick): stick.x is +1 right, steer.angle +1 left.
+            {"input": "stick.x", "actuator": "steer.angle", "scale": -1.0, "deadzone": 0.1, "expo": 0.3},
         ],
         "tunables": {"max_speed": dict(MAX_SPEED_TUNABLE, value=2.0)},
         "limits": {"speed": "$max_speed"},
-        "notes": "Mock. Drive it with the hands transmitter; stick.y is throttle, hand roll steers.",
+        "notes": "Mock. Drive it with the hands transmitter or a thumb stick; stick.y is throttle, hand roll or stick.x steers.",
     }
 
 

@@ -17,6 +17,13 @@
       "scale": 1.0,
       "deadzone": 0.08,
       "expo": 0.3
+    },
+    {
+      "input": "stick.x",
+      "actuator": "steer.angle",
+      "scale": -1.0,
+      "deadzone": 0.1,
+      "expo": 0.3
     }
   ],
   "tunables": {
@@ -31,5 +38,5 @@
   "limits": {
     "speed": "$max_speed"
   },
-  "notes": "Mock. Drive it with the hands transmitter; stick.y is throttle, hand roll steers."
+  "notes": "Mock. Drive it with the hands transmitter or a thumb stick; stick.y is throttle, hand roll or stick.x steers."
 }
