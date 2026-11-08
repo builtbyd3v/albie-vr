@@ -352,8 +352,9 @@ public static class RepoActivityCheck
         if (!offered) return "repo_activity isn't offered";
         var made = ArtifactTools.Create(new JObject { ["template"] = "repo_activity", ["open"] = false });
         if ((string)made["id"] != "repo_activity") return "create: " + made;
-        var json = Resources.Load<TextAsset>("AlbieTools/artifacts").text;
-        if (!json.Contains("\"repo_activity\"]") || !json.Contains("\"manifest\"")) return "artifact_create's schema doesn't offer repo_activity or a written manifest";
+        var create = BioTemplatesCheck.CreateSchema();
+        if (create?["template"]?["enum"] is not JArray offeredByTool || !offeredByTool.ToString().Contains("\"repo_activity\"") || create["manifest"] == null)
+            return "artifact_create's schema doesn't offer repo_activity or a written manifest";
         note = "sample only, columns sha, author, message, lines_changed, day";
         return null;
     }

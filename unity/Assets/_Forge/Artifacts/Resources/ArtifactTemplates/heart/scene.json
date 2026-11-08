@@ -1,0 +1,1124 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "generators": [],
+  "nodes": [
+    {
+      "id": "heart",
+      "kind": "gltf",
+      "asset": "assets/heart.glb",
+      "rot": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "beat",
+      "kind": "timeline",
+      "duration_s": 0.833,
+      "loop": true,
+      "autoplay": true
+    },
+    {
+      "id": "label_svc",
+      "kind": "text",
+      "text": "Superior vena cava\n<size=70%>brings blood back from the upper body</size>",
+      "pos": [
+        -0.2,
+        0.22,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_svc",
+      "kind": "line",
+      "points": [
+        [
+          -0.13,
+          0.214,
+          -0.06
+        ],
+        [
+          -0.03,
+          0.18,
+          -0.005
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_right_atrium",
+      "kind": "text",
+      "text": "Right atrium\n<size=70%>receives oxygen-poor blood from the body</size>",
+      "pos": [
+        -0.2,
+        0.15,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_right_atrium",
+      "kind": "line",
+      "points": [
+        [
+          -0.13,
+          0.144,
+          -0.06
+        ],
+        [
+          -0.035,
+          0.105,
+          -0.034
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pulmonary_veins",
+      "kind": "text",
+      "text": "Pulmonary veins\n<size=70%>bring oxygen-rich blood from the lungs</size>",
+      "pos": [
+        -0.2,
+        0.08,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_pulmonary_veins",
+      "kind": "line",
+      "points": [
+        [
+          -0.13,
+          0.074,
+          -0.06
+        ],
+        [
+          -0.075,
+          0.108,
+          0.018
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_right_ventricle",
+      "kind": "text",
+      "text": "Right ventricle\n<size=70%>pumps blood to the lungs</size>",
+      "pos": [
+        -0.2,
+        0.01,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_right_ventricle",
+      "kind": "line",
+      "points": [
+        [
+          -0.13,
+          0.004,
+          -0.06
+        ],
+        [
+          0,
+          0.065,
+          -0.072
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_aorta",
+      "kind": "text",
+      "text": "Aorta\n<size=70%>carries oxygen-rich blood to the body</size>",
+      "pos": [
+        0.2,
+        0.24,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_aorta",
+      "kind": "line",
+      "points": [
+        [
+          0.13,
+          0.234,
+          -0.06
+        ],
+        [
+          0.03,
+          0.188,
+          -0.012
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pulmonary_artery",
+      "kind": "text",
+      "text": "Pulmonary artery\n<size=70%>carries oxygen-poor blood to the lungs</size>",
+      "pos": [
+        0.2,
+        0.17,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_pulmonary_artery",
+      "kind": "line",
+      "points": [
+        [
+          0.13,
+          0.164,
+          -0.06
+        ],
+        [
+          0.012,
+          0.15,
+          -0.058
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_left_atrium",
+      "kind": "text",
+      "text": "Left atrium\n<size=70%>receives oxygen-rich blood from the lungs</size>",
+      "pos": [
+        0.2,
+        0.1,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_left_atrium",
+      "kind": "line",
+      "points": [
+        [
+          0.13,
+          0.094,
+          -0.06
+        ],
+        [
+          0.06,
+          0.12,
+          -0.028
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_left_ventricle",
+      "kind": "text",
+      "text": "Left ventricle\n<size=70%>pumps blood to the whole body</size>",
+      "pos": [
+        0.2,
+        0.02,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_left_ventricle",
+      "kind": "line",
+      "points": [
+        [
+          0.13,
+          0.014,
+          -0.06
+        ],
+        [
+          0.05,
+          0.05,
+          -0.05
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "blood_poor",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.03,
+        0.2,
+        -0.085
+      ],
+      "size": [
+        0.012,
+        0.012,
+        0.012
+      ],
+      "color": "#3A6FE0",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "blood_rich",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.075,
+        0.108,
+        -0.085
+      ],
+      "size": [
+        0.012,
+        0.012,
+        0.012
+      ],
+      "color": "#E0303A",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "flow",
+      "kind": "timeline",
+      "duration_s": 10,
+      "loop": false,
+      "autoplay": false
+    },
+    {
+      "id": "step_1",
+      "kind": "text",
+      "text": "1  Oxygen-poor blood from the body enters the right atrium",
+      "pos": [
+        0,
+        0.31,
+        -0.06
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_2",
+      "kind": "text",
+      "text": "2  The right ventricle pumps it to the lungs",
+      "pos": [
+        0,
+        0.31,
+        -0.06
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_3",
+      "kind": "text",
+      "text": "3  Oxygen-rich blood returns from the lungs to the left atrium",
+      "pos": [
+        0,
+        0.31,
+        -0.06
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_4",
+      "kind": "text",
+      "text": "4  The left ventricle pumps it through the aorta to the body",
+      "pos": [
+        0,
+        0.31,
+        -0.06
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "Human heart",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "An adult heart is about the size of a fist and beats 60 to 100 times a minute at rest. This one beats 72 times a minute."
+        },
+        {
+          "type": "button",
+          "id": "trace",
+          "label": "Trace the blood"
+        },
+        {
+          "type": "button",
+          "id": "beat_pause",
+          "label": "Pause the beat"
+        },
+        {
+          "type": "button",
+          "id": "beat_play",
+          "label": "Start the beat"
+        },
+        {
+          "type": "button",
+          "id": "labels_on",
+          "label": "Show labels"
+        },
+        {
+          "type": "button",
+          "id": "labels_off",
+          "label": "Hide labels"
+        },
+        {
+          "type": "note",
+          "text": "Model: Innerscene, CC0."
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "on_input",
+      "input": "trace",
+      "do": [
+        {
+          "timeline": "flow",
+          "action": "restart"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "beat_pause",
+      "do": [
+        {
+          "timeline": "beat",
+          "action": "restart"
+        },
+        {
+          "timeline": "beat",
+          "action": "pause"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "beat_play",
+      "do": [
+        {
+          "timeline": "beat",
+          "action": "play"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_on",
+      "do": [
+        {
+          "set": "label_svc.visible",
+          "value": true
+        },
+        {
+          "set": "leader_svc.visible",
+          "value": true
+        },
+        {
+          "set": "label_right_atrium.visible",
+          "value": true
+        },
+        {
+          "set": "leader_right_atrium.visible",
+          "value": true
+        },
+        {
+          "set": "label_pulmonary_veins.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pulmonary_veins.visible",
+          "value": true
+        },
+        {
+          "set": "label_right_ventricle.visible",
+          "value": true
+        },
+        {
+          "set": "leader_right_ventricle.visible",
+          "value": true
+        },
+        {
+          "set": "label_aorta.visible",
+          "value": true
+        },
+        {
+          "set": "leader_aorta.visible",
+          "value": true
+        },
+        {
+          "set": "label_pulmonary_artery.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pulmonary_artery.visible",
+          "value": true
+        },
+        {
+          "set": "label_left_atrium.visible",
+          "value": true
+        },
+        {
+          "set": "leader_left_atrium.visible",
+          "value": true
+        },
+        {
+          "set": "label_left_ventricle.visible",
+          "value": true
+        },
+        {
+          "set": "leader_left_ventricle.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_off",
+      "do": [
+        {
+          "set": "label_svc.visible",
+          "value": false
+        },
+        {
+          "set": "leader_svc.visible",
+          "value": false
+        },
+        {
+          "set": "label_right_atrium.visible",
+          "value": false
+        },
+        {
+          "set": "leader_right_atrium.visible",
+          "value": false
+        },
+        {
+          "set": "label_pulmonary_veins.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pulmonary_veins.visible",
+          "value": false
+        },
+        {
+          "set": "label_right_ventricle.visible",
+          "value": false
+        },
+        {
+          "set": "leader_right_ventricle.visible",
+          "value": false
+        },
+        {
+          "set": "label_aorta.visible",
+          "value": false
+        },
+        {
+          "set": "leader_aorta.visible",
+          "value": false
+        },
+        {
+          "set": "label_pulmonary_artery.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pulmonary_artery.visible",
+          "value": false
+        },
+        {
+          "set": "label_left_atrium.visible",
+          "value": false
+        },
+        {
+          "set": "leader_left_atrium.visible",
+          "value": false
+        },
+        {
+          "set": "label_left_ventricle.visible",
+          "value": false
+        },
+        {
+          "set": "leader_left_ventricle.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "heart",
+      "property": "scale",
+      "timeline": "beat",
+      "keys": [
+        [
+          0,
+          1
+        ],
+        [
+          0.1,
+          0.975
+        ],
+        [
+          0.17,
+          1
+        ],
+        [
+          0.27,
+          0.93
+        ],
+        [
+          0.47,
+          1
+        ],
+        [
+          0.833,
+          1
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "heart",
+      "property": "pos",
+      "timeline": "beat",
+      "keys": [
+        [
+          0,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          0.1,
+          [
+            0.0001,
+            0.0028,
+            -0.0004
+          ]
+        ],
+        [
+          0.17,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          0.27,
+          [
+            0.0002,
+            0.0079,
+            -0.001
+          ]
+        ],
+        [
+          0.47,
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        [
+          0.833,
+          [
+            0,
+            0,
+            0
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_1",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          2.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_svc",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          2.49,
+          "#FFE66D"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_right_atrium",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          2.49,
+          "#FFE66D"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2.5,
+          true
+        ],
+        [
+          5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_right_ventricle",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_pulmonary_artery",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5,
+          true
+        ],
+        [
+          7.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_pulmonary_veins",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_left_atrium",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.5,
+          true
+        ],
+        [
+          9.95,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_left_ventricle",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.94,
+          "#FFE66D"
+        ],
+        [
+          9.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_aorta",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.94,
+          "#FFE66D"
+        ],
+        [
+          9.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "blood_poor",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "blood_poor",
+      "property": "pos",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          [
+            -0.03,
+            0.2,
+            -0.085
+          ]
+        ],
+        [
+          2.5,
+          [
+            -0.03,
+            0.105,
+            -0.085
+          ]
+        ],
+        [
+          3.5,
+          [
+            0,
+            0.06,
+            -0.085
+          ]
+        ],
+        [
+          4.4,
+          [
+            0.012,
+            0.15,
+            -0.085
+          ]
+        ],
+        [
+          5,
+          [
+            0.085,
+            0.14,
+            -0.085
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "blood_rich",
+      "property": "visible",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5,
+          true
+        ],
+        [
+          9.95,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "blood_rich",
+      "property": "pos",
+      "timeline": "flow",
+      "keys": [
+        [
+          5,
+          [
+            -0.075,
+            0.108,
+            -0.085
+          ]
+        ],
+        [
+          7.5,
+          [
+            0.04,
+            0.115,
+            -0.085
+          ]
+        ],
+        [
+          8.5,
+          [
+            0.045,
+            0.05,
+            -0.085
+          ]
+        ],
+        [
+          9.2,
+          [
+            0,
+            0.11,
+            -0.085
+          ]
+        ],
+        [
+          9.7,
+          [
+            0.03,
+            0.19,
+            -0.085
+          ]
+        ],
+        [
+          9.95,
+          [
+            -0.008,
+            0.215,
+            -0.085
+          ]
+        ]
+      ]
+    }
+  ],
+  "run": null
+}
