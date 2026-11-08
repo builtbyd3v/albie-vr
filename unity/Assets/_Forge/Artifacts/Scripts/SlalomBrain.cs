@@ -17,11 +17,13 @@ namespace Forge.Artifacts
     /// - the run engine sets <c>course.bearing</c>'s target (<see cref="CourseBeacon"/>) as the gates are passed;
     /// - <see cref="Train"/> trains <see cref="Candidates"/> candidates a few ms a frame from the completed laps;
     /// - <see cref="StartAutopilot"/> gives each candidate (then the pretrained fallback) a scored run until one
-    ///   completes, as the Controllers sandbox's P does on the mock.
+    ///   completes, as the Controllers sandbox's P does on the mock;
+    /// - by voice (<see cref="IBrainLoop"/>, the <c>brain_*</c> and <c>autopilot_*</c> tools), <see cref="Record"/>
+    ///   chains it all: "drive it twice and I'll learn it" records 2 completed laps, trains, then runs the Autopilot.
     /// A run that touches a cone or a wall is aborted (the artifact only counts hits; the demo shouldn't keep a crash).
     /// </summary>
     [DefaultExecutionOrder(-100)]  // the scripted driver's FixedUpdate writes the stick before ControllerThing reads it
-    public sealed class SlalomBrain : MonoBehaviour
+    public sealed class SlalomBrain : MonoBehaviour, IBrainLoop
     {
         public const int Candidates = 3;
         public const double BudgetMs = 4.0;
@@ -42,6 +44,9 @@ namespace Forge.Artifacts
         /// <see cref="KeysFromKeyboard"/>; a check sets them itself.</summary>
         public float KeyForward, KeyLeft;
         public bool KeysFromKeyboard = true;
+        /// <summary>Checks only: <see cref="Record"/>'s laps are driven by the scripted driver, not by hand. No tool
+        /// sets it, so "drive it yourself" by voice is always the person's own laps.</summary>
+        public bool ScriptedLaps;
         public int CompletedLaps => Thing != null ? Thing.Recorder.Set.CompletedLaps : 0;
         public BehaviourCloner[] Cloners => cloners;
         public Autopilot Autopilot => autopilot;
@@ -52,6 +57,11 @@ namespace Forge.Artifacts
         ControllerFile manual;
         BehaviourCloner[] cloners;
         int training, trainFrames;
+        // Record(laps, thenAutopilot): the completed-lap count that ends recording (0: one lap at a time, as L does),
+        // and whether training and the Autopilot follow with no further call.
+        int lapTarget;
+        bool chainAutopilot;
+        int chainSeed;
         Autopilot autopilot;
         float runStarted;
         // A scripted lap: the scripted driver reads the truck's pose in the course's frame (MockDriver.ForRoom).
@@ -94,6 +104,9 @@ namespace Forge.Artifacts
             return brain;
         }
 
+        void OnEnable() => BrainLoops.Register(this);
+        void OnDisable() => BrainLoops.Unregister(this);
+
         void OnDestroy()
         {
             ManualInputs.Clear();
@@ -103,10 +116,45 @@ namespace Forge.Artifacts
         // ---- Laps -----------------------------------------------------------------------------------------------
 
         /// <summary>Arms a run and records a lap you drive with WASD (through truck_manual).</summary>
-        public string RecordLap() => BeginLap(null);
+        public string RecordLap() { StopChain(); return BeginLap(null); }
 
         /// <summary>A lap driven by the scripted driver (MockDriver.ForRoom), for checks and quick demos.</summary>
-        public string RecordScriptedLap(int seed = 0) => BeginLap(MockDriver.ForRoom(seed));
+        public string RecordScriptedLap(int seed = 0) { StopChain(); return BeginLap(MockDriver.ForRoom(seed)); }
+
+        /// <summary>Hand-driven laps until <paramref name="laps"/> more have completed (a crashed or failed lap is
+        /// re-armed at the start), then, if <paramref name="thenAutopilot"/>, <see cref="Train"/> and
+        /// <see cref="StartAutopilot"/> with no further call.</summary>
+        public string Record(int laps, bool thenAutopilot)
+        {
+            if (State != Mode.Idle) return Status = "busy: " + State.ToString().ToLowerInvariant();
+            lapTarget = CompletedLaps + Mathf.Clamp(laps, 1, 10);
+            chainAutopilot = thenAutopilot;
+            string error = BeginLap(ChainDriver());
+            if (error != null) StopChain();
+            else Status = LapPrompt();
+            return error;
+        }
+
+        /// <summary>Aborts the lap being driven; laps already completed stay recorded.</summary>
+        public string StopRecording()
+        {
+            if (State != Mode.Lap) return Status = "not recording a lap";
+            StopChain();
+            if (host != null && host.Run != null) host.Run.Abort();
+            EndLap("aborted");
+            return null;
+        }
+
+        void StopChain() { lapTarget = 0; chainAutopilot = false; }
+
+        // The scripted driver's seeds 1 and 2 in turn, the two the brain check drives every room with.
+        MockDriver ChainDriver() => ScriptedLaps ? MockDriver.ForRoom(1 + chainSeed++ % 2) : null;
+
+        string LapPrompt()
+        {
+            int left = lapTarget - CompletedLaps;
+            return $"lap: drive through the gates ({left} more completed lap{(left == 1 ? "" : "s")} to go)";
+        }
 
         string BeginLap(MockDriver driver)
         {
@@ -131,6 +179,21 @@ namespace Forge.Artifacts
             Park();
             Status = $"lap {outcome} in {lap.Seconds:0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
                      (CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
+            if (lapTarget <= 0) return;
+            string said = Status;
+            if (CompletedLaps < lapTarget)
+            {
+                // Re-armed at the start: the next lap is driven from there, as L would.
+                string error = BeginLap(ChainDriver());
+                if (error != null) { StopChain(); Status = error; }
+                else Status = $"{said}. {LapPrompt()}";
+                return;
+            }
+            bool then = chainAutopilot;
+            lapTarget = 0;
+            if (!then) return;
+            // TrainStep starts the Autopilot when training is done; a refused Train (fewer than 2 laps) ends the chain.
+            chainAutopilot = Train() == null;
         }
 
         // ---- Training -------------------------------------------------------------------------------------------
@@ -163,6 +226,9 @@ namespace Forge.Artifacts
             block["candidates"] = list;
             TrainingLog.Report("truck_autopilot", 1, block);
             Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute). P: Autopilot";
+            if (!chainAutopilot) return;
+            chainAutopilot = false;
+            StartAutopilot();
         }
 
         // ---- Autopilot ------------------------------------------------------------------------------------------
@@ -188,6 +254,47 @@ namespace Forge.Artifacts
             Drove = null;
             State = Mode.Autopilot;
             return BeginAttempt();
+        }
+
+        /// <summary>Stops the Autopilot's run and gives the truck back to the manual controller.</summary>
+        public string StopAutopilot()
+        {
+            if (State != Mode.Autopilot) return Status = "the Autopilot isn't driving";
+            if (host != null && host.Run != null) host.Run.Abort();
+            string who = autopilot.UsingFallback ? "the pretrained fallback" : $"candidate {autopilot.Index + 1}";
+            Attempts.Add($"{who} stopped");
+            Drove = null;
+            State = Mode.Idle;
+            Park();
+            if (manual != null) Thing.Host.Attach(manual);
+            Status = "Autopilot stopped; the truck is back on the manual controller";
+            return null;
+        }
+
+        /// <summary>The loop's state, for <c>brain_status</c> and the other brain tools' results.</summary>
+        public JObject ToolState()
+        {
+            var attempts = new JArray();
+            foreach (var a in Attempts) attempts.Add(a);
+            int trained = 0;
+            if (cloners != null) foreach (var c in cloners) if (c.Done) trained++;
+            return new JObject
+            {
+                ["mode"] = State.ToString().ToLowerInvariant(),
+                ["status"] = Status,
+                ["preview_only"] = false,
+                ["thing"] = Thing != null ? Thing.thingName : null,
+                ["controller"] = Thing != null && Thing.Host.File != null ? Thing.Host.File.Name : null,
+                ["completed_laps"] = CompletedLaps,
+                ["laps_to_go"] = lapTarget > 0 ? Mathf.Max(0, lapTarget - CompletedLaps) : 0,
+                ["then_autopilot"] = chainAutopilot,
+                ["slalom_open"] = host != null && host.Run != null,
+                ["candidates"] = Candidates,
+                ["candidates_trained"] = trained,
+                ["autopilot"] = State == Mode.Autopilot ? autopilot.Describe() : null,
+                ["drove"] = Drove,
+                ["attempts"] = attempts,
+            };
         }
 
         string BeginAttempt()
