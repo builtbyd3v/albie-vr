@@ -2656,6 +2656,13 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - The scripted driver now steps once per physics step, as on the mock.
 - **Next:** the same loop on the Quest, and on Person 2's Thing runtime once it lands.
 
+**ML A: the brain beat by voice (2026-11-08, Editor Play mode, physics truck).** Before this, ML B's voice tools (`ML/Resources/AlbieTools/controller_brain.json`) only animated the brain panel's preview, so "drive it yourself twice, and I'll learn it" (15.6 step 8) didn't reach the truck.
+- **The tools now drive the running brain loop** (`Controllers/Scripts/BrainLoop.cs`: `IBrainLoop`, `BrainLoops.Active`; `SlalomBrain` implements it). With no brain truck running, they fall back to the panel preview, as before. The tool names are unchanged.
+- **For Person 3's agent prompt, the beat is one call:** `brain_record {start: true, laps: 2, then_autopilot: true}`. It records 2 completed laps driven by hand (a crashed lap restarts at the start), trains the 3 candidates, then runs the Autopilot on scored runs, with no further call. `brain_status` reports the mode, laps to go and who drove; `brain_record {start: false}` aborts the lap; `autopilot_off` stops the run and hands the truck back to the manual controller.
+- **`SlalomBrainCheck`: PASS**, with 5 new voice steps. The one call went lap > training > autopilot, 2 laps, 1 training entry, and candidate 1 completed the slalom. Stop mid-lap kept the completed laps. Autopilot off recorded the run as aborted and restored `truck_manual`. With no truck, the tools answered from the panel.
+  - The check drives its laps with the scripted driver (`SlalomBrain.ScriptedLaps`, check only; no tool sets it). By voice, the laps are always the person's.
+- **Gap for the Quest:** a lap is driven only by WASD today, and `SlalomBrain` writes the manual controller's inputs every lap frame, so a hands transmitter (Person 1) would be overwritten. That's the next ML A stopgap: the Quest controller's thumbstick drives the lap.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.

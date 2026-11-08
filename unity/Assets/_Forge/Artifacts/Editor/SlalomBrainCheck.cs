@@ -16,7 +16,8 @@ using UnityEngine;
 /// slalom sandbox, every mock room that fits a course gets "Make me a slalom", the brain truck (ML A's physics truck
 /// with a controller), 2 scripted laps as scored runs, training, and the Autopilot on a scored run. Also a hand lap
 /// into a cone and one into a wall (the truck senses and touches the room's colliders), the truck parked after a run,
-/// and the run records' scoring.
+/// and the run records' scoring. Then the brain beat by voice: the controller_brain tools drive the brain truck (one
+/// brain_record call records 2 laps, trains and runs the Autopilot), stop it, and fall back to the panel preview.
 ///
 /// Storage goes to a scratch folder (library, approvals, notebook) and everything is put back after, as the Editor
 /// checks do. Play mode runs at <see cref="TimeScale"/>× so the 6 rooms take about a minute.
@@ -258,6 +259,101 @@ public static class SlalomBrainCheck
 
         NotebookFiles.Flush();
         Records(results.Count);
+
+        IEnumerator voice = Voice(sandbox);
+        while (voice.MoveNext()) yield return null;
+    }
+
+    // ---- The brain beat by voice --------------------------------------------------------------------------------
+
+    // The tools in controller_brain.json, called as the agent calls them: with the brain truck running they drive it
+    // (laps, training, the Autopilot), and with none they fall back to the brain panel's preview.
+    static IEnumerator Voice(SlalomSandbox sandbox)
+    {
+        var brain = sandbox.Brain;
+        if (brain == null || sandbox.host.Run == null) { Fail("voice: the brain tools drive the brain truck", "no brain truck with an open slalom after the rooms"); yield break; }
+
+        var status = AlbieTools.Call("brain_status", new JObject());
+        Expect(ReferenceEquals(BrainLoops.Active, brain) && status["preview_only"]?.Type == JTokenType.Boolean && !(bool)status["preview_only"]
+               && (string)status["mode"] == "idle", "voice: brain_status reads the running brain truck, not the panel preview", Short(status));
+
+        // "Drive it yourself twice, and I'll learn it": one call records 2 laps, trains, then runs the Autopilot.
+        // The laps are the scripted driver's here (a check has no hands); by voice they're always the person's.
+        brain.ScriptedLaps = true;
+        int lapsBefore = brain.CompletedLaps, entriesBefore = TrainingEntries();
+        var started = AlbieTools.Call("brain_record", new JObject { ["start"] = true, ["laps"] = 2, ["then_autopilot"] = true });
+        bool lapMode = started["error"] == null && (string)started["mode"] == "lap" && (int?)started["laps_to_go"] == 2;
+        var modes = new List<SlalomBrain.Mode>();
+        float limit = Time.time + 6 * SlalomBrain.RunTimeoutS;
+        while (brain.State != SlalomBrain.Mode.Idle && Time.time < limit)
+        {
+            if (modes.Count == 0 || modes[modes.Count - 1] != brain.State) modes.Add(brain.State);
+            yield return null;
+        }
+        brain.ScriptedLaps = false;
+        string order = string.Join(" > ", modes).ToLowerInvariant();
+        int laps = brain.CompletedLaps - lapsBefore, entries = TrainingEntries() - entriesBefore;
+        status = AlbieTools.Call("brain_status", new JObject());
+        bool drove = brain.Drove != null && brain.Drove != "nothing";
+        Expect(lapMode && order == "lap > training > autopilot" && laps == 2 && entries == 1 && drove && (string)status["drove"] == brain.Drove,
+            "voice: brain_record {start, laps 2, then_autopilot} records 2 laps, trains, then the Autopilot drives, with no other call",
+            $"started in {(string)started["mode"] ?? (string)started["error"]} ({(int?)started["laps_to_go"]} to go); {order}; " +
+            $"{laps} laps, {entries} training entry; the Autopilot: {string.Join(", ", brain.Attempts)}");
+
+        // Stop mid-lap: the lap is aborted, and the completed laps are kept.
+        int kept = brain.CompletedLaps;
+        var lap = AlbieTools.Call("brain_record", new JObject { ["start"] = true, ["laps"] = 1 });
+        float until = Time.time + 1f;
+        while (Time.time < until) yield return null;
+        var stopped = AlbieTools.Call("brain_record", new JObject { ["start"] = false });
+        var lapList = brain.Thing.Recorder.Set.Laps;
+        string last = lapList.Count > 0 ? lapList[lapList.Count - 1].Outcome : null;
+        Expect((string)lap["mode"] == "lap" && (string)stopped["mode"] == "idle" && last == "aborted" && brain.CompletedLaps == kept
+               && sandbox.host.Run.State != ArtifactRunState.Running,
+            "voice: brain_record {start false} aborts the lap being driven and keeps the completed laps",
+            $"{(string)lap["mode"] ?? (string)lap["error"]} > {(string)stopped["mode"] ?? (string)stopped["error"]}, last lap {last}, {brain.CompletedLaps} completed laps kept");
+
+        // The Autopilot on, then off: the truck goes back to the manual controller.
+        var on = AlbieTools.Call("autopilot_on", new JObject());
+        string autopilotRun = sandbox.host.Run.RunId;
+        until = Time.time + 1f;
+        while (Time.time < until) yield return null;
+        var off = AlbieTools.Call("autopilot_off", new JObject());
+        var again = AlbieTools.Call("autopilot_off", new JObject());
+        var file = brain.Thing.Host.File;
+        // The host writes the run's record a frame after it ends: wait for it, so it lands in the scratch library.
+        until = Time.time + 0.5f;
+        while (Time.time < until) yield return null;
+        NotebookFiles.Flush();
+        string recorded = (string)ArtifactRuns.Load("slalom", autopilotRun)?["outcome"];
+        Expect((string)on["mode"] == "autopilot" && (string)off["mode"] == "idle" && file != null && file.Kind == "manual"
+               && sandbox.host.Run.State != ArtifactRunState.Running && recorded == "aborted" && again["error"] != null,
+            "voice: autopilot_on drives, autopilot_off stops the run and gives the truck back to the manual controller",
+            $"on: {(string)on["mode"] ?? (string)on["error"]} ({(string)on["autopilot"]}), off: {(string)off["mode"] ?? (string)off["error"]}, " +
+            $"run {recorded}, controller {file?.Name} ({file?.Kind}); off again: {(string)again["error"]}");
+
+        // With no brain truck running, the tools answer from the brain panel's preview (not open in this sandbox).
+        brain.enabled = false;
+        var preview = AlbieTools.Call("brain_status", new JObject());
+        bool unregistered = BrainLoops.Active == null;
+        brain.enabled = true;
+        Expect(unregistered && ReferenceEquals(BrainLoops.Active, brain)
+               && (((string)preview["error"])?.Contains("brain panel") == true || (bool?)preview["preview_only"] == true),
+            "voice: with no brain truck the tools fall back to the brain panel's preview", Short(preview));
+    }
+
+    static int TrainingEntries()
+    {
+        NotebookFiles.Flush();
+        int n = 0;
+        foreach (var entry in NotebookStore.Entries) if ((string)entry["kind"] == "training") n++;
+        return n;
+    }
+
+    static string Short(JObject o)
+    {
+        string text = o.ToString(Newtonsoft.Json.Formatting.None);
+        return text.Length > 240 ? text.Substring(0, 240) + "…" : text;
     }
 
     // Opens the slalom in the sandbox's room (approving it the first time). Returns the refusal, or null.
