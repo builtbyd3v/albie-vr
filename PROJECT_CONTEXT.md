@@ -1091,7 +1091,12 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 **On the device**
 - Build on the `Code/` module: `CodePanel`, `CodeProject` (the undo ring, edits saved under `persistentDataPath`) and `CodeTools`. Today `CodeProject` holds one bundled sample. It becomes a client of C-21 with a cache.
 - Draw only the visible lines (a pooled line list), with no allocations in `Update` and text atlases of 2048 or less (Quest rules).
-- Input works with mouse (DesktopRig), ray and poke, like every `ForgePanel`. Typing uses Meta's virtual keyboard for Unity; check that its API is in Meta XR SDK 207 on a Quest 3 and 3S before building on it. If it isn't, fall back to the system keyboard (`TouchScreenKeyboard`). Voice edits through Albie always work.
+- Input works with mouse (DesktopRig), ray and poke, like every `ForgePanel`. **Typing uses the Horizon OS system keyboard**, through Unity's `TouchScreenKeyboard` (a `TMP_InputField` opens it on focus). Checked in the SDK 207.0.1 packages on 2026-11-09:
+  - The old in-app `OVRVirtualKeyboard` component isn't in Meta XR SDK 207 (Core or All-in-One). Only the OpenXR extension name `XR_META_virtual_keyboard` remains, with no Unity wrapper, so don't plan on an in-world keyboard you can place yourself.
+  - The system keyboard is supported: `OVRProjectConfig.requiresSystemKeyboard` adds `oculus.software.overlay_keyboard` to the manifest, and it's already on in this project (`Assets/Oculus/OculusProjectConfig.asset`). Meta's own Immersive Debugger panel in SDK 207 types this way.
+  - It's an OS overlay, so the app can't choose where it appears or how it looks. The focused "enhance" view should leave room under the panel for it.
+  - Still to check on a Quest 3 and 3S: the overlay with hands only, in passthrough, and over a panel 0.5 m away.
+  - Voice edits through Albie always work.
 
 **Steps (each one demo-able, mock first; PR-23)**
 1. **B1, templates offline:** the sources list, tree and viewer on the bundled templates, hub off. `CodeSample.json` becomes the first template.
@@ -1104,7 +1109,7 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 
 **Open questions**
 - Is "enhance mode" the name the team wants for the focused editing view, or is it something else?
-- The virtual keyboard's API and behaviour on SDK 207 (above).
+- How the system keyboard overlay behaves on a Quest 3 and 3S with hands only (above). The API question is settled: no in-app virtual keyboard in SDK 207.
 - Which templates ship editable in the first build. Default: the truck's controller file and the ML template.
 
 ---
