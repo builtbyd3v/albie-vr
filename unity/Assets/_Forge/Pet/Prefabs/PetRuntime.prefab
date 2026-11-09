@@ -5630,7 +5630,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieFixCard
   panelPrefab: {fileID: 3969253326686314734, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
   client: {fileID: 0}
-  petId: albie
+  petId: bit
   size: {x: 0.3, y: 0.18}
   above: 0.2
   showSeconds: 20

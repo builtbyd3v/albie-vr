@@ -20,7 +20,7 @@ namespace Forge.Pet
         [SerializeField, Tooltip("The hub socket. Auto-found on this GameObject or in the scene if empty.")]
         AgentClient client;
         [SerializeField, Tooltip("Only this pet's pet.say lines.")]
-        string petId = "albie";
+        string petId = "bit";
         [SerializeField, Tooltip("Card size (m).")]
         Vector2 size = new Vector2(0.3f, 0.18f);
         [SerializeField, Tooltip("Card centre this high above Albie (m).")]

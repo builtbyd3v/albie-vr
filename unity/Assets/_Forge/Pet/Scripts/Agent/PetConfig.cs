@@ -18,8 +18,8 @@ namespace Forge.Pet
     {
         // Unused since AgentClient rides on ForgeNet: set the hub address on the ForgeNet object (or PlayerPrefs Forge.HubUrl).
         public string hubUrl = "";
-        public string petId = "albie";
-        public const string DisplayName = "Albie";   // what people see and hear; the internal pet id stays "albie"
+        public string petId = "bit";
+        public const string DisplayName = "Albie";   // what people see and hear; the internal pet id stays "bit"
         public string projectId = "gatorhack";
         public string eventSource = "hub";    // "hub" | "mock" (sandbox scenes only)
 

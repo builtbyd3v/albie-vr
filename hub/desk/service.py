@@ -22,7 +22,7 @@ Speak = Callable[[str, str], Awaitable[bool]]
 
 
 class DeskService:
-    def __init__(self, data_dir: Path, bus: EventBus, speak: Speak, pet_id: str = "albie") -> None:
+    def __init__(self, data_dir: Path, bus: EventBus, speak: Speak, pet_id: str = "bit") -> None:
         self.bus, self.speak, self.pet_id = bus, speak, pet_id
         self.widgets = UiWidgets()
         self.timers = TimerBoard(self._timers_changed, self._timer_rang)

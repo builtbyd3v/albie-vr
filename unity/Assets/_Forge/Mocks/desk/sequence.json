@@ -139,7 +139,7 @@
     "at": 28.5,
     "type": "pet.say",
     "payload": {
-      "pet_id": "albie",
+      "pet_id": "bit",
       "text": "Time's up! Your tea timer is done."
     }
   },

@@ -145,7 +145,7 @@ def crew_forge_allow(agent: AgentType) -> tuple[str, ...]:
     return CREW_FORGE_TOOLS + KIT_FORGE_TOOLS.get(agent.kit, ())
 
 
-def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "albie",
+def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "bit",
              agent: AgentType | None = None, cwd: Path | None = None) -> ClaudeAgentOptions:
     """Albie (agent None): QA/CODE tools plus every hub tool incl. the lead-only crew tools. A crew member: its own
     kit and prompt, and only the hub tools in crew_forge_allow (for the Designer, cad_*)."""
@@ -337,7 +337,7 @@ async def run_turn(
 
 
 async def _stream(
-    project: ProjectConfig, mode: ConcreteMode, text: str, control: TurnControl | None, pet_id: str = "albie",
+    project: ProjectConfig, mode: ConcreteMode, text: str, control: TurnControl | None, pet_id: str = "bit",
     agent: AgentType | None = None, cwd: Path | None = None,
 ):  # -> AsyncIterator[Message]
     """Connect a ClaudeSDKClient, send the prompt, yield messages until ResultMessage."""

@@ -78,7 +78,7 @@ def world(hub, monkeypatch):
 
 
 def say(hub, name: str, **args) -> dict[str, Any]:
-    out = hub.portal.call(tools.call, name, args, "albie")
+    out = hub.portal.call(tools.call, name, args, "bit")
     assert "error" not in out, f"{name} {args}: {out}"
     return out
 
@@ -145,10 +145,10 @@ def test_the_whole_script(world):
 def test_away_from_the_desk_albie_still_works_and_says_so(world):
     hub, events, unity, _ = world
     unity.at_desk = False
-    out = hub.portal.call(tools.call, "cad_open_part", {"part": "gearbox"}, "albie")
+    out = hub.portal.call(tools.call, "cad_open_part", {"part": "gearbox"}, "bit")
     assert out["part"] == "gearbox" and "sit down" in out["view_error"]
-    assert "sit down" in hub.portal.call(tools.call, "cad_view", {"expand": True}, "albie")["error"]
-    assert "sit down" in hub.portal.call(tools.call, "ui_open_view", {"view": "messages"}, "albie")["error"]
+    assert "sit down" in hub.portal.call(tools.call, "cad_view", {"expand": True}, "bit")["error"]
+    assert "sit down" in hub.portal.call(tools.call, "ui_open_view", {"view": "messages"}, "bit")["error"]
     say(hub, "cad_open_part", part="rocket")
 
 

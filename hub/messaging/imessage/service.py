@@ -305,7 +305,7 @@ class IMessageService:
             draft = self._take(draft_id)
             await self.bus.publish("notify.draft_cancelled", NotifyDraftCancelled(draft_id=draft.draft_id, reason="expired"))
 
-    async def focus(self, channel: str, ts: str, pet_id: str = "albie") -> SlackMessage | None:
+    async def focus(self, channel: str, ts: str, pet_id: str = "bit") -> SlackMessage | None:
         message = self.store.get(channel, ts)
         if message is None:
             return None

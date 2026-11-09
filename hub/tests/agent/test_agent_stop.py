@@ -61,7 +61,7 @@ def test_stopping_a_code_task_asks_and_undo_restores_its_files(tmp_path: Path, m
         s = _session(voice)
 
         async def task() -> str:
-            runner_mod.TASK_EDITS["albie"] = {str(edited): "<button>Launch</button>", str(created): None}
+            runner_mod.TASK_EDITS["bit"] = {str(edited): "<button>Launch</button>", str(created): None}
             edited.write_text("<button class=center>Start</button>")  # the runner got this far
             created.write_text("animate()")
             await asyncio.sleep(10)
@@ -76,7 +76,7 @@ def test_stopping_a_code_task_asks_and_undo_restores_its_files(tmp_path: Path, m
         assert card["text"] == "Stopped. Want me to undo what I changed, pick up where I left off, or leave it?"
         assert [a["action_id"] for a in card["card"]["actions"]] == ["stop:undo", "stop:continue", "stop:leave"]
         assert voice.choice_until > 0
-        await ws_mod._on_card_action(s, ws_mod.PetCardAction(pet_id="albie", action_id="stop:undo"))
+        await ws_mod._on_card_action(s, ws_mod.PetCardAction(pet_id="bit", action_id="stop:undo"))
         assert edited.read_text() == "<button>Launch</button>" and not created.exists()
         assert voice.choice_until == 0.0 and s.stopped is None
 

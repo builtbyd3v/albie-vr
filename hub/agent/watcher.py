@@ -30,7 +30,7 @@ from .events import Event
 
 log = logging.getLogger(__name__)
 
-PET_ID = "albie"
+PET_ID = "bit"
 GAP_S = 20.0
 ERROR_MAX = 300  # chars of the error Grok gets as context
 OFFERS_KEPT = 5  # Fix it buttons still on older cards work for the last few lines

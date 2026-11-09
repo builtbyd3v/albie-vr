@@ -68,7 +68,7 @@ def test_albie_moves_and_speaks() -> None:
         w.notify("cad.regen_failed", REGEN)
         await w.idle()
         assert [e.type for e in sent] == ["pet.state", "pet.say"]
-        assert sent[0].payload == {"pet_id": "albie", "mode": "working", "target_panel": "screen-main"}
+        assert sent[0].payload == {"pet_id": "bit", "mode": "working", "target_panel": "screen-main"}
         assert voice.said == [BROKE]
         assert voice.contexts[0] is not None and f"line 2 of {SCRIPT}: boom" in voice.contexts[0]
 
@@ -213,7 +213,7 @@ def test_card_tap_over_ws_runs_the_fix_as_a_code_ask(client: Any, monkeypatch: A
     card = watcher._card(Line("cad", "k", "Line 3 broke the rocket.", "rocket.py", 3, "boom", task="Fix line 3: boom"))
     assert card is not None and card.actions is not None
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "test", "pet_id": "albie", "project_id": "demo"}})
+        ws.send_json({"type": "hello", "payload": {"client": "test", "pet_id": "bit", "project_id": "demo"}})
         ws.send_json({"type": "pet.card_action", "payload": {"action_id": card.actions[0].action_id}})
         ws.send_json({"type": "pet.card_action", "payload": {"action_id": card.actions[0].action_id}})  # twice: once
         for _ in range(50):

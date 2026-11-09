@@ -257,7 +257,7 @@ namespace Forge.Pet
                 if (pick == null && !_warnedNoStt)
                 {
                     _warnedNoStt = true;
-                    Debug.LogWarning("[PushToTalk] No speech-to-text provider on " + name + " yet (hub mode undecided, or a sandbox albie without TypedSpeechToText).", this);
+                    Debug.LogWarning("[PushToTalk] No speech-to-text provider on " + name + " yet (hub mode undecided, or a sandbox Albie without TypedSpeechToText).", this);
                 }
                 wanted = pick as ISpeechToText;
             }

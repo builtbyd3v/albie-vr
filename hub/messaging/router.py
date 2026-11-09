@@ -97,7 +97,7 @@ class MeReply(BaseModel):
 
 class OpenRequest(BaseModel):
     channel: str                      # id, #name, or a person's name (their DM)
-    pet_id: str = "albie"
+    pet_id: str = "bit"
 
 
 class OpenReply(BaseModel):
@@ -108,11 +108,11 @@ class OpenReply(BaseModel):
 
 
 class DigestRequest(BaseModel):
-    pet_id: str = "albie"
+    pet_id: str = "bit"
 
 
 class FocusRequest(BaseModel):
-    pet_id: str = "albie"
+    pet_id: str = "bit"
     channel: str
     ts: str
 

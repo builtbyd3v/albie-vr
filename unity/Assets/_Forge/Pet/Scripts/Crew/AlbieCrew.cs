@@ -69,7 +69,7 @@ namespace Forge.Pet
         [Header("Keyboard")]
         [SerializeField, Tooltip("Hatch the type shown on the egg (or the next free type).")]
         InputAction hatchAction = new InputAction("CrewHatch", InputActionType.Button, "<Keyboard>/n");
-        [SerializeField, Tooltip("Send the most recently hatched albie home.")]
+        [SerializeField, Tooltip("Send the most recently hatched agent home.")]
         InputAction dismissAction = new InputAction("CrewDismiss", InputActionType.Button, "<Keyboard>/x");
 
         // Albie-only parts removed from a crew copy (by type name: no compile-time dependency on Meta / sandbox types).
@@ -155,7 +155,7 @@ namespace Forge.Pet
             if (type == null) return null;
             AlbieCrewMember existing = Find(type);
             if (existing != null) return existing;
-            if (lead == null) { Debug.LogWarning("[AlbieCrew] No lead albie (Albie) in the scene; can't hatch.", this); return null; }
+            if (lead == null) { Debug.LogWarning("[AlbieCrew] No lead agent (Albie) in the scene; can't hatch.", this); return null; }
 
             GameObject source = crewPrefab != null ? crewPrefab : lead.gameObject;
             if (_staging == null)

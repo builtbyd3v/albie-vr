@@ -72,7 +72,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             # One message in focus across both providers: a bare "reply to that" answers the last one tapped.
             if channel.startswith("im:") and imessage is not None:
                 if await imessage.focus(channel, str(payload.get("ts") or ""),
-                                        str(payload.get("pet_id") or getattr(session, "pet_id", "albie"))):
+                                        str(payload.get("pet_id") or getattr(session, "pet_id", "bit"))):
                     slack.focused = None
             else:
                 await slack.focus_from_ws(session, payload)

@@ -1,4 +1,4 @@
-"""Builds the custom albie clips on the "Rig" armature in gator_anims.blend.
+"""Builds the custom clips on the "Rig" armature in gator_anims.blend.
 
 Run inside Blender (Text Editor > Run Script, or exec this file). Re-running replaces the clips.
 Each clip is one Blender action keyed only on the bones it moves; the FBX export bakes the rest.

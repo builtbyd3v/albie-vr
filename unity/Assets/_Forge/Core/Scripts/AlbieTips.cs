@@ -13,7 +13,7 @@ using UnityEngine;
 public class AlbieTips : MonoBehaviour
 {
     public const float MinGapS = 120f;
-    const string PetId = "albie";
+    const string PetId = "bit";
 
     static AlbieTips instance;
     string pending, pendingHint;  // the caption, and what the voice model should do with it

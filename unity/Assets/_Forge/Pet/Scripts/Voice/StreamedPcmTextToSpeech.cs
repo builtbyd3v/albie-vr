@@ -322,7 +322,7 @@ namespace Forge.Pet
             return Mathf.Clamp01(syll * phrase);
         }
 
-        string PetId => _bridge != null && _bridge.Config != null ? _bridge.Config.petId : "albie";
+        string PetId => _bridge != null && _bridge.Config != null ? _bridge.Config.petId : "bit";
 
         // The bridge adds AgentClient when the config loads, so keep looking until it exists (throttled).
         void ResolveClient()

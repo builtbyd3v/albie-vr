@@ -634,7 +634,7 @@ class SlackService:
             u = await self.user(self.user_id)
             return {"user_id": self.user_id, "name": self.user_name or u.name or self.user_id, "display_name": u.label,
                     "team": self.team_name}
-        return {"user_id": self.bot_user_id or "", "name": "albie", "display_name": DISPLAY_NAME, "team": self.team_name}
+        return {"user_id": self.bot_user_id or "", "name": "bit", "display_name": DISPLAY_NAME, "team": self.team_name}
 
     # ------------------------------------------------------------------ inbound
     def accepts(self, event: dict[str, Any], live: bool = True) -> bool:
@@ -1011,7 +1011,7 @@ class SlackService:
         return self.store.get(channel, ts)
 
     # ------------------------------------------------------------------ open a conversation (messages_open)
-    async def open_conversation(self, channel: str, pet_id: str = "albie") -> dict[str, Any]:
+    async def open_conversation(self, channel: str, pet_id: str = "bit") -> dict[str, Any]:
         """Show a conversation on the Slack panel: "#general", a channel id, or a person (their DM, opened with
         conversations.open if there is none yet; nothing is posted). Unity's list gets it first (notify.channels, not
         debounced), then `messages.open`; Unity opens the MSG view on it and answers `messages.opened`, so the result
@@ -1022,7 +1022,7 @@ class SlackService:
         rec = await self.record(cid)
         return await self.show_conversation(cid, rec.label or rec.short_name, rec.kind, pet_id)
 
-    async def show_conversation(self, cid: str, label: str, kind: str, pet_id: str = "albie") -> dict[str, Any]:
+    async def show_conversation(self, cid: str, label: str, kind: str, pet_id: str = "bit") -> dict[str, Any]:
         """The Unity half of open_conversation, for any provider (an iMessage chat is `im:<guid>`): the list first, then
         `messages.open`, then wait for `messages.opened`. Works with Slack itself disabled (an iMessage-only hub)."""
         await self.bus.publish(NOTIFY_CHANNELS, NotifyChannels(channels=self.channel_summaries()))
@@ -1059,7 +1059,7 @@ class SlackService:
                                                   lambda: fut.done() or fut.set_result(ack))
 
     # ------------------------------------------------------------------ focus ("Reply with Albie")
-    async def focus(self, channel: str, ts: str, pet_id: str = "albie") -> SlackMessage | None:
+    async def focus(self, channel: str, ts: str, pet_id: str = "bit") -> SlackMessage | None:
         """Albie reads the message and offers to answer; messages_send without a target then replies in its thread.
         Spoken on the live voice session, else pet.say. None (and nothing said) if the message isn't in the store."""
         msg = self.find(channel, ts)
@@ -1088,10 +1088,10 @@ class SlackService:
     async def focus_from_ws(self, session: Any, payload: dict[str, Any]) -> None:
         """ws `messages.focus {pet_id, channel, ts}` (agent.ws.client_handlers); the session supplies the pet id."""
         f = MessagesFocus.model_validate(payload)
-        await self.focus(f.channel, f.ts, f.pet_id or getattr(session, "pet_id", "albie"))
+        await self.focus(f.channel, f.ts, f.pet_id or getattr(session, "pet_id", "bit"))
 
     # ------------------------------------------------------------------ digest
-    async def digest(self, pet_id: str = "albie") -> NotifyDigest:
+    async def digest(self, pet_id: str = "bit") -> NotifyDigest:
         """Sit-down summary: everything unread in every conversation -> notify.digest, and Albie says the line (also when
         nothing is new: "You have no new messages today.", so the arrival greeting always has a sentence). Marks every
         conversation seen."""

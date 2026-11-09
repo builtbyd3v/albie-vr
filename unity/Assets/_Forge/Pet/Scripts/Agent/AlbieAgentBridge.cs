@@ -35,7 +35,7 @@ namespace Forge.Pet
         public IPetEventSource Source { get; private set; }
         public PetConfig Config { get; private set; }
         /// <summary>This Albie's pet_id: the config's (Albie) or the crew type id.</summary>
-        public string PetId => _crewPetId ?? (Config != null ? Config.petId : "albie");
+        public string PetId => _crewPetId ?? (Config != null ? Config.petId : "bit");
         /// <summary>An ask is awaiting its answer or a code task is running.</summary>
         public bool TaskInProgress => _awaitingAnswer || _taskRunning;
         /// <summary>Working on something, incl. turns the hub started on its own (a crew task Albie assigned).</summary>
@@ -105,7 +105,7 @@ namespace Forge.Pet
             // one, so Main always talks to the hub even if pet_config.json says "mock".
             bool useMock = mock != null && mock.enabled && (mock.OverridesConfig || !Config.IsHub);
             if (!Config.IsHub && !useMock)
-                Debug.LogWarning("[AlbieAgentBridge] pet_config.json asks for eventSource \"mock\" but this albie has no enabled MockEventSource (sandbox only); using the hub.", this);
+                Debug.LogWarning("[AlbieAgentBridge] pet_config.json asks for eventSource \"mock\" but this agent has no enabled MockEventSource (sandbox only); using the hub.", this);
             EventSourceIsHub = !useMock;
             Debug.Log("[AlbieAgentBridge] " + Config + (useMock ? " -> MockEventSource (sandbox)" : " -> hub via ForgeNet"));
 

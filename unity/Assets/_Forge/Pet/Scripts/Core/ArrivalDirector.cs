@@ -412,7 +412,7 @@ namespace Forge.Pet
             _digestLine = d.line;
         }
 
-        string PetId => bridge != null ? bridge.PetId : "albie";
+        string PetId => bridge != null ? bridge.PetId : "bit";
 
         static float Flat(Vector3 d) => new Vector2(d.x, d.z).magnitude;
 

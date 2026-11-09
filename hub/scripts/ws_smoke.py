@@ -22,7 +22,7 @@ async def main() -> None:
     ap.add_argument("text")
     ap.add_argument("--mode", default="auto", choices=["qa", "code", "auto"])
     ap.add_argument("--url", default="ws://127.0.0.1:8000/ws")
-    ap.add_argument("--pet", default="albie")
+    ap.add_argument("--pet", default="bit")
     ap.add_argument("--project", default="gatorhack")
     a = ap.parse_args()
 

@@ -194,7 +194,7 @@ ML_TERMS = ["PyTorch", "CIFAR", "pytorch-cifar", "GitHub", "neural net lab", "Re
             "epochs", "validation accuracy", "overfitting", "humanoid", "Iron Man"]
 # "Stop" over Albie should just stop him, not start a reply ("Okay, quiet!").
 STOP_CORE = {"stop", "wait", "quiet", "shh", "shush", "hush", "enough", "nevermind", "shutup", "cancel"}  # "shut up" -> shutup
-STOP_FILLER = ALIASES["albie"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
+STOP_FILLER = ALIASES["bit"] | {SPLIT_FIRST} | SPLIT_SECOND | {"okay", "ok", "please", "hey", "be", "that", "it", "never",
                                                                 "mind", "now", "right"}
 HOLD_S = 6.0  # a held half-thought (addressed.unfinished) with no next segment by then is answered as it is
 NO_REPLY_S = 8.0  # committed turn with no transcript and no response from Grok by then: treat it as empty (4 s gave up on late replies on the hotspot, live 01:40)
@@ -349,8 +349,8 @@ class _Base:
 
 def _just_the_name(text: str) -> bool:
     words = [w.lower() for w in re.findall(r"[A-Za-z']+", text)]
-    return bool(words) and set(words) <= wake_mod.GREETINGS | wake_mod.ALIASES["albie"] and \
-        bool(set(words) & wake_mod.ALIASES["albie"])
+    return bool(words) and set(words) <= wake_mod.GREETINGS | wake_mod.ALIASES["bit"] and \
+        bool(set(words) & wake_mod.ALIASES["bit"])
 
 
 class GrokVoiceSession(_Base):
@@ -1257,7 +1257,7 @@ def is_stop(text: str) -> bool:
     return bool(words) and set(words) <= STOP_CORE | STOP_FILLER and bool(set(words) & STOP_CORE)
 
 
-NAME_WORDS = ALIASES["albie"]  # albie, albee, alby, elbie (agent/wake.py)
+NAME_WORDS = ALIASES["bit"]  # albie, albee, alby, elbie (agent/wake.py)
 
 
 def has_name(text: str, last: bool = True) -> bool:

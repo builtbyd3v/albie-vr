@@ -154,7 +154,7 @@ namespace Forge.Pet
 
         void Emit(string type, JObject payload)
         {
-            payload["pet_id"] = _cfg != null ? _cfg.petId : "albie";
+            payload["pet_id"] = _cfg != null ? _cfg.petId : "bit";
             try { EventReceived?.Invoke(new PetEvent(type, payload)); }
             catch (Exception e) { Debug.LogException(e); }
         }

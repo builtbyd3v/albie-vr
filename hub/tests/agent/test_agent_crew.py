@@ -38,7 +38,7 @@ def _collect(ws: Any, pet_id: str, until: str, limit: int = 80) -> list[tuple[st
 
 
 def _hello(ws: Any) -> None:
-    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
+    ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
 
 
 # ------------------------------------------------------------------ catalog / roster
@@ -82,7 +82,7 @@ def test_crew_tool_does_not_walk_albie(monkeypatch: pytest.MonkeyPatch) -> None:
         sent.append(e)
 
     monkeypatch.setattr(tools.bus, "broadcast", broadcast)
-    out = asyncio.run(tools.call("crew_status", {}, "albie"))
+    out = asyncio.run(tools.call("crew_status", {}, "bit"))
     assert out["crew"] == [] and "tester" in out["available_types"]
     assert sent == []
 
@@ -123,10 +123,10 @@ def test_crew_members_work_in_parallel_with_albie(client: TestClient) -> None:
             {"pet_id": "tester", "agent_type": "tester"}, {"pet_id": "scout", "agent_type": "scout"}]}})
         ws.send_json({"type": "agent.ask", "payload": {"pet_id": "tester", "text": "add a test for greet"}})
         ws.send_json({"type": "agent.ask", "payload": {"pet_id": "scout", "text": "fix where greet lives"}})
-        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "albie", "text": "what does greet do?", "mode": "qa"}})
+        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "bit", "text": "what does greet do?", "mode": "qa"}})
         want = {("tester", "agent.task_complete"),  # tester defaults to code
                 ("scout", "agent.answer_done"),  # read-only: "fix ..." is still answered as qa
-                ("albie", "agent.answer_done")}  # Albie's own turn isn't cancelled by the crew's
+                ("bit", "agent.answer_done")}  # Albie's own turn isn't cancelled by the crew's
         msgs: list[dict[str, Any]] = []
         while want and len(msgs) < 80:
             msgs.append(ws.receive_json())
@@ -191,7 +191,7 @@ def test_crew_options_follow_the_kit(tmp_path: Path) -> None:
     assert "Bash(git commit:*)" in scribe.allowed_tools and "Bash" not in scribe.allowed_tools
     assert "Bash(git worktree:*)" in scribe.disallowed_tools
 
-    albie = runner._options(_project(tmp_path), "qa", "albie")
+    albie = runner._options(_project(tmp_path), "qa", "bit")
     assert "mcp__forge__assign_task" in albie.allowed_tools and "crew of helper agents" in albie.system_prompt
 
 
@@ -216,7 +216,7 @@ def test_crew_runners_get_only_their_kit_tools(tmp_path: Path, monkeypatch: pyte
     designer = forge(runner._options(_project(tmp_path), "qa", "designer", TYPES["designer"]))
     assert {"cad_get_params", "cad_set_params"} <= designer and all(n.startswith("cad_") for n in designer)
     assert {n for n in designer if not n.startswith("cad_")} == reviewer  # other suites may register more cad_* tools
-    albie = forge(runner._options(_project(tmp_path), "qa", "albie"))
+    albie = forge(runner._options(_project(tmp_path), "qa", "bit"))
     assert {"cad_set_params", "messages_send", "spawn_agent", "assign_task"} <= albie
     assert runner.crew_forge_allow(TYPES["tester"]) == () and runner.crew_forge_allow(TYPES["designer"]) == ("cad_",)
     # the in-process MCP server offers the same filtered set
@@ -245,11 +245,11 @@ def test_sending_a_crew_albie_home_never_cancels_albie(client: TestClient, monke
         _hello(ws)
         ws.send_json({"type": "crew.roster", "payload": {"members": [{"pet_id": "fixer", "agent_type": "fixer"}]}})
         ws.send_json({"type": "agent.ask", "payload": {"pet_id": "fixer", "text": "fix the greeting"}})
-        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "albie", "text": "what does greet do?", "mode": "qa"}})
+        ws.send_json({"type": "agent.ask", "payload": {"pet_id": "bit", "text": "what does greet do?", "mode": "qa"}})
         ws.send_json({"type": "agent.cancel", "payload": {"pet_id": "fixer"}})
         ws.send_json({"type": "crew.roster", "payload": {"members": []}})
         seen: list[tuple[str | None, str]] = []
-        while ("albie", "agent.answer_done") not in seen and len(seen) < 80:
+        while ("bit", "agent.answer_done") not in seen and len(seen) < 80:
             m = ws.receive_json()
             seen.append((m["payload"].get("pet_id"), m["type"]))
     assert ("fixer", "agent.task_complete") not in seen

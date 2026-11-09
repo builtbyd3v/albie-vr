@@ -12,7 +12,7 @@ When a member finishes, listeners are told (ws.py lets the voice session say it 
 
 Wire format (docs/archive/PET_AGENT_CONTRACT.md, Addendum D):
     client -> hub  crew.roster  {members: [{pet_id, agent_type}]}
-    hub -> client  crew.spawn   {agent_type}       (pet_id == agent_type: one albie per type)
+    hub -> client  crew.spawn   {agent_type}       (pet_id == agent_type: one agent per type)
     hub -> client  crew.dismiss {pet_id}
 """
 
@@ -270,7 +270,7 @@ crew = Crew()
 _AGENT = {"type": "string", "description": "crew member, by type: " + ", ".join(TYPES)}
 TOOLS: list[dict[str, Any]] = [
     {"name": "spawn_agent",
-     "description": "Hatch a helper albie onto the desk. One per type: "
+     "description": "Hatch a helper agent onto the desk. One per type: "
                     + "; ".join(f"{t.id} ({t.role})" for t in TYPES.values()) + ".",
      "parameters": {"type": "object", "properties": {"type": {"type": "string", "enum": list(TYPES)}},
                     "required": ["type"]}},

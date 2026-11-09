@@ -93,7 +93,7 @@ public sealed class GestureActions
         pendingConfirm = onYes;
         ForgeNet.Inject("pet.say", new JObject
         {
-            ["pet_id"] = "albie",
+            ["pet_id"] = "bit",
             ["text"] = question,
             ["card"] = new JObject
             {

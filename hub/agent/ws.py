@@ -60,7 +60,7 @@ card_handlers: dict[str, CardHandler] = {}  # action_id prefix before ":" -> han
 @dataclass
 class Session:
     ws: WebSocket
-    pet_id: str = "albie"
+    pet_id: str = "bit"
     project_id: str | None = None
     turn: asyncio.Task[str] | None = None
     turn_mode: str | None = None

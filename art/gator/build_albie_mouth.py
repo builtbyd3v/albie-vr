@@ -1,4 +1,4 @@
-"""Gives the pack's albie (Alligator_LOD0) an opening mouth: a jaw bone, a dark mouth cavity and a tongue.
+"""Gives the pack's alligator (Alligator_LOD0) an opening mouth: a jaw bone, a dark mouth cavity and a tongue.
 
 Run inside gator_anims.blend (Text Editor > Run Script, or exec this file). It always starts again from
 the untouched mesh copy "Alligator_LOD0_orig", so it can be re-run after tweaking the numbers below.

@@ -391,7 +391,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.HubSpeechToText
   client: {fileID: 2004733851524714870}
-  petId: albie
+  petId: bit
   ringSeconds: 2
   sendInterval: 0.1
   preRollSeconds: 0.5

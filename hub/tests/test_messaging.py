@@ -102,7 +102,7 @@ class StubClient:
         return {"messages": rows[:limit], "has_more": len(rows) > limit}
 
     async def auth_test(self) -> dict[str, Any]:
-        return {"user_id": self.identity, "user": "albie" if self.identity == "UBOT" else "adrian", "team": "forge"}
+        return {"user_id": self.identity, "user": "bit" if self.identity == "UBOT" else "adrian", "team": "forge"}
 
     async def users_info(self, user: str) -> dict[str, Any]:
         self.calls.append(("users.info", {"user": user}))
@@ -246,21 +246,21 @@ def test_digest_empty_still_greets(tmp_path: Path) -> None:
     d = asyncio.run(svc.digest())
     assert d.count == 0 and d.line == "You have no new messages today." and d.messages == []
     assert bus.types() == ["notify.digest", "pet.say"]
-    assert bus.events[1][1] == {"pet_id": "albie", "text": d.line}
-    assert spoken == [("albie", d.line)]
+    assert bus.events[1][1] == {"pet_id": "bit", "text": d.line}
+    assert spoken == [("bit", d.line)]
 
 
 def test_digest_speaks_and_marks_seen(tmp_path: Path) -> None:
     svc, bus, spoken = make_service(tmp_path)
     for i, mention in enumerate((False, True, False), start=1):
         svc.store.add(msg(f"170000000{i}.000100", mention=mention))
-    d = asyncio.run(svc.digest("albie"))
+    d = asyncio.run(svc.digest("bit"))
     assert (d.count, d.mentions) == (3, 1)
     assert d.line == "You have 3 new messages, 1 mentions you."
     assert [m.ts for m in d.messages][0] == "1700000003.000100"
     assert bus.types() == ["notify.digest", "pet.say"]
-    assert bus.events[1][1] == {"pet_id": "albie", "text": d.line}
-    assert spoken == [("albie", d.line)]
+    assert bus.events[1][1] == {"pet_id": "bit", "text": d.line}
+    assert spoken == [("bit", d.line)]
     assert asyncio.run(svc.digest()).count == 0  # seen now
 
 
@@ -845,7 +845,7 @@ def test_focus_speaks_notes_and_seeds_the_next_send(tmp_path: Path) -> None:
 
     found, drafted, draft, sent = asyncio.run(run())
     assert found is not None and found.ts == "1700000002.000100"
-    assert spoken == [("albie", "hudson in #forge-team says: can you review my PR today. Want me to answer?")]
+    assert spoken == [("bit", "hudson in #forge-team says: can you review my PR today. Want me to answer?")]
     assert bus.flow() == ["notify.draft", "notify.message", "notify.sent"]  # voice spoke, so no pet.say caption
     note = svc.noted[0][1]  # type: ignore[attr-defined]
     assert "hudson" in note and "#forge-team" in note and "can you review my PR today" in note and "messages_send" in note
@@ -876,7 +876,7 @@ def test_focus_without_voice_says_it_as_a_caption(tmp_path: Path) -> None:
     long = "word " * 80  # 400 chars
     dm = msg("1700000003.000100", text=long, channel="D1").model_copy(update={"channel_name": "dm", "is_dm": True})
     svc.store.add(dm)
-    found = asyncio.run(svc.focus("D1", "1700000003.000100", "albie"))
+    found = asyncio.run(svc.focus("D1", "1700000003.000100", "bit"))
     assert found is not None and spoken == []
     assert bus.types() == ["pet.say"]
     line = bus.events[0][1]["text"]
@@ -897,10 +897,10 @@ def test_focus_from_ws_uses_the_sessions_pet(tmp_path: Path) -> None:
     svc.store.add(msg("1700000002.000100", channel="C1"))
 
     class Session:
-        pet_id = "albie"
+        pet_id = "bit"
 
     asyncio.run(svc.focus_from_ws(Session(), {"channel": "C1", "ts": "1700000002.000100"}))
-    assert spoken[0][0] == "albie"
+    assert spoken[0][0] == "bit"
     with pytest.raises(Exception):  # bad payload -> ValidationError, ws.py answers agent.error
         asyncio.run(svc.focus_from_ws(Session(), {"channel": "C1"}))
 
@@ -1049,10 +1049,10 @@ def test_router_enabled_draft_flow(api) -> None:
     assert (d3["channel"], d3["channel_name"]) == ("DU1", "hudson")
     c.post(f"/messages/drafts/{d3['draft_id']}/cancel")
 
-    r = c.post("/messages/digest", json={"pet_id": "albie"})
+    r = c.post("/messages/digest", json={"pet_id": "bit"})
     assert r.status_code == 200 and r.json()["line"] == "You have 1 new message, and it mentions you."
 
-    r = c.post("/messages/focus", json={"pet_id": "albie", "channel": "C1", "ts": "1700000001.000100"})
+    r = c.post("/messages/focus", json={"pet_id": "bit", "channel": "C1", "ts": "1700000001.000100"})
     assert r.status_code == 200 and r.json()["text"] == "first" and svc.focused is not None
     assert c.post("/messages/focus", json={"channel": "C1", "ts": "nope"}).status_code == 404
     assert api(False).post("/messages/focus", json={"channel": "C1", "ts": "1"}).status_code == 503
@@ -1186,7 +1186,7 @@ def test_open_conversation_round_trip(tmp_path: Path) -> None:
     assert bus.types()[:2] == ["notify.channels", "messages.open"]                       # the list has it before Unity opens it
     assert "DU1" in {c.id for c in bus.events[0][1].channels}
     opened = bus.events[1][1]
-    assert (opened.pet_id, opened.channel, opened.channel_name, opened.kind) == ("albie", "DU1", "hudson", "dm")
+    assert (opened.pet_id, opened.channel, opened.channel_name, opened.kind) == ("bit", "DU1", "hudson", "dm")
     assert svc._open_waiters == {}
 
 

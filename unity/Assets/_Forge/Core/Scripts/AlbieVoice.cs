@@ -23,7 +23,7 @@ using UnityEngine;
 /// </summary>
 public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 {
-    const string PetId = "albie";
+    const string PetId = "bit";
     const string Url = "wss://api.x.ai/v1/realtime?model=grok-voice-3.0";
     const string VoiceName = "sirius";
     const float Speed = 0.85f;

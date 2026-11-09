@@ -22,7 +22,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DISPLAY_NAME = "Albie"  # what people see and hear; the lead's internal pet id stays "albie"
+DISPLAY_NAME = "Albie"  # what people see and hear; the lead's internal pet id stays "bit"
 AskMode = Literal["qa", "code", "auto"]
 PetMode = Literal["follow", "idle", "listening", "thinking", "working", "speaking"]
 
@@ -45,7 +45,7 @@ class _Payload(BaseModel):
 # ---------------------------------------------------------------- client -> hub
 class Hello(_Payload):
     client: str = "unity"
-    pet_id: str = "albie"
+    pet_id: str = "bit"
     project_id: str | None = None
     audio_out_rate: int | None = None  # proposed: the client's output sample rate (voice mode)
 

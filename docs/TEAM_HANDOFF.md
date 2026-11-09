@@ -27,7 +27,7 @@ The headset reads both URLs from code defaults: `unity/Assets/_Forge/Core/Net/Fo
 4. To redeploy without a code change, open GitHub > Actions, pick the workflow and click **Run workflow**.
 5. Check the result. Vercel is live in about 30 s. The HF Space rebuilds for about 10 min; watch it at https://huggingface.co/spaces/builtbyd3v/albie-cloud.
 
-Both workflows run a script you can also run from a laptop: `cloud/deploy.py` (Vercel REST API, `VERCEL_TOKEN` scoped to the albie-cloud project only) and `cloud-py/deploy.sh` (HF CLI).
+Both workflows run a script you can also run from a laptop: `cloud/deploy.py` (Vercel REST API, `VERCEL_TOKEN` scoped to the agent-cloud project only) and `cloud-py/deploy.sh` (HF CLI).
 
 Health check (needs the app key; want `200`):
 

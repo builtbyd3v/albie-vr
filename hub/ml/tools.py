@@ -31,7 +31,7 @@ from .setup.adapt import ROOT
 log = logging.getLogger(__name__)
 
 Speak = Callable[[str, str], Awaitable[bool]]
-PET_ID = "albie"
+PET_ID = "bit"
 OPEN_WAIT_S = 25.0  # a project with a working .forge/ is ready in a few seconds; a cold one keeps going after
 SEARCH_DIRS = [ROOT / "ml-examples", Path.home() / "Desktop" / "ml-examples"]
 

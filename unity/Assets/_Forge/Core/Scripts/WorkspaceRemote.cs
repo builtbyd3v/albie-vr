@@ -16,7 +16,7 @@ using UnityEngine;
 public class WorkspaceRemote : MonoBehaviour
 {
     const string WorkspaceModeType = "workspace.mode";
-    const string PetId = "albie";
+    const string PetId = "bit";
 
     Workspace workspace;
 

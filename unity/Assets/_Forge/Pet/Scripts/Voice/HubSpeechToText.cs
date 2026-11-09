@@ -20,7 +20,7 @@ namespace Forge.Pet
         [SerializeField, Tooltip("Socket used for audio + transcripts. Auto-found on this GameObject / scene if empty.")]
         AgentClient client;
         [SerializeField, Tooltip("Pet id sent in stt.* payloads (overridden by AlbieAgentBridge config when available).")]
-        string petId = "albie";
+        string petId = "bit";
         [SerializeField, Tooltip("Microphone ring-buffer length in seconds.")]
         int ringSeconds = 2;
         [SerializeField, Tooltip("How often new mic samples are read and sent (seconds).")]

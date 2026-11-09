@@ -24,7 +24,7 @@ namespace Forge.Pet
         const float Chunk = 0.1f;                       // seconds per analysed / sent chunk
         const int ChunkOut = (int)(Rate * Chunk);       // 1600 samples
 
-        [SerializeField, Tooltip("Listen for albie names all the time (hub mode).")]
+        [SerializeField, Tooltip("Listen for agent names all the time (hub mode).")]
         bool listenForNames = true;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
         AlbieAgentBridge bridge;
@@ -50,7 +50,7 @@ namespace Forge.Pet
         float maxSegment = 12f;
 
         [Header("After \"Hey <name>\"")]
-        [SerializeField, Tooltip("How long (s) a named albie waits for the request.")]
+        [SerializeField, Tooltip("How long (s) a named agent waits for the request.")]
         float followSeconds = 8f;
         [SerializeField, Tooltip("Wait this long (s) after Albie stops talking / a push-to-talk turn before listening again.")]
         float resumeDelay = 0.6f;
@@ -276,7 +276,7 @@ namespace Forge.Pet
             return crew != null && pid != null ? crew.Find(AlbieAgentTypes.Find(pid)) : null;
         }
 
-        string LeadPetId => bridge != null ? bridge.PetId : "albie";
+        string LeadPetId => bridge != null ? bridge.PetId : "bit";
 
         // ---------------------------------------------------------------- mic
 

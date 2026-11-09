@@ -684,16 +684,16 @@ namespace Forge.Pet.Editor
   ""name"": ""intro_flow"",
   ""loop"": false,
   ""events"": [
-    { ""delay_ms"": 600,  ""type"": ""agent.thinking"",       ""payload"": { ""pet_id"": ""albie"" } },
-    { ""delay_ms"": 1500, ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""albie"", ""text"": ""Hi! I'm Albie,"" } },
-    { ""delay_ms"": 700,  ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""albie"", ""text"": ""Hi! I'm Albie, your albie assistant."" } },
-    { ""delay_ms"": 700,  ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""albie"", ""text"": ""Hi! I'm Albie, your albie assistant. Hold Space and ask me anything about the project."" } },
-    { ""delay_ms"": 600,  ""type"": ""agent.answer_done"",    ""payload"": { ""pet_id"": ""albie"", ""text"": ""Hi! I'm Albie, your albie assistant. Hold Space and ask me anything about the project."" } },
-    { ""delay_ms"": 3000, ""type"": ""agent.task_started"",   ""payload"": { ""pet_id"": ""albie"", ""task_id"": ""intro-1"", ""title"": ""Tidy up the README"" } },
-    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""albie"", ""task_id"": ""intro-1"", ""text"": ""Reading the repo..."", ""pct"": 20 } },
-    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""albie"", ""task_id"": ""intro-1"", ""text"": ""Editing README.md..."", ""pct"": 60 } },
-    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""albie"", ""task_id"": ""intro-1"", ""text"": ""Running checks..."", ""pct"": 90 } },
-    { ""delay_ms"": 1200, ""type"": ""agent.task_complete"",  ""payload"": { ""pet_id"": ""albie"", ""task_id"": ""intro-1"", ""summary"": ""README tidied: fixed setup steps and added a quickstart."", ""branch"": ""albie/intro-readme"" } }
+    { ""delay_ms"": 600,  ""type"": ""agent.thinking"",       ""payload"": { ""pet_id"": ""bit"" } },
+    { ""delay_ms"": 1500, ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""bit"", ""text"": ""Hi! I'm Albie,"" } },
+    { ""delay_ms"": 700,  ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""bit"", ""text"": ""Hi! I'm Albie, your desk assistant."" } },
+    { ""delay_ms"": 700,  ""type"": ""agent.partial_answer"", ""payload"": { ""pet_id"": ""bit"", ""text"": ""Hi! I'm Albie, your desk assistant. Hold Space and ask me anything about the project."" } },
+    { ""delay_ms"": 600,  ""type"": ""agent.answer_done"",    ""payload"": { ""pet_id"": ""bit"", ""text"": ""Hi! I'm Albie, your desk assistant. Hold Space and ask me anything about the project."" } },
+    { ""delay_ms"": 3000, ""type"": ""agent.task_started"",   ""payload"": { ""pet_id"": ""bit"", ""task_id"": ""intro-1"", ""title"": ""Tidy up the README"" } },
+    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""bit"", ""task_id"": ""intro-1"", ""text"": ""Reading the repo..."", ""pct"": 20 } },
+    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""bit"", ""task_id"": ""intro-1"", ""text"": ""Editing README.md..."", ""pct"": 60 } },
+    { ""delay_ms"": 1500, ""type"": ""agent.task_progress"",  ""payload"": { ""pet_id"": ""bit"", ""task_id"": ""intro-1"", ""text"": ""Running checks..."", ""pct"": 90 } },
+    { ""delay_ms"": 1200, ""type"": ""agent.task_complete"",  ""payload"": { ""pet_id"": ""bit"", ""task_id"": ""intro-1"", ""summary"": ""README tidied: fixed setup steps and added a quickstart."", ""branch"": ""bit/intro-readme"" } }
   ]
 }
 ";

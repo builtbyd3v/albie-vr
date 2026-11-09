@@ -40,7 +40,7 @@ def sequence() -> list[dict[str, Any]]:
         (5.0, "notes.updated", NotesUpdated(notes=NOTES)),  # "Albie, add that to my notes"
         (9.0, "ui.widgets", UiWidgets(timer="open", notes="minimized")),
         (28.5, "timers.updated", TimersUpdated(timers=[ringing, FOCUS.model_copy(update={"remaining_s": 2510})])),
-        (28.5, "pet.say", {"pet_id": "albie", "text": "Time's up! Your tea timer is done."}),
+        (28.5, "pet.say", {"pet_id": "bit", "text": "Time's up! Your tea timer is done."}),
         (34.0, "timers.updated", TimersUpdated(timers=[FOCUS.model_copy(update={"remaining_s": 2504})])),
     ]
     return [{"at": at, "type": t, "payload": p.model_dump() if isinstance(p, BaseModel) else p} for at, t, p in steps]

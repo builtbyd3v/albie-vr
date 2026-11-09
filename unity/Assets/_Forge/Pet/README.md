@@ -76,7 +76,7 @@ helpers with the PetRuntime builder.
 
 ## Config
 
-`Assets/StreamingAssets/pet_config.json`: `{ "petId": "albie", "projectId": "gatorhack", "eventSource": "hub" }`.
+`Assets/StreamingAssets/pet_config.json`: `{ "petId": "bit", "projectId": "gatorhack", "eventSource": "hub" }`.
 The hub address is ForgeNet's (`hubUrl` on the ForgeNet object or PlayerPrefs `Forge.HubUrl`). `"mock"` only takes
 effect on an agent that carries a `MockEventSource`, which only the sandbox scene builders add (and the mock overrides
 the config there while it is enabled: untick the component to test the live hub from a sandbox).

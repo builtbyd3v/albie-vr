@@ -95,7 +95,7 @@ def test_a_crew_code_turn_lands_and_says_so(repo: Path, monkeypatch: pytest.Monk
     from agent.config import ProjectConfig
     from agent.crew import TYPES
 
-    async def stream(project, mode, text, control, pet_id="albie", agent=None, cwd=None):
+    async def stream(project, mode, text, control, pet_id="bit", agent=None, cwd=None):
         edit(cwd / "a.txt", "5\n", "five\n")  # left uncommitted
         yield ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1, is_error=False, num_turns=1,
                             session_id="s", result="Spelled out five.")

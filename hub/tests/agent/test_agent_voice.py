@@ -71,7 +71,7 @@ class Sink:
 
 
 def _session(grok: MockGrok, sink: Sink, rate: int = 48000) -> GrokVoiceSession:
-    return GrokVoiceSession(pet_id="albie", sample_rate=rate, send_event=sink.owner, send_bytes=sink.audio,
+    return GrokVoiceSession(pet_id="bit", sample_rate=rate, send_event=sink.owner, send_bytes=sink.audio,
                             emit=sink.emit, api_key="xai-test", model="grok-voice-3.0", voice="",
                             connect=grok.connect)
 
@@ -144,7 +144,7 @@ def test_push_to_talk_turn_maps_to_our_events() -> None:
         partials = [e.payload["text"] for e in events if e.type == "stt.partial"]
         assert partials == ["Hey", "Hey Albie"]
         final = next(e for e in events if e.type == "stt.final")
-        assert final.payload == {"pet_id": "albie", "text": "Hey Albie!", "voice": True}
+        assert final.payload == {"pet_id": "bit", "text": "Hey Albie!", "voice": True}
         start = next(e for e in events if e.type == "tts.start")
         assert start.payload["sample_rate"] == 48000 and start.payload["encoding"] == "pcm16"
         end = next(e for e in events if e.type == "tts.end")
@@ -195,7 +195,7 @@ def test_barge_in_stops_speech_and_drops_stale_audio() -> None:
         await s.begin_turn()  # user pressed talk again while Albie was speaking
         assert grok.types()[-2:] == ["response.cancel", "input_audio_buffer.clear"]
         stop = sink.log[-1][1]
-        assert stop.type == "tts.stop" and stop.payload == {"pet_id": "albie", "utterance_id": utt, "reason": "barge_in"}
+        assert stop.type == "tts.stop" and stop.payload == {"pet_id": "bit", "utterance_id": utt, "reason": "barge_in"}
 
         n = len(sink.log)
         grok.push(type="response.output_audio.delta", delta=_b64(b"\x01\x00" * 8))  # in flight before the cancel
@@ -216,7 +216,7 @@ def test_tap_without_speech_sends_empty_final_and_no_commit() -> None:
         await s.commit_turn()
         assert "input_audio_buffer.commit" not in grok.types()
         assert sink.flat() == ["emit:stt.final"]
-        assert sink.log[0][1].payload == {"pet_id": "albie", "text": "", "voice": True}
+        assert sink.log[0][1].payload == {"pet_id": "bit", "text": "", "voice": True}
         await s.close()
 
     asyncio.run(run())
@@ -264,7 +264,7 @@ def test_grok_without_key_means_no_voice(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("VOICE_PROVIDER", "grok")
     monkeypatch.delenv("XAI_API_KEY", raising=False)
     sink = Sink()
-    assert voice_mod.make_voice(pet_id="albie", client_rate=48000, send_event=sink.owner,
+    assert voice_mod.make_voice(pet_id="bit", client_rate=48000, send_event=sink.owner,
                                 send_bytes=sink.audio, emit=sink.emit) is None
 
 
@@ -287,14 +287,14 @@ def test_fake_voice_over_ws(client: TestClient, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("VOICE_PROVIDER", "fake")
     monkeypatch.setenv("FAKE_VOICE_PACE", "0")
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo",
+        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo",
                                                     "audio_out_rate": 48000}})
         ready = _recv_until(ws, "voice.ready")[-1]
-        assert ready == ("voice.ready", {"pet_id": "albie", "provider": "fake", "sample_rate": 24000})
+        assert ready == ("voice.ready", {"pet_id": "bit", "provider": "fake", "sample_rate": 24000})
 
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie", "sample_rate": 16000, "encoding": "pcm16"}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit", "sample_rate": 16000, "encoding": "pcm16"}})
         ws.send_bytes(b"\x00\x00" * 1600)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
         evts = _recv_until(ws, "tts.end")
 
         types = [t for t, _ in evts]
@@ -318,12 +318,12 @@ def test_fake_voice_over_ws(client: TestClient, monkeypatch: pytest.MonkeyPatch)
 def test_no_voice_by_default(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VOICE_PROVIDER", "none")
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie"}})
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
+        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
         evts = _recv_until(ws, "stt.final")
     assert "voice.ready" not in [t for t, _ in evts]
-    assert evts[-1] == ("stt.final", {"pet_id": "albie", "text": ""})
+    assert evts[-1] == ("stt.final", {"pet_id": "bit", "text": ""})
 
 
 def test_cancel_turn_drops_audio_and_commits_nothing() -> None:
@@ -348,12 +348,12 @@ def test_stt_cancel_over_ws(client: TestClient, monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setenv("VOICE_PROVIDER", provider)
     monkeypatch.setenv("FAKE_VOICE_PACE", "0")
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
-        ws.send_json({"type": "stt.start", "payload": {"pet_id": "albie"}})
+        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
+        ws.send_json({"type": "stt.start", "payload": {"pet_id": "bit"}})
         ws.send_bytes(b"\x00\x00" * 1600)
-        ws.send_json({"type": "stt.cancel", "payload": {"pet_id": "albie"}})
+        ws.send_json({"type": "stt.cancel", "payload": {"pet_id": "bit"}})
         ws.send_bytes(b"\x00\x00" * 1600)
-        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "albie"}})
+        ws.send_json({"type": "stt.stop", "payload": {"pet_id": "bit"}})
         evts = _recv_until(ws, "stt.final")
         assert evts[-1][1]["text"] == ""
         ws.send_json({"type": "agent.ask", "payload": {"text": "error", "mode": "qa"}})
@@ -371,7 +371,7 @@ def test_delegate_round_trip() -> None:
             await asyncio.sleep(0)
             return "The socket handler lives in hub/agent/ws.py."
 
-        s = GrokVoiceSession(pet_id="albie", sample_rate=48000, send_event=sink.owner, send_bytes=sink.audio,
+        s = GrokVoiceSession(pet_id="bit", sample_rate=48000, send_event=sink.owner, send_bytes=sink.audio,
                              emit=sink.emit, api_key="k", connect=grok.connect, delegate=delegate)
         await s.begin_turn()
         sess = grok.sent[0]["session"]
@@ -464,7 +464,7 @@ def test_delegate_over_ws_uses_the_runner(client: TestClient, monkeypatch: pytes
 
     monkeypatch.setattr(ws_mod, "make_voice", fake_make_voice)
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "albie", "project_id": "demo"}})
+        ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
         ws.send_json({"type": "agent.cancel", "payload": {}})  # round-trip so hello is processed
         assert callable(seen.get("delegate"))
 
@@ -522,7 +522,7 @@ def test_barge_in_stops_speech_unity_is_still_playing(monkeypatch: pytest.Monkey
             stops = [v for k, v in sink.log[n:] if k == "owner" and v.type == "tts.stop"]
             assert bool(stops) == expect_stop, f"{later} s after tts.end"
             if stops:
-                assert stops[0].payload == {"pet_id": "albie", "utterance_id": utt, "reason": "barge_in"}
+                assert stops[0].payload == {"pet_id": "bit", "utterance_id": utt, "reason": "barge_in"}
             await s.cancel_turn()
         await s.close()
 
@@ -834,7 +834,7 @@ def test_voice_stays_on_after_a_network_error() -> None:
         async def reply_error(message: str, pet_id: str | None = None) -> None:
             errors.append(message)
 
-        s = SimpleNamespace(voice=voice, pet_id="albie", reply_error=reply_error)
+        s = SimpleNamespace(voice=voice, pet_id="bit", reply_error=reply_error)
 
         async def blip() -> None:
             raise websockets.exceptions.ConnectionClosedError(None, None)
@@ -867,10 +867,10 @@ def test_voice_delegate_steps_stay_out_of_the_bubble() -> None:
         async def emit(e: Event) -> None:
             sent.append(e)
 
-        quiet = _QuietSteps(emit, "albie")  # type: ignore[arg-type]
-        await quiet(voice_mod.ev.task_started("albie", "t1", "Create frog.py in /Users/dev/x"))
-        await quiet(voice_mod.ev.task_progress("albie", "t1", "Editing frog.py"))
-        await quiet(voice_mod.ev.task_complete("albie", "t1", "Made frog.py."))
+        quiet = _QuietSteps(emit, "bit")  # type: ignore[arg-type]
+        await quiet(voice_mod.ev.task_started("bit", "t1", "Create frog.py in /Users/dev/x"))
+        await quiet(voice_mod.ev.task_progress("bit", "t1", "Editing frog.py"))
+        await quiet(voice_mod.ev.task_complete("bit", "t1", "Made frog.py."))
         assert [(e.type, e.payload.get("mode")) for e in sent] == [("pet.state", "working"), ("agent.task_complete", None)]
 
     asyncio.run(run())

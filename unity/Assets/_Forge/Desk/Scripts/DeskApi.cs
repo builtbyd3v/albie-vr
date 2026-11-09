@@ -149,7 +149,7 @@ public static class DeskApi
         string line = rang.label.ToLowerInvariant() == "focus"
             ? $"Time's up! That's {DeskUi.Human(rang.durationS)} of focus."
             : $"Time's up! Your {rang.label} timer is done.";
-        ForgeNet.Emit(ForgeEvents.PetSayType, new PetSay { petId = "albie", text = line });
+        ForgeNet.Emit(ForgeEvents.PetSayType, new PetSay { petId = "bit", text = line });
         if (widgets.timer == "minimized") SetWidget("timer", "open");
     }
 

@@ -72,9 +72,7 @@ unity/Assets/_Forge/Pet/ThirdParty/Quirky Series/
 unity/Assets/_Forge/Pet/ThirdParty/Quirky Series.meta
 # Made from the pack's mesh, so kept out of git too (Gator_Model.fbx.meta stays: it holds the GUID and clip settings)
 art/gator/gator_anims.blend
-art/albie/gator_anims.blend
 art/gator/Gator_Model.fbx
-art/albie/Gator_Model.fbx
 unity/Assets/_Forge/Pet/Models/Gator_Model.fbx
 
 # Voice token server app key (Vercel ALBIE_APP_KEY); ships in the APK, never in git

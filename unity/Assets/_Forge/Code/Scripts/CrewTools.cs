@@ -129,7 +129,7 @@ public static class CrewTools
         var before = new Dictionary<CodeProject.File, string>();
         foreach (var f in CodeProject.Files) { project.Append(CodeTools.Prompt(f)).Append('\n'); before[f] = f.text; }
         string system =
-            $"You are {t.Name}, a helper albie who {t.Role}, working on a small project for the user. Do the task. " +
+            $"You are {t.Name}, a helper agent who {t.Role}, working on a small project for the user. Do the task. " +
             (answerOnly ? "Answer only: path and text are empty. "
                         : "If it needs a code change, path is the one file to change and text is its whole new content without " +
                           "the added line numbers: the smallest change, every other line kept exactly. Otherwise path and text are empty. ") +

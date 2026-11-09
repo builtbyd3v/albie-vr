@@ -28,7 +28,7 @@ public class SlackPanel : MonoBehaviour
 {
     public const int MaxRows = 80;
     const string FocusType = "messages.focus";
-    const string LeadPetId = "albie";
+    const string LeadPetId = "bit";
     // Geometry (mm).
     const float WindowCorner = 12f, PaneInset = 6f, PaneCorner = 10f;
     const float TeamH = 44f, SectionH = 28f, SideRowH = 28f, SideRowGap = 2f, SidePad = 8f;

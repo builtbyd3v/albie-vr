@@ -279,7 +279,7 @@ class Draft(BaseModel):
 class MessagesOpen(BaseModel):
     """hub -> Unity: show this conversation on the Slack panel, opening the MSG view if needed (Albie's messages_open).
     Unity answers ws `messages.opened {pet_id, request_id, channel, ok, reason?}`; reason: not_at_desk | no_workspace."""
-    pet_id: str = "albie"
+    pet_id: str = "bit"
     request_id: str
     channel: str
     channel_name: str                 # as the channel list names it: "#general", the DM partner

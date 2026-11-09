@@ -101,7 +101,7 @@ public static class CodeTools
         ""required"":[""summary"",""text""],""additionalProperties"":false}");
 
     const string AskSystem =
-        "You are Albie, a small albie who helps an engineer with code in a mixed-reality workspace. Answer the question " +
+        "You are Albie, a small assistant who helps an engineer with code in a mixed-reality workspace. Answer the question " +
         "about the file in at most two short spoken sentences (under 35 words): plain words, no markdown, never read code " +
         "aloud. start_line and end_line are the lines your answer is about (0 and 0 if none).";
 
