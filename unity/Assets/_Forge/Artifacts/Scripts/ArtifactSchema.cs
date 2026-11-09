@@ -11,7 +11,7 @@ namespace Forge.Artifacts
         public const string Manifest = "albie.artifact/1";
         public const string Scene = "albie.scene/1";
         public const string Run = "albie.run/1";
-        public const int HostRuntime = 5;  // 2: room_hoops. 3: arrays from data tables. 4: gltf, timeline, animate. 5: versions widget
+        public const int HostRuntime = 6;  // 2: room_hoops. 3: arrays from data tables. 4: gltf, timeline, animate. 5: versions widget. 6: pendulum solver, line through
 
         public const int MaxNodes = 512, MaxZones = 64, MaxRules = 64, MaxSceneChars = 256 * 1024;
         public const int MaxBodies = 16, MaxTrailPoints = 2048;
@@ -52,6 +52,7 @@ namespace Forge.Artifacts
         public static readonly Dictionary<string, string[]> Solvers = new Dictionary<string, string[]>
         {
             { "n_body", new[] { "time", "energy_drift_pct", "closest_approach", "escaped" } },
+            { "pendulum", new[] { "time", "energy_drift_pct", "flips", "angle_1", "angle_2" } },
         };
 
         /// <summary>Generator types and the slots each one fills, as <c>&lt;id&gt;.&lt;slot&gt;</c>.</summary>

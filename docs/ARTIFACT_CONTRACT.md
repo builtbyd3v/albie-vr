@@ -404,6 +404,7 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
   - `brain`, `plant_cell`, `eye` and `dna` (as built, 2026-11-09) follow the same pattern: a bundled CC0 Grab3D `gltf`, labels with leaders, and a guided tour on a timeline. `dna` also has a looping `spin` timeline on the model's `rot`.
   - All of them set `view.radius`. Without it, `Fit()` measures only the renderers present when the scene is built, and a `gltf` that is still loading gives the wrong scale.
   - Both are standalone `viz` artifacts with no permissions. A `button` row in a panel wraps when the next button wouldn't fit.
+- **Physics templates (as built, 2026-11-09, host runtime 6).** `double_pendulum` is two double pendulums on one pivot, started 0.01° apart, so they swing together and then split; `solar_system` is the Sun and the four rocky planets at their real distances and masses on `n_body`, with G = 4π² so time reads in years. Both are standalone `sim` artifacts with no permissions. Runtime 6 adds the `pendulum` solver and `line.through` (section 14).
 
 ## 8. Permissions
 
@@ -538,12 +539,14 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 
 | Field | Rule |
 |---|---|
-| `solver` | `n_body` for now. An unknown solver fails validation. |
+| `solver` | `n_body` or `pendulum` (as built, runtime 6). An unknown solver fails validation. |
 | `bodies` | 1 to 16. Each `node` is driven by exactly one body. Make those nodes children of the `sim` node, so its `rot` tilts the whole system. |
 | `rate` | How fast you watch, in simulated time per second. Changing it never restarts the sim. |
 | `params` | Solver numbers. **Changing any of these, or a body's numbers, restarts the sim**, so what's on screen always comes from the values on the panel. |
 
 **`n_body`.** Leapfrog integration in doubles, with the centre of mass held at the origin. A run is repeatable: the same inputs give the same result. When a body passes `bound_radius`, the sim stops and stays on screen.
+
+**`pendulum` (as built, runtime 6).** One or two links hanging from the `sim` node's origin, swinging in its x-y plane. Bodies have `mass`, `length` (m), `angle` and `omega` (degrees from straight down); `params` are `g` (default 9.81), `step`, `damping` and `angle_offset` (degrees, added to every link's start). Fourth-order Runge-Kutta in doubles. It publishes `time`, `energy_drift_pct`, `flips` (times any link goes over the top), `angle_1` and `angle_2`. More than 2 links is `too_big`; a `length` of 0 or less is `bad_value`.
 
 **New in the scene:**
 
@@ -553,6 +556,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | Action `sim` | `{ "sim": "orbits", "action": "play" }`, with `play`, `pause` or `restart`. |
 | `view` | `{ "radius": 1.25 }`, for `volume` space. Scales that sphere to fit the box, so a scene that moves isn't refitted as it moves. |
 | `line` field `follow` | A fading trail behind a node with the same parent. `length` is at most 2,048 points. |
+| `line` field `through` | As built, runtime 6. A list of 2 to 17 node ids with the line's parent; the line joins them every frame, after sims move (a pendulum's rods). An unknown id is `unknown_ref`, a different parent `bad_value`. |
 | `primitive` field `glow` | Self-lit, for things that should read as light. |
 | `stat` field `decimals` | Default 2. |
 

@@ -8,7 +8,8 @@ namespace Forge.Artifacts
     /// 2 Slalom (permissions, then says what isn't built yet), 3 a broken artifact (the validator refuses it),
     /// 4 an artifact that doesn't exist, 5 three-body problem (live, with trails), 6 repo city (its own snapshot),
     /// 7 make repo activity (bundled sample data), 8 launch (a glTF rocket on a timeline), C make the animal cell,
-    /// H make the beating heart, B the brain, P the plant cell, V the eye, N DNA, 0 close, 9 forget every approval.
+    /// H make the beating heart, B the brain, P the plant cell, V the eye, N DNA,
+    /// K the double pendulum, O the solar system, 0 close, 9 forget every approval.
     /// </summary>
     public class ArtifactSandboxKeys : MonoBehaviour
     {
@@ -32,6 +33,8 @@ namespace Forge.Artifacts
             if (k.pKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "plant_cell" });
             if (k.vKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "eye" });
             if (k.nKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "dna" });
+            if (k.kKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "double_pendulum" });
+            if (k.oKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "solar_system" });
             if (k.digit0Key.wasPressedThisFrame) host.Close();
             if (k.digit9Key.wasPressedThisFrame) ArtifactApprovals.Forget();
         }

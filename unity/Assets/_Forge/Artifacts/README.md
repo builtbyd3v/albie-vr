@@ -87,6 +87,15 @@ Six templates for things to look at rather than drive. They need no room, no net
 
 All six need host runtime 4.
 
+## Physics: double pendulum and solar system
+
+Two templates for things you change and watch play out, like the three-body fixture. They need no room, no network and no permissions. Albie makes them with `artifact_create {template: "double_pendulum"}` or `{template: "solar_system"}`, and its tool description sends "show me chaos" and "how do planets orbit?" to them.
+- **`double_pendulum`.** Two double pendulums (0.5 m rods, 1 kg bobs) on one pivot in front of a dark dial, started 0.01° apart. For about 5 s they swing as one, then they split and never agree again. The panel shows the time, how often each one has gone over the top, and the energy drift as a live accuracy check. Sliders: starting angle (30 to 175°), the gap (0 to 1°: at 0 they stay identical for good), friction at the joints and playback speed.
+- **`solar_system`.** The Sun and the four rocky planets at their real average distances and masses, under real gravity (G = 4π², so the clock reads in years). Earth comes round in 1.000 years. The sizes aren't to scale and the panel says so. Sliders: the Sun's mass (0.5 to 2 Suns: at half a Sun the planets get away and "Planets thrown out" counts it), the planets' starting speed (their orbits stretch into ellipses) and years per second.
+- **The `pendulum` solver** (`Scripts/ArtifactPendulum.cs`). One or two links hanging from the `sim` node's origin, swinging in its x-y plane. Each body has `mass`, `length` (m), `angle` and `omega` (degrees, from straight down). `params`: `g`, `step`, `damping`, and `angle_offset` (degrees, added to every link's starting angle, which is how the two copies differ). Fourth-order Runge-Kutta in doubles, with no allocation per step. It publishes `time`, `energy_drift_pct` (relative to the swing's height above its lowest point), `flips`, `angle_1` and `angle_2`.
+- **`line` field `through`** (`Scripts/ArtifactTrail.cs`). A list of node ids with the line's parent. The line joins them every frame after the sims have moved, for the pendulums' rods.
+- Both need host runtime 6. The scenes were written by a script (planet starting speeds are 2π/√a AU a year) and are plain `albie.scene/1`.
+
 ## Files
 
 | Path | What it is |
@@ -102,12 +111,15 @@ All six need host runtime 4.
 | `Editor/SlalomCheck.cs` | 13 headless checks: **Forge > Artifacts > Check Slalom**. |
 | `Editor/HoopCheck.cs` | 14 headless hoop checks (mock rooms, template, scored laps): **Forge > Artifacts > Check Hoops**. |
 | `Scripts/ArtifactData.cs` | Data tables: parsing and checking snapshots, the Provider → snapshot → bundled sample order, `data_sources`. |
-| `ArtifactsSandbox.unity` | Hub off. Keys: 1 stance, 2 slalom, 3 broken, 4 missing, 5 three-body, 6 repo city (its own snapshot), 7 make repo activity, 8 launch, C make the cell, H the heart, B the brain, P the plant cell, V the eye, N DNA, 0 close, 9 forget approvals. |
+| `ArtifactsSandbox.unity` | Hub off. Keys: 1 stance, 2 slalom, 3 broken, 4 missing, 5 three-body, 6 repo city (its own snapshot), 7 make repo activity, 8 launch, C make the cell, H the heart, B the brain, P the plant cell, V the eye, N DNA, K the double pendulum, O the solar system, 0 close, 9 forget approvals. |
 | `Scripts/ArtifactGltf.cs`, `Scripts/ArtifactTimeline.cs` | The `gltf` node and asset checks; the `timeline` node and `animate` tracks. |
 | `Editor/GltfTimelineCheck.cs` | 5 headless checks: **Forge > Artifacts > Check glTF and Timelines**. The model load runs in an open Editor: **Forge > Artifacts > Check glTF Load**. |
 | `Editor/RepoActivityCheck.cs` | 10 headless data and city checks: **Forge > Artifacts > Check Repo Activity**. |
 | `Editor/ArtifactRunCheck.cs` | 13 headless run checks: **Forge > Artifacts > Check Runs**. `Forge > Check Artifacts` runs the rest. |
 | `Editor/BioTemplatesCheck.cs` | 7 headless checks on the six biology templates (valid, made offline, model hash and licence, labels, hidden captions, beat centre, DNA spin): **Forge > Artifacts > Check Biology Templates**. |
+| `Scripts/ArtifactPendulum.cs` | The `pendulum` solver (one or two links, RK4 in doubles). |
+| `Editor/SimTemplatesCheck.cs` | 9 headless checks on the physics templates (valid, made offline, the textbook period, energy, chaos, friction, Earth's year, half a Sun, the new validator refusals): **Forge > Artifacts > Check Physics Templates**. |
+| `Editor/ArtifactShot.cs` | Test helper: `ArtifactShot.Take(path)` renders the open artifact and its panels to a PNG in Play mode, since the Game view is black in XR. |
 | `Editor/VoiceRulesCheck.cs` | Every tool named in Albie's voice rules exists: **Forge > Artifacts > Check Voice Rules**. |
 
 ## For other modules
