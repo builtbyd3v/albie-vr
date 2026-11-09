@@ -1,0 +1,4 @@
+# Written by Editor/RepoSnapshotBuild.cs before each build: this repo's commits, saved for the Quest.
+# Generated per build, so it is not committed.
+*
+!.gitignore
