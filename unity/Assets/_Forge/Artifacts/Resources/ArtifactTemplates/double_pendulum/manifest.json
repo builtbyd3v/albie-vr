@@ -1,0 +1,96 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "double_pendulum",
+  "title": "Double pendulum",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "template": "double_pendulum",
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": null,
+    "thing": null
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 6
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    {
+      "name": "angle",
+      "type": "number",
+      "min": 30,
+      "max": 175,
+      "default": 120,
+      "label": "Starting angle (degrees)"
+    },
+    {
+      "name": "nudge",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "default": 0.01,
+      "label": "Gap between them (degrees)"
+    },
+    {
+      "name": "friction",
+      "type": "number",
+      "min": 0,
+      "max": 0.5,
+      "default": 0,
+      "label": "Friction at the joints"
+    },
+    {
+      "name": "speed",
+      "type": "number",
+      "min": 0.1,
+      "max": 2,
+      "default": 1,
+      "label": "Playback speed"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 1,
+      "params": {}
+    }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+    "network": [],
+    "connectors": [],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "none",
+    "things": "none"
+  },
+  "outputs": [
+    {
+      "name": "time",
+      "type": "number",
+      "unit": "s",
+      "label": "Time"
+    },
+    {
+      "name": "flips_a",
+      "type": "integer",
+      "label": "Orange flips over the top"
+    },
+    {
+      "name": "flips_b",
+      "type": "integer",
+      "label": "Blue flips over the top"
+    },
+    {
+      "name": "drift",
+      "type": "number",
+      "unit": "%",
+      "label": "Energy drift"
+    }
+  ]
+}

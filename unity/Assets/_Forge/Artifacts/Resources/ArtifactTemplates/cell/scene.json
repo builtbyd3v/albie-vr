@@ -1,0 +1,861 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+    "radius": 0.36
+  },
+  "generators": [],
+  "nodes": [
+    {
+      "id": "cell",
+      "kind": "gltf",
+      "asset": "assets/cell.glb",
+      "pos": [
+        0,
+        -0.25,
+        0
+      ],
+      "rot": [
+        0,
+        180,
+        0
+      ]
+    },
+    {
+      "id": "label_mitochondrion",
+      "kind": "text",
+      "text": "Mitochondrion\n<size=70%>releases energy as ATP</size>",
+      "pos": [
+        -0.26,
+        0.02,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_mitochondrion",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          0.0144,
+          -0.1
+        ],
+        [
+          -0.097,
+          -0.062,
+          -0.107
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_nucleolus",
+      "kind": "text",
+      "text": "Nucleolus\n<size=70%>makes ribosome parts</size>",
+      "pos": [
+        -0.26,
+        -0.05,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_nucleolus",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          -0.0556,
+          -0.1
+        ],
+        [
+          -0.003,
+          -0.085,
+          -0.057
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_rough_er",
+      "kind": "text",
+      "text": "Rough ER\n<size=70%>its dots are ribosomes, which build proteins</size>",
+      "pos": [
+        -0.26,
+        -0.12,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_rough_er",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          -0.1256,
+          -0.1
+        ],
+        [
+          -0.038,
+          -0.128,
+          -0.089
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cytoplasm",
+      "kind": "text",
+      "text": "Cytoplasm\n<size=70%>fluid that fills the cell</size>",
+      "pos": [
+        -0.26,
+        -0.19,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_cytoplasm",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          -0.1956,
+          -0.1
+        ],
+        [
+          -0.08,
+          -0.19,
+          -0.098
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_membrane",
+      "kind": "text",
+      "text": "Cell membrane\n<size=70%>controls what enters and leaves</size>",
+      "pos": [
+        0.26,
+        0.02,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_membrane",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          0.0144,
+          -0.1
+        ],
+        [
+          0.12,
+          -0.05,
+          -0.022
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_lysosome",
+      "kind": "text",
+      "text": "Lysosome\n<size=70%>digests waste with enzymes</size>",
+      "pos": [
+        0.26,
+        -0.05,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_lysosome",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.0556,
+          -0.1
+        ],
+        [
+          0.117,
+          -0.122,
+          -0.057
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_nucleus",
+      "kind": "text",
+      "text": "Nucleus\n<size=70%>holds the DNA</size>",
+      "pos": [
+        0.26,
+        -0.12,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_nucleus",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.1256,
+          -0.1
+        ],
+        [
+          0.035,
+          -0.13,
+          -0.038
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_golgi",
+      "kind": "text",
+      "text": "Golgi apparatus\n<size=70%>modifies, sorts and ships proteins</size>",
+      "pos": [
+        0.26,
+        -0.19,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_golgi",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.1956,
+          -0.1
+        ],
+        [
+          0.053,
+          -0.154,
+          -0.099
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "tracer",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        0.035,
+        -0.13,
+        -0.046
+      ],
+      "size": [
+        0.008,
+        0.008,
+        0.008
+      ],
+      "color": "#4D9DE0",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "pathway",
+      "kind": "timeline",
+      "duration_s": 10,
+      "loop": false,
+      "autoplay": false
+    },
+    {
+      "id": "step_1",
+      "kind": "text",
+      "text": "1  The DNA's instructions are copied to mRNA, which leaves the nucleus",
+      "pos": [
+        0,
+        0.11,
+        -0.1
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_2",
+      "kind": "text",
+      "text": "2  Ribosomes on the rough ER read the mRNA and build the protein",
+      "pos": [
+        0,
+        0.11,
+        -0.1
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_3",
+      "kind": "text",
+      "text": "3  The Golgi apparatus modifies the protein and packs it into a vesicle",
+      "pos": [
+        0,
+        0.11,
+        -0.1
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_4",
+      "kind": "text",
+      "text": "4  The vesicle fuses with the membrane and releases the protein",
+      "pos": [
+        0,
+        0.11,
+        -0.1
+      ],
+      "height": 0.012,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "Animal cell",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "A typical animal cell with a wedge cut away. Not to scale: a real one is about 10 to 30 micrometres across."
+        },
+        {
+          "type": "button",
+          "id": "follow",
+          "label": "Follow a protein"
+        },
+        {
+          "type": "button",
+          "id": "labels_on",
+          "label": "Show labels"
+        },
+        {
+          "type": "button",
+          "id": "labels_off",
+          "label": "Hide labels"
+        },
+        {
+          "type": "note",
+          "text": "Model: Grab3D, CC0."
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "on_input",
+      "input": "follow",
+      "do": [
+        {
+          "timeline": "pathway",
+          "action": "restart"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_on",
+      "do": [
+        {
+          "set": "label_mitochondrion.visible",
+          "value": true
+        },
+        {
+          "set": "leader_mitochondrion.visible",
+          "value": true
+        },
+        {
+          "set": "label_nucleolus.visible",
+          "value": true
+        },
+        {
+          "set": "leader_nucleolus.visible",
+          "value": true
+        },
+        {
+          "set": "label_rough_er.visible",
+          "value": true
+        },
+        {
+          "set": "leader_rough_er.visible",
+          "value": true
+        },
+        {
+          "set": "label_cytoplasm.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cytoplasm.visible",
+          "value": true
+        },
+        {
+          "set": "label_membrane.visible",
+          "value": true
+        },
+        {
+          "set": "leader_membrane.visible",
+          "value": true
+        },
+        {
+          "set": "label_lysosome.visible",
+          "value": true
+        },
+        {
+          "set": "leader_lysosome.visible",
+          "value": true
+        },
+        {
+          "set": "label_nucleus.visible",
+          "value": true
+        },
+        {
+          "set": "leader_nucleus.visible",
+          "value": true
+        },
+        {
+          "set": "label_golgi.visible",
+          "value": true
+        },
+        {
+          "set": "leader_golgi.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_off",
+      "do": [
+        {
+          "set": "label_mitochondrion.visible",
+          "value": false
+        },
+        {
+          "set": "leader_mitochondrion.visible",
+          "value": false
+        },
+        {
+          "set": "label_nucleolus.visible",
+          "value": false
+        },
+        {
+          "set": "leader_nucleolus.visible",
+          "value": false
+        },
+        {
+          "set": "label_rough_er.visible",
+          "value": false
+        },
+        {
+          "set": "leader_rough_er.visible",
+          "value": false
+        },
+        {
+          "set": "label_cytoplasm.visible",
+          "value": false
+        },
+        {
+          "set": "leader_cytoplasm.visible",
+          "value": false
+        },
+        {
+          "set": "label_membrane.visible",
+          "value": false
+        },
+        {
+          "set": "leader_membrane.visible",
+          "value": false
+        },
+        {
+          "set": "label_lysosome.visible",
+          "value": false
+        },
+        {
+          "set": "leader_lysosome.visible",
+          "value": false
+        },
+        {
+          "set": "label_nucleus.visible",
+          "value": false
+        },
+        {
+          "set": "leader_nucleus.visible",
+          "value": false
+        },
+        {
+          "set": "label_golgi.visible",
+          "value": false
+        },
+        {
+          "set": "leader_golgi.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_1",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          2,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_nucleus",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          1.99,
+          "#FFE66D"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2,
+          true
+        ],
+        [
+          5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_rough_er",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ],
+        [
+          2.01,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5,
+          true
+        ],
+        [
+          7.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_golgi",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.5,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_membrane",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.89,
+          "#FFE66D"
+        ],
+        [
+          9.9,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "pos",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          [
+            0.035,
+            -0.13,
+            -0.046
+          ]
+        ],
+        [
+          1.2,
+          [
+            0,
+            -0.135,
+            -0.075
+          ]
+        ],
+        [
+          2,
+          [
+            -0.038,
+            -0.128,
+            -0.097
+          ]
+        ],
+        [
+          5,
+          [
+            -0.03,
+            -0.135,
+            -0.1
+          ]
+        ],
+        [
+          7,
+          [
+            0.053,
+            -0.154,
+            -0.107
+          ]
+        ],
+        [
+          8.5,
+          [
+            0.09,
+            -0.2,
+            -0.088
+          ]
+        ],
+        [
+          9.9,
+          [
+            0.16,
+            -0.23,
+            -0.06
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          2,
+          "#4D9DE0"
+        ],
+        [
+          3,
+          "#FFE66D"
+        ],
+        [
+          6.5,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#F2B134"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "scale",
+      "timeline": "pathway",
+      "keys": [
+        [
+          6.5,
+          1
+        ],
+        [
+          7.5,
+          1.5
+        ],
+        [
+          9.5,
+          1.5
+        ],
+        [
+          9.9,
+          0.6
+        ]
+      ]
+    }
+  ],
+  "run": null
+}

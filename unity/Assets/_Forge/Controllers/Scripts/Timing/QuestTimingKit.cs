@@ -9,6 +9,7 @@ using Newtonsoft.Json.Linq;
 using TMPro;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.XR;
 using Debug = UnityEngine.Debug;
 #if ENABLE_INPUT_SYSTEM
@@ -25,6 +26,10 @@ namespace Forge.Controllers
     ///    ms a frame, as the Controllers sandbox's B key does;
     /// 3. Autopilot driving: the Autopilot drives the mock slalom with those candidates, then the pretrained fallback,
     ///    and each controller tick is timed (on a Thing it's one tick per physics step);
+    /// 3b. physics truck: the same candidates drive ML A's example truck on Unity physics (<see cref="PhysicsSlalom"/>:
+    ///    the mock slalom as colliders, 7 sphere casts a step, course.bearing), one tick per FixedUpdate as the app's
+    ///    Thing does, and each physics step's work is timed. This is what the in-app brain loop (the room slalom's
+    ///    SlalomBrain) adds over the mock;
     /// 4. ML template: <see cref="TemplateRun"/> makes its dataset and trains a few ms a frame, then saves a file a
     ///    frame, as Albie's template_train does; every frame of its work is timed. Its files go to a scratch folder, not the real controllers folder, and it isn't logged in
     ///    the lab notebook (<see cref="TrainingLog.Muted"/>).
@@ -46,7 +51,7 @@ namespace Forge.Controllers
         // with: in the Editor, candidate 1 drives it.
         const float StartOffset = 0.15f, StartTurn = 0.08f;
 
-        public enum Stage { Off, Idle, Training, Driving, Template, Done }
+        public enum Stage { Off, Idle, Training, Driving, Physics, Template, Done }
         public Stage Current { get; private set; }
         public bool Running => Current != Stage.Off && Current != Stage.Done;
         /// <summary>The last finished report (null before the first one).</summary>
@@ -83,6 +88,16 @@ namespace Forge.Controllers
         System.Random placement;
         double tickTotalUs, tickMaxUs;
         string failures, drove;
+        // Physics truck (its own local physics scene, so nothing else in the scene is in its rays)
+        Scene physicsScene;
+        ControllerThing physicsThing;
+        ExampleTruckBody physicsBody;
+        Autopilot physicsAutopilot;
+        int physicsGates, physicsTicks, physicsFailed, physicsMaxStepsInFrame, physicsStepsThisFrame;
+        float physicsRunSeconds, physicsFrameMs;
+        double physicsTotalUs, physicsMaxUs;
+        string physicsFailures, physicsDrove;
+        bool physicsDone;
         // Template
         double templatePumpBefore;
         string savedFolderOverride;
@@ -124,6 +139,7 @@ namespace Forge.Controllers
             bool done = Work();
             float ms = (float)((Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency);
             if (Current == Stage.Template) ms = TemplateWorkMs();
+            if (Current == Stage.Physics) { ms = physicsFrameMs; physicsFrameMs = 0f; physicsStepsThisFrame = 0; }
             sampler.Bytes += AllocatedBytes() - allocBefore;
             if (sampler.Count < MaxFrames) { sampler.Work[sampler.Count++] = ms; sampler.Awaiting = true; }
             if (done || sampler.Count >= MaxFrames) closing = true;
@@ -144,6 +160,7 @@ namespace Forge.Controllers
             {
                 Debug.LogException(e);
                 RestoreTemplateSettings();
+                ClosePhysics();
                 Current = Stage.Done;
                 Show($"Quest timing kit stopped at {Key(stage)}: {e.Message}");
                 return;
@@ -170,23 +187,32 @@ namespace Forge.Controllers
                 }
                 case Stage.Driving:
                 {
-                    var files = new List<ControllerFile>();
-                    foreach (var c in cloners)
-                    {
-                        var f = ControllerFile.Parse(c.ToControllerJson("truck_autopilot", 1, 1.5f), out string error);
-                        if (f == null) throw new InvalidOperationException(error);
-                        files.Add(f);
-                    }
-                    var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
-                    var fallback = fallbackAsset == null ? null : ControllerFile.Parse(fallbackAsset.text, out _);
                     host = new ControllerHost(new ControllerIO(MockTruckSim.SensorNames, MockTruckSim.ActuatorNames));
-                    autopilot = new Autopilot(files, fallback);
+                    autopilot = new Autopilot(CandidateFiles(), Fallback());
                     string engage = autopilot.Engage(host);
                     if (engage != null) throw new InvalidOperationException(engage);
                     placement = new System.Random(DriverSeed * 7919);
                     PlaceTruck();
                     failedRuns = 0; ticks = 0; tickTotalUs = tickMaxUs = 0; failures = ""; drove = null;
                     return new JObject();
+                }
+                case Stage.Physics:
+                {
+                    long t0 = Stopwatch.GetTimestamp();
+                    physicsScene = SceneManager.CreateScene("QuestTimingPhysics", new CreateSceneParameters(LocalPhysicsMode.Physics3D));
+                    physicsThing = PhysicsSlalom.Build(physicsScene);
+                    physicsBody = physicsThing.GetComponent<ExampleTruckBody>();
+                    if (physicsThing.StartError != null) throw new InvalidOperationException(physicsThing.StartError);
+                    double buildMs = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+                    physicsAutopilot = new Autopilot(CandidateFiles(), Fallback());
+                    string engage = physicsAutopilot.Engage(physicsThing.Host);
+                    if (engage != null) throw new InvalidOperationException(engage);
+                    placement = new System.Random(DriverSeed * 7919);  // the same starts as the mock drive
+                    PlacePhysicsTruck();
+                    physicsTicks = physicsFailed = physicsMaxStepsInFrame = physicsStepsThisFrame = 0;
+                    physicsTotalUs = physicsMaxUs = 0; physicsFrameMs = 0f;
+                    physicsFailures = ""; physicsDrove = null; physicsDone = false;
+                    return new JObject { ["fixed_step_ms"] = Round(Time.fixedDeltaTime * 1000.0), ["rays"] = MockTruckSim.Rays, ["built_ms"] = Round(buildMs) };
                 }
                 case Stage.Template:
                 {
@@ -220,6 +246,8 @@ namespace Forge.Controllers
                     return training >= cloners.Length;
                 case Stage.Driving:
                     return Drive();
+                case Stage.Physics:
+                    return physicsDone;
                 case Stage.Template:
                     return !TemplateRun.Training;
                 default:
@@ -251,6 +279,73 @@ namespace Forge.Controllers
             return false;
         }
 
+        List<ControllerFile> CandidateFiles()
+        {
+            var files = new List<ControllerFile>();
+            foreach (var c in cloners)
+            {
+                var f = ControllerFile.Parse(c.ToControllerJson("truck_autopilot", 1, 1.5f), out string error);
+                if (f == null) throw new InvalidOperationException(error);
+                files.Add(f);
+            }
+            return files;
+        }
+
+        static ControllerFile Fallback()
+        {
+            var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
+            return fallbackAsset == null ? null : ControllerFile.Parse(fallbackAsset.text, out _);
+        }
+
+        // The physics truck: one tick per physics step, as ControllerThing does in the app (its own FixedUpdate is off
+        // here so this one can time it). A step is the course.bearing update, then the Thing's tick: 7 sphere casts,
+        // the controller, the lap recorder, the move and its overlap test.
+        void FixedUpdate()
+        {
+            if (Current != Stage.Physics || physicsDone || physicsThing == null) return;
+            long allocBefore = AllocatedBytes();
+            long t0 = Stopwatch.GetTimestamp();
+            PhysicsSlalom.Beacon(physicsBody.transform.position, ref physicsGates);
+            physicsThing.Tick(Time.fixedDeltaTime);
+            double us = (Stopwatch.GetTimestamp() - t0) * 1e6 / Stopwatch.Frequency;
+            sampler.Bytes += AllocatedBytes() - allocBefore;
+            physicsFrameMs += (float)(us / 1000.0);
+            physicsTotalUs += us; if (us > physicsMaxUs) physicsMaxUs = us;
+            physicsTicks++;
+            if (++physicsStepsThisFrame > physicsMaxStepsInFrame) physicsMaxStepsInFrame = physicsStepsThisFrame;
+            physicsRunSeconds += Time.fixedDeltaTime;
+            bool finished = PhysicsSlalom.Finished(physicsBody.transform.position);
+            if (!physicsBody.Crashed && !finished && physicsRunSeconds < RunTimeoutS) return;
+            bool fallbackDriving = physicsAutopilot.UsingFallback;
+            int index = physicsAutopilot.Index;
+            physicsAutopilot.RunEnded(physicsThing.Host, finished);
+            if (finished) { physicsDrove = fallbackDriving ? "the pretrained fallback" : $"candidate {index + 1}"; physicsDone = true; return; }
+            physicsFailed++;
+            physicsFailures += (physicsFailures.Length > 0 ? ", " : "") + (fallbackDriving ? "fallback" : $"candidate {index + 1}") + (physicsBody.Crashed ? " crashed" : " stalled");
+            if (physicsAutopilot.Exhausted) { physicsDrove = "nothing"; physicsDone = true; return; }
+            PlacePhysicsTruck();
+        }
+
+        void PlacePhysicsTruck()
+        {
+            float y0 = (float)(placement.NextDouble() * 2 - 1) * StartOffset, turn = (float)(placement.NextDouble() * 2 - 1) * StartTurn;
+            physicsBody.Place(new Vector3(0f, 0f, y0), PhysicsSlalom.Heading(turn));
+            physicsThing.Host.ResetState();
+            physicsGates = 0;
+            physicsRunSeconds = 0f;
+            PhysicsSlalom.Beacon(physicsBody.transform.position, ref physicsGates);
+        }
+
+        void ClosePhysics()
+        {
+            if (physicsThing == null) return;
+            physicsThing.Unregister();
+            physicsThing = null;
+            physicsBody = null;
+            CourseBeacon.Clear();
+            if (physicsScene.IsValid() && physicsScene.isLoaded) SceneManager.UnloadSceneAsync(physicsScene);
+        }
+
         void PlaceTruck()
         {
             float y0 = (float)(placement.NextDouble() * 2 - 1) * StartOffset, turn = (float)(placement.NextDouble() * 2 - 1) * StartTurn;
@@ -266,8 +361,8 @@ namespace Forge.Controllers
             TrainingLog.Muted = savedMuted;
         }
 
-        // Left mid-run (scene change, Play stopped): don't leave the notebook muted.
-        void OnDisable() => RestoreTemplateSettings();
+        // Left mid-run (scene change, Play stopped): don't leave the notebook muted or the physics course up.
+        void OnDisable() { RestoreTemplateSettings(); ClosePhysics(); }
 
         // This frame's template work: its pump runs before this Update (DefaultExecutionOrder), so the change in
         // PumpSeconds is this frame's making data, training or saving.
@@ -284,7 +379,7 @@ namespace Forge.Controllers
             // Re-assigning a JObject that's already in the tree would store a copy, so only add a new one.
             if (!(stages[Key(Current)] is JObject result)) stages[Key(Current)] = result = new JObject();
             // Only the training stage's work runs inside this kit's own timer; the template trains in TemplateRun's pump.
-            Summarise(result, Current == Stage.Training);
+            Summarise(result, Current == Stage.Training || Current == Stage.Physics);
             switch (Current)
             {
                 case Stage.Training:
@@ -301,6 +396,17 @@ namespace Forge.Controllers
                     result["ticks"] = ticks;
                     result["tick_us_mean"] = Round(ticks > 0 ? tickTotalUs / ticks : 0);
                     result["tick_us_max"] = Round(tickMaxUs);
+                    Begin(Stage.Physics);
+                    return;
+                case Stage.Physics:
+                    result["drove"] = physicsDrove;
+                    result["failed_runs"] = physicsFailed;
+                    if (physicsFailures.Length > 0) result["before_that"] = physicsFailures;
+                    result["steps"] = physicsTicks;
+                    result["step_us_mean"] = Round(physicsTicks > 0 ? physicsTotalUs / physicsTicks : 0);
+                    result["step_us_max"] = Round(physicsMaxUs);
+                    result["max_steps_in_a_frame"] = physicsMaxStepsInFrame;
+                    ClosePhysics();
                     Begin(Stage.Template);
                     return;
                 case Stage.Template:
@@ -420,6 +526,11 @@ namespace Forge.Controllers
             }
             if (st["autopilot_driving"] is JObject d)
                 s.Append($"Autopilot driving: {d["drove"]} drove it{((int)d["failed_runs"] > 0 ? $" (before that {d["before_that"]})" : "")}; a tick takes {d["tick_us_mean"]} µs (max {d["tick_us_max"]})\n");
+            if (st["physics_truck"] is JObject p)
+            {
+                s.Append($"Physics truck: {p["drove"]} drove it{((int)p["failed_runs"] > 0 ? $" (before that {p["before_that"]})" : "")}; a physics step ({p["rays"]} sphere casts + the net) takes {p["step_us_mean"]} µs (max {p["step_us_max"]}), every {p["fixed_step_ms"]} ms\n");
+                s.Append($"  frame {p["frame_ms_mean"]} ms (p95 {p["frame_ms_p95"]}, max {p["frame_ms_max"]}), {p["slow_frames"]} slow{Bytes(p)}\n");
+            }
             if (st["ml_template"] is JObject m)
             {
                 s.Append($"ML template: {m["samples"]} samples made in {m["data_frames"]} frames ({m["dataset_ms"]} ms); made, trained and saved in {m["frames"]} frames, {m["seconds"]} s");
@@ -438,7 +549,8 @@ namespace Forge.Controllers
             sb.Append(Current == Stage.Idle ? "> " : "  ").Append("1. idle baseline\n");
             sb.Append(Current == Stage.Training ? "> " : "  ").Append("2. Autopilot training (3 nets)\n");
             sb.Append(Current == Stage.Driving ? "> " : "  ").Append("3. Autopilot driving\n");
-            sb.Append(Current == Stage.Template ? "> " : "  ").Append("4. ML template\n");
+            sb.Append(Current == Stage.Physics ? "> " : "  ").Append("4. physics truck\n");
+            sb.Append(Current == Stage.Template ? "> " : "  ").Append("5. ML template\n");
             return sb.ToString();
         }
 
@@ -449,6 +561,7 @@ namespace Forge.Controllers
             Stage.Idle => "idle",
             Stage.Training => "autopilot_training",
             Stage.Driving => "autopilot_driving",
+            Stage.Physics => "physics_truck",
             Stage.Template => "ml_template",
             _ => "done",
         };

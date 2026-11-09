@@ -46,10 +46,19 @@ namespace Forge.Artifacts
             {
                 if (Live != null)
                 {
-                    if (Live[i] == null) return false;
-                    var b = Live[i].bounds;
-                    b.Expand(radius * 2f);
-                    return b.Contains(world);
+                    var c = Live[i];
+                    if (c == null) return false;
+                    // A touch: the Thing within its radius of the collider's surface. ClosestPoint is exact for
+                    // primitives and convex meshes; the bounds grown by the radius were up to 41% too generous beside
+                    // a cone and counted a clean weave 0.12 m off every cone as 4 hits. A concave mesh has no
+                    // ClosestPoint, so it keeps the bounds.
+                    if (c is MeshCollider mesh && !mesh.convex)
+                    {
+                        var b = c.bounds;
+                        b.Expand(radius * 2f);
+                        return b.Contains(world);
+                    }
+                    return (c.ClosestPoint(world) - world).sqrMagnitude <= radius * radius;
                 }
                 var box = Boxes[i];
                 box.Expand(radius * 2f);
@@ -355,6 +364,9 @@ namespace Forge.Artifacts
 
         void BeginArmed()
         {
+            // A course built this frame isn't in the physics world until the next simulation step, and runs tick in
+            // FixedUpdate before it: hit tests against its colliders would see every cone where it was made.
+            Physics.SyncTransforms();
             RunId = ArtifactRuns.NextId(artifactId);
             Outcome = Reason = StartedAt = null;
             elapsed = 0f;

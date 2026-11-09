@@ -46,8 +46,20 @@ namespace Forge.Artifacts
         string IArtifactThing.ControllerName => ControllerName;
         string IArtifactThing.ControllerKind => ControllerKind;
         int IArtifactThing.ControllerVersion => ControllerVersion;
-        public Vector3 Position => transform.position;
-        public float SpeedMs => speed;
+        /// <summary>
+        /// The body's own speed, for a body that moves in FixedUpdate (a physics truck): runs tick in FixedUpdate, and a
+        /// per-frame position difference reads 0 on every frame without a physics step. Null: measured from the position.
+        /// </summary>
+        public System.Func<float> SpeedSource;
+
+        /// <summary>
+        /// How far above the transform (along its up) the run reads the Thing, metres. 0 for a stand-in whose transform is
+        /// its centre; a body whose transform is at the floor sets its height, or it sits exactly on zones' bottom faces.
+        /// </summary>
+        public float ProbeHeight;
+
+        public Vector3 Position => ProbeHeight == 0f ? transform.position : transform.position + transform.up * ProbeHeight;
+        public float SpeedMs => SpeedSource != null ? SpeedSource() : speed;
         public float Upright => Vector3.Dot(transform.up, Vector3.up);
         public float HeightM => transform.position.y;
         float IArtifactThing.Radius => Radius;

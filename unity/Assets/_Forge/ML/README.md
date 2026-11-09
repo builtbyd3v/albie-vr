@@ -55,7 +55,7 @@ Horizon pills, one palette (right/wrong/warning, train/val, per-class colors).
   scatter points emit their sample id. The sandbox's local `MLVizCardMocks.json`
   exercises all seven kinds with Prev/Next.
 - **ControllerBrain:** the ML B brain-on-the-desk view. It reads the C-19 mock lap fixture (`Mocks/controllers/laps/truck_v2.json`), lays out seven ray sensors plus speed as live input bars, shows steer and throttle outputs, and provides a loss sparkline with hands-friendly Record lap, Train, and Autopilot preview controls. It owns no controller runtime; ML A can replace its fixture source with `ControllerIO`/`brain.training` events without changing the panel layout.
-  Its ML B tool bridge is `Resources/AlbieTools/controller_brain.json`: `brain_record`, `brain_train`, `autopilot_on`, `autopilot_off`, and `brain_status`. These operate the visual preview only; actual controller attachment remains outside this module.
+  Its ML B tool bridge is `Resources/AlbieTools/controller_brain.json`: `brain_record`, `brain_train`, `autopilot_on`, `autopilot_off`, and `brain_status`. When a brain truck is running (`Controllers/Scripts/BrainLoop.cs`, `BrainLoops.Active`: today ML A's `SlalomBrain` in the slalom sandbox) they drive it for real: `brain_record {start: true, laps: 2, then_autopilot: true}` is the whole demo beat in one call ("drive it yourself twice and I'll learn it": 2 hand-driven laps, training, then the Autopilot on the slalom), `start: false` aborts the lap being driven, `autopilot_off` stops the run and gives the truck back to the manual controller, and `brain_status` reports `preview_only: false` with the laps, training progress and who drove. With no brain truck running they operate the panel's visual preview, as before.
 - **RegressionResults:** predicted-versus-actual scatter; selecting a point opens
   a row card with actual, predicted, and residual values. It opens on "Waiting for
   a regression run…" with no points. With the hub live it loads the latest finished
@@ -174,6 +174,32 @@ Simulator > Activate). `MLSandboxBuilder.BuildScene()` rebuilds only the scene.
 9. For XR Simulator, enable **Forge > ML > Use OpenXR Simulator**, restart Play,
    and check Meta XR Simulator's connected-app status. A physical Quest is still
    needed to check Quest performance and controller/hand behavior.
+
+### ML B Quest handoff
+
+`MLSandbox.unity` is the ML B test scene. It contains the Meta `OVRCameraRig`, Interaction SDK
+hands/controllers, a non-exclusive `PointableCanvasModule`, passthrough, and a floor collider.
+When an XR loader is active, the scene requests a 72 FPS target and the Controller Brain panel
+shows a live frame monitor beside training progress. On Quest, manually open the brain panel,
+ray or poke `Record lap`, stop it, start `Train`, watch the loss curve and frame monitor for the
+full ~10 seconds, then ray or poke `Autopilot`. Repeat the flow in the Neural Net Lab and inspect
+headlines, buttons, status text, and chart labels from about 1 m. Editor smoke checks do not
+certify physical hand tracking, text readability, or sustained 72 FPS; those remain **unverified**
+until a headset session is connected.
+
+### ML B editor validation record
+
+Final Unity editor checks passed on 2026-11-06 in `MLSandbox.unity`:
+
+- ML smoke: PASS
+- Autopilot: PASS; learned file matched the trainer, worst difference `0.000029`
+- Hot reload: PASS; PID state preserved through the tunable edit
+- Controller runner: PASS; manual, cruise, and learned-autopilot files all bound
+- Behaviour cloning: PASS; 2/2 manual laps completed
+
+These are editor/code checks only. Quest headset validation is still pending and must be
+performed manually; physical hand tracking, ray/poke interaction, sustained 72 FPS during
+training, and readability at about 1 m are not certified by this record.
 
 Automated Play-mode check (builds the scene/prefabs first):
 `Unity -batchmode -nographics -projectPath <repo>/unity

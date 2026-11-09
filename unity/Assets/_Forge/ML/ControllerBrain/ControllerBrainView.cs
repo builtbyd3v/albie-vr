@@ -5,6 +5,7 @@ using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Forge.Controllers;
 
 namespace Forge.ML
 {
@@ -23,11 +24,15 @@ namespace Forge.ML
 
         RectTransform root;
         TMP_Text modeText, sampleText, lossText, lapText;
+        TMP_Text trainingText;
+        TMP_Text performanceText;
         readonly TMP_Text[] inputValues = new TMP_Text[8];
         readonly Image[] inputBars = new Image[8];
         TMP_Text steerValue, throttleValue;
+        TMP_Text controllerStatus;
+        TMP_InputField maxSpeedInput;
         Image steerBar, throttleBar, trainProgress;
-        BrainSparkline sparkline;
+        MLCurve sparkline;
         readonly List<float> lossHistory = new List<float>();
         readonly List<float[]> samples = new List<float[]>();
         readonly List<float[]> outputs = new List<float[]>();
@@ -37,6 +42,10 @@ namespace Forge.ML
         BrainMode mode;
         JArray laps;
         string[] sensors;
+        int recordedSamples;
+        float fpsClock;
+        int fpsFrames;
+        bool initialized;
 
         enum BrainMode { Ready, Recording, Training, Autopilot }
 
@@ -45,6 +54,8 @@ namespace Forge.ML
 
         void Start()
         {
+            if (initialized) return;
+            initialized = true;
             root = GetComponent<ForgePanel>().Content;
             LoadFixture();
             BuildView();
@@ -54,11 +65,26 @@ namespace Forge.ML
 
         void Update()
         {
+            fpsFrames++;
+            fpsClock += Time.unscaledDeltaTime;
+            if (fpsClock >= 0.5f)
+            {
+                float fps = fpsFrames / Mathf.Max(0.001f, fpsClock);
+                if (performanceText != null) performanceText.text = $"Frame monitor  ·  {fps:0} FPS  ·  Quest target 72";
+                fpsClock = 0; fpsFrames = 0;
+            }
             if (mode == BrainMode.Training) return;
             sampleClock += Time.unscaledDeltaTime;
             if (sampleClock < SampleSeconds) return;
             sampleClock = 0;
             sampleIndex = (sampleIndex + 1) % Mathf.Max(1, samples.Count);
+            if (mode == BrainMode.Recording && samples.Count > 0)
+            {
+                samples.Add((float[])samples[sampleIndex].Clone());
+                outputs.Add((float[])outputs[sampleIndex].Clone());
+                recordedSamples++;
+                if (lapText != null) lapText.text = $"Recording lap  ·  {recordedSamples} samples  ·  ray + poke controls ready";
+            }
             RefreshSample();
         }
 
@@ -98,7 +124,7 @@ namespace Forge.ML
             float rowY = 68;
             for (int i = 0; i < 8; i++)
             {
-                string channel = i < 7 ? "ray_front." + InputChannels[i] : "speed.forward";
+                string channel = i < 7 ? "ray_front." + (sensors != null && i < sensors.Length ? sensors[i] : InputChannels[i]) : "speed.forward";
                 var label = MLUI.Text(root, InputLabels[i] + "\n<size=70%>" + channel + "</size>", 14, rowY, 120, 28, 10);
                 label.color = i == 3 ? MLUI.TextColor : MLUI.Sub;
                 MLUI.Well(root, 138, rowY + 5, width * .48f - 190, 12, 5);
@@ -113,11 +139,19 @@ namespace Forge.ML
             MLUI.Text(root, "The brain turns the sensor snapshot into two bounded controls.", outputX + 14, 66, width * .52f - 28, 30, 11).color = MLUI.Sub;
             steerValue = Output(outputX + 14, 104, "STEER", "steer.angle", MLUI.Train, out steerBar);
             throttleValue = Output(outputX + 14, 164, "THROTTLE", "drive.throttle", MLUI.Good, out throttleBar);
+            MLUI.Caps(root, "CONTROLLER FILE", outputX + 14, 214, 150);
+            MLUI.Text(root, "truck_autopilot  ·  max_speed", outputX + 14, 231, 170, 18, 9).color = MLUI.Sub;
+            maxSpeedInput = MLUI.Input(root, "max_speed", "1.5", outputX + 184, 224, 54, 26);
+            maxSpeedInput.text = "1.5";
+            MLUI.Button(root, "Apply", outputX + 244, 224, 58, 26, ApplyMaxSpeed);
+            controllerStatus = MLUI.Text(root, "ML A hot reload when the Thing runtime is open", outputX + 14, 252, width * .52f - 28, 14, 8.5f);
+            controllerStatus.color = MLUI.Faint;
 
             MLUI.Caps(root, "CONTROLLER TRACE", 2, 270, 180);
             MLUI.Well(root, 0, 292, width, 92, 10);
             var chart = MLUI.Rect("Loss sparkline", root, 12, 314, width - 24, 56).gameObject;
-            chart.AddComponent<CanvasRenderer>(); sparkline = chart.AddComponent<BrainSparkline>();
+            chart.AddComponent<CanvasRenderer>(); sparkline = chart.AddComponent<MLCurve>(); sparkline.externalColor = MLUI.Train;
+            sparkline.SetExternalValues(lossHistory);
             lossText = MLUI.Text(root, "loss  —", 14, 298, 120, 14, 9); lossText.color = MLUI.Sub;
             sampleText = MLUI.Text(root, "sample 0", width - 142, 298, 128, 14, 9); sampleText.alignment = TextAlignmentOptions.Right; sampleText.color = MLUI.Sub;
 
@@ -126,6 +160,8 @@ namespace Forge.ML
             MLUI.Button(root, "Train", 142, buttonY, 112, 30, StartTraining);
             MLUI.Button(root, "Autopilot", 262, buttonY, 132, 30, ToggleAutopilot);
             lapText = MLUI.Text(root, "Mock lap fixture  ·  2 completed laps", 2, 442, width - 4, 16, 10); lapText.color = MLUI.Faint;
+            trainingText = MLUI.Text(root, "Hands only  ·  ray + poke  ·  training takes about 10 s", 2, 456, width - 4, 16, 9); trainingText.color = MLUI.Sub;
+            performanceText = MLUI.Text(root, "Frame monitor  ·  waiting  ·  Quest target 72", 2, 482, width - 4, 16, 8.5f); performanceText.color = MLUI.Faint;
             MLUI.Well(root, 2, 468, width - 4, 6, 3);
             trainProgress = MLUI.Fill(root, 2, 468, 0, 6, MLUI.Train); trainProgress.gameObject.SetActive(false);
         }
@@ -149,7 +185,8 @@ namespace Forge.ML
         {
             if (training != null) return false;
             SetMode(on ? BrainMode.Recording : BrainMode.Ready);
-            if (lapText != null) lapText.text = mode == BrainMode.Recording ? "Recording mock lap 1  ·  samples are entering the ring" : "Mock lap fixture  ·  2 completed laps";
+            if (on) recordedSamples = 0;
+            if (lapText != null) lapText.text = mode == BrainMode.Recording ? "Recording lap  ·  0 samples  ·  ray + poke controls ready" : $"Recorded lap  ·  {recordedSamples} samples  ·  2 completed mock laps";
             return true;
         }
 
@@ -172,18 +209,41 @@ namespace Forge.ML
             {
                 float progress = i / 100f;
                 float loss = Mathf.Lerp(0.18f, 0.006f, progress * progress);
-                lossHistory.Add(loss); sparkline.SetValues(lossHistory); lossText.text = "loss  " + loss.ToString("0.000");
+                lossHistory.Add(loss); sparkline.SetExternalValues(lossHistory); lossText.text = "loss  " + loss.ToString("0.000");
+                if (trainingText != null) trainingText.text = $"Training brain  ·  {Mathf.RoundToInt(progress * 120f)}/120 epochs  ·  {progress * 10.1f:0.0} s  ·  keep hands clear";
                 trainProgress.rectTransform.sizeDelta = new Vector2((root.rect.width - 4) * progress, 6);
                 yield return new WaitForSecondsRealtime(0.1f);
             }
             trainProgress.gameObject.SetActive(false); training = null; SetMode(BrainMode.Ready);
             lapText.text = "Training complete  ·  120 epochs  ·  0.006 loss  ·  ready for Autopilot";
+            if (trainingText != null) trainingText.text = "Hands only  ·  ray + poke  ·  trained brain is ready to preview";
         }
 
         void ToggleAutopilot()
         {
             if (training != null) return;
             SetAutopilotPreview(mode != BrainMode.Autopilot);
+        }
+
+        void ApplyMaxSpeed()
+        {
+            if (maxSpeedInput == null || !float.TryParse(maxSpeedInput.text, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out float value))
+            {
+                if (controllerStatus != null) controllerStatus.text = "Enter a numeric max_speed in m/s";
+                return;
+            }
+            // The running truck, wherever it runs: the Thing runtime, the controllers sandbox or the slalom's brain truck
+            // all register it with ThingHosts. FindAnyObjectByType<ControllersSandbox> only ever found the sandbox scene.
+            var host = ThingHosts.Find(TemplateTools.DefaultThing);
+            string error = host == null ? null : host.SetTunable("max_speed", value);
+            if (error != null)
+            {
+                if (controllerStatus != null) controllerStatus.text = "Hot reload refused  ·  " + error;
+                return;
+            }
+            if (controllerStatus != null)
+                controllerStatus.text = host == null ? $"Preview max_speed  ·  {value:0.0} m/s  ·  no truck running" : $"Hot reloaded  ·  {host.File.Name} max_speed {value:0.0} m/s";
         }
 
         public bool SetAutopilotPreview(bool on)
@@ -202,6 +262,8 @@ namespace Forge.ML
                 ["samples"] = SampleCount,
                 ["sample"] = samples.Count == 0 ? 0 : sampleIndex + 1,
                 ["preview_only"] = true,
+                ["controller"] = "truck_autopilot",
+                ["max_speed_editable"] = true,
                 ["note"] = "The panel is using the C-19 mock lap fixture; controller attachment stays with the runtime owner."
             };
         }
@@ -228,24 +290,4 @@ namespace Forge.ML
         }
     }
 
-    /// <summary>Small allocation-free-after-build line graphic used by the controller view's live trace.</summary>
-    sealed class BrainSparkline : MaskableGraphic
-    {
-        readonly List<float> values = new List<float>();
-        public void SetValues(IList<float> next) { values.Clear(); for (int i = 0; i < next.Count; i++) values.Add(next[i]); SetVerticesDirty(); }
-        protected override void OnPopulateMesh(VertexHelper vh)
-        {
-            vh.Clear(); if (values.Count < 2) return;
-            var r = rectTransform.rect; Color color = MLUI.Train; float max = 0.2f;
-            for (int i = 0; i < values.Count; i++) max = Mathf.Max(max, values[i]);
-            for (int i = 1; i < values.Count; i++)
-            {
-                Vector2 a = new Vector2(r.xMin + r.width * (i - 1) / (values.Count - 1), r.yMin + r.height * (1 - values[i - 1] / max));
-                Vector2 b = new Vector2(r.xMin + r.width * i / (values.Count - 1), r.yMin + r.height * (1 - values[i] / max));
-                Vector2 n = new Vector2(-(b - a).y, (b - a).x).normalized * 1.5f; int start = vh.currentVertCount;
-                vh.AddVert(a - n, color, Vector2.zero); vh.AddVert(a + n, color, Vector2.zero); vh.AddVert(b + n, color, Vector2.zero); vh.AddVert(b - n, color, Vector2.zero);
-                vh.AddTriangle(start, start + 1, start + 2); vh.AddTriangle(start, start + 2, start + 3);
-            }
-        }
-    }
 }

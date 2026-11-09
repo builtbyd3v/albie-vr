@@ -7,7 +7,9 @@ namespace Forge.Artifacts
     /// ArtifactsSandbox only, with the hub off: 1 Stance check (opens with no permissions, sliders change it live),
     /// 2 Slalom (permissions, then says what isn't built yet), 3 a broken artifact (the validator refuses it),
     /// 4 an artifact that doesn't exist, 5 three-body problem (live, with trails), 6 repo city (its own snapshot),
-    /// 7 make repo activity (bundled sample data), 8 launch (a glTF rocket on a timeline), 0 close, 9 forget every approval.
+    /// 7 make repo activity (bundled sample data), 8 launch (a glTF rocket on a timeline), C make the animal cell,
+    /// H make the beating heart, B the brain, P the plant cell, V the eye, N DNA,
+    /// K the double pendulum, O the solar system, 0 close, 9 forget every approval.
     /// </summary>
     public class ArtifactSandboxKeys : MonoBehaviour
     {
@@ -25,6 +27,14 @@ namespace Forge.Artifacts
             if (k.digit6Key.wasPressedThisFrame) host.Open("repo_city");
             if (k.digit7Key.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "repo_activity" });
             if (k.digit8Key.wasPressedThisFrame) host.Open("launch");
+            if (k.cKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "cell" });
+            if (k.hKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "heart" });
+            if (k.bKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "brain" });
+            if (k.pKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "plant_cell" });
+            if (k.vKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "eye" });
+            if (k.nKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "dna" });
+            if (k.kKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "double_pendulum" });
+            if (k.oKey.wasPressedThisFrame) ArtifactTools.Create(new Newtonsoft.Json.Linq.JObject { ["template"] = "solar_system" });
             if (k.digit0Key.wasPressedThisFrame) host.Close();
             if (k.digit9Key.wasPressedThisFrame) ArtifactApprovals.Forget();
         }

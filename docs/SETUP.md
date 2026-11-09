@@ -73,7 +73,7 @@ The VS Code screen bridge and the Forge Albie extension were removed on 2026-11-
 ```sh
 sh "$REPO/run-demo.sh"
 ```
-It stops an old hub on :8000, starts the hub (log: `/tmp/forge-hub.log`), opens the sandbox ML project, and wires up a plugged-in Quest. The hub opens VS Code on `VSCODE_FOLDER` and starts the screen bridge itself.
+It stops an old hub on :8000, starts the hub (log: `/tmp/forge-hub.log`), opens the sandbox ML project, and wires up a plugged-in Quest.
 `run-demo.sh` clears the inherited `CLAUDECODE` / `ANTHROPIC_BASE_URL` (the agent SDK hangs on them), so an agent can run it too.
 Done-check: `curl -s localhost:8000/health` returns JSON with `"ok": true`; its `slack` and `imessage` fields show their state.
 

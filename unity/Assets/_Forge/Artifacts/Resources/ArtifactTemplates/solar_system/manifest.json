@@ -1,0 +1,82 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "solar_system",
+  "title": "Solar system",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "template": "solar_system",
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": null,
+    "thing": null
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 6
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    {
+      "name": "sun_mass",
+      "type": "number",
+      "min": 0.5,
+      "max": 2,
+      "default": 1,
+      "label": "Mass of the Sun (Suns)"
+    },
+    {
+      "name": "kick",
+      "type": "number",
+      "min": 0.7,
+      "max": 1.3,
+      "default": 1,
+      "label": "Planets' starting speed"
+    },
+    {
+      "name": "speed",
+      "type": "number",
+      "min": 0.05,
+      "max": 1,
+      "default": 0.2,
+      "label": "Years per second"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 1,
+      "params": {}
+    }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+    "network": [],
+    "connectors": [],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "none",
+    "things": "none"
+  },
+  "outputs": [
+    {
+      "name": "years",
+      "type": "number",
+      "label": "Years"
+    },
+    {
+      "name": "drift",
+      "type": "number",
+      "unit": "%",
+      "label": "Energy drift"
+    },
+    {
+      "name": "escaped",
+      "type": "integer",
+      "label": "Planets thrown out"
+    }
+  ]
+}

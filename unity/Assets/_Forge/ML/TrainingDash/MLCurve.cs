@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,7 +10,17 @@ namespace Forge.ML
     {
         public MLSession session;
         public bool accuracy;
+        // Optional controller-brain series. TrainingDash keeps using MLSession; ControllerBrainView reuses this
+        // component for its loss trace so both panels share the same world-space curve renderer.
+        IList<float> externalValues;
+        public Color externalColor = MLUI.Train;
+        public bool UsesExternalValues => externalValues != null;
         [Tooltip("Epoch index to mark with a dashed line (the best epoch), -1 for none.")] public int marker = -1;
+        public void SetExternalValues(IList<float> values)
+        {
+            externalValues = values;
+            SetVerticesDirty();
+        }
         const float LineWidth = 1.6f, Marker = 3.2f;
         protected override void OnPopulateMesh(VertexHelper vh)
         {
@@ -20,6 +31,11 @@ namespace Forge.ML
                 float y = r.yMin + r.height * g / 4f;
                 var line = new Color(1, 1, 1, g == 0 ? 0.14f : 0.05f);
                 Quad(vh, new Vector2(r.xMin, y - 0.3f), new Vector2(r.xMax, y + 0.3f), line, line);
+            }
+            if (externalValues != null)
+            {
+                DrawExternal(vh, r);
+                return;
             }
             if (session == null || session.EpochIndex < 1) return;
             float max = 1;
@@ -59,6 +75,26 @@ namespace Forge.ML
                 Quad(vh, last - Vector2.one * Marker, last + Vector2.one * Marker, col, col);
             }
         }
+        void DrawExternal(VertexHelper vh, Rect r)
+        {
+            if (externalValues.Count < 2) return;
+            float max = 0.2f;
+            for (int i = 0; i < externalValues.Count; i++) max = Mathf.Max(max, externalValues[i]);
+            for (int i = 1; i < externalValues.Count; i++)
+            {
+                Vector2 a = ExternalPoint(i - 1, r, max), b = ExternalPoint(i, r, max);
+                Vector2 n = new Vector2(-(b - a).y, (b - a).x).normalized * (LineWidth * 0.5f);
+                int start = vh.currentVertCount;
+                vh.AddVert(a - n, externalColor, Vector2.zero); vh.AddVert(a + n, externalColor, Vector2.zero);
+                vh.AddVert(b + n, externalColor, Vector2.zero); vh.AddVert(b - n, externalColor, Vector2.zero);
+                vh.AddTriangle(start, start + 1, start + 2); vh.AddTriangle(start, start + 2, start + 3);
+            }
+            Vector2 last = ExternalPoint(externalValues.Count - 1, r, max);
+            Quad(vh, last - Vector2.one * Marker, last + Vector2.one * Marker, externalColor, externalColor);
+        }
+        Vector2 ExternalPoint(int i, Rect r, float max) => new Vector2(
+            r.xMin + r.width * i / Mathf.Max(1, externalValues.Count - 1),
+            r.yMin + r.height * (1 - Mathf.Clamp01(externalValues[i] / max)));
         static void Quad(VertexHelper vh, Vector2 min, Vector2 max, Color bottom, Color top)
         {
             int start = vh.currentVertCount;

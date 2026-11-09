@@ -106,6 +106,16 @@ public static class MLSmokeCheck
             Require(brainPrefab != null && brainPrefab.GetComponent<ControllerBrainView>() != null, "Controller brain prefab is generated");
             Require(Resources.Load<GameObject>("MLPanels/VizCard") != null && Resources.Load<GameObject>("MLPanels/RegressionResults") != null
                 && Resources.Load<GameObject>("MLPanels/ControllerBrain") != null, "Runtime Resources prefabs are generated");
+            var brainObject = UnityEngine.Object.Instantiate(brainPrefab);
+            var brainView = brainObject.GetComponent<ControllerBrainView>();
+            brainView.SendMessage("Start", SendMessageOptions.RequireReceiver);
+            var brainCurve = brainObject.GetComponentInChildren<MLCurve>(true);
+            Require(brainCurve != null && brainCurve.UsesExternalValues, "Controller brain reuses TrainingDash/MLCurve for its live loss trace");
+            Require(brainView.SampleCount > 0, "Controller brain loads mock lap samples");
+            Require(Array.Exists(brainObject.GetComponentsInChildren<Button>(true), b => b.GetComponentInChildren<TMPro.TMP_Text>(true)?.text == "Record lap"), "Controller brain exposes Record lap");
+            int beforeRecord = brainView.SampleCount;
+            Require(brainView.SetRecording(true) && brainView.SetRecording(false) && brainView.SampleCount >= beforeRecord, "Controller brain record flow accepts start and stop");
+            UnityEngine.Object.Destroy(brainObject);
             var vizMocks = Resources.Load<TextAsset>("MLVizCardMocks");
             Require(vizMocks != null && Newtonsoft.Json.Linq.JArray.Parse(vizMocks.text).Count == 7, "Seven VizCard mock JSON documents are available");
             var vizObject = UnityEngine.Object.Instantiate(vizPrefab); var viz = vizObject.GetComponent<VizCard>();

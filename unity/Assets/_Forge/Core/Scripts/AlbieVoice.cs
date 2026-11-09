@@ -47,7 +47,13 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
-        "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now.";
+        "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
+        "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
+        "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
+        "'Make me a slalom' or an obstacle course is artifact_create with template slalom, 'a hoop course' is template hoop_course, " +
+        "'what shipped this week' is template repo_activity; never make up positions, and if the result has say, tell the user that. " +
+        "Keep the lab notebook with the notebook_ tools: 'that didn't work' is notebook_mark failed, then ask one question about why; " +
+        "comparing versions, like v1 against v2, is notebook_compare, and speak its say line.";
     const string Brevity =
         " Most important rule: every reply is one or two short sentences, 20 words at most, under eight seconds out " +
         "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give " +
@@ -59,7 +65,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "first; never say it is done without the tool call. Then confirm in one short sentence, under 10 words. A question: " +
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
-    static readonly string[] Keyterms = { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox" };
+    static readonly string[] Keyterms =
+        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook" };
     static readonly Dictionary<string, string> ViewNotes = new Dictionary<string, string>
     {
         ["code"] = "The user switched to the CODE view (the code editor on the main screen).",

@@ -74,7 +74,7 @@ One APK times ML A's on-device work on the headset, so nobody has to rig timers 
 
 1. In Unity: **Forge > Controllers > Build Quest Timing APK** (about 3 min; it switches to Android if it isn't already).
 2. `adb install -r unity/Builds/ControllersTiming.apk`. **It has the same app id as Albie, so it replaces Albie on the headset.** Reinstall `Forge.apk` when you're done.
-3. Open it, put the headset on and keep still for about 10 s. The panel 1 m ahead shows the results, starting with **HOLDS THE FRAME RATE** or **DROPS FRAMES**. A, X, a trigger or a pinch runs it again.
+3. Open it, put the headset on and keep still for about 20 s. The panel 1 m ahead shows the results, starting with **HOLDS THE FRAME RATE** or **DROPS FRAMES**. A, X, a trigger or a pinch runs it again.
 4. To get the numbers off the headset:
    - live: `adb logcat -s Unity | grep QuestTiming`;
    - or the JSON files: `adb pull /sdcard/Android/data/com.UnityTechnologies.com.unity.template.urpblank/files/quest_timing/`.
@@ -85,7 +85,8 @@ What it runs:
 1. 300 idle frames, the baseline.
 2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame (key B).
 3. The Autopilot drives the mock slalom from a hand-placed start (in the Editor, candidate 1 drives it). Each controller tick is timed.
-4. The ML template, as `template_train` runs it: the dataset and training a few ms a frame, then the scoring and saving a step a frame.
+4. The same candidates drive the physics truck (`PhysicsSlalom`: the mock slalom as Unity colliders, in its own physics scene) from the same start, one tick per FixedUpdate, as a Thing does in the app. Each physics step is timed: 7 sphere casts, `course.bearing`, the net, the lap recorder and the move. This is what the in-app brain loop adds over the mock.
+5. The ML template, as `template_train` runs it: the dataset and training a few ms a frame, then the scoring and saving a step a frame.
 
 How to read it:
 - A slow frame took more than 1.5× the refresh interval.
@@ -97,6 +98,7 @@ How to read it:
 |---|---|---|
 | Autopilot training | 3 nets, about 130 frames (1.1 s), 3.97 ms a frame | More frames is fine (a slower CPU does less per 4 ms). Slow frames shouldn't rise above idle. |
 | Autopilot driving | candidate 1 drove it, about 1 µs a tick | The same candidate. A tick well under 1 ms. |
+| Physics truck | candidate 1 drove it in 420 steps (8.4 s); about 21 µs a step (max 0.1 ms), 0 bytes | The same candidate. A step well under 1 ms, and no slow frames beyond idle's. |
 | Template dataset | 3,000 samples in 2 frames (7.8 ms in all) | More frames is fine. Each one stays within the 4 ms budget. |
 | Template, the whole run | 29 frames (data, training, saving), at most 4.1 ms a frame, 0 slow | Like Autopilot training: no frame much over 4 ms, slow frames no higher than idle. |
 
@@ -214,6 +216,8 @@ The host zeroes the actuators before each tick. It also turns NaN into 0, clamps
 ## For input sources (Person 1, Person 3)
 
 Write `ManualInputs.Values[ManualInputs.IndexOf("stick.y")]` (cache the index) each frame, or `ManualInputs.Set(name, value)`. The inputs are `stick.x`, `stick.y`, `stick2.x`, `stick2.y`, `hand.roll`, `voice.throttle` and `voice.steer`, all in [-1, 1]. Only write when your value changes, so you don't overwrite another source.
+
+A Touch controller's thumbstick is one such source until the hands transmitter lands: `QuestStick.Read()` (whichever stick is pushed further; zero with hands or with no `OVRManager`). The brain truck's hand laps write it to `stick.x` and `stick.y`, and `truck_manual` binds `stick.x` to steering (scale -1: the stick's +1 is right, `steer.angle`'s +1 is left).
 
 ## Sandbox
 

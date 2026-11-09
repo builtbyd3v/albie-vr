@@ -42,7 +42,15 @@ namespace Forge.Artifacts
                         case "versions": y += Versions(panel.Content, y, build) + Gap; break;
                         case "slider": y += Slider(panel, y, widget.Value<string>("input"), build) + Gap; break;
                         case "button":
-                            rowX += Pill(panel.Content, y, rowX, widget.Value<string>("label"), widget.Value<string>("id"), build) + 10f;
+                            string id = widget.Value<string>("id");
+                            float width = Pill(panel.Content, y, rowX, widget.Value<string>("label"), () => build.Host.Fire(id), out var pill);
+                            if (rowX > 0f && rowX + width > ContentWidth)
+                            {
+                                y += PillRow + 10f;
+                                rowX = 0f;
+                                pill.anchoredPosition = new Vector2(0f, -y);
+                            }
+                            rowX += width + 10f;
                             break;
                     }
                 }
@@ -126,18 +134,18 @@ namespace Forge.Artifacts
         }
 
         /// <summary>A pill at <paramref name="x"/> along a row. Returns its width.</summary>
-        public static float Pill(RectTransform parent, float y, float x, string label, Action onClick)
+        public static float Pill(RectTransform parent, float y, float x, string label, Action onClick) =>
+            Pill(parent, y, x, label, onClick, out _);
+
+        static float Pill(RectTransform parent, float y, float x, string label, Action onClick, out RectTransform rt)
         {
             var pill = ForgePill.Create(parent, label, () => onClick());
-            var rt = pill.Rect;
+            rt = pill.Rect;
             rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
             rt.pivot = new Vector2(0f, 1f);
             rt.anchoredPosition = new Vector2(x, -y);
             return rt.sizeDelta.x;
         }
-
-        static float Pill(RectTransform parent, float y, float x, string label, string id, ArtifactBuild build) =>
-            Pill(parent, y, x, label, () => build.Host.Fire(id));
 
         static float Slider(ForgePanel panel, float y, string input, ArtifactBuild build)
         {

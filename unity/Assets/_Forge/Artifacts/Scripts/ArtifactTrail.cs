@@ -4,8 +4,9 @@ using UnityEngine;
 namespace Forge.Artifacts
 {
     /// <summary>
-    /// A <c>line</c> node: fixed <c>points</c>, or with <c>follow</c> a fading trail behind another node. The trail is a
-    /// preallocated ring, so it costs nothing to the garbage collector however long it runs.
+    /// A <c>line</c> node: fixed <c>points</c>, with <c>follow</c> a fading trail behind another node, or with <c>through</c>
+    /// a line joining other nodes as they move (the rods of a pendulum). The trail is a preallocated ring and the joined
+    /// points a preallocated array, so neither costs the garbage collector anything however long it runs.
     /// </summary>
     public sealed class ArtifactTrail : MonoBehaviour
     {
@@ -13,6 +14,8 @@ namespace Forge.Artifacts
 
         LineRenderer line;
         Transform target;
+        Transform[] through;
+        Vector3[] joined;
         Vector3[] ring, ordered;
         int head, filled;
         float width, shownScale;
@@ -45,6 +48,18 @@ namespace Forge.Artifacts
                 build.AddTrail(trail);
                 build.AfterBuild(() => trail.target = build.Nodes[follow].transform);
             }
+            else if (n["through"] is JArray ids)
+            {
+                line.startColor = line.endColor = color;
+                line.positionCount = ids.Count;
+                trail.joined = new Vector3[ids.Count];
+                build.AfterBuild(() =>
+                {
+                    trail.through = new Transform[ids.Count];
+                    for (int i = 0; i < ids.Count; i++) trail.through[i] = build.Nodes[(string)ids[i]].transform;
+                    trail.Join();
+                });
+            }
             else if (n.Value<string>("source") is string slot && build.Slots.TryGetValue(slot, out var poses))
             {
                 // Through a generator slot's positions, such as the gates of a slalom: the line to drive.
@@ -71,6 +86,13 @@ namespace Forge.Artifacts
             return gradient;
         }
 
+        // After the sim has moved its bodies this frame (sims run in Update, lines in LateUpdate).
+        void Join()
+        {
+            for (int i = 0; i < through.Length; i++) joined[i] = through[i].localPosition;
+            line.SetPositions(joined);
+        }
+
         public void Clear()
         {
             head = filled = 0;
@@ -85,6 +107,11 @@ namespace Forge.Artifacts
             {
                 shownScale = scale;
                 line.widthMultiplier = width * scale;
+            }
+            if (through != null)
+            {
+                Join();
+                return;
             }
             if (target == null || ring == null) return;
 

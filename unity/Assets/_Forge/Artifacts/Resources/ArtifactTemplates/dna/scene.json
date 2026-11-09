@@ -1,0 +1,890 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+    "radius": 0.3
+  },
+  "generators": [],
+  "nodes": [
+    {
+      "id": "dna",
+      "kind": "gltf",
+      "asset": "assets/dna.glb",
+      "pos": [
+        0,
+        -0.2,
+        0
+      ],
+      "rot": [
+        0,
+        180,
+        0
+      ],
+      "scale": [
+        1.3,
+        1.3,
+        1.3
+      ]
+    },
+    {
+      "id": "label_backbone",
+      "kind": "text",
+      "text": "Backbone\n<size=70%>sugar and phosphate, the sides of the ladder</size>",
+      "pos": [
+        -0.17,
+        0.14,
+        -0.07
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_backbone",
+      "kind": "line",
+      "points": [
+        [
+          -0.105,
+          0.1356,
+          -0.07
+        ],
+        [
+          -0.04,
+          0.1605,
+          -0.0352
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_base",
+      "kind": "text",
+      "text": "Base\n<size=70%>A, T, G or C: one letter of the code</size>",
+      "pos": [
+        -0.17,
+        0.06,
+        -0.07
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_base",
+      "kind": "line",
+      "points": [
+        [
+          -0.105,
+          0.0556,
+          -0.07
+        ],
+        [
+          -0.0242,
+          0.132,
+          -0.003
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pair",
+      "kind": "text",
+      "text": "Base pair\n<size=70%>A always pairs with T, and G with C</size>",
+      "pos": [
+        -0.17,
+        -0.02,
+        -0.07
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_pair",
+      "kind": "line",
+      "points": [
+        [
+          -0.105,
+          -0.0244,
+          -0.07
+        ],
+        [
+          -0.0224,
+          0.0011,
+          -0.0014
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_bonds",
+      "kind": "text",
+      "text": "Hydrogen bonds\n<size=70%>weak links that hold each pair together</size>",
+      "pos": [
+        0.17,
+        0.14,
+        -0.07
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_bonds",
+      "kind": "line",
+      "points": [
+        [
+          0.105,
+          0.1356,
+          -0.07
+        ],
+        [
+          0,
+          0.1312,
+          -0.0064
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_strand2",
+      "kind": "text",
+      "text": "Second strand\n<size=70%>runs the opposite way to the first</size>",
+      "pos": [
+        0.17,
+        0.06,
+        -0.07
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_strand2",
+      "kind": "line",
+      "points": [
+        [
+          0.105,
+          0.0556,
+          -0.07
+        ],
+        [
+          0.0364,
+          0.1171,
+          -0.0356
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "explain",
+      "kind": "timeline",
+      "duration_s": 10,
+      "loop": false,
+      "autoplay": false
+    },
+    {
+      "id": "step_1",
+      "kind": "text",
+      "text": "1  Two strands twist around each other: a double helix",
+      "pos": [
+        0,
+        0.25,
+        -0.07
+      ],
+      "height": 0.009349999999999999,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_2",
+      "kind": "text",
+      "text": "2  Each rung is a base pair: A with T, and G with C",
+      "pos": [
+        0,
+        0.25,
+        -0.07
+      ],
+      "height": 0.009349999999999999,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_3",
+      "kind": "text",
+      "text": "3  Hydrogen bonds are weak, so the strands can unzip to be copied",
+      "pos": [
+        0,
+        0.25,
+        -0.07
+      ],
+      "height": 0.009349999999999999,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_4",
+      "kind": "text",
+      "text": "4  The order of the bases is the code: about 3 billion pairs in one human genome",
+      "pos": [
+        0,
+        0.25,
+        -0.07
+      ],
+      "height": 0.009349999999999999,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "spot",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.04,
+        0.1605,
+        -0.0482
+      ],
+      "size": [
+        0.016,
+        0.016,
+        0.016
+      ],
+      "color": "#FFE66D",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "spin",
+      "kind": "timeline",
+      "duration_s": 12,
+      "loop": true,
+      "autoplay": false
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "DNA double helix",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "A short piece of DNA, many millions of times life size. A real double helix is 2 nanometres wide and makes one full turn about every 10 base pairs."
+        },
+        {
+          "type": "button",
+          "id": "explain",
+          "label": "Explain it"
+        },
+        {
+          "type": "button",
+          "id": "spin_on",
+          "label": "Spin it"
+        },
+        {
+          "type": "button",
+          "id": "spin_off",
+          "label": "Stop spinning"
+        },
+        {
+          "type": "button",
+          "id": "labels_on",
+          "label": "Show labels"
+        },
+        {
+          "type": "button",
+          "id": "labels_off",
+          "label": "Hide labels"
+        },
+        {
+          "type": "note",
+          "text": "Model: Grab3D, CC0."
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "on_input",
+      "input": "explain",
+      "do": [
+        {
+          "timeline": "spin",
+          "action": "restart"
+        },
+        {
+          "timeline": "spin",
+          "action": "pause"
+        },
+        {
+          "set": "label_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "leader_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "label_base.visible",
+          "value": true
+        },
+        {
+          "set": "leader_base.visible",
+          "value": true
+        },
+        {
+          "set": "label_pair.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pair.visible",
+          "value": true
+        },
+        {
+          "set": "label_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "leader_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "label_strand2.visible",
+          "value": true
+        },
+        {
+          "set": "leader_strand2.visible",
+          "value": true
+        },
+        {
+          "timeline": "explain",
+          "action": "restart"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "spin_on",
+      "do": [
+        {
+          "set": "label_backbone.visible",
+          "value": false
+        },
+        {
+          "set": "leader_backbone.visible",
+          "value": false
+        },
+        {
+          "set": "label_base.visible",
+          "value": false
+        },
+        {
+          "set": "leader_base.visible",
+          "value": false
+        },
+        {
+          "set": "label_pair.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pair.visible",
+          "value": false
+        },
+        {
+          "set": "label_bonds.visible",
+          "value": false
+        },
+        {
+          "set": "leader_bonds.visible",
+          "value": false
+        },
+        {
+          "set": "label_strand2.visible",
+          "value": false
+        },
+        {
+          "set": "leader_strand2.visible",
+          "value": false
+        },
+        {
+          "timeline": "spin",
+          "action": "play"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "spin_off",
+      "do": [
+        {
+          "timeline": "spin",
+          "action": "restart"
+        },
+        {
+          "timeline": "spin",
+          "action": "pause"
+        },
+        {
+          "set": "label_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "leader_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "label_base.visible",
+          "value": true
+        },
+        {
+          "set": "leader_base.visible",
+          "value": true
+        },
+        {
+          "set": "label_pair.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pair.visible",
+          "value": true
+        },
+        {
+          "set": "label_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "leader_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "label_strand2.visible",
+          "value": true
+        },
+        {
+          "set": "leader_strand2.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_on",
+      "do": [
+        {
+          "set": "label_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "leader_backbone.visible",
+          "value": true
+        },
+        {
+          "set": "label_base.visible",
+          "value": true
+        },
+        {
+          "set": "leader_base.visible",
+          "value": true
+        },
+        {
+          "set": "label_pair.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pair.visible",
+          "value": true
+        },
+        {
+          "set": "label_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "leader_bonds.visible",
+          "value": true
+        },
+        {
+          "set": "label_strand2.visible",
+          "value": true
+        },
+        {
+          "set": "leader_strand2.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_off",
+      "do": [
+        {
+          "set": "label_backbone.visible",
+          "value": false
+        },
+        {
+          "set": "leader_backbone.visible",
+          "value": false
+        },
+        {
+          "set": "label_base.visible",
+          "value": false
+        },
+        {
+          "set": "leader_base.visible",
+          "value": false
+        },
+        {
+          "set": "label_pair.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pair.visible",
+          "value": false
+        },
+        {
+          "set": "label_bonds.visible",
+          "value": false
+        },
+        {
+          "set": "leader_bonds.visible",
+          "value": false
+        },
+        {
+          "set": "label_strand2.visible",
+          "value": false
+        },
+        {
+          "set": "leader_strand2.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_1",
+      "property": "visible",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          2.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2.5,
+          true
+        ],
+        [
+          5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5,
+          true
+        ],
+        [
+          7.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.5,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_backbone",
+      "property": "color",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          2.49,
+          "#FFE66D"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_strand2",
+      "property": "color",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          2.49,
+          "#FFE66D"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_base",
+      "property": "color",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_pair",
+      "property": "color",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_bonds",
+      "property": "color",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "spot",
+      "property": "visible",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          7.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "spot",
+      "property": "pos",
+      "timeline": "explain",
+      "keys": [
+        [
+          0,
+          [
+            -0.04,
+            0.1605,
+            -0.0482
+          ]
+        ],
+        [
+          2.3,
+          [
+            -0.04,
+            0.1605,
+            -0.0482
+          ]
+        ],
+        [
+          2.5,
+          [
+            -0.0224,
+            0.0011,
+            -0.0144
+          ]
+        ],
+        [
+          5,
+          [
+            -0.0224,
+            0.0011,
+            -0.0144
+          ]
+        ],
+        [
+          5.3,
+          [
+            0,
+            0.1312,
+            -0.0194
+          ]
+        ],
+        [
+          7.5,
+          [
+            0,
+            0.1312,
+            -0.0194
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "dna",
+      "property": "rot",
+      "timeline": "spin",
+      "keys": [
+        [
+          0,
+          [
+            0,
+            180,
+            0
+          ]
+        ],
+        [
+          12,
+          [
+            0,
+            540,
+            0
+          ]
+        ]
+      ]
+    }
+  ],
+  "run": null
+}

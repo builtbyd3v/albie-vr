@@ -2549,12 +2549,13 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
     - At first the noise shared the shuffle's random generator. Then even tiny noise changed the training order and made varied laps look 2× worse. That was a lottery effect, not the noise.
   - **The demo no longer needs a "drive the second lap faster" tip.** Still to do: confirm on the Quest and Person 2's real truck.
 
-**ML A Quest timing kit, for the Nov 8 and Nov 14 Quest checks (2026-11-06; built and run in the Editor, not yet on a headset).** One APK times ML A's on-device work on the headset's own frame loop, so the team doesn't rig timers on the day. Build it with **Forge > Controllers > Build Quest Timing APK** (about 3 min). Install it, put the headset on and keep still for about 10 s. The steps and how to get the numbers off are in `Controllers/README.md`, "Timing on a Quest".
+**ML A Quest timing kit, for the Nov 8 and Nov 14 Quest checks (2026-11-06; built and run in the Editor, not yet on a headset).** One APK times ML A's on-device work on the headset's own frame loop, so the team doesn't rig timers on the day. Build it with **Forge > Controllers > Build Quest Timing APK** (about 3 min). Install it, put the headset on and keep still for about 20 s. The steps and how to get the numbers off are in `Controllers/README.md`, "Timing on a Quest".
 - **What it runs, in order:**
   1. 300 idle frames, the baseline.
   2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame, as key B does.
   3. The Autopilot drives the mock slalom from a hand-placed start, with each controller tick timed.
-  4. The ML template, as `template_train` runs it.
+  4. The same candidates drive ML A's physics truck on the slalom as Unity colliders (added 2026-11-07): one tick per physics step, as the app's Thing does, each step timed. A step is 7 sphere casts, `course.bearing`, the net and the move, which is what the in-app brain loop (room slalom, part 3) adds over the mock.
+  5. The ML template, as `template_train` runs it.
 - **What it reports, on a panel 1 m away, in logcat and as JSON:**
   - training ms a frame;
   - frame time (mean, p95, max);
@@ -2565,6 +2566,7 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Editor numbers to compare with (M4 Pro):**
   - Autopilot training: 3 nets in about 130 frames (1.1 s), at 3.97 ms a frame (max 4.2).
   - Autopilot driving: candidate 1 drove it; a tick takes about 1 µs.
+  - Physics truck: candidate 1 drove it in 420 steps (8.4 s at 50 Hz); a step takes about 21 µs (max about 0.1 ms), 0 bytes allocated.
   - ML template: 3,000 samples made in about 15 ms; trained in 36 frames.
 - **One thing to watch on the Quest: making the template's dataset happened in one frame.** It took about 15 ms in the Editor, already more than a 72 Hz frame (13.9 ms), and maybe 40-60 ms on the Quest. **Fixed:** see "ML A template without a stutter" below.
 - **The kit's APK has the same app id as Albie** (Project Settings, which ML A doesn't change). Installing it replaces Albie on the headset: reinstall `Forge.apk` afterwards.
@@ -2686,6 +2688,31 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
 - **Regenerated for Nandani's brain view:** the mock laps and mock autopilot now have 9 inputs (`course.bearing` last). The mock autopilot is now the first seed that finishes the corridor at `max_speed` 1.5 and 1.0, and faster at 1.5.
 - **Asked of Person 2 and the Core owner:** accept `course.bearing` (C-19 2.1). The Thing runtime fills it from `CourseBeacon.Bearing` each step (`Controllers/README.md`, "For the Thing runtime").
 - **Still to do:** the fallback in tight rooms (the living room, the hallway), and the real truck in a real room.
+
+**ML A / Person 5 room slalom, part 3: the brain beat in the app (2026-11-06, Editor Play mode, physics truck).** This is the loop from parts 1 and 2 with the real pieces: the slalom artifact's scored runs, its cone colliders, the run engine's `course.bearing`, the notebook, and the mock rooms' walls and furniture as colliders. The truck's body is still ML A's physics example, not Person 2's Thing runtime.
+- **In the slalom sandbox** (`SlalomBrain`): 2 makes a slalom, then B for the brain truck. L is a lap by hand (WASD), K a scripted lap, T trains 3 candidates, P runs the Autopilot on scored runs.
+- **`SlalomBrainCheck`, every mock room in Play mode: PASS.**
+  - All 6 rooms that fit a course opened one. The other 4 refused, the same rooms as the Editor checks.
+  - 12/12 scripted laps completed as scored runs, with 0 cones hit.
+  - Candidate 1 drove all 6 rooms on a scored run, and the truck parked after each.
+  - The bearing pointed at the next gate while running in 6/6, and cleared after.
+  - Each room got a notebook training entry with 3 candidates.
+  - Hand laps crashed into a cone and into a wall: the lap was recorded as a crash and the run ended.
+- **Found on the way, fixed in the run engine (Person 5):**
+  - **Cone hits:** a hit used the collider's bounds grown by the truck's radius. That's 41% too wide on the diagonal, so a lap 0.12 m clear of every cone scored 4 hits. It now uses the distance to the collider's surface.
+  - **A course built the same frame as a run:** it wasn't in the physics world yet, so it scored every cone hit at once and crashed the truck at the start. Arming now syncs physics.
+  - **Top speed read 0** for a body that moves in FixedUpdate (`ArtifactThing.SpeedSource`).
+  - **The truck's scored point sat exactly on the gate zones' bottom face** (`ArtifactThing.ProbeHeight`).
+  - The scripted driver now steps once per physics step, as on the mock.
+- **Next:** the same loop on the Quest, and on Person 2's Thing runtime once it lands.
+
+**ML A: the brain beat by voice (2026-11-08, Editor Play mode, physics truck).** Before this, ML B's voice tools (`ML/Resources/AlbieTools/controller_brain.json`) only animated the brain panel's preview, so "drive it yourself twice, and I'll learn it" (15.6 step 8) didn't reach the truck.
+- **The tools now drive the running brain loop** (`Controllers/Scripts/BrainLoop.cs`: `IBrainLoop`, `BrainLoops.Active`; `SlalomBrain` implements it). With no brain truck running, they fall back to the panel preview, as before. The tool names are unchanged.
+- **For Person 3's agent prompt, the beat is one call:** `brain_record {start: true, laps: 2, then_autopilot: true}`. It records 2 completed laps driven by hand (a crashed lap restarts at the start), trains the 3 candidates, then runs the Autopilot on scored runs, with no further call. `brain_status` reports the mode, laps to go and who drove; `brain_record {start: false}` aborts the lap; `autopilot_off` stops the run and hands the truck back to the manual controller.
+- **`SlalomBrainCheck`: PASS**, with 5 new voice steps. The one call went lap > training > autopilot, 2 laps, 1 training entry, and candidate 1 completed the slalom. Stop mid-lap kept the completed laps. Autopilot off recorded the run as aborted and restored `truck_manual`. With no truck, the tools answered from the panel.
+  - The check drives its laps with the scripted driver (`SlalomBrain.ScriptedLaps`, check only; no tool sets it). By voice, the laps are always the person's.
+- **Hand laps on a headset (2026-11-08, same check: PASS).** A Touch controller's thumbstick drives a lap (`Controllers/Scripts/QuestStick.cs`): forward drives, at the same top speed as the keys (0.8 m/s, so the laps train the same), and sideways steers (`truck_manual` gained a `stick.x` binding). The lap's keys and stick now write only when they change, as the input-source rule says, so the hands transmitter (Person 1) can drive a lap too. Checked: full stick into a cone (a crash, 0.61 m/s top), stick right turned the truck 61° right in 1 s, and another writer holding half throttle drove the lap (0.21 m/s). Before this, that writer was overwritten with 0 every frame.
+- **Still open for the brain beat on a Quest:** the brain truck lives only in `SlalomSandbox` (the Editor sandbox), and the APK builds `Main.unity`. It needs its prefab placed in `Main.unity` by the Core owner, or a test APK of the slalom sandbox, as the timing kit does.
 
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.

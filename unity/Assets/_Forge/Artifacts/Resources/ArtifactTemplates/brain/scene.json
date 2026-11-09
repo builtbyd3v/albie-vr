@@ -1,0 +1,991 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+    "radius": 0.3
+  },
+  "generators": [],
+  "nodes": [
+    {
+      "id": "brain",
+      "kind": "gltf",
+      "asset": "assets/brain.glb",
+      "pos": [
+        0,
+        -0.16,
+        0
+      ],
+      "rot": [
+        0,
+        270,
+        0
+      ],
+      "scale": [
+        1.5,
+        1.5,
+        1.5
+      ]
+    },
+    {
+      "id": "label_frontal",
+      "kind": "text",
+      "text": "Frontal lobe\n<size=70%>planning, decisions and movement</size>",
+      "pos": [
+        -0.22,
+        0.06,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_frontal",
+      "kind": "line",
+      "points": [
+        [
+          -0.155,
+          0.0552,
+          -0.12
+        ],
+        [
+          -0.085,
+          0.008,
+          -0.066
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_folds",
+      "kind": "text",
+      "text": "Gyri and sulci\n<size=70%>folds and grooves that pack in more cortex</size>",
+      "pos": [
+        -0.22,
+        0.01,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_folds",
+      "kind": "line",
+      "points": [
+        [
+          -0.155,
+          0.0052,
+          -0.12
+        ],
+        [
+          -0.057,
+          -0.044,
+          -0.087
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_temporal",
+      "kind": "text",
+      "text": "Temporal lobe\n<size=70%>hearing, memory and understanding speech</size>",
+      "pos": [
+        -0.22,
+        -0.04,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_temporal",
+      "kind": "line",
+      "points": [
+        [
+          -0.155,
+          -0.0448,
+          -0.12
+        ],
+        [
+          -0.028,
+          -0.07,
+          -0.085
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_parietal",
+      "kind": "text",
+      "text": "Parietal lobe\n<size=70%>touch, and where your body is in space</size>",
+      "pos": [
+        0.22,
+        0.06,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_parietal",
+      "kind": "line",
+      "points": [
+        [
+          0.155,
+          0.0552,
+          -0.12
+        ],
+        [
+          0.057,
+          0.034,
+          -0.058
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_occipital",
+      "kind": "text",
+      "text": "Occipital lobe\n<size=70%>vision</size>",
+      "pos": [
+        0.22,
+        0.01,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_occipital",
+      "kind": "line",
+      "points": [
+        [
+          0.155,
+          0.0052,
+          -0.12
+        ],
+        [
+          0.113,
+          -0.044,
+          -0.054
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cerebellum",
+      "kind": "text",
+      "text": "Cerebellum\n<size=70%>balance and coordination</size>",
+      "pos": [
+        0.22,
+        -0.04,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_cerebellum",
+      "kind": "line",
+      "points": [
+        [
+          0.155,
+          -0.0448,
+          -0.12
+        ],
+        [
+          0.057,
+          -0.095,
+          -0.079
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_brainstem",
+      "kind": "text",
+      "text": "Brainstem\n<size=70%>breathing and heartbeat; links to the spinal cord</size>",
+      "pos": [
+        0.22,
+        -0.09,
+        -0.12
+      ],
+      "height": 0.012,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_brainstem",
+      "kind": "line",
+      "points": [
+        [
+          0.155,
+          -0.0948,
+          -0.12
+        ],
+        [
+          0.028,
+          -0.147,
+          -0.014
+        ]
+      ],
+      "width": 0.001,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "tour",
+      "kind": "timeline",
+      "duration_s": 12,
+      "loop": false,
+      "autoplay": false
+    },
+    {
+      "id": "step_1",
+      "kind": "text",
+      "text": "1  The frontal lobe plans, decides, and sends the signals that move your body",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_2",
+      "kind": "text",
+      "text": "2  The parietal lobe makes sense of touch and of where your body is",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_3",
+      "kind": "text",
+      "text": "3  The occipital lobe, at the back, turns signals from the eyes into vision",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_4",
+      "kind": "text",
+      "text": "4  The temporal lobe handles hearing, memory and understanding speech",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_5",
+      "kind": "text",
+      "text": "5  The cerebellum keeps you balanced and makes movements smooth",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_6",
+      "kind": "text",
+      "text": "6  The brainstem keeps you breathing and your heart beating",
+      "pos": [
+        0,
+        0.14,
+        -0.12
+      ],
+      "height": 0.0102,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "spot",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.085,
+        0.008,
+        -0.078
+      ],
+      "size": [
+        0.02,
+        0.02,
+        0.02
+      ],
+      "color": "#FFE66D",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "Human brain",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "The left side of a human brain, front to your left. A real adult brain weighs about 1.4 kg and is about 15 cm from front to back."
+        },
+        {
+          "type": "button",
+          "id": "tour",
+          "label": "Tour the lobes"
+        },
+        {
+          "type": "button",
+          "id": "labels_on",
+          "label": "Show labels"
+        },
+        {
+          "type": "button",
+          "id": "labels_off",
+          "label": "Hide labels"
+        },
+        {
+          "type": "note",
+          "text": "Model: Grab3D, CC0."
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "on_input",
+      "input": "tour",
+      "do": [
+        {
+          "set": "label_frontal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_frontal.visible",
+          "value": true
+        },
+        {
+          "set": "label_folds.visible",
+          "value": true
+        },
+        {
+          "set": "leader_folds.visible",
+          "value": true
+        },
+        {
+          "set": "label_temporal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_temporal.visible",
+          "value": true
+        },
+        {
+          "set": "label_parietal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_parietal.visible",
+          "value": true
+        },
+        {
+          "set": "label_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "leader_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "label_cerebellum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cerebellum.visible",
+          "value": true
+        },
+        {
+          "set": "label_brainstem.visible",
+          "value": true
+        },
+        {
+          "set": "leader_brainstem.visible",
+          "value": true
+        },
+        {
+          "timeline": "tour",
+          "action": "restart"
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_on",
+      "do": [
+        {
+          "set": "label_frontal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_frontal.visible",
+          "value": true
+        },
+        {
+          "set": "label_folds.visible",
+          "value": true
+        },
+        {
+          "set": "leader_folds.visible",
+          "value": true
+        },
+        {
+          "set": "label_temporal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_temporal.visible",
+          "value": true
+        },
+        {
+          "set": "label_parietal.visible",
+          "value": true
+        },
+        {
+          "set": "leader_parietal.visible",
+          "value": true
+        },
+        {
+          "set": "label_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "leader_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "label_cerebellum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cerebellum.visible",
+          "value": true
+        },
+        {
+          "set": "label_brainstem.visible",
+          "value": true
+        },
+        {
+          "set": "leader_brainstem.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_off",
+      "do": [
+        {
+          "set": "label_frontal.visible",
+          "value": false
+        },
+        {
+          "set": "leader_frontal.visible",
+          "value": false
+        },
+        {
+          "set": "label_folds.visible",
+          "value": false
+        },
+        {
+          "set": "leader_folds.visible",
+          "value": false
+        },
+        {
+          "set": "label_temporal.visible",
+          "value": false
+        },
+        {
+          "set": "leader_temporal.visible",
+          "value": false
+        },
+        {
+          "set": "label_parietal.visible",
+          "value": false
+        },
+        {
+          "set": "leader_parietal.visible",
+          "value": false
+        },
+        {
+          "set": "label_occipital.visible",
+          "value": false
+        },
+        {
+          "set": "leader_occipital.visible",
+          "value": false
+        },
+        {
+          "set": "label_cerebellum.visible",
+          "value": false
+        },
+        {
+          "set": "leader_cerebellum.visible",
+          "value": false
+        },
+        {
+          "set": "label_brainstem.visible",
+          "value": false
+        },
+        {
+          "set": "leader_brainstem.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_1",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          2,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2,
+          true
+        ],
+        [
+          4,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          4,
+          true
+        ],
+        [
+          6,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          6,
+          true
+        ],
+        [
+          8,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_5",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          8,
+          true
+        ],
+        [
+          10,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_6",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          10,
+          true
+        ],
+        [
+          11.95,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_frontal",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          1.99,
+          "#FFE66D"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_parietal",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ],
+        [
+          2.01,
+          "#FFE66D"
+        ],
+        [
+          3.99,
+          "#FFE66D"
+        ],
+        [
+          4,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_occipital",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          4,
+          "#FFFFFF"
+        ],
+        [
+          4.01,
+          "#FFE66D"
+        ],
+        [
+          5.99,
+          "#FFE66D"
+        ],
+        [
+          6,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_temporal",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          6,
+          "#FFFFFF"
+        ],
+        [
+          6.01,
+          "#FFE66D"
+        ],
+        [
+          7.99,
+          "#FFE66D"
+        ],
+        [
+          8,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_cerebellum",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          8,
+          "#FFFFFF"
+        ],
+        [
+          8.01,
+          "#FFE66D"
+        ],
+        [
+          9.99,
+          "#FFE66D"
+        ],
+        [
+          10,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_brainstem",
+      "property": "color",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          10,
+          "#FFFFFF"
+        ],
+        [
+          10.01,
+          "#FFE66D"
+        ],
+        [
+          11.94,
+          "#FFE66D"
+        ],
+        [
+          11.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "spot",
+      "property": "visible",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          11.95,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "spot",
+      "property": "pos",
+      "timeline": "tour",
+      "keys": [
+        [
+          0,
+          [
+            -0.085,
+            0.008,
+            -0.078
+          ]
+        ],
+        [
+          1.7,
+          [
+            -0.085,
+            0.008,
+            -0.078
+          ]
+        ],
+        [
+          2,
+          [
+            0.057,
+            0.034,
+            -0.07
+          ]
+        ],
+        [
+          3.7,
+          [
+            0.057,
+            0.034,
+            -0.07
+          ]
+        ],
+        [
+          4,
+          [
+            0.113,
+            -0.044,
+            -0.066
+          ]
+        ],
+        [
+          5.7,
+          [
+            0.113,
+            -0.044,
+            -0.066
+          ]
+        ],
+        [
+          6,
+          [
+            -0.028,
+            -0.07,
+            -0.097
+          ]
+        ],
+        [
+          7.7,
+          [
+            -0.028,
+            -0.07,
+            -0.097
+          ]
+        ],
+        [
+          8,
+          [
+            0.057,
+            -0.095,
+            -0.091
+          ]
+        ],
+        [
+          9.7,
+          [
+            0.057,
+            -0.095,
+            -0.091
+          ]
+        ],
+        [
+          10,
+          [
+            0.028,
+            -0.147,
+            -0.044
+          ]
+        ],
+        [
+          11.95,
+          [
+            0.028,
+            -0.147,
+            -0.044
+          ]
+        ]
+      ]
+    }
+  ],
+  "run": null
+}

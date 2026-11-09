@@ -45,6 +45,7 @@ namespace Forge.Artifacts
         static readonly Dictionary<string, Func<IArtifactSolver>> solvers = new Dictionary<string, Func<IArtifactSolver>>
         {
             { "n_body", () => new NBodySolver() },
+            { "pendulum", () => new PendulumSolver() },
         };
 
         public static void Register(string name, Func<IArtifactSolver> create) => solvers[name] = create;
