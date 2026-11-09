@@ -399,8 +399,9 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
 - **Sample data.** When any table is sample data, the host places a "Sample data" label above the scene. `artifact_open` then returns `data: [{name, source, rows, fetched_at, sample, from}]`, and `say` tells the person the data isn't theirs. A snapshot says which day it was saved.
 - **Templates.** `repo_activity` ("what shipped this week?") is commits as a small city. Height is lines changed, colour is the author, and the source is `connector:source_control/list_commits`.
 - **Biology templates (as built, 2026-11-08, host runtime 4).** These add no new kinds and no data tables; they're listed here with the other templates.
-  - `cell` is a labelled animal-cell cross-section built from primitives and lines, with a timeline that follows a protein out of the cell.
-  - `heart` is a bundled CC0 `gltf` heart that beats on a looping timeline, with labelled chambers and vessels and a timeline that traces the blood.
+  - `cell` is a bundled CC0 `gltf` cell cutaway (Grab3D) with labelled organelles and a timeline that follows a protein out of the cell.
+  - `heart` is a bundled CC0 `gltf` heart cutaway (Grab3D) that beats on a looping timeline, with labelled chambers, valves and vessels and a timeline that traces the blood.
+  - Both set `view.radius`. Without it, `Fit()` measures only the renderers present when the scene is built, and a `gltf` that is still loading gives the wrong scale.
   - Both are standalone `viz` artifacts with no permissions. A `button` row in a panel wraps when the next button wouldn't fit.
 
 ## 8. Permissions
