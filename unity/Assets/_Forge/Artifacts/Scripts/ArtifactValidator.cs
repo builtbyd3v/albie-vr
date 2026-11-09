@@ -299,10 +299,32 @@ namespace Forge.Artifacts
                             if (n[flag] != null && n[flag].Type != JTokenType.Boolean) Add("bad_value", path + "." + flag, "true or false");
                         break;
                     case "line":
-                        if (n["points"] == null && n["source"] == null && n["follow"] == null) Add("bad_value", path, "needs points, a source or follow");
+                        if (n["points"] == null && n["source"] == null && n["follow"] == null && n["through"] == null)
+                            Add("bad_value", path, "needs points, a source, follow or through");
                         else Source(n, path);
                         Follow(n, path);
+                        Through(n, path);
                         break;
+                }
+            }
+
+            // A line through nodes reads their local positions each frame, so they have to share its parent too.
+            void Through(JObject n, string path)
+            {
+                if (n["through"] == null) return;
+                if (!(n["through"] is JArray through) || through.Count < 2)
+                {
+                    Add("bad_value", path + ".through", "a list of at least 2 node ids");
+                    return;
+                }
+                if (through.Count > ArtifactSchema.MaxBodies + 1)
+                    Add("too_big", path + ".through", $"{through.Count} is over the limit of {ArtifactSchema.MaxBodies + 1}");
+                for (int i = 0; i < through.Count; i++)
+                {
+                    string id = through[i].Type == JTokenType.String ? (string)through[i] : null;
+                    if (id == null || !nodes.TryGetValue(id, out var target)) Add("unknown_ref", $"{path}.through[{i}]", $"no node \"{through[i]}\"");
+                    else if (target.Value<string>("parent") != n.Value<string>("parent"))
+                        Add("bad_value", $"{path}.through[{i}]", $"a line through nodes needs the same parent as \"{id}\"");
                 }
             }
 
@@ -339,6 +361,14 @@ namespace Forge.Artifacts
                 }
                 if (n["params"] is JObject p && (p["step"]?.Type == JTokenType.Float || p["step"]?.Type == JTokenType.Integer) && p.Value<double>("step") <= 0.0)
                     Add("bad_value", path + ".params.step", "must be above 0");
+                if (solver == "pendulum")
+                {
+                    if (bodies.Count > PendulumSolver.MaxLinks)
+                        Add("too_big", path + ".bodies", $"a pendulum has 1 or {PendulumSolver.MaxLinks} links, not {bodies.Count}");
+                    for (int i = 0; i < bodies.Count; i++)
+                        if ((bodies[i]["length"]?.Type == JTokenType.Float || bodies[i]["length"]?.Type == JTokenType.Integer) && bodies[i].Value<double>("length") <= 0.0)
+                            Add("bad_value", $"{path}.bodies[{i}].length", "must be above 0");
+                }
             }
 
             void Primitive(JObject n, string path)
