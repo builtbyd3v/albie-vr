@@ -1,16 +1,29 @@
 {
   "schema": "albie.scene/1",
   "space": "volume",
+  "view": {
+    "radius": 0.3
+  },
   "generators": [],
   "nodes": [
     {
       "id": "heart",
       "kind": "gltf",
       "asset": "assets/heart.glb",
+      "pos": [
+        0,
+        -0.19,
+        0
+      ],
       "rot": [
         0,
         180,
         0
+      ],
+      "scale": [
+        2,
+        2,
+        2
       ]
     },
     {
@@ -23,10 +36,10 @@
     {
       "id": "label_svc",
       "kind": "text",
-      "text": "Superior vena cava\n<size=70%>brings blood back from the upper body</size>",
+      "text": "Superior vena cava\n<size=70%>brings oxygen-poor blood from the upper body</size>",
       "pos": [
-        -0.2,
-        0.22,
+        -0.13,
+        0.06,
         -0.06
       ],
       "height": 0.011,
@@ -38,17 +51,48 @@
       "kind": "line",
       "points": [
         [
-          -0.13,
-          0.214,
+          -0.055,
+          0.0556,
           -0.06
         ],
         [
-          -0.03,
-          0.18,
-          -0.005
+          -0.044,
+          0.04,
+          -0.0314
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_aortic_valve",
+      "kind": "text",
+      "text": "Aortic valve\n<size=70%>stops blood flowing back into the left ventricle</size>",
+      "pos": [
+        -0.13,
+        0.01,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_aortic_valve",
+      "kind": "line",
+      "points": [
+        [
+          -0.055,
+          0.0056,
+          -0.06
+        ],
+        [
+          -0.016,
+          -0.012,
+          -0.033
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -56,8 +100,8 @@
       "kind": "text",
       "text": "Right atrium\n<size=70%>receives oxygen-poor blood from the body</size>",
       "pos": [
-        -0.2,
-        0.15,
+        -0.13,
+        -0.04,
         -0.06
       ],
       "height": 0.011,
@@ -69,26 +113,26 @@
       "kind": "line",
       "points": [
         [
-          -0.13,
-          0.144,
+          -0.055,
+          -0.0444,
           -0.06
         ],
         [
-          -0.035,
-          0.105,
-          -0.034
+          -0.04,
+          -0.04,
+          -0.0114
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_pulmonary_veins",
+      "id": "label_tricuspid",
       "kind": "text",
-      "text": "Pulmonary veins\n<size=70%>bring oxygen-rich blood from the lungs</size>",
+      "text": "Tricuspid valve\n<size=70%>between the right atrium and right ventricle</size>",
       "pos": [
-        -0.2,
-        0.08,
+        -0.13,
+        -0.09,
         -0.06
       ],
       "height": 0.011,
@@ -96,21 +140,52 @@
       "billboard": true
     },
     {
-      "id": "leader_pulmonary_veins",
+      "id": "leader_tricuspid",
       "kind": "line",
       "points": [
         [
-          -0.13,
-          0.074,
+          -0.055,
+          -0.0944,
           -0.06
         ],
         [
-          -0.075,
-          0.108,
-          0.018
+          -0.036,
+          -0.086,
+          -0.0352
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_septum",
+      "kind": "text",
+      "text": "Septum\n<size=70%>the wall that keeps the two sides apart</size>",
+      "pos": [
+        -0.13,
+        -0.14,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_septum",
+      "kind": "line",
+      "points": [
+        [
+          -0.055,
+          -0.1444,
+          -0.06
+        ],
+        [
+          0,
+          -0.1,
+          -0.049
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -118,8 +193,8 @@
       "kind": "text",
       "text": "Right ventricle\n<size=70%>pumps blood to the lungs</size>",
       "pos": [
-        -0.2,
-        0.01,
+        -0.13,
+        -0.19,
         -0.06
       ],
       "height": 0.011,
@@ -131,17 +206,17 @@
       "kind": "line",
       "points": [
         [
-          -0.13,
-          0.004,
+          -0.055,
+          -0.1944,
           -0.06
         ],
         [
-          0,
-          0.065,
-          -0.072
+          -0.03,
+          -0.12,
+          -0.0164
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -149,8 +224,8 @@
       "kind": "text",
       "text": "Aorta\n<size=70%>carries oxygen-rich blood to the body</size>",
       "pos": [
-        0.2,
-        0.24,
+        0.13,
+        0.08,
         -0.06
       ],
       "height": 0.011,
@@ -162,17 +237,17 @@
       "kind": "line",
       "points": [
         [
-          0.13,
-          0.234,
+          0.055,
+          0.0756,
           -0.06
         ],
         [
-          0.03,
-          0.188,
-          -0.012
+          0,
+          0.05,
+          -0.0224
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -180,8 +255,8 @@
       "kind": "text",
       "text": "Pulmonary artery\n<size=70%>carries oxygen-poor blood to the lungs</size>",
       "pos": [
-        0.2,
-        0.17,
+        0.13,
+        0.035,
         -0.06
       ],
       "height": 0.011,
@@ -193,17 +268,48 @@
       "kind": "line",
       "points": [
         [
-          0.13,
-          0.164,
+          0.055,
+          0.0306,
           -0.06
         ],
         [
-          0.012,
-          0.15,
-          -0.058
+          0.04,
+          -0.004,
+          -0.0346
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pulmonary_veins",
+      "kind": "text",
+      "text": "Pulmonary veins\n<size=70%>bring oxygen-rich blood from the lungs</size>",
+      "pos": [
+        0.13,
+        -0.01,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_pulmonary_veins",
+      "kind": "line",
+      "points": [
+        [
+          0.055,
+          -0.0144,
+          -0.06
+        ],
+        [
+          0.06,
+          -0.02,
+          -0.0336
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -211,8 +317,8 @@
       "kind": "text",
       "text": "Left atrium\n<size=70%>receives oxygen-rich blood from the lungs</size>",
       "pos": [
-        0.2,
-        0.1,
+        0.13,
+        -0.055,
         -0.06
       ],
       "height": 0.011,
@@ -224,26 +330,88 @@
       "kind": "line",
       "points": [
         [
-          0.13,
-          0.094,
+          0.055,
+          -0.0594,
           -0.06
         ],
         [
-          0.06,
-          0.12,
-          -0.028
+          0.04,
+          -0.03,
+          -0.0176
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pulmonary_valve",
+      "kind": "text",
+      "text": "Pulmonary valve\n<size=70%>stops blood flowing back into the right ventricle</size>",
+      "pos": [
+        0.13,
+        -0.1,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_pulmonary_valve",
+      "kind": "line",
+      "points": [
+        [
+          0.055,
+          -0.1044,
+          -0.06
+        ],
+        [
+          0.004,
+          -0.046,
+          -0.0348
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_mitral",
+      "kind": "text",
+      "text": "Mitral valve\n<size=70%>between the left atrium and left ventricle</size>",
+      "pos": [
+        0.13,
+        -0.145,
+        -0.06
+      ],
+      "height": 0.011,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_mitral",
+      "kind": "line",
+      "points": [
+        [
+          0.055,
+          -0.1494,
+          -0.06
+        ],
+        [
+          0.034,
+          -0.07,
+          -0.0322
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
       "id": "label_left_ventricle",
       "kind": "text",
-      "text": "Left ventricle\n<size=70%>pumps blood to the whole body</size>",
+      "text": "Left ventricle\n<size=70%>thickest wall: pumps blood to the whole body</size>",
       "pos": [
-        0.2,
-        0.02,
+        0.13,
+        -0.19,
         -0.06
       ],
       "height": 0.011,
@@ -255,17 +423,17 @@
       "kind": "line",
       "points": [
         [
-          0.13,
-          0.014,
+          0.055,
+          -0.1944,
           -0.06
         ],
         [
-          0.05,
-          0.05,
-          -0.05
+          0.03,
+          -0.12,
+          -0.0178
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -273,14 +441,14 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        -0.03,
-        0.2,
-        -0.085
+        -0.044,
+        0.04,
+        -0.04
       ],
       "size": [
-        0.012,
-        0.012,
-        0.012
+        0.009,
+        0.009,
+        0.009
       ],
       "color": "#3A6FE0",
       "glow": true,
@@ -291,14 +459,14 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        -0.075,
-        0.108,
-        -0.085
+        0.06,
+        -0.02,
+        -0.042
       ],
       "size": [
-        0.012,
-        0.012,
-        0.012
+        0.009,
+        0.009,
+        0.009
       ],
       "color": "#E0303A",
       "glow": true,
@@ -314,13 +482,13 @@
     {
       "id": "step_1",
       "kind": "text",
-      "text": "1  Oxygen-poor blood from the body enters the right atrium",
+      "text": "1  Oxygen-poor blood from the body fills the right atrium",
       "pos": [
         0,
-        0.31,
+        0.14,
         -0.06
       ],
-      "height": 0.012,
+      "height": 0.011,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -328,13 +496,13 @@
     {
       "id": "step_2",
       "kind": "text",
-      "text": "2  The right ventricle pumps it to the lungs",
+      "text": "2  It passes the tricuspid valve, and the right ventricle pumps it to the lungs",
       "pos": [
         0,
-        0.31,
+        0.14,
         -0.06
       ],
-      "height": 0.012,
+      "height": 0.011,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -345,10 +513,10 @@
       "text": "3  Oxygen-rich blood returns from the lungs to the left atrium",
       "pos": [
         0,
-        0.31,
+        0.14,
         -0.06
       ],
-      "height": 0.012,
+      "height": 0.011,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -356,13 +524,13 @@
     {
       "id": "step_4",
       "kind": "text",
-      "text": "4  The left ventricle pumps it through the aorta to the body",
+      "text": "4  It passes the mitral valve, and the left ventricle pumps it into the aorta",
       "pos": [
         0,
-        0.31,
+        0.14,
         -0.06
       ],
-      "height": 0.012,
+      "height": 0.011,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -374,7 +542,7 @@
       "widgets": [
         {
           "type": "note",
-          "text": "An adult heart is about the size of a fist and beats 60 to 100 times a minute at rest. This one beats 72 times a minute."
+          "text": "A heart cut open from the front, so you can see all four chambers and the valves. An adult heart is about the size of a fist and beats 60 to 100 times a minute at rest; this one beats 72."
         },
         {
           "type": "button",
@@ -403,7 +571,7 @@
         },
         {
           "type": "note",
-          "text": "Model: Innerscene, CC0."
+          "text": "Model: Grab3D, CC0."
         }
       ]
     }
@@ -456,6 +624,14 @@
           "value": true
         },
         {
+          "set": "label_aortic_valve.visible",
+          "value": true
+        },
+        {
+          "set": "leader_aortic_valve.visible",
+          "value": true
+        },
+        {
           "set": "label_right_atrium.visible",
           "value": true
         },
@@ -464,11 +640,19 @@
           "value": true
         },
         {
-          "set": "label_pulmonary_veins.visible",
+          "set": "label_tricuspid.visible",
           "value": true
         },
         {
-          "set": "leader_pulmonary_veins.visible",
+          "set": "leader_tricuspid.visible",
+          "value": true
+        },
+        {
+          "set": "label_septum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_septum.visible",
           "value": true
         },
         {
@@ -496,11 +680,35 @@
           "value": true
         },
         {
+          "set": "label_pulmonary_veins.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pulmonary_veins.visible",
+          "value": true
+        },
+        {
           "set": "label_left_atrium.visible",
           "value": true
         },
         {
           "set": "leader_left_atrium.visible",
+          "value": true
+        },
+        {
+          "set": "label_pulmonary_valve.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pulmonary_valve.visible",
+          "value": true
+        },
+        {
+          "set": "label_mitral.visible",
+          "value": true
+        },
+        {
+          "set": "leader_mitral.visible",
           "value": true
         },
         {
@@ -526,6 +734,14 @@
           "value": false
         },
         {
+          "set": "label_aortic_valve.visible",
+          "value": false
+        },
+        {
+          "set": "leader_aortic_valve.visible",
+          "value": false
+        },
+        {
           "set": "label_right_atrium.visible",
           "value": false
         },
@@ -534,11 +750,19 @@
           "value": false
         },
         {
-          "set": "label_pulmonary_veins.visible",
+          "set": "label_tricuspid.visible",
           "value": false
         },
         {
-          "set": "leader_pulmonary_veins.visible",
+          "set": "leader_tricuspid.visible",
+          "value": false
+        },
+        {
+          "set": "label_septum.visible",
+          "value": false
+        },
+        {
+          "set": "leader_septum.visible",
           "value": false
         },
         {
@@ -566,11 +790,35 @@
           "value": false
         },
         {
+          "set": "label_pulmonary_veins.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pulmonary_veins.visible",
+          "value": false
+        },
+        {
           "set": "label_left_atrium.visible",
           "value": false
         },
         {
           "set": "leader_left_atrium.visible",
+          "value": false
+        },
+        {
+          "set": "label_pulmonary_valve.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pulmonary_valve.visible",
+          "value": false
+        },
+        {
+          "set": "label_mitral.visible",
+          "value": false
+        },
+        {
+          "set": "leader_mitral.visible",
           "value": false
         },
         {
@@ -591,27 +839,27 @@
       "keys": [
         [
           0,
-          1
+          2
         ],
         [
           0.1,
-          0.975
+          1.95
         ],
         [
           0.17,
-          1
+          2
         ],
         [
           0.27,
-          0.93
+          1.86
         ],
         [
           0.47,
-          1
+          2
         ],
         [
           0.833,
-          1
+          2
         ]
       ]
     },
@@ -625,39 +873,39 @@
           0,
           [
             0,
-            0,
+            -0.19,
             0
           ]
         ],
         [
           0.1,
           [
-            0.0001,
-            0.0028,
-            -0.0004
+            0,
+            -0.1867,
+            0
           ]
         ],
         [
           0.17,
           [
             0,
-            0,
+            -0.19,
             0
           ]
         ],
         [
           0.27,
           [
-            0.0002,
-            0.0079,
-            -0.001
+            0,
+            -0.1809,
+            0
           ]
         ],
         [
           0.47,
           [
             0,
-            0,
+            -0.19,
             0
           ]
         ],
@@ -665,7 +913,7 @@
           0.833,
           [
             0,
-            0,
+            -0.19,
             0
           ]
         ]
@@ -769,7 +1017,63 @@
     },
     {
       "type": "animate",
+      "target": "label_tricuspid",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
       "target": "label_right_ventricle",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.5,
+          "#FFFFFF"
+        ],
+        [
+          2.51,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_pulmonary_valve",
       "property": "color",
       "timeline": "flow",
       "keys": [
@@ -921,7 +1225,63 @@
     },
     {
       "type": "animate",
+      "target": "label_mitral",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.94,
+          "#FFE66D"
+        ],
+        [
+          9.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
       "target": "label_left_ventricle",
+      "property": "color",
+      "timeline": "flow",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.94,
+          "#FFE66D"
+        ],
+        [
+          9.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_aortic_valve",
       "property": "color",
       "timeline": "flow",
       "keys": [
@@ -1004,41 +1364,57 @@
         [
           0,
           [
-            -0.03,
-            0.2,
-            -0.085
+            -0.044,
+            0.04,
+            -0.04
           ]
         ],
         [
           2.5,
           [
+            -0.04,
+            -0.05,
+            -0.024
+          ]
+        ],
+        [
+          3.2,
+          [
+            -0.036,
+            -0.086,
+            -0.044
+          ]
+        ],
+        [
+          3.9,
+          [
             -0.03,
-            0.105,
-            -0.085
+            -0.126,
+            -0.04
           ]
         ],
         [
-          3.5,
+          4.5,
           [
-            0,
-            0.06,
-            -0.085
+            0.004,
+            -0.046,
+            -0.043
           ]
         ],
         [
-          4.4,
+          4.8,
           [
-            0.012,
-            0.15,
-            -0.085
+            0.04,
+            -0.004,
+            -0.043
           ]
         ],
         [
           5,
           [
-            0.085,
-            0.14,
-            -0.085
+            0.07,
+            0.002,
+            -0.043
           ]
         ]
       ]
@@ -1072,49 +1448,49 @@
         [
           5,
           [
-            -0.075,
-            0.108,
-            -0.085
+            0.06,
+            -0.02,
+            -0.042
           ]
         ],
         [
           7.5,
           [
             0.04,
-            0.115,
-            -0.085
+            -0.04,
+            -0.026
           ]
         ],
         [
-          8.5,
+          8.1,
           [
-            0.045,
-            0.05,
-            -0.085
+            0.034,
+            -0.076,
+            -0.047
           ]
         ],
         [
-          9.2,
-          [
-            0,
-            0.11,
-            -0.085
-          ]
-        ],
-        [
-          9.7,
+          8.7,
           [
             0.03,
-            0.19,
-            -0.085
+            -0.13,
+            -0.029
+          ]
+        ],
+        [
+          9.4,
+          [
+            -0.016,
+            -0.012,
+            -0.041
           ]
         ],
         [
           9.95,
           [
-            -0.008,
-            0.215,
-            -0.085
+            0,
+            0.06,
+            -0.034
           ]
         ]
       ]

@@ -2,1414 +2,22 @@
   "schema": "albie.scene/1",
   "space": "volume",
   "view": {
-    "radius": 0.5
+    "radius": 0.36
   },
   "generators": [],
   "nodes": [
     {
-      "id": "cytoplasm",
-      "kind": "primitive",
-      "shape": "cylinder",
+      "id": "cell",
+      "kind": "gltf",
+      "asset": "assets/cell.glb",
       "pos": [
         0,
-        0,
+        -0.25,
         0
       ],
-      "size": [
-        0.5,
-        0.01,
-        0.5
-      ],
-      "color": "#F6DCCB"
-    },
-    {
-      "id": "membrane",
-      "kind": "line",
-      "points": [
-        [
-          0.25,
-          0.008,
-          0
-        ],
-        [
-          0.249,
-          0.008,
-          0.022
-        ],
-        [
-          0.246,
-          0.008,
-          0.043
-        ],
-        [
-          0.241,
-          0.008,
-          0.065
-        ],
-        [
-          0.235,
-          0.008,
-          0.086
-        ],
-        [
-          0.227,
-          0.008,
-          0.106
-        ],
-        [
-          0.217,
-          0.008,
-          0.125
-        ],
-        [
-          0.205,
-          0.008,
-          0.143
-        ],
-        [
-          0.192,
-          0.008,
-          0.161
-        ],
-        [
-          0.177,
-          0.008,
-          0.177
-        ],
-        [
-          0.161,
-          0.008,
-          0.192
-        ],
-        [
-          0.143,
-          0.008,
-          0.205
-        ],
-        [
-          0.125,
-          0.008,
-          0.217
-        ],
-        [
-          0.106,
-          0.008,
-          0.227
-        ],
-        [
-          0.086,
-          0.008,
-          0.235
-        ],
-        [
-          0.065,
-          0.008,
-          0.241
-        ],
-        [
-          0.043,
-          0.008,
-          0.246
-        ],
-        [
-          0.022,
-          0.008,
-          0.249
-        ],
-        [
-          0,
-          0.008,
-          0.25
-        ],
-        [
-          -0.022,
-          0.008,
-          0.249
-        ],
-        [
-          -0.043,
-          0.008,
-          0.246
-        ],
-        [
-          -0.065,
-          0.008,
-          0.241
-        ],
-        [
-          -0.086,
-          0.008,
-          0.235
-        ],
-        [
-          -0.106,
-          0.008,
-          0.227
-        ],
-        [
-          -0.125,
-          0.008,
-          0.217
-        ],
-        [
-          -0.143,
-          0.008,
-          0.205
-        ],
-        [
-          -0.161,
-          0.008,
-          0.192
-        ],
-        [
-          -0.177,
-          0.008,
-          0.177
-        ],
-        [
-          -0.192,
-          0.008,
-          0.161
-        ],
-        [
-          -0.205,
-          0.008,
-          0.143
-        ],
-        [
-          -0.217,
-          0.008,
-          0.125
-        ],
-        [
-          -0.227,
-          0.008,
-          0.106
-        ],
-        [
-          -0.235,
-          0.008,
-          0.086
-        ],
-        [
-          -0.241,
-          0.008,
-          0.065
-        ],
-        [
-          -0.246,
-          0.008,
-          0.043
-        ],
-        [
-          -0.249,
-          0.008,
-          0.022
-        ],
-        [
-          -0.25,
-          0.008,
-          0
-        ],
-        [
-          -0.249,
-          0.008,
-          -0.022
-        ],
-        [
-          -0.246,
-          0.008,
-          -0.043
-        ],
-        [
-          -0.241,
-          0.008,
-          -0.065
-        ],
-        [
-          -0.235,
-          0.008,
-          -0.086
-        ],
-        [
-          -0.227,
-          0.008,
-          -0.106
-        ],
-        [
-          -0.217,
-          0.008,
-          -0.125
-        ],
-        [
-          -0.205,
-          0.008,
-          -0.143
-        ],
-        [
-          -0.192,
-          0.008,
-          -0.161
-        ],
-        [
-          -0.177,
-          0.008,
-          -0.177
-        ],
-        [
-          -0.161,
-          0.008,
-          -0.192
-        ],
-        [
-          -0.143,
-          0.008,
-          -0.205
-        ],
-        [
-          -0.125,
-          0.008,
-          -0.217
-        ],
-        [
-          -0.106,
-          0.008,
-          -0.227
-        ],
-        [
-          -0.086,
-          0.008,
-          -0.235
-        ],
-        [
-          -0.065,
-          0.008,
-          -0.241
-        ],
-        [
-          -0.043,
-          0.008,
-          -0.246
-        ],
-        [
-          -0.022,
-          0.008,
-          -0.249
-        ],
-        [
-          0,
-          0.008,
-          -0.25
-        ],
-        [
-          0.022,
-          0.008,
-          -0.249
-        ],
-        [
-          0.043,
-          0.008,
-          -0.246
-        ],
-        [
-          0.065,
-          0.008,
-          -0.241
-        ],
-        [
-          0.086,
-          0.008,
-          -0.235
-        ],
-        [
-          0.106,
-          0.008,
-          -0.227
-        ],
-        [
-          0.125,
-          0.008,
-          -0.217
-        ],
-        [
-          0.143,
-          0.008,
-          -0.205
-        ],
-        [
-          0.161,
-          0.008,
-          -0.192
-        ],
-        [
-          0.177,
-          0.008,
-          -0.177
-        ],
-        [
-          0.192,
-          0.008,
-          -0.161
-        ],
-        [
-          0.205,
-          0.008,
-          -0.143
-        ],
-        [
-          0.217,
-          0.008,
-          -0.125
-        ],
-        [
-          0.227,
-          0.008,
-          -0.106
-        ],
-        [
-          0.235,
-          0.008,
-          -0.086
-        ],
-        [
-          0.241,
-          0.008,
-          -0.065
-        ],
-        [
-          0.246,
-          0.008,
-          -0.043
-        ],
-        [
-          0.249,
-          0.008,
-          -0.022
-        ],
-        [
-          0.25,
-          0.008,
-          0
-        ]
-      ],
-      "width": 0.012,
-      "color": "#E07A5F"
-    },
-    {
-      "id": "nucleus",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0,
-        0.03,
-        0
-      ],
-      "size": [
-        0.15,
-        0.06,
-        0.15
-      ],
-      "color": "#6C5B9E"
-    },
-    {
-      "id": "nucleolus",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.015,
-        0.05,
-        -0.01
-      ],
-      "size": [
-        0.05,
-        0.035,
-        0.05
-      ],
-      "color": "#3D2E6B"
-    },
-    {
-      "id": "rough_er_1",
-      "kind": "line",
-      "points": [
-        [
-          0.049,
-          0.012,
-          -0.085
-        ],
-        [
-          0.061,
-          0.012,
-          -0.08
-        ],
-        [
-          0.069,
-          0.012,
-          -0.069
-        ],
-        [
-          0.076,
-          0.012,
-          -0.058
-        ],
-        [
-          0.086,
-          0.012,
-          -0.05
-        ],
-        [
-          0.093,
-          0.012,
-          -0.038
-        ],
-        [
-          0.093,
-          0.012,
-          -0.025
-        ],
-        [
-          0.095,
-          0.012,
-          -0.013
-        ],
-        [
-          0.101,
-          0.012,
-          0
-        ],
-        [
-          0.098,
-          0.012,
-          0.013
-        ],
-        [
-          0.092,
-          0.012,
-          0.025
-        ],
-        [
-          0.09,
-          0.012,
-          0.037
-        ],
-        [
-          0.087,
-          0.012,
-          0.05
-        ],
-        [
-          0.077,
-          0.012,
-          0.059
-        ],
-        [
-          0.067,
-          0.012,
-          0.067
-        ],
-        [
-          0.06,
-          0.012,
-          0.079
-        ],
-        [
-          0.05,
-          0.012,
-          0.087
-        ]
-      ],
-      "width": 0.008,
-      "color": "#4D9DE0"
-    },
-    {
-      "id": "rough_er_2",
-      "kind": "line",
-      "points": [
-        [
-          0.058,
-          0.012,
-          -0.1
-        ],
-        [
-          0.072,
-          0.012,
-          -0.094
-        ],
-        [
-          0.081,
-          0.012,
-          -0.081
-        ],
-        [
-          0.09,
-          0.012,
-          -0.069
-        ],
-        [
-          0.102,
-          0.012,
-          -0.059
-        ],
-        [
-          0.109,
-          0.012,
-          -0.045
-        ],
-        [
-          0.11,
-          0.012,
-          -0.029
-        ],
-        [
-          0.113,
-          0.012,
-          -0.015
-        ],
-        [
-          0.119,
-          0.012,
-          0
-        ],
-        [
-          0.116,
-          0.012,
-          0.015
-        ],
-        [
-          0.109,
-          0.012,
-          0.029
-        ],
-        [
-          0.107,
-          0.012,
-          0.044
-        ],
-        [
-          0.103,
-          0.012,
-          0.059
-        ],
-        [
-          0.092,
-          0.012,
-          0.07
-        ],
-        [
-          0.08,
-          0.012,
-          0.08
-        ],
-        [
-          0.071,
-          0.012,
-          0.093
-        ],
-        [
-          0.059,
-          0.012,
-          0.103
-        ]
-      ],
-      "width": 0.008,
-      "color": "#4D9DE0"
-    },
-    {
-      "id": "rough_er_3",
-      "kind": "line",
-      "points": [
-        [
-          0.067,
-          0.012,
-          -0.116
-        ],
-        [
-          0.083,
-          0.012,
-          -0.109
-        ],
-        [
-          0.094,
-          0.012,
-          -0.094
-        ],
-        [
-          0.104,
-          0.012,
-          -0.08
-        ],
-        [
-          0.117,
-          0.012,
-          -0.068
-        ],
-        [
-          0.126,
-          0.012,
-          -0.052
-        ],
-        [
-          0.127,
-          0.012,
-          -0.034
-        ],
-        [
-          0.131,
-          0.012,
-          -0.017
-        ],
-        [
-          0.137,
-          0.012,
-          0
-        ],
-        [
-          0.134,
-          0.012,
-          0.018
-        ],
-        [
-          0.127,
-          0.012,
-          0.034
-        ],
-        [
-          0.123,
-          0.012,
-          0.051
-        ],
-        [
-          0.119,
-          0.012,
-          0.068
-        ],
-        [
-          0.106,
-          0.012,
-          0.081
-        ],
-        [
-          0.093,
-          0.012,
-          0.093
-        ],
-        [
-          0.082,
-          0.012,
-          0.107
-        ],
-        [
-          0.068,
-          0.012,
-          0.118
-        ]
-      ],
-      "width": 0.008,
-      "color": "#4D9DE0"
-    },
-    {
-      "id": "er_ribosome_1",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.073,
-        0.016,
-        -0.066
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_2",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.096,
-        0.016,
-        -0.021
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_3",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.093,
-        0.016,
-        0.03
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_4",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.066,
-        0.016,
-        0.073
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_5",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.088,
-        0.016,
-        -0.075
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_6",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.114,
-        0.016,
-        -0.021
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_7",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.109,
-        0.016,
-        0.039
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_8",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.075,
-        0.016,
-        0.088
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_9",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.105,
-        0.016,
-        -0.084
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_10",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.132,
-        0.016,
-        -0.02
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_11",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.125,
-        0.016,
-        0.049
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "er_ribosome_12",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.084,
-        0.016,
-        0.105
-      ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "smooth_er_1",
-      "kind": "line",
-      "points": [
-        [
-          -0.08,
-          0.012,
-          0.067
-        ],
-        [
-          -0.093,
-          0.012,
-          0.064
-        ],
-        [
-          -0.09,
-          0.012,
-          0.049
-        ],
-        [
-          -0.09,
-          0.012,
-          0.038
-        ],
-        [
-          -0.104,
-          0.012,
-          0.032
-        ],
-        [
-          -0.109,
-          0.012,
-          0.022
-        ],
-        [
-          -0.099,
-          0.012,
-          0.01
-        ],
-        [
-          -0.1,
-          0.012,
-          0
-        ],
-        [
-          -0.111,
-          0.012,
-          -0.011
-        ],
-        [
-          -0.106,
-          0.012,
-          -0.021
-        ],
-        [
-          -0.093,
-          0.012,
-          -0.029
-        ],
-        [
-          -0.096,
-          0.012,
-          -0.04
-        ],
-        [
-          -0.099,
-          0.012,
-          -0.054
-        ],
-        [
-          -0.086,
-          0.012,
-          -0.059
-        ],
-        [
-          -0.074,
-          0.012,
-          -0.062
-        ]
-      ],
-      "width": 0.008,
-      "color": "#7FC8A9"
-    },
-    {
-      "id": "smooth_er_2",
-      "kind": "line",
-      "points": [
-        [
-          -0.096,
-          0.012,
-          0.08
-        ],
-        [
-          -0.11,
-          0.012,
-          0.075
-        ],
-        [
-          -0.108,
-          0.012,
-          0.059
-        ],
-        [
-          -0.108,
-          0.012,
-          0.046
-        ],
-        [
-          -0.123,
-          0.012,
-          0.038
-        ],
-        [
-          -0.129,
-          0.012,
-          0.026
-        ],
-        [
-          -0.119,
-          0.012,
-          0.012
-        ],
-        [
-          -0.12,
-          0.012,
-          0
-        ],
-        [
-          -0.131,
-          0.012,
-          -0.013
-        ],
-        [
-          -0.126,
-          0.012,
-          -0.025
-        ],
-        [
-          -0.112,
-          0.012,
-          -0.035
-        ],
-        [
-          -0.114,
-          0.012,
-          -0.048
-        ],
-        [
-          -0.117,
-          0.012,
-          -0.064
-        ],
-        [
-          -0.103,
-          0.012,
-          -0.07
-        ],
-        [
-          -0.09,
-          0.012,
-          -0.075
-        ]
-      ],
-      "width": 0.008,
-      "color": "#7FC8A9"
-    },
-    {
-      "id": "golgi_1",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        0.168,
-        0.012,
-        -0.01
-      ],
-      "size": [
-        0.012,
-        0.1,
-        0.008
-      ],
-      "color": "#F2B134",
-      "rot": [
-        90,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "golgi_2",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        0.182,
-        0.012,
-        -0.01
-      ],
-      "size": [
-        0.012,
-        0.088,
-        0.008
-      ],
-      "color": "#F2B134",
-      "rot": [
-        90,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "golgi_3",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        0.196,
-        0.012,
-        -0.01
-      ],
-      "size": [
-        0.012,
-        0.074,
-        0.008
-      ],
-      "color": "#F2B134",
-      "rot": [
-        90,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "golgi_4",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        0.21,
-        0.012,
-        -0.01
-      ],
-      "size": [
-        0.012,
-        0.06,
-        0.008
-      ],
-      "color": "#F2B134",
-      "rot": [
-        90,
-        0,
-        0
-      ]
-    },
-    {
-      "id": "vesicle_1",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.222,
-        0.012,
-        0.05
-      ],
-      "size": [
-        0.016,
-        0.016,
-        0.016
-      ],
-      "color": "#F2B134"
-    },
-    {
-      "id": "vesicle_2",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.205,
-        0.012,
-        -0.075
-      ],
-      "size": [
-        0.014,
-        0.014,
-        0.014
-      ],
-      "color": "#F2B134"
-    },
-    {
-      "id": "mitochondrion_1",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        -0.13,
-        0.016,
-        0.13
-      ],
-      "size": [
-        0.034,
-        0.085,
-        0.03
-      ],
-      "color": "#E4572E",
       "rot": [
         0,
-        45,
-        90
-      ]
-    },
-    {
-      "id": "mitochondrion_2",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        0.06,
-        0.016,
-        0.185
-      ],
-      "size": [
-        0.034,
-        0.085,
-        0.03
-      ],
-      "color": "#E4572E",
-      "rot": [
-        0,
-        -10,
-        90
-      ]
-    },
-    {
-      "id": "mitochondrion_3",
-      "kind": "primitive",
-      "shape": "capsule",
-      "pos": [
-        -0.07,
-        0.016,
-        -0.18
-      ],
-      "size": [
-        0.034,
-        0.085,
-        0.03
-      ],
-      "color": "#E4572E",
-      "rot": [
-        0,
-        20,
-        90
-      ]
-    },
-    {
-      "id": "lysosome_1",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        -0.175,
-        0.016,
-        -0.06
-      ],
-      "size": [
-        0.03,
-        0.03,
-        0.03
-      ],
-      "color": "#B5179E"
-    },
-    {
-      "id": "lysosome_2",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.14,
-        0.016,
-        0.15
-      ],
-      "size": [
-        0.026,
-        0.026,
-        0.026
-      ],
-      "color": "#B5179E"
-    },
-    {
-      "id": "ribosome_1",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        -0.2,
-        0.014,
-        0.06
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "ribosome_2",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        -0.04,
-        0.014,
-        0.21
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "ribosome_3",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.1,
-        0.014,
-        -0.2
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "ribosome_4",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        -0.15,
-        0.014,
-        -0.15
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "ribosome_5",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        0.17,
-        0.014,
-        -0.15
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "ribosome_6",
-      "kind": "primitive",
-      "shape": "sphere",
-      "pos": [
-        -0.21,
-        0.014,
-        -0.02
-      ],
-      "size": [
-        0.009,
-        0.009,
-        0.009
-      ],
-      "color": "#1F3B73"
-    },
-    {
-      "id": "centriole_1",
-      "kind": "primitive",
-      "shape": "cylinder",
-      "pos": [
-        0.05,
-        0.018,
-        -0.125
-      ],
-      "size": [
-        0.012,
-        0.034,
-        0.012
-      ],
-      "color": "#2A9D8F",
-      "rot": [
-        0,
-        0,
-        90
-      ]
-    },
-    {
-      "id": "centriole_2",
-      "kind": "primitive",
-      "shape": "cylinder",
-      "pos": [
-        0.072,
-        0.018,
-        -0.125
-      ],
-      "size": [
-        0.012,
-        0.034,
-        0.012
-      ],
-      "color": "#2A9D8F",
-      "rot": [
-        90,
-        0,
+        180,
         0
       ]
     },
@@ -1418,11 +26,11 @@
       "kind": "text",
       "text": "Mitochondrion\n<size=70%>releases energy as ATP</size>",
       "pos": [
-        -0.42,
-        0.22,
-        0
+        -0.26,
+        0.02,
+        -0.1
       ],
-      "height": 0.018,
+      "height": 0.014,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -1431,296 +39,17 @@
       "kind": "line",
       "points": [
         [
-          -0.3,
-          0.214,
-          0
-        ],
-        [
-          -0.13,
-          0.032,
-          0.13
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_smooth_er",
-      "kind": "text",
-      "text": "Smooth ER\n<size=70%>makes lipids, breaks down toxins</size>",
-      "pos": [
-        -0.42,
-        0.15,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_smooth_er",
-      "kind": "line",
-      "points": [
-        [
-          -0.3,
-          0.144,
-          0
-        ],
-        [
-          -0.13,
-          0.012,
-          0
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_lysosome",
-      "kind": "text",
-      "text": "Lysosome\n<size=70%>digests waste with enzymes</size>",
-      "pos": [
-        -0.42,
-        0.08,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_lysosome",
-      "kind": "line",
-      "points": [
-        [
-          -0.3,
-          0.074,
-          0
-        ],
-        [
           -0.175,
-          0.032,
-          -0.06
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_cytoplasm",
-      "kind": "text",
-      "text": "Cytoplasm\n<size=70%>fluid that fills the cell</size>",
-      "pos": [
-        -0.42,
-        0.01,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_cytoplasm",
-      "kind": "line",
-      "points": [
-        [
-          -0.3,
-          0.004,
-          0
-        ],
-        [
-          -0.12,
-          0.006,
+          0.0144,
           -0.1
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_rough_er",
-      "kind": "text",
-      "text": "Rough ER\n<size=70%>ribosomes build proteins here</size>",
-      "pos": [
-        0.42,
-        0.24,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_rough_er",
-      "kind": "line",
-      "points": [
-        [
-          0.3,
-          0.234,
-          0
         ],
         [
-          0.13,
-          0.012,
-          0.06
+          -0.097,
+          -0.062,
+          -0.107
         ]
       ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_vesicle",
-      "kind": "text",
-      "text": "Vesicle\n<size=70%>carries materials around the cell</size>",
-      "pos": [
-        0.42,
-        0.17,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_vesicle",
-      "kind": "line",
-      "points": [
-        [
-          0.3,
-          0.164,
-          0
-        ],
-        [
-          0.222,
-          0.02,
-          0.05
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_golgi",
-      "kind": "text",
-      "text": "Golgi apparatus\n<size=70%>modifies, sorts and ships proteins</size>",
-      "pos": [
-        0.42,
-        0.1,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_golgi",
-      "kind": "line",
-      "points": [
-        [
-          0.3,
-          0.094,
-          0
-        ],
-        [
-          0.21,
-          0.018,
-          -0.03
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_centrosome",
-      "kind": "text",
-      "text": "Centrosome\n<size=70%>organises microtubules for division</size>",
-      "pos": [
-        0.42,
-        0.03,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_centrosome",
-      "kind": "line",
-      "points": [
-        [
-          0.3,
-          0.024,
-          0
-        ],
-        [
-          0.072,
-          0.024,
-          -0.125
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_ribosome",
-      "kind": "text",
-      "text": "Ribosome\n<size=70%>builds proteins</size>",
-      "pos": [
-        0.42,
-        -0.04,
-        0
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_ribosome",
-      "kind": "line",
-      "points": [
-        [
-          0.3,
-          -0.046,
-          0
-        ],
-        [
-          0.1,
-          0.018,
-          -0.2
-        ]
-      ],
-      "width": 0.002,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_nucleus",
-      "kind": "text",
-      "text": "Nucleus\n<size=70%>holds the DNA</size>",
-      "pos": [
-        -0.1,
-        0.24,
-        0.12
-      ],
-      "height": 0.018,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_nucleus",
-      "kind": "line",
-      "points": [
-        [
-          -0.1,
-          0.216,
-          0.12
-        ],
-        [
-          -0.04,
-          0.055,
-          0.02
-        ]
-      ],
-      "width": 0.002,
+      "width": 0.0012,
       "color": "#D0D4DA"
     },
     {
@@ -1728,11 +57,11 @@
       "kind": "text",
       "text": "Nucleolus\n<size=70%>makes ribosome parts</size>",
       "pos": [
-        0.1,
-        0.28,
-        0.12
+        -0.26,
+        -0.05,
+        -0.1
       ],
-      "height": 0.018,
+      "height": 0.014,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -1741,17 +70,79 @@
       "kind": "line",
       "points": [
         [
-          0.1,
-          0.256,
-          0.12
+          -0.175,
+          -0.0556,
+          -0.1
         ],
         [
-          0.015,
-          0.068,
-          -0.01
+          -0.003,
+          -0.085,
+          -0.057
         ]
       ],
-      "width": 0.002,
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_rough_er",
+      "kind": "text",
+      "text": "Rough ER\n<size=70%>its dots are ribosomes, which build proteins</size>",
+      "pos": [
+        -0.26,
+        -0.12,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_rough_er",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          -0.1256,
+          -0.1
+        ],
+        [
+          -0.038,
+          -0.128,
+          -0.089
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cytoplasm",
+      "kind": "text",
+      "text": "Cytoplasm\n<size=70%>fluid that fills the cell</size>",
+      "pos": [
+        -0.26,
+        -0.19,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_cytoplasm",
+      "kind": "line",
+      "points": [
+        [
+          -0.175,
+          -0.1956,
+          -0.1
+        ],
+        [
+          -0.08,
+          -0.19,
+          -0.098
+        ]
+      ],
+      "width": 0.0012,
       "color": "#D0D4DA"
     },
     {
@@ -1759,11 +150,11 @@
       "kind": "text",
       "text": "Cell membrane\n<size=70%>controls what enters and leaves</size>",
       "pos": [
-        0,
-        0.16,
-        0.3
+        0.26,
+        0.02,
+        -0.1
       ],
-      "height": 0.018,
+      "height": 0.014,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -1772,17 +163,110 @@
       "kind": "line",
       "points": [
         [
-          0,
-          0.136,
-          0.3
+          0.175,
+          0.0144,
+          -0.1
         ],
         [
-          0,
-          0.008,
-          0.25
+          0.12,
+          -0.05,
+          -0.022
         ]
       ],
-      "width": 0.002,
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_lysosome",
+      "kind": "text",
+      "text": "Lysosome\n<size=70%>digests waste with enzymes</size>",
+      "pos": [
+        0.26,
+        -0.05,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_lysosome",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.0556,
+          -0.1
+        ],
+        [
+          0.117,
+          -0.122,
+          -0.057
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_nucleus",
+      "kind": "text",
+      "text": "Nucleus\n<size=70%>holds the DNA</size>",
+      "pos": [
+        0.26,
+        -0.12,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_nucleus",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.1256,
+          -0.1
+        ],
+        [
+          0.035,
+          -0.13,
+          -0.038
+        ]
+      ],
+      "width": 0.0012,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_golgi",
+      "kind": "text",
+      "text": "Golgi apparatus\n<size=70%>modifies, sorts and ships proteins</size>",
+      "pos": [
+        0.26,
+        -0.19,
+        -0.1
+      ],
+      "height": 0.014,
+      "color": "#FFFFFF",
+      "billboard": true
+    },
+    {
+      "id": "leader_golgi",
+      "kind": "line",
+      "points": [
+        [
+          0.175,
+          -0.1956,
+          -0.1
+        ],
+        [
+          0.053,
+          -0.154,
+          -0.099
+        ]
+      ],
+      "width": 0.0012,
       "color": "#D0D4DA"
     },
     {
@@ -1790,17 +274,18 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        0.06,
-        0.05,
-        0
+        0.035,
+        -0.13,
+        -0.046
       ],
       "size": [
-        0.018,
-        0.018,
-        0.018
+        0.008,
+        0.008,
+        0.008
       ],
       "color": "#4D9DE0",
-      "glow": true
+      "glow": true,
+      "visible": false
     },
     {
       "id": "pathway",
@@ -1815,10 +300,10 @@
       "text": "1  The DNA's instructions are copied to mRNA, which leaves the nucleus",
       "pos": [
         0,
-        0.37,
-        0.05
+        0.11,
+        -0.1
       ],
-      "height": 0.016,
+      "height": 0.012,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -1829,10 +314,10 @@
       "text": "2  Ribosomes on the rough ER read the mRNA and build the protein",
       "pos": [
         0,
-        0.37,
-        0.05
+        0.11,
+        -0.1
       ],
-      "height": 0.016,
+      "height": 0.012,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -1843,10 +328,10 @@
       "text": "3  The Golgi apparatus modifies the protein and packs it into a vesicle",
       "pos": [
         0,
-        0.37,
-        0.05
+        0.11,
+        -0.1
       ],
-      "height": 0.016,
+      "height": 0.012,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -1857,10 +342,10 @@
       "text": "4  The vesicle fuses with the membrane and releases the protein",
       "pos": [
         0,
-        0.37,
-        0.05
+        0.11,
+        -0.1
       ],
-      "height": 0.016,
+      "height": 0.012,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -1872,7 +357,7 @@
       "widgets": [
         {
           "type": "note",
-          "text": "A cross-section of a typical animal cell. Not to scale: a real one is about 10 to 30 micrometres across."
+          "text": "A typical animal cell with a wedge cut away. Not to scale: a real one is about 10 to 30 micrometres across."
         },
         {
           "type": "button",
@@ -1888,6 +373,10 @@
           "type": "button",
           "id": "labels_off",
           "label": "Hide labels"
+        },
+        {
+          "type": "note",
+          "text": "Model: Grab3D, CC0."
         }
       ]
     }
@@ -1916,27 +405,11 @@
           "value": true
         },
         {
-          "set": "label_smooth_er.visible",
+          "set": "label_nucleolus.visible",
           "value": true
         },
         {
-          "set": "leader_smooth_er.visible",
-          "value": true
-        },
-        {
-          "set": "label_lysosome.visible",
-          "value": true
-        },
-        {
-          "set": "leader_lysosome.visible",
-          "value": true
-        },
-        {
-          "set": "label_cytoplasm.visible",
-          "value": true
-        },
-        {
-          "set": "leader_cytoplasm.visible",
+          "set": "leader_nucleolus.visible",
           "value": true
         },
         {
@@ -1948,35 +421,27 @@
           "value": true
         },
         {
-          "set": "label_vesicle.visible",
+          "set": "label_cytoplasm.visible",
           "value": true
         },
         {
-          "set": "leader_vesicle.visible",
+          "set": "leader_cytoplasm.visible",
           "value": true
         },
         {
-          "set": "label_golgi.visible",
+          "set": "label_membrane.visible",
           "value": true
         },
         {
-          "set": "leader_golgi.visible",
+          "set": "leader_membrane.visible",
           "value": true
         },
         {
-          "set": "label_centrosome.visible",
+          "set": "label_lysosome.visible",
           "value": true
         },
         {
-          "set": "leader_centrosome.visible",
-          "value": true
-        },
-        {
-          "set": "label_ribosome.visible",
-          "value": true
-        },
-        {
-          "set": "leader_ribosome.visible",
+          "set": "leader_lysosome.visible",
           "value": true
         },
         {
@@ -1988,19 +453,11 @@
           "value": true
         },
         {
-          "set": "label_nucleolus.visible",
+          "set": "label_golgi.visible",
           "value": true
         },
         {
-          "set": "leader_nucleolus.visible",
-          "value": true
-        },
-        {
-          "set": "label_membrane.visible",
-          "value": true
-        },
-        {
-          "set": "leader_membrane.visible",
+          "set": "leader_golgi.visible",
           "value": true
         }
       ]
@@ -2018,27 +475,11 @@
           "value": false
         },
         {
-          "set": "label_smooth_er.visible",
+          "set": "label_nucleolus.visible",
           "value": false
         },
         {
-          "set": "leader_smooth_er.visible",
-          "value": false
-        },
-        {
-          "set": "label_lysosome.visible",
-          "value": false
-        },
-        {
-          "set": "leader_lysosome.visible",
-          "value": false
-        },
-        {
-          "set": "label_cytoplasm.visible",
-          "value": false
-        },
-        {
-          "set": "leader_cytoplasm.visible",
+          "set": "leader_nucleolus.visible",
           "value": false
         },
         {
@@ -2050,35 +491,27 @@
           "value": false
         },
         {
-          "set": "label_vesicle.visible",
+          "set": "label_cytoplasm.visible",
           "value": false
         },
         {
-          "set": "leader_vesicle.visible",
+          "set": "leader_cytoplasm.visible",
           "value": false
         },
         {
-          "set": "label_golgi.visible",
+          "set": "label_membrane.visible",
           "value": false
         },
         {
-          "set": "leader_golgi.visible",
+          "set": "leader_membrane.visible",
           "value": false
         },
         {
-          "set": "label_centrosome.visible",
+          "set": "label_lysosome.visible",
           "value": false
         },
         {
-          "set": "leader_centrosome.visible",
-          "value": false
-        },
-        {
-          "set": "label_ribosome.visible",
-          "value": false
-        },
-        {
-          "set": "leader_ribosome.visible",
+          "set": "leader_lysosome.visible",
           "value": false
         },
         {
@@ -2090,19 +523,11 @@
           "value": false
         },
         {
-          "set": "label_nucleolus.visible",
+          "set": "label_golgi.visible",
           "value": false
         },
         {
-          "set": "leader_nucleolus.visible",
-          "value": false
-        },
-        {
-          "set": "label_membrane.visible",
-          "value": false
-        },
-        {
-          "set": "leader_membrane.visible",
+          "set": "leader_golgi.visible",
           "value": false
         }
       ]
@@ -2129,6 +554,34 @@
     },
     {
       "type": "animate",
+      "target": "label_nucleus",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          1.99,
+          "#FFE66D"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
       "target": "step_2",
       "property": "visible",
       "timeline": "pathway",
@@ -2144,6 +597,34 @@
         [
           5,
           false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_rough_er",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2,
+          "#FFFFFF"
+        ],
+        [
+          2.01,
+          "#FFE66D"
+        ],
+        [
+          4.99,
+          "#FFE66D"
+        ],
+        [
+          5,
+          "#FFFFFF"
         ]
       ]
     },
@@ -2169,6 +650,34 @@
     },
     {
       "type": "animate",
+      "target": "label_golgi",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
       "target": "step_4",
       "property": "visible",
       "timeline": "pathway",
@@ -2184,6 +693,34 @@
         [
           9.9,
           false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_membrane",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.89,
+          "#FFE66D"
+        ],
+        [
+          9.9,
+          "#FFFFFF"
         ]
       ]
     },
@@ -2216,57 +753,57 @@
         [
           0,
           [
-            0.06,
-            0.05,
-            0
+            0.035,
+            -0.13,
+            -0.046
+          ]
+        ],
+        [
+          1.2,
+          [
+            0,
+            -0.135,
+            -0.075
           ]
         ],
         [
           2,
           [
-            0.105,
-            0.025,
-            0.02
-          ]
-        ],
-        [
-          4,
-          [
-            0.125,
-            0.025,
-            0
+            -0.038,
+            -0.128,
+            -0.097
           ]
         ],
         [
           5,
           [
-            0.16,
-            0.025,
-            -0.01
+            -0.03,
+            -0.135,
+            -0.1
           ]
         ],
         [
           7,
           [
-            0.215,
-            0.025,
-            -0.01
+            0.053,
+            -0.154,
+            -0.107
           ]
         ],
         [
           8.5,
           [
-            0.24,
-            0.02,
-            0.02
+            0.09,
+            -0.2,
+            -0.088
           ]
         ],
         [
           9.9,
           [
-            0.3,
-            0.02,
-            0.03
+            0.16,
+            -0.23,
+            -0.06
           ]
         ]
       ]
@@ -2307,11 +844,11 @@
         ],
         [
           7.5,
-          1.4
+          1.5
         ],
         [
           9.5,
-          1.4
+          1.5
         ],
         [
           9.9,

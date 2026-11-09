@@ -10,7 +10,7 @@ using UnityEngine;
 
 /// <summary>
 /// Headless checks for the biology templates, <c>cell</c> and <c>heart</c>: both are valid, buildable, offered by
-/// <c>artifact_list</c> and made by <c>artifact_create</c>; the heart's model is bundled, CC0, and matches its hash; every
+/// <c>artifact_list</c> and made by <c>artifact_create</c>; both models are bundled, CC0, and match their hashes; every
 /// label has a leader and the show and hide buttons cover them all; step captions and moving parts stay hidden until
 /// their button is pressed; the heart beats about its own centre. Forge > Artifacts > Check Biology Templates.
 /// </summary>
@@ -44,7 +44,7 @@ public static class BioTemplatesCheck
         {
             ok &= Check(sb, "both templates are valid and this host builds them", Valid);
             ok &= Check(sb, "artifact_list offers them and artifact_create makes them", Made);
-            ok &= Check(sb, "the heart model is bundled, CC0, and matches its hash", Model);
+            ok &= Check(sb, "both models are bundled, CC0, and match their hashes", Model);
             ok &= Check(sb, "every label has a leader, and Show and Hide labels cover them all", Labels);
             ok &= Check(sb, "captions and moving parts stay hidden until their button starts them", Hidden);
             ok &= Check(sb, "the heart squeezes about its own centre", Beat);
@@ -75,6 +75,12 @@ public static class BioTemplatesCheck
     {
         ArtifactLibrary.TryTemplate(template, out _, out var scene);
         return scene;
+    }
+
+    static JObject Node(JObject scene, string id)
+    {
+        foreach (JObject n in (JArray)scene["nodes"]) if ((string)n["id"] == id) return n;
+        return null;
     }
 
     static string Valid(out string note)
@@ -132,17 +138,22 @@ public static class BioTemplatesCheck
     static string Model(out string note)
     {
         note = null;
-        var p = ArtifactPackage.Load("heart", out string error);
-        if (p == null) return error;
-        var asset = (JObject)p.Manifest["assets"][0];
-        if ((string)asset["license"] != "CC0") return "license " + asset["license"];
-        byte[] bytes = p.ReadAsset((string)asset["path"], out string why);
-        if (bytes == null) return why;
-        if (bytes.Length > ArtifactSchema.MaxAssetBytes) return bytes.Length + " bytes is over the limit";
-        string sha;
-        using (var hash = SHA256.Create()) sha = BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
-        if (sha != (string)asset["sha256"]) return "hash " + sha;
-        note = $"{bytes.Length / 1024} KB";
+        var sizes = new List<string>();
+        foreach (string t in Bio)
+        {
+            var p = ArtifactPackage.Load(t, out string error);
+            if (p == null) return t + ": " + error;
+            var asset = (JObject)p.Manifest["assets"][0];
+            if ((string)asset["license"] != "CC0") return t + " license " + asset["license"];
+            byte[] bytes = p.ReadAsset((string)asset["path"], out string why);
+            if (bytes == null) return t + ": " + why;
+            if (bytes.Length > ArtifactSchema.MaxAssetBytes) return $"{t}: {bytes.Length} bytes is over the limit";
+            string sha;
+            using (var hash = SHA256.Create()) sha = BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+            if (sha != (string)asset["sha256"]) return t + " hash " + sha;
+            sizes.Add($"{t} {bytes.Length / 1024} KB");
+        }
+        note = string.Join(", ", sizes);
         return null;
     }
 
@@ -218,16 +229,21 @@ public static class BioTemplatesCheck
                 if ((string)r["property"] == "pos") pos = (JArray)r["keys"];
             }
         if (scale == null || pos == null || scale.Count != pos.Count) return "the beat needs matching scale and pos keys";
-        Vector3 At(int i) => new Vector3((float)pos[i][1][0], (float)pos[i][1][1], (float)pos[i][1][2]);
+        Vector3 Raw(int i) => new Vector3((float)pos[i][1][0], (float)pos[i][1][1], (float)pos[i][1][2]);
+        Vector3 At(int i) => Raw(i) - Raw(0);
+        // The model can rest at any size; the squeeze is relative to that.
+        var heart = Node(scene, "heart");
+        float rest = heart?["scale"] is JArray size ? (float)size[0] : 1f;
+        if ((float)scale[0][1] != rest || (float)scale[scale.Count - 1][1] != rest) return "the beat doesn't start and end at the resting size " + rest;
         int deepest = 0;
         for (int i = 1; i < scale.Count; i++) if ((float)scale[i][1] < (float)scale[deepest][1]) deepest = i;
-        float smallest = (float)scale[deepest][1];
+        float smallest = (float)scale[deepest][1] / rest;
         if (smallest >= 1f) return "the heart never squeezes";
         Vector3 centre = At(deepest) / (1f - smallest);
         for (int i = 0; i < scale.Count; i++)
         {
             if ((float)scale[i][0] != (float)pos[i][0]) return "key " + i + " times differ";
-            float s = (float)scale[i][1];
+            float s = (float)scale[i][1] / rest;
             if ((At(i) - centre * (1f - s)).magnitude > 1e-4f) return $"key {i} is at {At(i)}, so it doesn't squeeze about {centre}";
         }
         note = $"down to {smallest:0.00} about {centre.ToString("F3")}";
