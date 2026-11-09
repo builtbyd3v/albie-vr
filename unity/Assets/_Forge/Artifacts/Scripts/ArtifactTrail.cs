@@ -36,6 +36,9 @@ namespace Forge.Artifacts
             var trail = go.AddComponent<ArtifactTrail>();
             trail.line = line;
             trail.width = build.Inputs.Number(n["width"], 0.01f);
+            // Right away, not first in LateUpdate: a new line reports bounds 1 m wide, and a volume fitted to those bounds
+            // when the artifact opens would stand everything on a floor half a metre too low.
+            line.widthMultiplier = trail.width;
 
             string follow = n.Value<string>("follow");
             if (follow != null)
@@ -71,7 +74,11 @@ namespace Forge.Artifacts
             {
                 line.startColor = line.endColor = color;
                 line.positionCount = points.Count;
-                for (int i = 0; i < points.Count; i++) line.SetPosition(i, build.Inputs.Vector(points[i], Vector3.zero));
+                // A point can name an input ("$cog_m"), so the line follows its slider like any other bound value.
+                build.Apply(() =>
+                {
+                    for (int i = 0; i < points.Count; i++) line.SetPosition(i, build.Inputs.Vector(points[i], Vector3.zero));
+                }, ArtifactInputs.IsBound(points));
             }
             return go;
         }
