@@ -4,28 +4,35 @@
   "generators": [],
   "nodes": [
     {
-      "id": "base",
-      "kind": "primitive",
-      "shape": "box",
-      "pos": [0, -0.005, 0],
-      "size": [0.42, 0.01, 0.3],
-      "color": "#1C2230"
-    },
-    {
       "id": "city",
       "kind": "array",
       "source": {
         "table": "commits",
-        "grid": { "columns": 6, "gap_m": 0.02 }
+        "grid": {
+          "gap_m": 0.02,
+          "base": "#1C2230"
+        }
       },
       "map": {
-        "height": { "column": "lines_changed", "range": [0.02, 0.3] },
-        "color": { "column": "author" }
+        "height": {
+          "column": "lines_changed",
+          "range": [
+            0.02,
+            0.3
+          ]
+        },
+        "color": {
+          "column": "author"
+        }
       },
       "template": {
         "kind": "primitive",
         "shape": "box",
-        "size": [0.045, 1.0, 0.045],
+        "size": [
+          0.045,
+          1,
+          0.045
+        ],
         "color": "#4C8DFF"
       }
     },
@@ -34,8 +41,14 @@
       "kind": "panel",
       "title": "What shipped this week",
       "widgets": [
-        { "type": "note", "text": "Each block is a commit. Taller means more lines changed. One colour per person." },
-        { "type": "note", "text": "Grey blocks are commits the source didn't report a size for." }
+        {
+          "type": "note",
+          "text": "Each block is a commit. Taller means more lines changed. One colour per person."
+        },
+        {
+          "type": "note",
+          "text": "Grey blocks are commits the source didn't report a size for."
+        }
       ]
     }
   ],

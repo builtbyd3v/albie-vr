@@ -391,6 +391,7 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
 
   `null` is allowed in any cell.
 - **Arrays from a table.** An `array` node with `source: {table, grid: {columns, gap_m}}` builds one copy per row, on a grid centred on the node, with every copy standing on y = 0.
+- **As built, 2026-11-09 (Person 5).** `grid.base` (a colour) draws a plate under the grid, sized to its columns and rows. A snapshot may say `saved_copy: true` (a connector's copy saved earlier, such as the local fixture connector's copy saved into a Quest build); Albie then says which day it's from, as for an artifact's own snapshot. Until C-18 lands, `LocalRepoConnector` stands in as the provider for `connector:source_control/list_commits` only.
   - `map.height` and `map.width` scale a number column linearly into `[min, max]`.
   - `map.color` gives each distinct value its own palette colour.
   - A `null` cell is grey (`#5A5F66`) at the bottom of the range. It is never drawn as zero.
