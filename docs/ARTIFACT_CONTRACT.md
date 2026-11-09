@@ -557,6 +557,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `view` | `{ "radius": 1.25 }`, for `volume` space. Scales that sphere to fit the box, so a scene that moves isn't refitted as it moves. |
 | `line` field `follow` | A fading trail behind a node with the same parent. `length` is at most 2,048 points. |
 | `line` field `through` | As built, runtime 6. A list of 2 to 17 node ids with the line's parent; the line joins them every frame, after sims move (a pendulum's rods). An unknown id is `unknown_ref`, a different parent `bad_value`. |
+| `line` `points` with inputs | As built, runtime 6. A point may name an input (`[0, "$cog_m", 0]`); the line follows it live. |
 | `primitive` field `glow` | Self-lit, for things that should read as light. |
 | `stat` field `decimals` | Default 2. |
 

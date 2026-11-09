@@ -96,6 +96,18 @@ Two templates for things you change and watch play out, like the three-body fixt
 - **`line` field `through`** (`Scripts/ArtifactTrail.cs`). A list of node ids with the line's parent. The line joins them every frame after the sims have moved, for the pendulums' rods.
 - Both need host runtime 6. The scenes were written by a script (planet starting speeds are 2π/√a AU a year) and are plain `albie.scene/1`.
 
+## How the fixtures look (Nov 9)
+
+The four sandbox fixtures got the same finish as the templates. Every node and rule they had is kept, in its old order, so the checks that point at them still mean the same thing.
+- **`stance`** is a truck on four wheels whose axle stretches with the track-width slider. Orange lines run from the centre of gravity to the front wheels, and they follow both sliders: wide and low gives flat lines (hard to roll), narrow and high gives steep ones.
+- **`three_body`** shows the perfect figure eight as a faint line (one period, integrated offline from the same starting values) and the centre of mass, so a nudge visibly pulls the bodies off the path.
+- **`repo_city`** stands on a dark base with an outline, like a model.
+- **`launch`** has a pad, a red service tower with an arm that pulls back, a two-part flame, a glow on the pad, eight puffs of exhaust that roll out and cool from flame-lit to grey, and Ignition / Liftoff / Engine cut-off captions.
+
+Two host fixes came out of this (`Scripts/ArtifactTrail.cs`):
+- A `line`'s `points` can name inputs (`"$cog_m"`) and follow them live, like any other bound value.
+- A line's width is set when it's built. Before, a new line reported bounds 1 m wide until its first frame, and a volume without `view.radius` fitted to those bounds: the scene stood too high and too small. That was making `repo_city` look small.
+
 ## Files
 
 | Path | What it is |
