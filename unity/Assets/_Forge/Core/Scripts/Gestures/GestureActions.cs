@@ -25,7 +25,7 @@ public sealed class GestureActions
     {
         "ui_open_view", "timer_start", "timer_status", "notes_list", "notes_view",
         "crew_status", "cad_view", "cad_list_parts", "cad_list_versions", "cad_get_params", "code_open_file", "code_list_files", "code_get_errors",
-        "messages_open", "messages_list_channels", "messages_read_channel", "ml_open", "ml_status", "nn_open", "nn_close", "nn_status", "screen_status",
+        "messages_open", "messages_list_channels", "messages_read_channel", "ml_open", "ml_status", "nn_open", "nn_close", "nn_status",
     };
 
     // Confirming a send is the user's own step: a gesture mustn't be able to do it.
@@ -93,7 +93,7 @@ public sealed class GestureActions
         pendingConfirm = onYes;
         ForgeNet.Inject("pet.say", new JObject
         {
-            ["pet_id"] = "bit",
+            ["pet_id"] = "albie",
             ["text"] = question,
             ["card"] = new JObject
             {

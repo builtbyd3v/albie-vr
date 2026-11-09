@@ -1,6 +1,6 @@
 # Albie's sandbox
 
-Albie (the Forge pet) edits this repo by voice, live in VS Code, so the real Forge repo stays untouched.
+Albie (the Forge pet) edits this repo by voice, so the real Forge repo stays untouched.
 It was built by `sandbox/setup.sh` in gatorhack-dubz; `sandbox/setup.sh --reset` throws away Albie's edits.
 
 | Folder | What it is | Try saying |

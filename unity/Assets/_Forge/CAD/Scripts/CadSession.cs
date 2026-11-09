@@ -11,7 +11,7 @@ using UnityEngine.Networking;
 /// <summary>
 /// Shared CAD state for CadViewer and CadParamsPanel, which Workspace spawns as separate prefabs.
 /// Hub mode: REST to the hub through ForgeNet, and ForgeNet's /ws events (cad.model_updated, cad.view,
-/// cad.regen_failed) for changes made anywhere (sliders, Albie's voice tools, VS Code saves).
+/// cad.regen_failed) for changes made anywhere (sliders, Albie's voice tools, saves to the part files).
 /// Mock mode: the hub's mocks, hub off. The hub address is ForgeNet's (one setting for the Quest).
 /// The hub has a library of designs (rocket, quadcopter, ...); one is open, and everything acts on it.
 /// </summary>

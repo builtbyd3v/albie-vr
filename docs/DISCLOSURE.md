@@ -23,7 +23,6 @@
 - forge-sdk (forge-sdk/pyproject.toml): hatchling (MIT) build backend, httpx (BSD-3)
 - Unity packages: Meta Interaction SDK (part of Meta XR All-in-One, Meta license), Input System, Newtonsoft Json (com.unity.nuget.newtonsoft-json), TextMesh Pro; plus Unity's default editor packages (collab-proxy, IDE support, uGUI, XR Management)
 - cad-vision (github.com/BAAA-Hacks/cad-vision, MIT), copied unchanged into unity/Assets/_Forge/CAD/ThirdParty/CadVision/
-- Screen bridge: playwright-core (Apache-2.0) drives Google Chrome to share the VS Code window over WebRTC
 - Neural Net Lab: our own C# re-implementation of the TensorFlow Playground idea (datasets, features, init); no Playground code is copied
 - Blender: Albie's opening mouth and our own animation clips (art/albie/, scripts build_albie_*.py and export_albie_fbx.py)
 - faster-whisper (MIT), optional and not installed by default: local speech-to-text when STT_PROVIDER=whisper

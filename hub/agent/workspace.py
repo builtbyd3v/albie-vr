@@ -33,7 +33,7 @@ VIEWS = ("cad", "code", "ml", "messages")
 ALIASES = {
     "": "", "none": "", "close": "", "closed": "", "off": "",
     "cad": "cad", "3d": "cad", "modeling": "cad", "modelling": "cad", "design": "cad", "designs": "cad",
-    "code": "code", "vscode": "code", "vs code": "code", "editor": "code", "screen": "code", "screens": "code",
+    "code": "code", "editor": "code", "screen": "code", "screens": "code",
     "ml": "ml", "training": "ml",
     "messages": "messages", "msg": "messages", "slack": "messages", "messenger": "messages", "inbox": "messages",
 }
@@ -120,7 +120,7 @@ workspace = Workspace()
 TOOLS: list[dict[str, Any]] = [
     {"name": "ui_open_view",
      "description": "Open one of the workspace views at the user's desk; one view shows at a time. cad = 3D modeling "
-                    "(the CAD design on the desk, its drawing, panel and versions), code = VS Code, ml = machine "
+                    "(the CAD design on the desk, its drawing, panel and versions), code = the code panel, ml = machine "
                     "learning (training data and runs), messages = the Slack messenger; none closes the open view. "
                     "CAD and Slack tools open their view themselves, so call this only when the user asks for a view. "
                     "The Neural Net Lab is not a view here: nn_open shows it and nn_close goes back to the ML project. "

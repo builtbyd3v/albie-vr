@@ -161,7 +161,6 @@ def test_albie_trains_improves_applies_and_says_the_new_score(tmp_path, monkeypa
     async def flow():
         state = SimpleNamespace(bus=EventBus(), ml=MLService(repo), ml_llm=llm)
         tools = MLTools(state, tmp_path / "data", speak)
-        tools._open_diff = lambda plan: None  # no VS Code in tests
 
         assert "error" in await tools.call("ml_improve", {})  # nothing to look at before the first run
         assert (await tools.call("ml_train", {"epochs": 3}))["epochs"] == 3
@@ -233,7 +232,6 @@ def card_flow_setup(tmp_path):
         return True
 
     tools = MLTools(SimpleNamespace(bus=EventBus(), ml=MLService(repo), ml_llm=llm), tmp_path / "data", speak)
-    tools._open_diff = lambda plan: None
     published: list[dict] = []
     real = tools.state.bus.publish
 

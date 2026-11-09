@@ -36,7 +36,7 @@ from .crew import TYPES, crew
 
 log = logging.getLogger(__name__)
 
-# Dev, 2026-10-24: name only. At the desk Albie sits in front of the VS Code screen, so looking at the screen read as
+# Dev, 2026-10-24: name only. At the desk Albie sits in front of the code screen, so looking at the screen read as
 # looking at him (live 19:29-19:33: angle 5-17 degrees either way) and side talk was answered. VOICE_FACING=1 brings
 # "looking at him counts as his name" back.
 FACING_COUNTS = os.getenv("VOICE_FACING", "0") == "1"

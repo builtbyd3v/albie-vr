@@ -473,7 +473,7 @@ async def _run_delegate(s: Session, task: str, mode: str) -> str:
 class _QuietSteps:
     """Voice delegate runs: the bubble shows what Albie says, not each runner step. Live 20:0x the task title and
     every "Editing / Running: ..." step (with full paths) showed in his bubble. Steps become one pet.state working
-    (he walks to the VS Code screen); the summary and his spoken answer still come through."""
+    (he walks to the code screen); the summary and his spoken answer still come through."""
 
     def __init__(self, emit: Emitter, pet_id: str) -> None:
         self._emit, self._pet_id, self._working = emit, pet_id, False

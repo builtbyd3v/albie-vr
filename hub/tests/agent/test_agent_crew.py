@@ -195,9 +195,9 @@ def test_crew_options_follow_the_kit(tmp_path: Path) -> None:
     assert "mcp__forge__assign_task" in albie.allowed_tools and "crew of helper agents" in albie.system_prompt
 
 
-def test_crew_runners_get_only_their_kit_and_vscode_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_crew_runners_get_only_their_kit_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Allowlist: never cad_* (except the Designer), never messages_*, never the crew tools; Albie keeps everything."""
-    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # registry copy: vscode_* and the crew tools are in it
+    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # registry copy: the crew tools are in it
 
     async def noop(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {}
@@ -210,15 +210,15 @@ def test_crew_runners_get_only_their_kit_and_vscode_tools(tmp_path: Path, monkey
         return {t.removeprefix("mcp__forge__") for t in opts.allowed_tools if t.startswith("mcp__forge__")}
 
     reviewer = forge(runner._options(_project(tmp_path), "qa", "reviewer", TYPES["reviewer"]))
-    assert reviewer and all(n.startswith("vscode_") for n in reviewer)
+    assert reviewer == set()  # no kit module: no hub tools
     builder = forge(runner._options(_project(tmp_path), "code", "builder", TYPES["builder"]))
     assert builder == reviewer
     designer = forge(runner._options(_project(tmp_path), "qa", "designer", TYPES["designer"]))
-    assert {"cad_get_params", "cad_set_params"} <= designer and all(n.startswith(("vscode_", "cad_")) for n in designer)
+    assert {"cad_get_params", "cad_set_params"} <= designer and all(n.startswith("cad_") for n in designer)
     assert {n for n in designer if not n.startswith("cad_")} == reviewer  # other suites may register more cad_* tools
     albie = forge(runner._options(_project(tmp_path), "qa", "albie"))
-    assert {"cad_set_params", "messages_send", "spawn_agent", "assign_task", "vscode_highlight"} <= albie
-    assert runner.crew_forge_allow(TYPES["tester"]) == ("vscode_",) and runner.crew_forge_allow(TYPES["designer"]) == ("vscode_", "cad_")
+    assert {"cad_set_params", "messages_send", "spawn_agent", "assign_task"} <= albie
+    assert runner.crew_forge_allow(TYPES["tester"]) == () and runner.crew_forge_allow(TYPES["designer"]) == ("cad_",)
     # the in-process MCP server offers the same filtered set
     server_tools = {t.name for t in tools._mcp_tools("builder", lead=False, allow=runner.crew_forge_allow(TYPES["builder"]))}
     assert server_tools == builder

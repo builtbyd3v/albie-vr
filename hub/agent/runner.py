@@ -34,11 +34,8 @@ from claude_agent_sdk import (
     ResultMessage,
     StreamEvent,
     TextBlock,
-    ToolResultBlock,
     ToolUseBlock,
-    UserMessage,
 )
-from vscode import live as vscode_live
 
 from . import events as ev
 from . import tools as forge_tools
@@ -71,11 +68,12 @@ CODE_DENY = [
 ]
 # Crew members share the repo through worktrees: they must not touch other branches or worktrees either.
 CREW_DENY = CODE_DENY + ["Bash(git worktree:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git stash:*)"]
-# Hub tools (agent/tools.py) a crew runner may call, by name prefix: the editor for everyone, plus its kit's own
-# module. Never cad_* outside the Designer, never messages_* (Slack goes through Albie), never the crew tools.
-CREW_FORGE_TOOLS: tuple[str, ...] = ("vscode_",)
+# Hub tools (agent/tools.py) a crew runner may call, by name prefix: only its kit's own module. Never cad_*
+# outside the Designer, never messages_* (Slack goes through Albie), never the crew tools.
+CREW_FORGE_TOOLS: tuple[str, ...] = ()
 KIT_FORGE_TOOLS: dict[str, tuple[str, ...]] = {"cad": ("cad_",)}
 PARTIAL_MIN_INTERVAL_S = 0.15
+EDIT_TOOLS = frozenset({"Edit", "MultiEdit", "Write"})  # tool uses that change a file
 
 PERSONA = (
     "You are Albie, a small, cute, competent pet living in a developer's XR workspace. "
@@ -111,8 +109,8 @@ CODE_PROMPT = (
 
 EDIT_IN_PLACE_PROMPT = (
     PERSONA
-    + " You are making a change in the folder the user has open in VS Code right now, in place: no branch, no "
-    "commit. Create or edit the files directly; each one opens live in VS Code as you change it. Keep changes "
+    + " You are making a change in the user's project folder, in place: no branch, no "
+    "commit. Create or edit the files directly. Keep changes "
     "minimal and focused, and do not delete anything you were not asked to. When done, finish with a 1-2 sentence "
     "plain-text summary of what you changed, naming files relative to the folder."
 )
@@ -150,7 +148,7 @@ def crew_forge_allow(agent: AgentType) -> tuple[str, ...]:
 def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "albie",
              agent: AgentType | None = None, cwd: Path | None = None) -> ClaudeAgentOptions:
     """Albie (agent None): QA/CODE tools plus every hub tool incl. the lead-only crew tools. A crew member: its own
-    kit and prompt, and only the hub tools in crew_forge_allow (vscode_* and, for the Designer, cad_*)."""
+    kit and prompt, and only the hub tools in crew_forge_allow (for the Designer, cad_*)."""
     lead = agent is None
     allow: tuple[str, ...] | None = None
     if lead:
@@ -410,7 +408,7 @@ async def _run_code(
     task_id = uuid.uuid4().hex[:8]
     cwd: Path | None = None
     base: str | None = None
-    if project.edit_in_place:  # the sandbox: edit what VS Code shows, no branch to switch to
+    if project.edit_in_place:  # the sandbox: edit in place, no branch to switch to
         branch = None
     elif agent is None:  # Albie: a branch in the main checkout (unchanged)
         branch = await asyncio.to_thread(create_task_branch, project.path, text, task_id)
@@ -429,13 +427,6 @@ async def _run_code(
     TASK_EDITS[pet_id] = {}
     last_text = ""
     summary: str | None = None
-    edits: dict[str, ToolUseBlock] = {}  # edit tool uses waiting for their result, by id
-    live: set[asyncio.Task[None]] = set()
-
-    def show(coro: Any) -> None:  # VS Code open / glow in the background: never slows the turn
-        task = asyncio.create_task(coro)
-        live.add(task)
-        task.add_done_callback(live.discard)
 
     async with contextlib.aclosing(_stream(project, "code", text, control, pet_id, agent, cwd)) as stream:
         async for msg in stream:
@@ -443,17 +434,10 @@ async def _run_code(
                 for block in msg.content:
                     if isinstance(block, ToolUseBlock):
                         await emit(ev.task_progress(pet_id, task_id, describe_tool(block, root)))
-                        if block.name in vscode_live.EDIT_TOOLS:  # the file opens on the stream as Albie edits it
+                        if block.name in EDIT_TOOLS:
                             _remember_original(pet_id, root, (block.input or {}).get("file_path"))  # before it runs
-                            edits[block.id] = block
-                            show(vscode_live.opening(block.name, block.input))
                     elif isinstance(block, TextBlock) and block.text.strip():
                         last_text = block.text.strip()
-            elif isinstance(msg, UserMessage) and edits and isinstance(msg.content, list):
-                for result in msg.content:  # an edit landed: glow its lines
-                    if isinstance(result, ToolResultBlock) and (done := edits.pop(result.tool_use_id, None)):
-                        if not result.is_error:
-                            show(vscode_live.edited(done.name, done.input))
             elif isinstance(msg, ResultMessage):
                 if _cancelled(control):
                     return ""

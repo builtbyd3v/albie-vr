@@ -77,10 +77,10 @@ def test_crew_tools_answer_an_error_off_the_code_screen(monkeypatch: pytest.Monk
         assert await one("", "spawn_agent") == CREW_OFF_CODE_SCREEN
         assert await one("code", "spawn_agent") == {"status": "hatched"}
         assert await one(None, "spawn_agent") == {"status": "hatched"}  # a client that never sends workspace.mode
-        assert await one("cad", "vscode_highlight") == {"status": "hatched"}  # only the crew tools are gated
+        assert await one("cad", "ui_open_view") == {"status": "hatched"}  # only the crew tools are gated
 
     asyncio.run(run())
-    assert called == ["spawn_agent", "spawn_agent", "vscode_highlight"]
+    assert called == ["spawn_agent", "spawn_agent", "ui_open_view"]
 
 
 class StubVoice:

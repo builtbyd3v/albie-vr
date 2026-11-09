@@ -1,8 +1,8 @@
 # Forge hub
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
-Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)) and **ML** (see [hub/ml](ml/README.md)).
-Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)) and **ML** (see [hub/ml](ml/README.md)).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
 
@@ -22,29 +22,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000     # no --reload (it restarts the C
 ```
 
 - `GET /health` once the first design is built (a few seconds on startup).
-- Open `cad/parts/rocket.py` in VS Code: **saving the open design's script regenerates it** and pushes `cad.model_updated`. A broken save keeps the last good model and emits `cad.regen_failed` with the error line.
+- Open `cad/parts/rocket.py` in any editor: **saving the open design's script regenerates it** and pushes `cad.model_updated`. A broken save keeps the last good model and emits `cad.regen_failed` with the error line.
 - Try it: `curl -X POST localhost:8000/cad/params -H "Content-Type: application/json" -d "{\"fin_count\": 4}"`
 - Data (versions, GLBs) lives in `hub/.data/` (gitignored). Delete `.data/cad` to start fresh. Env: `FORGE_DATA_DIR`, `FORGE_CAD_SCRIPT` (the design opened the first time; after that the hub reopens the last one).
 
 ## One process
 
 `uvicorn main:app` is the only thing to start on the laptop. Its lifespan brings up, in order: the CAD worker, Slack
-Socket Mode (plus a history backfill, see Messaging), and the **screen bridge**: `hub/screens/` runs `npm start` in
-`../screen-bridge/` as a child process group (the `prestart` installs the VS Code extension, then `start.js` starts
-`signaling.py` on :8766 and the JPEG fallback `stream.py` on :8765 and launches Chrome sharing the VS Code window).
-Its output shows up in the hub log as `[screen-bridge] ...`. On Ctrl+C the hub sends the whole group SIGINT (SIGKILL
-after 3 s), so Chrome and both python servers die with it; if the child dies on its own it is restarted after 2, 5 and
-10 s, then given up (`screen.status {state: "error"}`).
-
-| | |
-|---|---|
-| `SCREEN_BRIDGE=0` | don't run it (default `1`). It is also skipped, with one warning, when `node` is not on PATH or the directory has no `start.js`. |
-| `SCREEN_BRIDGE_DIR` | where `start.js` lives (default `../screen-bridge`). |
-| `GET /health` | `screen: {enabled, state, source}`; `GET /screens/status` adds `detail`, `fps`, `pid`, `restarts`. |
-| `/ws` | `screen.status {state: starting\|sharing\|stopped\|error, source?, detail?}`, sticky (replayed on connect). |
-
-Everything else the screen bridge needs is unchanged (its `.venv`, `npm install`, the `window.titleSeparator` setting:
-see `screen-bridge/start.js`). Running `npm start` by hand still works: set `SCREEN_BRIDGE=0` so the hub doesn't start a second copy.
+Socket Mode (plus a history backfill, see Messaging).
 
 ## Designs (the CAD library)
 
@@ -89,7 +74,7 @@ Every `*.py` in `cad/parts/` (except `_`-files) is a design; its file name is it
 ## Test
 
 ```powershell
-pytest            # a few minutes: CAD (geometry, RocketPy cross-check, designs, library API, watcher), agent, messaging, screens, VS Code
+pytest            # a few minutes: CAD (geometry, RocketPy cross-check, designs, library API, watcher), agent, messaging
 ```
 
 ## Mocks for Unity (hub off)
@@ -179,7 +164,6 @@ FAKE_AGENT=1 .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000   # the hub; 
 curl localhost:8000/health
 ```
 
-(Add `SCREEN_BRIDGE=0` to leave Chrome and the screen servers out while you only work on the pet.)
 
 Fake turns: thinking, 3 cumulative partials, answer_done. A code ask gives task_started, 3 progress
 events, task_complete (branch `pet/fake-123`). The text `error` gives agent.error. `FAKE_AGENT_DELAY`
@@ -208,13 +192,13 @@ Real mode: `ANTHROPIC_API_KEY` in `hub/.env` (or the shell) and `FAKE_AGENT=0`.
 - spoken text -> `agent.partial_answer` / `agent.answer_done`, so captions work unchanged
 - `tts.stop` from the client stops the current reply
 
-Grok also gets Albie's fast tools (CAD, VS Code, Slack drafts, the crew) and `delegate` for the Claude runner. Unity's
+Grok also gets Albie's fast tools (CAD, Slack drafts, the crew) and `delegate` for the Claude runner. Unity's
 `workspace.mode {mode}` tells the hub which view is open: Grok gets a one-line note about it, and the crew tools
 only work while the CODE view is open (they answer an error otherwise). `VOICE_PROVIDER=fake` speaks a canned reply from
 `agent/assets/fake_voice_24k.pcm` with no key, for Unity testing:
 
 ```bash
-VOICE_PROVIDER=fake FAKE_AGENT=1 SCREEN_BRIDGE=0 .venv/bin/uvicorn main:app
+VOICE_PROVIDER=fake FAKE_AGENT=1 .venv/bin/uvicorn main:app
 ```
 
 ### Say an agent's name (wake turns)
@@ -233,7 +217,7 @@ lead-only tools, `spawn_agent`, `assign_task` (hatches Albie first if needed), `
 `crew_status`. Crew members work in parallel. A code task runs in its own git worktree (`AGENT_WORKTREE_DIR`,
 default `<repo>-crew/`) on `pet/<agent>/<task>`, started from the main checkout's current state (uncommitted edits
 included), so nobody switches the main checkout's branch. When one finishes, its changes are applied to the main
-checkout as uncommitted edits (what VS Code shows) and the worktree is removed; if they conflict, the worktree and
+checkout as uncommitted edits and the worktree is removed; if they conflict, the worktree and
 branch are kept and named in the summary. Albie says so out loud (voice mode) and Albie shows the summary in its bubble.
 Unity is the source of truth for who exists (`crew.roster`); an `agent.ask` whose `pet_id` is a crew member runs
 that member's turn without touching Albie's.
@@ -270,7 +254,7 @@ second. The contract is `docs/archive/PET_AGENT_CONTRACT.md` Addendum H; `tests/
 FAKE_AGENT=1 .venv/bin/python -m pytest tests/agent -q    # fake mode, a few seconds, no CAD deps
 ```
 
-(Plain `pytest` runs everything in `pytest.ini`'s `testpaths`: CAD, `tests/`, VS Code.)
+(Plain `pytest` runs everything in `pytest.ini`'s `testpaths`: CAD, `tests/`, ML.)
 
 ### Smoke test against a running hub
 
@@ -289,7 +273,7 @@ Through ForgeNet's socket, `/ws` (hub address on the ForgeNet object or PlayerPr
 |---|---|
 | Editor / desktop on the same laptop | `ws://127.0.0.1:8000/ws` |
 | Quest on the same Wi-Fi | `ws://<laptop LAN IP>:8000/ws` (macOS: `ipconfig getifaddr en0`); bind `0.0.0.0`, allow it through the firewall |
-| Quest over USB | `adb reverse tcp:8000 tcp:8000` (the screen bridge does this for you), keep `ws://127.0.0.1:8000/ws` |
+| Quest over USB | `adb reverse tcp:8000 tcp:8000` (`run-demo.sh` does this for you), keep `ws://127.0.0.1:8000/ws` |
 
 The client sends `hello` first, then `agent.ask` / `agent.cancel` / `stt.*` / `workspace.mode` plus binary PCM16 frames
 (mono, 16 kHz, ~100 ms chunks). Every event goes to every `/ws` socket; filter by `pet_id`.
@@ -348,7 +332,7 @@ when `/health` reports `imessage.available` does `MessagesLayout` add the iMessa
 center and move Slack to the right. Selecting an unread item opens its conversation in the matching provider panel.
 
 The first startup also checks whether the hub can read Messages. If macOS blocks access, grant **Full Disk Access**
-to the app running the hub (for example Terminal, iTerm, or VS Code) in **System Settings > Privacy & Security >
+to the app running the hub (for example Terminal or iTerm) in **System Settings > Privacy & Security >
 Full Disk Access**, then restart the hub. macOS requires this explicit user action; `/health` returns the setup
 instructions and a direct link to that Settings pane. The first send may prompt for **Automation** permission to
 control Messages; allow it. Set `IMESSAGE_CLI` only when you intentionally use a custom `imsg` executable.

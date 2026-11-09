@@ -1,6 +1,6 @@
 """`python -m ml.open <repo path>` (from hub/): tell the hub which repo is open and follow its setup (ML_PLAN 3).
 
-Stands in for the VS Code connection until that's decided. Prints each step; on needs_approval it shows
+A command-line stand-in for the headset. Prints each step; on needs_approval it shows
 the proposed patch and how to accept it.
 """
 

@@ -5,8 +5,8 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
-/// Albie's code tools on the headset, on the sample project in <see cref="CodeProject"/>; the device's take on
-/// hub/vscode/tools.py (open, highlight, errors) plus the hub's Claude runner (hub/agent/runner.py) for questions and
+/// Albie's code tools on the headset, on the sample project in <see cref="CodeProject"/>; open, highlight and
+/// errors, plus the hub's Claude runner (hub/agent/runner.py) for questions and
 /// edits. Definitions: Resources/AlbieTools/code.json. code_ask and code_edit call Claude through
 /// <see cref="ClaudeClient"/>: they return "working" at once, and the answer reaches Albie's voice as an
 /// <c>albie.say</c> event (AlbieVoice speaks it) and the panel's status line.

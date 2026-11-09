@@ -577,16 +577,10 @@ class MLService:
         return state
 
     def open_diff(self) -> dict:
-        """Open the proposed patch in the laptop's real VS Code (`code --diff`), else return the diff text."""
-        files = list(self._manifest())
-        if not files:
+        """The proposed patch as diff text, for the headset to show (nothing opens on a computer)."""
+        if not self._manifest():
             raise NotFound("no proposed patch")
-        code = shutil.which("code")
-        if code is None:
-            return {"ok": True, "opened": False, "files": self.patch_files()}
-        for rel in files:
-            subprocess.Popen([code, "--diff", str(self.repo / rel), str(self.forge_dir / "patch" / rel)])
-        return {"ok": True, "opened": True}
+        return {"ok": True, "opened": False, "files": self.patch_files()}
 
     def apply_patch(self, accept: bool) -> list[str]:
         """The only way setup changes the user's code (ML_PLAN 6.6). Keeps <file>.orig in .forge/patch/ and

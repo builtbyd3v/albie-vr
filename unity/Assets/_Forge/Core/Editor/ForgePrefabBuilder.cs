@@ -226,7 +226,7 @@ public static class ForgePrefabBuilder
 
     /// <summary>
     /// Restyle ForgePanel.prefab in place (graphite frame, header, badge). Edits the saved prefab's own objects, so the
-    /// module variants built on it (CadParamsPanel, ScreenForgePanel) stay linked and pick the look up.
+    /// module variants built on it (CadParamsPanel and the others) stay linked and pick the look up.
     /// </summary>
     [MenuItem("Forge/Restyle Panel Prefab (keeps module variants)")]
     public static void RestylePanel()

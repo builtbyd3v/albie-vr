@@ -4,7 +4,7 @@ an event per change.
 Every *.py in the parts folder (not starting with _) is a design; its file name is its id. One design is open
 (`active`) and the endpoints act on it. Each design has its own version tree: a version records the version it
 came from (`parent`), so undo walks back up it. Version numbers are unique across the library, so `?v=N` names
-one file forever. Sliders, presets, voice and VS Code saves all go through `_build`.
+one file forever. Sliders, presets, voice and saves to the script all go through `_build`.
 """
 from __future__ import annotations
 
@@ -427,7 +427,7 @@ class CadService:
 
 
 async def watch_script(service: CadService) -> None:
-    """Watch the parts folder. Saving the open design regenerates it (the hand-edit path from VS Code). Other
+    """Watch the parts folder. Saving the open design regenerates it (the hand-edit path, from any editor). Other
     designs need nothing: GET /cad/parts reads the folder, and a design whose script changed rebuilds when opened."""
     from watchfiles import Change, awatch
 

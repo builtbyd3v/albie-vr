@@ -5,8 +5,8 @@ VOICE_PROVIDER (env):
 * ``grok``  Grok Voice over raw websockets (``wss://api.x.ai/v1/realtime``), key ``XAI_API_KEY``.
 * ``fake``  canned reply from a bundled PCM file, no key, no network (Unity testing).
 
-Grok handles conversation itself. Quick actions (open a view, the CAD design and its demo, Slack drafts with files,
-VS Code highlight/open) are direct tools from
+Grok handles conversation itself. Quick actions (open a view, the CAD design and its demo, Slack drafts with files)
+are direct tools from
 agent/tools.py (incl. the crew tools: spawn_agent, assign_task, ... from agent/crew.py). ``delegate`` sends anything about the repo, runs or a code change to the Claude runner
 (the "brain"), whose answer is then spoken verbatim with ``force_message``. Push-to-talk is a manual turn:
 
@@ -121,7 +121,7 @@ DELEGATE_RULES = (
     " Your delegate tool is for anything needing real analysis of the user's code, repository, files or project, "
     "and for any request to write, fix or change code or to create a new file (except ML training: the ml tools "
     "handle that, never delegate it); use mode code "
-    "for those, and the brain edits the files open in VS Code right where the user sees them. Never guess those "
+    "for those, and the brain edits the project's files. Never guess those "
     "details yourself. Give it a self-contained task that includes what the user asked and any context from the "
     "conversation. After calling it, say only a tiny 'on it' line: the answer is spoken for you when it's "
     "ready. Answer everything else yourself. When a system note says what broke and you just offered to fix it or "
@@ -130,7 +130,7 @@ DELEGATE_RULES = (
 )
 TOOL_RULES = (
     " Use your other tools yourself for quick actions: call them instead of guessing, then say in one short line what "
-    "you did. You run the whole workspace. ui_open_view opens a view at the desk (cad is 3D modeling, code is VS Code, "
+    "you did. You run the whole workspace. ui_open_view opens a view at the desk (cad is 3D modeling, code is the code panel, "
     "ml, messages is the Slack messenger); messages_open opens one conversation in it (a Slack channel, someone's "
     "DM, or an iMessage chat). The CAD tools open the CAD view themselves: cad_open_part opens a design "
     "(rocket, quadcopter, gearbox), cad_set_params and cad_apply_preset change it, cad_view expands it big in front of "
@@ -138,11 +138,8 @@ TOOL_RULES = (
     "quadcopter hovers, the gearbox turns), and cad_undo or cad_restore_version go back. When one request asks for "
     "several things, do every one, one tool after another, in the order asked. If a tool returns an error or a "
     "view_error, say it plainly. "
-    "Open, highlight or check code in VS Code yourself: to open or show a file that exists, call vscode_open_file "
-    "(vscode_get_context first if they say 'this' or 'my code'), to point at lines call vscode_highlight. Never use "
-    "the crew (spawn_agent, assign_task) to open, show, create or edit a file: the crew works on its own branch, "
-    "which the user can't see in VS Code. Use the crew only when the user names a crew member or asks for help in "
-    "parallel. "
+    "Never use the crew (spawn_agent, assign_task) to open, show, create or edit a file: the crew works on its own "
+    "branch. Use the crew only when the user names a crew member or asks for help in parallel. "
     "ML (machine learning) requests always go to your ml tools, never to delegate: opening the ML project or 'the "
     "ML stuff' is ml_open (not ui_open_view), pulling up or importing a repo from GitHub is ml_github, 'how is my model doing' or the last score is ml_status, 'what can I do "
     "better' or 'improve it' is ml_improve, a yes or 'apply it' after an ml_improve suggestion is ml_apply, 'undo "
@@ -165,7 +162,7 @@ IGNORED_NOTE = ("The user's last message was not said to you (background audio, 
                 "Ignore it completely: never act on it, answer it or mention it.")
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
 VIEW_NOTES = {
-    "code": "The user switched to the CODE view (VS Code on the main screen); crew tools are available now.",
+    "code": "The user switched to the CODE view (the code panel on the main screen); crew tools are available now.",
     "cad": "The user switched to the CAD view (the open design on the desk); crew tools are off until they open CODE.",
     "ml": "The user switched to the ML view (training data and runs); crew tools are off until they open CODE.",
     "messages": "The user switched to the MESSAGES view (their Slack inbox); crew tools are off until they open CODE.",
@@ -833,7 +830,7 @@ class GrokVoiceSession(_Base):
         except (json.JSONDecodeError, TypeError, ValueError):
             args = {}
         await self._emit(ev.tool_call(self.pet_id, call_id, name, args))
-        log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to (VS Code vs crew)
+        log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to
         if name in UNDOABLE_TOOLS:
             self.last_change = (name, time.monotonic())
         if name in ("ml_apply", "ml_train"):
@@ -848,7 +845,7 @@ class GrokVoiceSession(_Base):
         elif tools.is_lead_only(name) and self.workspace_mode is not None and self.workspace_mode != "code":
             result = CREW_OFF_CODE_SCREEN  # the crew lives on the CODE screen; Unity told us another view is open
         elif tools.has(name):
-            # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s, VS Code under 5 s).
+            # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s).
             result = await tools.call(name, args, self.pet_id)
         else:
             result = {"error": f"unknown tool {name!r}"}

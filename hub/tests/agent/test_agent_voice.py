@@ -484,9 +484,9 @@ def test_fast_tool_runs_inline_and_returns_its_result(monkeypatch: pytest.Monkey
         await s.begin_turn()
         s._expected = 1  # the reply the hub asked for (Grok's own, unasked replies are cancelled)
         sess = grok.sent[0]["session"]
-        assert "vscode_highlight" in [t["name"] for t in sess["tools"]] and "quick actions" in sess["instructions"]
+        assert "ui_open_view" in [t["name"] for t in sess["tools"]] and "quick actions" in sess["instructions"]
         grok.push(type="response.created")
-        grok.push(type="response.function_call_arguments.done", name="vscode_highlight", call_id="h1",
+        grok.push(type="response.function_call_arguments.done", name="ui_open_view", call_id="h1",
                   arguments=json.dumps({"path": "train.py", "start": 40}))
         grok.push(type="response.done")
         await _settle()
@@ -613,7 +613,7 @@ def test_stop_word_ends_the_turn_without_a_reply() -> None:
         grok.push(type="response.created")
         grok.push(type="response.output_audio.delta", delta=_b64(b"\x01\x00" * 100))
         grok.push(type="response.output_audio_transcript.delta", delta="Okay, quiet.")
-        grok.push(type="response.function_call_arguments.done", name="vscode_run_command", call_id="x", arguments="{}")
+        grok.push(type="response.function_call_arguments.done", name="ui_open_view", call_id="x", arguments="{}")
         grok.push(type="response.done")
         await _settle()
         assert [v.payload["text"] for k, v in sink.log if k == "emit" and v.type == "stt.final"] == [""]

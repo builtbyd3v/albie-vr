@@ -1,8 +1,7 @@
 """WebSocket event bus (`/ws`) and payload models. Mirror of ForgeEvents.cs.
 
-Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
-the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/archive/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated),
+Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight,
+the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), the desk extras (ui.widgets, timers.updated, notes.updated),
 and Albie driving the views: ui.mode, cad.action, draft attachments (Addendum H).
 The ML and pet models from section 7 still belong to their owners; add them next to these.
 """
@@ -196,31 +195,6 @@ class CadAction(BaseModel):
     part: str = ""                    # the design it is for
     version: int | None = None        # the version it is for: wait until that version is loaded
     seq: int = 0                      # increasing per hub run: a CadSession that starts late applies the last one once
-
-
-class VscodeEvent(BaseModel):
-    """Pushed by the Forge Albie VS Code extension so Albie can speak up on its own."""
-    kind: Literal["errors", "command_finished"]
-    file: str | None = None           # workspace-relative
-    line: int | None = None           # 1-based, first error
-    message: str | None = None        # first error
-    count: int | None = None          # errors in the saved file; 0 = just fixed
-    command: str | None = None        # command_finished: the command line
-    exit_code: int | None = None
-
-
-SCREEN_STATUS = "screen.status"
-
-
-class ScreenStatus(BaseModel):
-    """State of the screen bridge (screen-bridge/start.js, supervised by hub/screens). Sticky on /ws.
-
-    starting: the child was (re)spawned and is bringing up signaling + Chrome; sharing: Chrome is capturing
-    `source`; stopped: disabled, or the hub is shutting down; error: the child died and restarts are exhausted.
-    """
-    state: Literal["starting", "sharing", "stopped", "error"]
-    source: str | None = None         # what Chrome shares ("| gatorhack-dubz", "Entire screen")
-    detail: str | None = None         # last status line ("signaling: connected", "video: connected h264", an error)
 
 
 class UiMode(BaseModel):
@@ -420,7 +394,7 @@ class EventBus:
         self._current: dict[str, Callable[[], BaseModel | dict[str, Any]]] = {}
 
     def make_sticky(self, type_: str) -> None:
-        """Replay the last `type_` payload to late joiners too (modules register their own, e.g. screen.status)."""
+        """Replay the last `type_` payload to late joiners too (modules register their own)."""
         self.sticky.add(type_)
 
     def sticky_fresh(self, type_: str, current: Callable[[], BaseModel | dict[str, Any]]) -> None:

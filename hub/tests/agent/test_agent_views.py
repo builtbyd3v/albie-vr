@@ -39,7 +39,7 @@ def one_socket(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_takes_what_people_say() -> None:
-    assert [resolve(v) for v in ("cad", "3D", "Modeling", "slack", "Messenger", "VS Code", "none", "")] == \
+    assert [resolve(v) for v in ("cad", "3D", "Modeling", "slack", "Messenger", "editor", "none", "")] == \
         ["cad", "cad", "cad", "messages", "messages", "code", "", ""]
     assert resolve("kitchen") is None
 
@@ -105,7 +105,7 @@ def test_the_view_tool_is_registered_for_albie_only() -> None:
     assert tools.has("ui_open_view")
     tool = next(d for d in tools.definitions() if d["name"] == "ui_open_view")
     assert tool["parameters"]["properties"]["view"]["enum"] == ["cad", "code", "ml", "messages", "none"]
-    assert "ui_open_view" not in [d["name"] for d in tools.definitions(lead=False, allow=("vscode_", "cad_"))]
+    assert "ui_open_view" not in [d["name"] for d in tools.definitions(lead=False, allow=("cad_",))]
 
 
 def wait_for_mode(mode: str, timeout: float = 3.0) -> None:
