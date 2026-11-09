@@ -9,14 +9,15 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Headless checks for the biology templates, <c>cell</c> and <c>heart</c>: both are valid, buildable, offered by
-/// <c>artifact_list</c> and made by <c>artifact_create</c>; both models are bundled, CC0, and match their hashes; every
-/// label has a leader and the show and hide buttons cover them all; step captions and moving parts stay hidden until
-/// their button is pressed; the heart beats about its own centre. Forge > Artifacts > Check Biology Templates.
+/// Headless checks for the biology templates (cell, heart, brain, plant_cell, eye, dna): all are valid, buildable,
+/// offered by <c>artifact_list</c> and made by <c>artifact_create</c>; every model is bundled, CC0, and matches its hash;
+/// every label has a leader and the show and hide buttons cover them all; step captions and moving parts stay hidden
+/// until their button is pressed; the heart beats about its own centre; the DNA turns a full circle and stopping puts
+/// it back at rest. Forge > Artifacts > Check Biology Templates.
 /// </summary>
 public static class BioTemplatesCheck
 {
-    static readonly string[] Bio = { "cell", "heart" };
+    static readonly string[] Bio = { "cell", "heart", "brain", "plant_cell", "eye", "dna" };
 
     [MenuItem("Forge/Artifacts/Check Biology Templates")]
     static void Menu()
@@ -42,12 +43,13 @@ public static class BioTemplatesCheck
         bool ok = true;
         try
         {
-            ok &= Check(sb, "both templates are valid and this host builds them", Valid);
+            ok &= Check(sb, "every biology template is valid and this host builds it", Valid);
             ok &= Check(sb, "artifact_list offers them and artifact_create makes them", Made);
-            ok &= Check(sb, "both models are bundled, CC0, and match their hashes", Model);
+            ok &= Check(sb, "every model is bundled, CC0, and matches its hash", Model);
             ok &= Check(sb, "every label has a leader, and Show and Hide labels cover them all", Labels);
             ok &= Check(sb, "captions and moving parts stay hidden until their button starts them", Hidden);
             ok &= Check(sb, "the heart squeezes about its own centre", Beat);
+            ok &= Check(sb, "the DNA turns a full circle, and Stop puts it back at rest", Spin);
         }
         finally
         {
@@ -123,7 +125,7 @@ public static class BioTemplatesCheck
             if (offeredByTool != null) foreach (var e in offeredByTool) listed |= (string)e == t;
             if (!listed) return "artifact_create's template enum doesn't list " + t;
         }
-        note = "made both with no network; the tool lists every template in the library";
+        note = "made all " + Bio.Length + " with no network; the tool lists every template in the library";
         return null;
     }
 
@@ -247,6 +249,37 @@ public static class BioTemplatesCheck
             if ((At(i) - centre * (1f - s)).magnitude > 1e-4f) return $"key {i} is at {At(i)}, so it doesn't squeeze about {centre}";
         }
         note = $"down to {smallest:0.00} about {centre.ToString("F3")}";
+        return null;
+    }
+
+    static string Spin(out string note)
+    {
+        note = null;
+        var scene = Scene("dna");
+        var model = Node(scene, "dna");
+        var timeline = Node(scene, "spin");
+        if (model == null || timeline == null) return "no dna model or spin timeline";
+        if (timeline.Value<bool?>("autoplay") == true || timeline.Value<bool?>("loop") != true) return "the spin should loop and wait for its button";
+        JArray keys = null;
+        foreach (JObject r in (JArray)scene["rules"])
+            if ((string)r["type"] == "animate" && (string)r["target"] == "dna" && (string)r["property"] == "rot") keys = (JArray)r["keys"];
+        if (keys == null) return "nothing turns the model";
+        var rest = (JArray)model["rot"];
+        var first = (JArray)keys[0][1];
+        var last = (JArray)keys[keys.Count - 1][1];
+        for (int i = 0; i < 3; i++)
+        {
+            if ((float)first[i] != (float)rest[i]) return "the spin doesn't start at the model's resting rotation";
+            float turn = (float)last[i] - (float)first[i];
+            if (Mathf.Abs(turn) != (i == 1 ? 360f : 0f)) return "the spin should be one whole turn about y, not " + last;
+        }
+        if ((float)keys[keys.Count - 1][0] != (float)timeline["duration_s"]) return "the turn doesn't take the whole loop, so it would jump";
+        var stop = new List<string>();
+        foreach (JObject r in (JArray)scene["rules"])
+            if ((string)r["type"] == "on_input" && (string)r["input"] == "spin_off")
+                foreach (JObject a in (JArray)r["do"]) if ((string)a["timeline"] == "spin") stop.Add((string)a["action"]);
+        if (string.Join(",", stop) != "restart,pause") return "Stop spinning should restart then pause the spin, not " + string.Join(",", stop);
+        note = $"one turn in {(float)timeline["duration_s"]} s";
         return null;
     }
 }

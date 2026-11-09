@@ -1,0 +1,46 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "dna",
+  "title": "DNA double helix",
+  "version": 1,
+  "kind": "standalone",
+  "category": "viz",
+  "template": "dna",
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": null,
+    "thing": null
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 4
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 1,
+      "params": {}
+    }
+  ],
+  "data": [],
+  "assets": [
+    {
+      "path": "assets/dna.glb",
+      "sha256": "db22d9cbb0bda2e9422f5a5271793cc95dbf2a1610977e2e3f14098404246c8a",
+      "license": "CC0"
+    }
+  ],
+  "permissions": {
+    "network": [],
+    "connectors": [],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "none",
+    "things": "none"
+  },
+  "outputs": []
+}
