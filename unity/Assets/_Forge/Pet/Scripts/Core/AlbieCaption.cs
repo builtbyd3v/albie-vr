@@ -187,6 +187,8 @@ namespace Forge.Pet
             return s_defaultFont;
         }
 
+        const float NearDistance = 1f, MinNear = 0.3f;
+
         void LateUpdate()
         {
             if (!built || !root.gameObject.activeSelf) return;
@@ -198,6 +200,9 @@ namespace Forge.Pet
             if (head == null) return;
             Vector3 dir = root.position - head.position;   // TMP faces -Z, so +Z points away from viewer
             if (dir.sqrMagnitude > 0.0001f) root.rotation = Quaternion.LookRotation(dir, Vector3.up);
+            // Sizes stay in metres while he changes size (sitting on a palm), and shrink when he's right in your face.
+            float scale = transform.lossyScale.x;
+            if (scale > 0.0001f) root.localScale = Vector3.one * (Mathf.Clamp(dir.magnitude / NearDistance, MinNear, 1f) / scale);
         }
     }
 }

@@ -45,7 +45,10 @@ public class PanelManipulator : MonoBehaviour
     public bool Busy { get; set; }
     /// <summary>A pointer is on the panel or its handles this frame (the handles show).</summary>
     public bool PointedAt { get; private set; }
+    /// <summary>A pointing hand is aimed at this panel (<see cref="GestureEngine"/>): it lights up as if pointed at.</summary>
+    public bool Aimed { get; set; }
 
+    UnityEngine.Events.UnityAction minimizeAction;
     ForgePanel panel;
     RectTransform rect;
     Transform head, frame;
@@ -108,12 +111,25 @@ public class PanelManipulator : MonoBehaviour
     public void AddMinimize(UnityEngine.Events.UnityAction onMinimize)
     {
         if (controls == null || straightButton == null || minimizeButton != null) return;
+        minimizeAction = onMinimize;
         float fromRight = faceButton.Rect.sizeDelta.x + 8f + straightButton.Rect.sizeDelta.x + 8f;
         minimizeButton = TitleButton((RectTransform)controls.transform, "−", fromRight, onMinimize);
         minimizeButton.Rect.sizeDelta = new Vector2(ForgeTheme.PillHeight, ForgeTheme.PillHeight);
     }
 
-    void OnDisable() => Cancel();
+    /// <summary>Press this panel's own "−" (<see cref="AddMinimize"/>). False if it doesn't have one.</summary>
+    public bool PressMinimize()
+    {
+        if (minimizeAction == null) return false;
+        minimizeAction.Invoke();
+        return true;
+    }
+
+    void OnDisable()
+    {
+        Aimed = false;
+        Cancel();
+    }
 
     // ---------------------------------------------------------------- grabbing
 
@@ -386,6 +402,7 @@ public class PanelManipulator : MonoBehaviour
 
     bool IsPointedAt()
     {
+        if (Aimed) return true;
         var rig = DesktopRig.Current;
         if (rig != null && rig.Hovered != null && rig.Hovered.transform.IsChildOf(transform)) return true;
         foreach (var r in rays) if (r != null && r.State != InteractableState.Normal) return true;

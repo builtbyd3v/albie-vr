@@ -20,6 +20,19 @@
   - **(unverified)**: claimed somewhere, not confirmed.
   - **(not found)**: we looked and found nothing. That is an absence of evidence, not proof.
 
+**Who's working on what (names claimed so far)**
+
+Section 16 numbers the five chunks; a name goes here when someone claims one. The full task list for each person, with dates, is in the section linked from their row.
+
+| Name | Chunk | Role | Folders | Start here (by Nov 4) | Full task list |
+|---|---|---|---|---|---|
+| **Satyabrata** | Person 4: controllers and ML | **ML A** (lead): the learning engine and the controller runtime | `ML/`, new `Controllers/`, `hub/ml/` | Propose C-19 (controller file and tick interface) with Person 2. Commit a fake Thing and `Mocks/Resources/Mocks/controllers/laps/truck_v2.json` (from `hub/ml/make_controller_mocks.py`). Grow `NNNetwork` to N outputs (steer, throttle). | 16.8, "ML A (Satyabrata)" |
+| **Nandani** | Person 4: controllers and ML | **ML B**: the brain on the desk (trainer view, panels, tools) | `ML/` | Sketch the brain view against the mock laps: ray-sensor and speed inputs, steer and throttle outputs. | 16.8, "ML B (Nandani)" |
+| **Satyabrata** | Person 5: artifacts and the notebook | Lead (also ML A above) | new `Artifacts/`, new `Notebook/` | Propose C-12 and C-17: freeze the Phase 1 `scene.json` node kinds and rules, and the notebook record. Commit the fixture files (16.5). | 16.3, "Person 5"; decisions in 2.2 |
+| *unclaimed* | Person 1: product, presence, hands, code mode, submission | | `Pet/`, `Code/`, `Messages/` | | 16.3 |
+| *unclaimed* | Person 2: Core and the Thing runtime | | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` | | 16.3 |
+| *unclaimed* | Person 3: brain, voice, cloud, connectors | | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` | | 16.3 |
+
 ---
 
 ## 0. Status (2026-10-29)
@@ -1762,14 +1775,14 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 | C-09 | Project record: `{id, name, goal, plan_doc_id, version, repos[], modules[code, ml, cad, sim, hardware, artifact], state}`. Modules list what a project uses; there is no single "kind". | 8.7 | New Project module |
 | C-10 | Jobs: `POST /v1/projects/{id}/jobs {kind: train, cad_build, sim, ci, import, spec_ref, timeout_s, max_cost_usd}`, events `job.status` and `job.metrics`. `ml.metrics` is reused for training. | 8.7 | Cloud, ML, CAD |
 | C-11 | Plan document: `plan.updated {project_id, version}`. | 8.7 | Project module |
-| C-12 | Artifact manifest `albie.artifact/1` (section 9.2):<br>- `kind`: `project`, `code`, `standalone`<br>- `category`: `viz`, `tool`, `sim`<br>- links to a project version<br>- Phase 1 runtime `scene`; Phase 2 `script` | 9.2 | New Artifacts module |
+| C-12 | Artifact manifest `albie.artifact/1` (section 9.2):<br>- `kind`: `project`, `code`, `standalone`<br>- `category`: `viz`, `tool`, `sim`<br>- links to a project version<br>- Phase 1 runtime `scene`; Phase 2 `script`<br>Full proposal: `docs/ARTIFACT_CONTRACT.md` (2026-11-03, Person 5), which also freezes `scene.json`, layouts and run records. | 9.2, 9.3, 15.3 | New Artifacts module |
 | C-13 | CAD design `source` provenance: name, creator, URL, licence, licence version, download time, hash, generated-by tier. Also a region-map file. | 11.5 | `hub/cad/service.py`, `cad.model_updated` |
 | C-14 | Neutral tool names: `cad_*`, `ml_*`, `nn_*` and the new `code_*`, `project_*`, `artifact_*`, `github_*`, `hf_*`, `sketchfab_*`, `sim_*`. The `AlbieTools` JSON format is kept as the registry format. | 10 | All `Resources/AlbieTools/*.json`, `hub/*/tools.py` |
 | C-15 | Headers: keep `x-albie-key` and `x-albie-device` until per-user tokens replace the shared app key (PR-18). | 14.3 | `cloud/lib/guard.ts`, `cloud-py/app.py`, `ForgeCloud.cs` |
 | C-16 | Thing spec `thing.spec/1`, `thing.updated`, and the `thing_*` tools: any physical object built from a parts kit on the device. | 15.2 | New Thing runtime (Unity), agent tools |
-| C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. | 15.8 | Project module |
+| C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. Full proposal: `docs/NOTEBOOK_CONTRACT.md` (2026-11-03, Person 5), which also defines project versions (D-28) and lessons. | 15.8 | New Notebook module, Thing runtime, ML, Code |
 | C-18 | Connectors: one interface over the built-in, broker, MCP and future Muse backends. `connectors.list`, `connector.call`, `connector.snapshot`, permissions like `source_control:read`. | 9.6, 10.7 | New Connectors module, `cloud/`, `cloud-py/`, artifact manifest |
-| C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. | 15.4 | Thing runtime, ML, Code |
+| C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. Full proposal: `docs/CONTROLLER_CONTRACT.md` (2026-11-03, Person 4 / ML A). | 15.4 | Thing runtime, ML, Code |
 | C-20 | Messages: `messages.link`, `messages.draft {text, file_ref}`, `messages.confirm`, and `messages.status {delivered, failed, reason}`. No provider name in the payload. | 10.5, 14.12 | `cloud/`, `Messages/`, `confirm.request` |
 
 ---
@@ -2268,6 +2281,8 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 ## 16. Team: five workstreams to the competition
 
 > Updated 2026-11-01. There are 17 days to the deadline. The people are numbered, not named: the team decides who takes which number. These are leads, not walls. Most people will work across streams (16.2).
+>
+> **Claimed so far (2026-11-03):** Person 4 is **Satyabrata (ML A)** and **Nandani (ML B)**; their task lists are in 16.8. Person 5 is **Satyabrata**, who took the unclaimed chunk on top of ML A; the goals are in 16.3, and the Person 5 decisions in 2.2 (D-18, D-28, D-34) are Satyabrata's. The "Who's working on what" table at the top of this file lists every name as it's claimed.
 
 ### 16.1 The five chunks
 
@@ -2276,8 +2291,8 @@ Cut from the competition build: PR and CI visuals with real GitHub (beyond the d
 | **Person 1** | Product, Albie's presence, hands, code mode, the submission | 2, 7, 8, 10 | `Pet/`, `Code/`, `Messages/` |
 | **Person 2** | Core and the Thing runtime | 1, 9 | `Core/`, new `Thing/`, `CAD/`, `Desk/`, `hub/cad/` |
 | **Person 3** | Brain, voice, cloud, connectors, the messaging backend | 3, 8 | new `Connectors/`, `cloud/`, `cloud-py/`, `hub/agent/` |
-| **Person 4** | Controllers and ML | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
-| **Person 5** | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
+| **Person 4** (Satyabrata, ML A; Nandani, ML B) | Controllers and ML. Split into ML A and ML B (16.8) | 6, the controller half of 7 | `ML/`, new `Controllers/`, `hub/ml/` |
+| **Person 5** (Satyabrata) | Artifacts and the notebook | 4, 5 | new `Artifacts/`, new `Notebook/` |
 
 Folders are under `unity/Assets/_Forge/` unless they start with `hub/`, `cloud/` or `cloud-py/`.
 
@@ -2344,7 +2359,7 @@ Each date is the day the goal works in that person's sandbox scene, unless it sa
 | Nov 13 | The cloud is stable for judges: spend cap tested, demo account resets, recipient window kept open. |
 | Nov 16 | Fixes only. Cloud stays up to about Dec 11. |
 
-**Person 4: controllers and ML**
+**Person 4: controllers and ML** (Satyabrata leads as ML A, with Nandani as ML B; the task split is in 16.8)
 
 | By | Major goal |
 |---|---|
@@ -2356,7 +2371,7 @@ Each date is the day the goal works in that person's sandbox scene, unless it sa
 | Nov 14 | ML template works as a starter. Neural Net Lab is the trainer view. |
 | Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
 
-**Person 5: artifacts and the notebook**
+**Person 5: artifacts and the notebook** (Satyabrata leads, alongside ML A)
 
 | By | Major goal |
 |---|---|
@@ -2415,6 +2430,228 @@ The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. 
 - Before you merge: your sandbox scene runs with the hub off, and with hands, not only a mouse.
 - The nightly APK goes on a Quest. A broken main is the first thing fixed the next morning.
 - A smaller demo that runs well beats a bigger one that doesn't.
+
+### 16.8 Person 4 in detail: ML A and ML B
+
+> Added 2026-11-03. Person 4's chunk is split in two, like the Gator Hack ML A and ML B roles. **ML A is Satyabrata**, the lead: the learning engine and the controller runtime, which is the larger half. **ML B is Nandani**: the brain on the desk, meaning the trainer view, panels and tools. ML A reviews ML B's PRs, and ML B reviews ML A's. The dates are the Person 4 dates in 16.3, unchanged. Person 4's decisions in 2.2 belong to ML A.
+
+**What exists today.** `ML/NeuralLab/NNNetwork.cs` is an allocation-free MLP with **one** tanh output and a squared-error loss, built for 2D Playground points. `NeuralLabSim.cs` trains it one epoch per frame and already runs on the Quest. The truck needs ray-sensor and speed inputs and **two** outputs (steer, throttle), so the network has to grow to N outputs (or two networks side by side).
+
+**ML A (Satyabrata): the learning engine and the controller runtime**
+
+| By | Task |
+|---|---|
+| Nov 4 | Propose C-19 with Person 2: the tick interface (sensors in, actuators out, each physics tick) and the controller file `controllers/<name>.json` (manual, rule and PID graph, or MLP weights with an input and output map, plus tunables such as `max_speed`). Commit a fake Thing that echoes inputs (16.5) and a scripted-driver lap file, `Mocks/Resources/Mocks/controllers/laps/truck_v2.json` (from `hub/ml/make_controller_mocks.py`). |
+| Nov 4 | Extend `NNNetwork` to N outputs, still with no allocations after construction. |
+| Nov 6 | Controller runner in new `Controllers/`: the manual controller (fed by Person 1's hands transmitter through the interface) and the rule and PID graph interpreter, running on the mock Thing. |
+| Nov 8 | Telemetry recorder: a preallocated ring buffer of (rays, speed) → (steer, throttle). `BehaviourCloner`: optional mirrored laps (off by default, see the findings below), input scaling, a train and validation split, training spread over frames so the headset holds 72 fps. **A timed run on a Quest 3.** Decide network size and inputs, and tell Person 2 whether ONNX is needed (default: no, our own C# forward pass). |
+| Nov 10 | `LearnedController`: runs the trained net each physics tick, and saves and loads its weights to the controller file. Swap the mock laps for real laps from Person 2's truck. **Two laps train in about 10 s and the Autopilot drives the truck.** |
+| Nov 12 | Hot reload: a changed controller file applies to the running Thing (with Person 1's code panel). **Pretrained v2 fallback controller** shipped. The Autopilot finishes Person 5's slalom. Each training run logs a notebook attempt (C-17) with its data, loss and slalom result. |
+| Nov 14 | Decide which ML template repos work with no network (default: one bundled on-device template). Stretch: a small "obstacle ahead" classifier on the ray sensors, plugged into a Thing (15.5). |
+| Nov 16 | Fixes only. Live training has worked 5 times in a row, or the fallback is used and disclosed. |
+
+**ML B (Nandani): the brain on the desk**
+
+| By | Task |
+|---|---|
+| Nov 4 | Sketch the brain view against ML A's mock laps: inputs labelled as ray sensors and speed, outputs as steer and throttle. |
+| Nov 6 | Controller panel (a `ForgePanel`): live input and output values and a sparkline for the mock Thing's controller. |
+| Nov 8 | Brain view on the Neural Net Lab visuals, with the live loss curve (`TrainingDash/MLCurve`). **Record lap → Train → Autopilot** buttons, working with hands only (ray and poke). |
+| Nov 10 | Voice and agent tools in `ML/Resources/AlbieTools/nn.json` (proposed names: `brain_record`, `brain_train`, `autopilot_on`, `autopilot_off`), handed to Person 3 for the agent prompt. Make the about-10-s training moment readable on camera. |
+| Nov 12 | The controller side of the code panel, with Person 1: `truck_autopilot` shown beside the Thing, with `max_speed` editable, feeding ML A's hot reload (15.6, step 9). |
+| Nov 14 | The ML template works as a starter, and the Neural Net Lab is the trainer view for any learned controller. Hands-only pass on a Quest: 72 fps while training, and text readable at 1 m. |
+| Nov 16 | Fixes only. |
+
+Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX and the Inference Engine package, Hugging Face fine-tuning (15.10).
+
+**ML A findings for the Nov 8 decisions (2026-11-04, closed-loop sweeps on the mock slalom in the Editor; the Quest timing is still to do).** Each trial recorded 2 laps through the real manual controller, trained, and let the net drive the fake truck from 15 starts.
+- **Inputs:** the 7-ray fan plus speed, with each ray a **0.1 m sphere cast**. Plain rays let a 0.16 m cone slip between them; the beam raised one training run's success from 26-48% to 64-70%. Asked of Person 2 in `docs/CONTROLLER_CONTRACT.md` section 8.
+- **Network:** **8×8 tanh, 120 epochs**, mini-batch SGD (batch 16, rate 0.3). It's the smallest size that reached 100% best-of-3. Training takes about 30 frames at 4 ms a frame in the Editor. **ONNX isn't needed:** our own C# forward pass is enough (told to Person 2 here).
+- **Mirrored laps are off by default.** This corrects 15.11. On a slalom, a mirror teaches "pass left" and "pass right" for the same view, and the net averages them into "straight into the cone". Mirroring and ensembles both made results worse.
+- **Train 3 candidates and let the arena run decide.** One training run finishes the course about 60-90% of the time; the best of 3 seeds reached 98-100%. Validation loss can't pick the good one (in a live run, the lowest-loss net scored 0/15 and the other two 15/15), so the autopilot (Nov 10) tries the candidates in order. The pretrained fallback stays necessary (16.3, Nov 12).
+
+**ML A rehearsal for Nov 16: "live training worked 5 times in a row" (2026-11-05, mock truck in the Editor; the Quest and the real truck are still to do).** Each attempt is the demo loop from scratch: two laps, 3 candidates, then the Autopilot from a hand-placed start (`FiveInARowCheck`, and key 9 in the Controllers sandbox for the live frame loop).
+- **It passes: 5 out of 5 live, with no fallback.** In the check, a trained candidate drove all 5. In the live sandbox rehearsal it also drove all 5, and candidate 1 drove 2 of them.
+- **But candidate 1 usually crashes first.** With demo-style laps (both from the start line at one steady speed), candidate 1 drove the course in about half of the attempts: 0/5 in the check, 2/5 live, and 15/30 in the sweep. The Autopilot then switches to candidate 2, so **on camera the truck crashes once before it succeeds.** Over 30 drivers, a trained candidate drove 28 times and the fallback 2 times, so the odds of 5 live in a row are about 0.93⁵ ≈ 70%.
+- **The cause is too little variety in the laps, not the start.** How far off the line the truck is put down made no difference: candidate 1 drove 10/30 from exactly on the line, 12/30 within 0.05 m and 12/30 within 0.15 m and 0.08 rad. Laps at different speeds fixed most of it:
+
+  | Laps | Candidate 1 drives | Some trained candidate drives |
+  |---|---|---|
+  | Both at 1.2 m/s | 12/30 | 27/30 |
+  | Second lap at 1.5 m/s | 21/30 | 28/30 |
+  | Varied speed and start | 25/30 | 30/30 |
+
+  A person's speed varies more than the scripted driver's, so the real truck may do better than this.
+- **Fixed with speed jitter (2026-11-05, Editor).** `BehaviourCloner` now adds Gaussian noise (σ 0.06 of `speed.forward`, about 0.18 m/s) to the speed input of each training row, fresh every epoch. Validation rows stay clean, it allocates nothing, and the noise has its own random generator.
+  - **Why it works:** with two laps at one steady speed, the net uses speed as a cue for where it is on the course. The noise takes that cue away.
+  - **Results** (tuned on drivers 2000+, confirmed on drivers 3000+ and 4000+):
+
+    | Laps | Candidate 1 before | Candidate 1 after | A trained candidate, before → after |
+    |---|---|---|---|
+    | Demo-style, 60 drivers | 23/60 | 56/60 | 55/60 → 60/60 |
+    | Sloppy drivers (2× noise), 30 | 11/30 | 24/30 | 25/30 → 29/30 |
+    | Varied, tuning set | 25/30 | 25/30 | unchanged |
+    | Second lap faster | 22/30 | 25/30 | 29/30 → 30/30 |
+
+  - **The check and the live rehearsal:** `FiveInARowCheck` now has candidate 1 driving all 5 (it was 0/5), and the live sandbox rehearsal (key 9) too (it was 2/5), so nothing crashes before it works.
+  - **Two traps found along the way:**
+    - Noise on the rays made things worse (8/30), so it stays off.
+    - At first the noise shared the shuffle's random generator. Then even tiny noise changed the training order and made varied laps look 2× worse. That was a lottery effect, not the noise.
+  - **The demo no longer needs a "drive the second lap faster" tip.** Still to do: confirm on the Quest and Person 2's real truck.
+
+**ML A Quest timing kit, for the Nov 8 and Nov 14 Quest checks (2026-11-06; built and run in the Editor, not yet on a headset).** One APK times ML A's on-device work on the headset's own frame loop, so the team doesn't rig timers on the day. Build it with **Forge > Controllers > Build Quest Timing APK** (about 3 min). Install it, put the headset on and keep still for about 10 s. The steps and how to get the numbers off are in `Controllers/README.md`, "Timing on a Quest".
+- **What it runs, in order:**
+  1. 300 idle frames, the baseline.
+  2. Two demo laps, then 3 Autopilot candidates trained 4 ms a frame, as key B does.
+  3. The Autopilot drives the mock slalom from a hand-placed start, with each controller tick timed.
+  4. The ML template, as `template_train` runs it.
+- **What it reports, on a panel 1 m away, in logcat and as JSON:**
+  - training ms a frame;
+  - frame time (mean, p95, max);
+  - slow frames (over 1.5× the refresh interval) next to idle;
+  - the one-frame setup costs.
+- **The verdict:** "holds the frame rate" means training added no slow frames beyond idle's share plus 1%.
+- **It's isolated:** its files go to a scratch folder, and it writes nothing to the lab notebook (`TrainingLog.Muted`).
+- **Editor numbers to compare with (M4 Pro):**
+  - Autopilot training: 3 nets in about 130 frames (1.1 s), at 3.97 ms a frame (max 4.2).
+  - Autopilot driving: candidate 1 drove it; a tick takes about 1 µs.
+  - ML template: 3,000 samples made in about 15 ms; trained in 36 frames.
+- **One thing to watch on the Quest: making the template's dataset happened in one frame.** It took about 15 ms in the Editor, already more than a 72 Hz frame (13.9 ms), and maybe 40-60 ms on the Quest. **Fixed:** see "ML A template without a stutter" below.
+- **The kit's APK has the same app id as Albie** (Project Settings, which ML A doesn't change). Installing it replaces Albie on the headset: reinstall `Forge.apk` afterwards.
+- **Still to do:** run it on a Quest 3 and paste the JSON here.
+
+**ML A handoff to the Thing runtime (2026-11-06, Editor, Unity physics; the real truck is still to do).** Person 2 (or whoever builds the Thing runtime) now has a plug and a worked example in `Controllers/Scripts/Thing/`, with the steps in `Controllers/README.md`, "For the Thing runtime".
+- **The plug:** the Thing implements `IThingBody`:
+  - sensors in;
+  - forward speed out;
+  - actuators to physics.
+
+  `ControllerThing` does the rest:
+  - the C-19 call order each physics step;
+  - swapping controllers;
+  - recording laps;
+  - registering the Thing with `ThingHosts`, so `template_status` and `learned_brake` reach it.
+
+  `RayFan` is the contract's sphere-cast ray fan on real colliders.
+- **Checked on Unity physics** (`ThingRuntimeCheck`: the slalom built from colliders, with the mock truck's driving model on a transform):
+  - Albie's tools reach the truck by name.
+  - A step allocates nothing (about 6 µs with 7 sphere casts).
+  - **The real-laps loop works end to end:** two laps driven by hand, recorded, saved and read back, then 3 candidates trained on them. Candidate 1 drove the truck from all 3 hand-placed starts.
+- **Finding: brains trained on the mock carried over badly, and the pretrained fallback crashed on the physics truck.**
+  - Candidates trained on mock laps needed candidate 3.
+  - The likely cause is that the mock casts plain rays at walls, where the contract's sphere cast reads walls up to 0.21 m nearer. Cones agree exactly.
+  - **Fixed the same day:** see the next paragraph.
+
+**ML A fallback fix (2026-11-06, Editor).** The Nov 16 safety net now works on a truck that senses like the contract.
+- **The cause is confirmed.** Both mocks (`MockTruckSim` and `hub/ml/make_controller_mocks.py`) now sphere-cast walls, as C-19 section 2.1 says. On the physics example, every sensor reading agrees with the mock to 0.0 mm (425 poses × 7 rays). Before, every wall ray was off, by up to 0.21 m.
+- **The mock files are regenerated:** `laps/truck_v2.json` and `truck_autopilot.json`. The pretrained fallback is rebuilt: seed 1, 15/15 mock starts.
+
+  | On the physics example truck | Before | After |
+  |---|---|---|
+  | The pretrained fallback, 15 starts | 4/15 | **15/15** |
+  | Candidates trained on mock laps | candidate 3 | candidate 1 |
+
+  `ThingRuntimeCheck` now fails if the fallback misses a start.
+- **The demo loop still holds on the new mock:**
+  - `FiveInARowCheck`: 5/5 on candidate 1.
+  - Demo laps, 60 drivers: candidate 1 58/60, a trained candidate 59/60; the fallback drove the last one.
+  - Behaviour cloning closed loop: 15/15 for all three seeds (was 14, 14, 15).
+  - The ML template: 97.5% held out (the rule: 86.0%).
+- **On the real truck:** replace the fallback with a candidate that drove the real course (**Forge > Controllers > Use Controller File As Fallback**; steps in `Controllers/README.md`). Laps alone can't pick one: validation loss doesn't say which net drives.
+
+**ML A template without a stutter (2026-11-06, Editor).** No frame of `template_train` does a big piece of work any more, so starting it by voice shouldn't drop a frame on the Quest.
+- **Making the dataset:** a slice a frame within the 4 ms budget (`ObstacleData.Maker`). The samples are exactly the same as before: same seed, same samples bit for bit, same net, 97.5%.
+- **The finish:** scoring the net, writing the two files and the notebook entry now take one step a frame. The run used to score the net twice in that frame; now it scores once.
+
+  | `template_train`, Editor (M4 Pro) | Before | After |
+  |---|---|---|
+  | Making the dataset | about 8 ms in one frame (15 ms the first time) | 2-3 frames, at most 4.1 ms |
+  | The finish (score, save, notebook) | 3 ms in one frame | 5 frames, at most 1.4 ms |
+  | Worst frame of the whole run | the dataset frame | 4.2 ms (the training budget) |
+  | Allocated while making data | about 190 KB (a small array per pose tried) | 48 bytes (the result) |
+
+- **`template_status` while it runs:** `step` is `making_data`, `training` or `saving`. While making data it also gives `made`.
+- **Found along the way: `GC.GetAllocatedBytesForCurrentThread` reads 0 under Unity's garbage collector.** So every "0 bytes" check built on it passed whatever the code did.
+  - `MLTemplateCheck` and the timing kit now use the profiler's "GC Allocated In Frame" counter. It counted the old dataset code's 193,440 bytes exactly. Training, ticking the learned brake and Autopilot training really are 0 bytes.
+  - **All the Controllers checks now use it** (`Controllers/Editor/AllocationCounter.cs`): `ControllersCheck`, `AutopilotCheck`, `BehaviourCloningCheck`, `ThingRuntimeCheck` and `MLTemplateCheck`. The counter first proves it counts a 1 KB probe, so a check can't pass on a counter that reads 0.
+    - Every one still passes: ticking, recording, training and the physics truck really allocate nothing.
+    - Proof the checks can fail now: with a temporary 1-float allocation in the controller tick and in training, every allocation step failed, at 36 bytes a step.
+  - **`NNNetworkCheck` (ML), `ArtifactChecks` and `ArtifactRunCheck` (Artifacts) use it too**, so no check uses the old counter any more. With a temporary 1-float allocation in each hot path (`NNNetwork.Forward`, the artifact solver's `Step`, `ArtifactRun.Tick`), each failed, at 36 bytes a step.
+  - **The profiler counter counts every thread, not just the one measured.** The notebook writes its files on a worker thread, so `ArtifactRunCheck` sometimes failed, at 1-8 KB, after its earlier steps had logged runs. Two fixes:
+    - `AllocationCounter` now waits until the whole process is quiet (two 5 ms windows with nothing allocated) before measuring. If another thread keeps allocating, it refuses with a clear error rather than give a wrong number.
+    - The check calls `NotebookFiles.Flush()` first. It now passes 8 times out of 8.
+  - **`ArtifactRunCheck` had also been measuring past the end of the run.** Its 5000 ticks (100 s) ran past the slalom's 90 s timeout, and the tick that ends a run builds the run record. It now ticks 4000 times (80 s) and fails if the run isn't still going, so every tick it measures is a live one. Live ticks allocate nothing.
+- **Still to do:** the kit on a Quest 3.
+
+**ML A room slalom, part 1: a truck that can weave it (2026-11-06, Editor, with Person 5's slalom).** The Autopilot was only ever tested on the mock course: cones 1.6 m apart in a 3 m corridor. The room slalom (`FloorSlalom`) put cones 0.8 m apart, down to 0.5 m in a tight room, with ±0.3 m to pass each one. **No driver could weave it with the mock truck:** a scripted driver passed 0 of 60 settings at 0.8 m or less, because the truck turned no tighter than 0.48 m.
+- **Both sides changed** (the user's call):
+  - **The truck:** 0.17 m wheelbase, 35° steering and a 0.09 m body (`MockTruckSim` and `hub/ml/make_controller_mocks.py`), so it turns in 0.24 m. The scripted driver's steering wobble is scaled to match (0.25 to 0.13 stick units, `MockDriver.Wobble`), so its path wobbles as much as before.
+  - **The course:** cones 1.2 m apart by default, never closer than 1.0 m. That's in the template, the fixture and the generator's defaults; details in `docs/ARTIFACT_CONTRACT.md`, "Spacing the truck can weave".
+
+  | Scripted driver, 60 settings | 0.8 m | 1.0 m | 1.2 m |
+  |---|---|---|---|
+  | Old truck (0.48 m turn) | 0 | 28 | 44 |
+  | New truck (0.24 m turn) | 28 | 40 | 52 |
+
+- **The cost: slaloms fit 3 of MRUK's 8 prefab rooms, down from 6.** The old 6 used cones 0.5–0.8 m apart, which no truck we've tested could weave. The 7 × 5 m mock living room still gets all 5 gates, at 1.0 m, and Albie says the room is tight. The 4.5 m mock bedroom gets `no_free_floor`.
+  - A 0.9 m minimum fits the same 3 rooms.
+  - Allowing 2-gate courses would add LivingRoom04.
+- **Regenerated:** the mock laps and mock autopilot for Nandani's brain view (same shapes), and the pretrained fallback (seed 1, 15/15 mock starts; 15/15 on the physics truck).
+- **On the old mock course with the new truck:**
+  - Five in a row still passes 5/5. Candidate 1 drove 3 of the 5 (it was 5).
+  - In the 40-driver sweep, a trained candidate drove 39; the fallback drove the last one.
+  - Behaviour cloning closed loop: 14, 15 and 0 of 15 for the three seeds.
+  - The ML template: 99.0% (the rule: 85.8%), so Albie now says 99%.
+- **Asked of Person 2:** a real truck that turns in about 0.25 m or less (`Controllers/README.md`, "For the Thing runtime").
+- **Next (part 2):** the Autopilot on room courses: laps, training and the fallback on `FloorSlalom` layouts.
+
+**ML A room slalom, part 2: the Autopilot on room courses (2026-11-06, Editor, mock truck).** The demo's brain beat on the courses `FloorSlalom` lays out in rooms, not the mock corridor.
+- **A course for the mock truck** (`MockCourse`, built from a room by `RoomCourses`): the slalom template's own fit, with the room's walls and furniture as segments. It's scored as the artifact scores it: gates in order, then the finish box (`missed_gate`, `missed_finish`).
+  - The corridor rebuilt as a course senses exactly like the built-in one, to 0.0 mm.
+  - Plain rays agree with each room's own free-floor test, to 2 mm.
+- **Finding: a ray fan alone can't drive a room slalom.** Two laps, then three candidates, drove **5 of 48** attempts in the 6 mock rooms. The scripted laps themselves were fine (60/60).
+  - Once the truck is behind a cone, nothing in the rays says which side the next gate is on. In the 3 m corridor, the side rays saw both walls, which gave it away.
+  - Bigger nets, more epochs, more laps and a wider weave got no better than 4 of 18. Gate posts (an outer cone at each gate) got 2 of 48.
+- **The fix: a `course.bearing` sensor** (C-19 section 2.1 and C-12 section 5, proposed, the user's call): the angle to the next gate in order, then the finish, over 90°.
+  - The run engine (`ArtifactRun`) publishes the target to `CourseBeacon`, and a Thing's body reads it.
+  - The mock corridor got gates too, so the channel means the same everywhere.
+  - **With it the loop drove 48 of 48.**
+
+  | `RoomSlalomCheck` | Result |
+  |---|---|
+  | The 6 mock rooms, 5 drivers each | **30/30 live** (25 on candidate 1), the fallback never needed |
+  | 20 random rooms nobody tested | **18/20 live**, the fallback drove the other 2, none failed |
+  | The fallback alone, 20 unseen rooms | 17/20 |
+  | The fallback alone, the mock living room / long hallway | **1/9 and 0/9 starts**: weak there |
+
+- **The fallback now learns from rooms:**
+  - 4 corridor laps plus 2 laps in each of 32 random rooms, a 16×16 net and 6 seeds;
+  - it keeps the seed that drives every corridor start and the most room starts (seed 6: 15/15 corridor, 59/78 room starts);
+  - it still drives the physics truck from all 15 starts.
+  - Room skill varies a lot by seed (21-59 of 78), which is why it's weak in some rooms.
+- **The corridor, with the new sensor:**
+  - Five in a row 5/5, candidate 1 4 of 5 (was 3).
+  - A trained candidate drove 40 of the 40-driver sweep (was 39).
+  - On the physics truck, candidate 1 drove every start, from real laps and from mock laps.
+- **Regenerated for Nandani's brain view:** the mock laps and mock autopilot now have 9 inputs (`course.bearing` last). The mock autopilot is now the first seed that finishes the corridor at `max_speed` 1.5 and 1.0, and faster at 1.5.
+- **Asked of Person 2 and the Core owner:** accept `course.bearing` (C-19 2.1). The Thing runtime fills it from `CourseBeacon.Bearing` each step (`Controllers/README.md`, "For the Thing runtime").
+- **Still to do:** the fallback in tight rooms (the living room, the hallway), and the real truck in a real room.
+
+**ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
+- **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
+- **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.
+  - It makes 3,000 labelled samples from the truck's own sensors in about 10 ms. The label is physics: would it hit something within 0.6 s, driving straight at its speed (at least 1 m/s)?
+  - It trains an 8-neuron net in about 24 frames at 4 ms a frame.
+  - It plugs the net into `truck_cruise` as a learned brake, using the proposed graph `model` node (C-19 section 3.5).
+- **Results:**
+
+  | Measure | Result |
+  |---|---|
+  | Held-out samples | 97% right. The best single front-ray rule gets 86%. |
+  | Closed loop, 180 saveable starts aimed at cones and walls | The learned brake crashed 4 times, the same as the best fixed rule, and drove 15% further before stopping (0.97 m vs 0.84 m). `truck_cruise`'s hand-written brake (`d3 < 0.15`) crashed 161 times. |
+
+- **Voice and notebook (2026-11-05, Editor):** Albie's `template_train`, `template_status` and `learned_brake {on}` tools run on the headset (C-19 section 5). Each run logs a notebook `training` entry worded as a classifier (C-17 section 3). In Play, `template_train` answered 24 frames after the call, and with `learned_brake` on the truck finished the slalom in 8.0 s. **Person 2:** register the Thing runtime's `ControllerHost` with `ThingHosts` so these tools reach the real truck. **Person 3:** `AlbieVoice`'s tool rules say ML training runs on the cloud (the `ml_` tools); one line saying the template tools run on the headset would stop Albie sending "train the ML template" to the cloud. Not yet tried with the live voice model.
+- **The speed floor in the label matters.** With the plain "at its current speed" label, the net scored 96% offline but still crashed 28 of 60 starts in closed loop. A truck that braked and was crawling next to a cone read "clear", and the cruise control sped it back up.
 
 ---
 

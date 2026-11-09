@@ -1,0 +1,32 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": { "radius": 0.6 },
+  "generators": [],
+  "nodes": [
+    { "id": "pad", "kind": "primitive", "shape": "cylinder", "pos": [0, -0.51, 0], "size": [0.2, 0.02, 0.2], "color": "#3A3F47" },
+    { "id": "rocket", "kind": "gltf", "asset": "assets/rocket.glb", "pos": [0, -0.5, 0] },
+    { "id": "flame", "kind": "primitive", "parent": "rocket", "shape": "cone", "pos": [0, -0.035, 0], "rot": [180, 0, 0],
+      "size": [0.03, 0.07, 0.03], "color": "#FFD24C", "glow": true, "visible": false },
+    { "id": "flight", "kind": "timeline", "duration_s": 3.5, "loop": false, "autoplay": false },
+    { "id": "info", "kind": "panel", "title": "Launch",
+      "widgets": [
+        { "type": "note", "text": "The v1 rocket from the CAD mocks. Tap Launch: it lights, climbs, and the flame burns out." },
+        { "type": "button", "id": "launch", "label": "Launch" }
+      ] }
+  ],
+  "rules": [
+    { "type": "on_input", "input": "launch", "do": [ { "timeline": "flight", "action": "restart" } ] },
+    { "type": "animate", "target": "rocket", "property": "pos", "timeline": "flight",
+      "keys": [ [0, [0, -0.5, 0]], [0.8, [0, -0.5, 0]], [3.0, [0, 0.1, 0]] ] },
+    { "type": "animate", "target": "rocket", "property": "rot", "timeline": "flight",
+      "keys": [ [0.8, [0, 0, 0]], [3.0, [0, 0, -6]] ] },
+    { "type": "animate", "target": "flame", "property": "visible", "timeline": "flight",
+      "keys": [ [0, false], [0.5, true], [2.6, false] ] },
+    { "type": "animate", "target": "flame", "property": "color", "timeline": "flight",
+      "keys": [ [0.5, "#FFD24C"], [2.6, "#FF5A1F"] ] },
+    { "type": "animate", "target": "flame", "property": "scale", "timeline": "flight",
+      "keys": [ [0.5, 0.6], [1.0, 1.4], [2.6, 0.8] ] }
+  ],
+  "run": null
+}

@@ -1,0 +1,19 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "broken",
+  "title": "Broken example",
+  "version": 1,
+  "kind": "standalone",
+  "category": "viz",
+  "template": null,
+  "links": { "project": null, "project_version": null, "repo": null, "thing": null },
+  "runtime": { "type": "scene", "min_runtime": 1 },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [ { "id": "default", "seed": 1, "params": {} } ],
+  "data": [],
+  "assets": [],
+  "permissions": {},
+  "outputs": []
+}

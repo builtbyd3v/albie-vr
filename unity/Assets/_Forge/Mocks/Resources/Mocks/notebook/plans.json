@@ -1,0 +1,80 @@
+[
+  {
+    "schema": "albie.plan/1",
+    "project_id": "proj_truck",
+    "version": 1,
+    "goal": "An RC truck that does a slalom around the couch.",
+    "parts": [
+      "body",
+      "wheel",
+      "motor",
+      "servo",
+      "battery"
+    ],
+    "test": "Fastest lap of the slalom.",
+    "milestones": [
+      {
+        "id": "m1",
+        "text": "Drives on the real floor",
+        "done": true
+      },
+      {
+        "id": "m2",
+        "text": "Finishes the slalom by hand",
+        "done": true
+      },
+      {
+        "id": "m3",
+        "text": "Autopilot finishes the slalom",
+        "done": true
+      },
+      {
+        "id": "m4",
+        "text": "Fastest lap under 6 s",
+        "done": false
+      }
+    ],
+    "supersedes": null,
+    "postmortem": null,
+    "created_at": "2026-11-10T13:54:00Z"
+  },
+  {
+    "schema": "albie.plan/1",
+    "project_id": "proj_truck",
+    "version": 2,
+    "goal": "An RC truck that does a slalom around the couch.",
+    "parts": [
+      "body",
+      "wheel",
+      "motor",
+      "servo",
+      "battery"
+    ],
+    "test": "Finish the slalom with no cones hit.",
+    "milestones": [
+      {
+        "id": "m1",
+        "text": "Drives on the real floor",
+        "done": true
+      },
+      {
+        "id": "m2",
+        "text": "Finishes the slalom by hand",
+        "done": true
+      },
+      {
+        "id": "m3",
+        "text": "Autopilot finishes the slalom",
+        "done": true
+      },
+      {
+        "id": "m4",
+        "text": "A clean lap at 2 m/s or more",
+        "done": false
+      }
+    ],
+    "supersedes": 1,
+    "postmortem": "ent_0005",
+    "created_at": "2026-11-10T14:30:00Z"
+  }
+]

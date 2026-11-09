@@ -2,6 +2,8 @@
 # Daily loop: stop the old hub and its screen bridge, start the hub, open the sandbox ML project, wire up the Quest.
 #   sh run-demo.sh                 # hub on :8000, log in /tmp/forge-hub.log
 #   PORT=8100 SCREEN_BRIDGE=0 NO_ADB=1 sh run-demo.sh   # a second hub for testing, no bridge, no headset
+# Python: hub/.venv (from dev-setup.sh) when it exists, else $HUB_PYTHON, else the active env's python3
+# (e.g. `conda activate albie-vr` first).
 set -eu
 repo=$(cd "$(dirname "$0")" && pwd)
 port=${PORT:-8000}
@@ -18,8 +20,11 @@ if [ "${SCREEN_BRIDGE:-1}" != "0" ]; then
 fi
 
 cd "$repo/hub"
+if [ -x .venv/bin/python ]; then py=.venv/bin/python; else py=${HUB_PYTHON:-$(command -v python3 || true)}; fi
+"$py" -c 'import uvicorn, fastapi' 2>/dev/null || {
+  echo "MISSING: the hub's packages in ${py:-python3}. Run dev-setup.sh, activate the env that has them, or set HUB_PYTHON."; exit 1; }
 # Inherited CLAUDECODE / ANTHROPIC_BASE_URL (a Claude Code shell) make the agent SDK's CLI hang (hub/README.md).
-SCREEN_BRIDGE_DIR="$repo/screen-bridge" nohup env -u CLAUDECODE -u ANTHROPIC_BASE_URL .venv/bin/uvicorn main:app --host 0.0.0.0 --port "$port" >> "$log" 2>&1 &
+SCREEN_BRIDGE_DIR="$repo/screen-bridge" nohup env -u CLAUDECODE -u ANTHROPIC_BASE_URL "$py" -m uvicorn main:app --host 0.0.0.0 --port "$port" >> "$log" 2>&1 &
 echo "hub starting on :$port (log: $log)"
 i=0
 until curl -sf "localhost:$port/health" >/dev/null; do

@@ -54,6 +54,8 @@ Horizon pills, one palette (right/wrong/warning, train/val, per-class colors).
   table, image, and text modes. `LoadJson()` accepts the section 7.6 card contract;
   scatter points emit their sample id. The sandbox's local `MLVizCardMocks.json`
   exercises all seven kinds with Prev/Next.
+- **ControllerBrain:** the ML B brain-on-the-desk view. It reads the C-19 mock lap fixture (`Mocks/controllers/laps/truck_v2.json`), lays out seven ray sensors plus speed as live input bars, shows steer and throttle outputs, and provides a loss sparkline with hands-friendly Record lap, Train, and Autopilot preview controls. It owns no controller runtime; ML A can replace its fixture source with `ControllerIO`/`brain.training` events without changing the panel layout.
+  Its ML B tool bridge is `Resources/AlbieTools/controller_brain.json`: `brain_record`, `brain_train`, `autopilot_on`, `autopilot_off`, and `brain_status`. These operate the visual preview only; actual controller attachment remains outside this module.
 - **RegressionResults:** predicted-versus-actual scatter; selecting a point opens
   a row card with actual, predicted, and residual values. It opens on "Waiting for
   a regression run…" with no points. With the hub live it loads the latest finished
@@ -103,6 +105,7 @@ Assign generated prefabs to Workspace's ML items:
 | `ml-model3d` | `Prefabs/Model3D.prefab` | Left |
 | `ml-results` | `Prefabs/ResultsWall.prefab` | Right |
 | `ml-training` | `Prefabs/TrainingDash.prefab` | Above |
+| `ml-controller-brain` | `Prefabs/ControllerBrain.prefab` | FarRight |
 | `ml-viz-card` | `Prefabs/VizCard.prefab` | Any visualization slot |
 | `ml-regression-results` | `Prefabs/RegressionResults.prefab` | Regression results |
 

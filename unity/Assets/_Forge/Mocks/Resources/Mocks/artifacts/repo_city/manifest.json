@@ -1,0 +1,48 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "repo_city",
+  "title": "Repo activity",
+  "version": 1,
+  "kind": "code",
+  "category": "viz",
+  "template": null,
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": "sample/demo-repo",
+    "thing": null
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 1,
+      "params": {}
+    }
+  ],
+  "data": [
+    {
+      "name": "repo_activity",
+      "source": "connector:source_control/list_commits",
+      "snapshot": "data/repo_activity.json"
+    }
+  ],
+  "assets": [],
+  "permissions": {
+    "network": [],
+    "connectors": [
+      "source_control:read"
+    ],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "none",
+    "things": "none"
+  },
+  "outputs": []
+}

@@ -1,0 +1,56 @@
+{
+  "artifacts": [
+    {
+      "id": "slalom",
+      "title": "Slalom",
+      "version": 1,
+      "kind": "project",
+      "category": "sim",
+      "project_id": "proj_truck"
+    },
+    {
+      "id": "repo_city",
+      "title": "Repo activity",
+      "version": 1,
+      "kind": "code",
+      "category": "viz",
+      "project_id": null
+    },
+    {
+      "id": "stance",
+      "title": "Stance check",
+      "version": 1,
+      "kind": "standalone",
+      "category": "viz",
+      "project_id": null
+    },
+    {
+      "id": "three_body",
+      "title": "Three-body problem",
+      "version": 1,
+      "kind": "standalone",
+      "category": "sim",
+      "project_id": null
+    }
+  ],
+  "templates": [
+    {
+      "id": "slalom",
+      "title": "Slalom",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
+    },
+    {
+      "id": "hoop_course",
+      "title": "Hoop course",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
+    }
+  ]
+}

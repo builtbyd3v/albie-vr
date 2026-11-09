@@ -1,0 +1,35 @@
+{
+  "schema": "albie.controller/1",
+  "name": "truck_manual",
+  "kind": "manual",
+  "version": 1,
+  "thing": "truck",
+  "bindings": [
+    {
+      "input": "stick.y",
+      "actuator": "drive.throttle",
+      "scale": 1.0,
+      "deadzone": 0.05
+    },
+    {
+      "input": "hand.roll",
+      "actuator": "steer.angle",
+      "scale": 1.0,
+      "deadzone": 0.08,
+      "expo": 0.3
+    }
+  ],
+  "tunables": {
+    "max_speed": {
+      "value": 2.0,
+      "min": 0.2,
+      "max": 4.0,
+      "unit": "m/s",
+      "label": "Top speed"
+    }
+  },
+  "limits": {
+    "speed": "$max_speed"
+  },
+  "notes": "Mock. Drive it with the hands transmitter; stick.y is throttle, hand roll steers."
+}

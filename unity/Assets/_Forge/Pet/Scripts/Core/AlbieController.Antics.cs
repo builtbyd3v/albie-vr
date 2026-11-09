@@ -77,7 +77,7 @@ namespace Forge.Pet
         /// <summary>Sit / lay / idle in place for idlePauseSeconds. Any SetState / ComeToUser / trip stands it up.</summary>
         public void Rest(RestPose pose)
         {
-            if (AnticsBusy || hopping) return;
+            if (AnticsBusy || hopping || Perched) return;
             StandUp();
             StopMoving();
             tripActive = approachingUser = false;
@@ -91,7 +91,7 @@ namespace Forge.Pet
         /// <summary>Roll sideways (Roll anim + Dizzy). Off an elevated surface's edge it falls, lies stunned, then hops back.</summary>
         public void StartRoll()
         {
-            if (AnticsBusy || hopping || agent == null) return;
+            if (AnticsBusy || hopping || agent == null || Perched) return;
             StandUp(false);                  // the Roll trigger itself leaves Sit/Lay (AnyState)
             if (OnMesh) StopMoving();
             tripActive = approachingUser = false;
