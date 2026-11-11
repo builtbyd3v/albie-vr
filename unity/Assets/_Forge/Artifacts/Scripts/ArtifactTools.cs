@@ -170,7 +170,8 @@ namespace Forge.Artifacts
             string slug = ArtifactValidator.Slug(S(manifest, "title"));
             if ((manifest["id"] == null || manifest["id"].Type == JTokenType.Null) && !string.IsNullOrEmpty(slug))
             {
-                fills["id"] = slug;
+                // The folder is the id, and FromScene refuses a template's: never fill one it would refuse ("heart" is a template).
+                fills["id"] = Array.IndexOf(ArtifactLibrary.Templates, slug) >= 0 ? "my_" + slug : slug;
                 filled.Add("id");
             }
             Default("version", 1);

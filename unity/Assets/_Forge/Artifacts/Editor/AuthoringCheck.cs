@@ -851,6 +851,14 @@ public static class AuthoringCheck
                 Gate("A6", $"the category is tool with no sim node ({saved["category"]})", (string)saved["category"] == "tool");
             }
 
+            // A title whose slug is a template's id gets a filled id FromScene accepts, not one it refuses as a template's.
+            ArtifactTools.ResetAttempts();
+            var (_, heart) = Copy("arch_stopwatch");
+            r = Create(new JObject { ["title"] = "Heart" }, heart);
+            Gate("A6", $"a title that slugs to a template id fills my_<slug> and saves ({r.ToString(Newtonsoft.Json.Formatting.None)})",
+                r["status"] == null && (string)r["id"] == "my_heart" && Saved("my_heart"));
+            ArtifactTools.ResetAttempts();
+
             // Space, generators and permissions are never filled or granted: a room scene with no permissions is refused.
             var (_, room) = Copy("template:slalom");
             r = Create(new JObject { ["title"] = "Floor course" }, room);
