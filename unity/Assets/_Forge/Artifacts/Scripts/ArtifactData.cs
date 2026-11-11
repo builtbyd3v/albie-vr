@@ -13,6 +13,8 @@ namespace Forge.Artifacts
     {
         public string Name, Source, FetchedAt;
         public bool Sample;
+        /// <summary>A connector's copy saved earlier rather than fetched now (<c>saved_copy</c>), so Albie says which day it's from.</summary>
+        public bool SavedCopy;
         /// <summary>Where the rows came from: <c>connector</c> (the connector host), <c>snapshot</c> (the artifact's own file) or <c>bundled</c> (the device's sample for that source).</summary>
         public string From;
         public string[] Columns, Types;
@@ -49,6 +51,7 @@ namespace Forge.Artifacts
                 Source = snapshot.Value<string>("source"),
                 FetchedAt = snapshot.Value<string>("fetched_at"),
                 Sample = snapshot.Value<bool?>("sample") == true,
+                SavedCopy = snapshot.Value<bool?>("saved_copy") == true,
                 Columns = new string[columns.Count],
                 Types = new string[columns.Count],
             };
@@ -201,7 +204,7 @@ namespace Forge.Artifacts
             foreach (var t in tables.Values)
                 if (t.Sample) return "This is sample data, not yours: there's no connected account on this headset yet, so these commits are made up.";
             foreach (var t in tables.Values)
-                if (t.From == "snapshot" && t.FetchedAt != null) return $"This is a saved copy of the data, from {Day(t.FetchedAt)}.";
+                if ((t.From == "snapshot" || t.SavedCopy) && t.FetchedAt != null) return $"This is a saved copy of the data, from {Day(t.FetchedAt)}.";
             return null;
         }
 

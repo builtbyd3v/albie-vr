@@ -391,6 +391,7 @@ The snapshot format is Person 3's and Person 5's decision for Nov 10. This is th
 
   `null` is allowed in any cell.
 - **Arrays from a table.** An `array` node with `source: {table, grid: {columns, gap_m}}` builds one copy per row, on a grid centred on the node, with every copy standing on y = 0.
+- **As built, 2026-11-09 (Person 5).** `grid.base` (a colour) draws a plate under the grid, sized to its columns and rows. A snapshot may say `saved_copy: true` (a connector's copy saved earlier, such as the local fixture connector's copy saved into a Quest build); Albie then says which day it's from, as for an artifact's own snapshot. Until C-18 lands, `LocalRepoConnector` stands in as the provider for `connector:source_control/list_commits` only.
   - `map.height` and `map.width` scale a number column linearly into `[min, max]`.
   - `map.color` gives each distinct value its own palette colour.
   - A `null` cell is grey (`#5A5F66`) at the bottom of the range. It is never drawn as zero.
@@ -557,6 +558,7 @@ Under `Mocks/Resources/Mocks/artifacts/`, read with `ForgeNet.Get("/artifacts/sl
 | `view` | `{ "radius": 1.25 }`, for `volume` space. Scales that sphere to fit the box, so a scene that moves isn't refitted as it moves. |
 | `line` field `follow` | A fading trail behind a node with the same parent. `length` is at most 2,048 points. |
 | `line` field `through` | As built, runtime 6. A list of 2 to 17 node ids with the line's parent; the line joins them every frame, after sims move (a pendulum's rods). An unknown id is `unknown_ref`, a different parent `bad_value`. |
+| `line` `points` with inputs | As built, runtime 6. A point may name an input (`[0, "$cog_m", 0]`); the line follows it live. |
 | `primitive` field `glow` | Self-lit, for things that should read as light. |
 | `stat` field `decimals` | Default 2. |
 

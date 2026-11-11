@@ -3,50 +3,10 @@
   "space": "volume",
   "generators": [],
   "nodes": [
-    {
-      "id": "city",
-      "kind": "array",
-      "source": {
-        "table": "repo_activity",
-        "grid": {
-          "columns": 6,
-          "gap_m": 0.04
-        }
-      },
-      "map": {
-        "height": {
-          "column": "lines_changed",
-          "range": [
-            0.02,
-            0.4
-          ]
-        },
-        "color": {
-          "column": "author"
-        }
-      },
-      "template": {
-        "kind": "primitive",
-        "shape": "box",
-        "size": [
-          0.05,
-          1,
-          0.05
-        ],
-        "color": "#4C8DFF"
-      }
-    },
-    {
-      "id": "info",
-      "kind": "panel",
-      "title": "What shipped this week",
-      "widgets": [
-        {
-          "type": "note",
-          "text": "Each block is a commit. Taller means more lines changed."
-        }
-      ]
-    }
+    {"id": "city", "kind": "array", "source": {"table": "repo_activity", "grid": {"columns": 6, "gap_m": 0.04}}, "map": {"height": {"column": "lines_changed", "range": [0.02, 0.4]}, "color": {"column": "author"}}, "template": {"kind": "primitive", "shape": "box", "size": [0.05, 1, 0.05], "color": "#4C8DFF"}},
+    {"id": "base", "kind": "primitive", "shape": "box", "pos": [0, -0.008, 0], "size": [0.6, 0.016, 0.26], "color": "#1C212B"},
+    {"id": "base_edge", "kind": "line", "points": [[-0.3, 0.001, -0.13], [0.3, 0.001, -0.13], [0.3, 0.001, 0.13], [-0.3, 0.001, 0.13], [-0.3, 0.001, -0.13]], "width": 0.003, "color": "#3B4660"},
+    {"id": "info", "kind": "panel", "title": "What shipped this week", "widgets": [{"type": "note", "text": "Each block is a commit. Taller means more lines changed, and each author has a colour. A grey stub is a commit with no line count."}]}
   ],
   "rules": [],
   "run": null
