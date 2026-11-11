@@ -14,16 +14,18 @@ namespace Forge.Artifacts
     public static class ArtifactTools
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register() => AlbieTools.Register("artifacts", new Dictionary<string, AlbieTools.Handler>
+        static void Register() => AlbieTools.Register("artifacts", new Dictionary<string, AlbieTools.AsyncHandler>
         {
-            ["artifact_list"] = List,
-            ["artifact_create"] = Create,
-            ["artifact_open"] = Open,
-            ["artifact_close"] = Close,
-            ["artifact_relayout"] = Relayout,
-            ["artifact_run"] = Run,
-            ["artifact_compare"] = Compare,
+            ["artifact_list"] = Now(List),
+            ["artifact_create"] = CreateAsync,
+            ["artifact_open"] = Now(Open),
+            ["artifact_close"] = Now(Close),
+            ["artifact_relayout"] = Now(Relayout),
+            ["artifact_run"] = Now(Run),
+            ["artifact_compare"] = Now(Compare),
         });
+
+        static AlbieTools.AsyncHandler Now(AlbieTools.Handler run) => (args, done) => done(run(args));
 
         public static JObject List(JObject args)
         {
@@ -58,8 +60,13 @@ namespace Forge.Artifacts
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => attempts = 0;
 
-        public static JObject Create(JObject args)
+        public static JObject Create(JObject args) => Create(args, out _);
+
+        /// <summary><see cref="Create(JObject)"/>; <paramref name="review"/> is the body for the hub's advisory review
+        /// (C2): set only when a written artifact was saved, null for templates and refusals.</summary>
+        public static JObject Create(JObject args, out JObject review)
         {
+            review = null;
             string template = (string)args["template"];
             ArtifactLibrary.Created made;
             JObject written = null;
@@ -86,6 +93,7 @@ namespace Forge.Artifacts
                     return refused;
                 }
                 written = scene;
+                review = ReviewBody(args["request"], manifest, scene, facts);
             }
             else
             {
@@ -399,6 +407,132 @@ namespace Forge.Artifacts
         {
             int dot = path.LastIndexOf('.');
             return dot < 0 ? path : path.Substring(dot + 1);
+        }
+
+        // ---------- C2: an advisory review by the hub (POST /artifacts/review), never a gate ----------
+
+        /// <summary>How long a create waits for the hub's review before answering without it. The hub gives up at 2.2 s.</summary>
+        public const float ReviewTimeoutS = 2.5f;
+        public const string ReviewPath = "/artifacts/review";
+        /// <summary>The hub refuses (422) a longer request or facts text: both are cut to fit.</summary>
+        public const int ReviewRequestMax = 500, ReviewFactsMax = 6000;
+
+        /// <summary>What happened to the last create's review: "reviewed", or why not ("template_or_refused",
+        /// "edit_mode", "mock", "hub_off", "timeout", "failed", "skipped:no_key", "empty", ...). Checks and logs read it.</summary>
+        public static string LastReview { get; private set; }
+
+        /// <summary>
+        /// artifact_create for Albie. The artifact is saved and opened first, exactly as <see cref="Create(JObject)"/>
+        /// does; only then, for a written artifact with the hub live, the tool result waits up to
+        /// <see cref="ReviewTimeoutS"/> for the hub's review, which goes into <c>result.review</c> and nowhere else.
+        /// Mock mode, hub off, no key, a hub error, a fail or the timeout all answer with the result unchanged.
+        /// A template or a refusal answers at once.
+        /// </summary>
+        public static void CreateAsync(JObject args, Action<JObject> done)
+        {
+            var result = Create(args, out var body);
+            string skip = body == null ? "template_or_refused" : NoReview();
+            if (skip != null)
+            {
+                LastReview = skip;
+                done(result);
+                return;
+            }
+
+            bool answered = false;
+            void Finish(JObject review, string why)
+            {
+                if (answered) return;
+                answered = true;
+                LastReview = why;
+                if (review != null) result["review"] = review;
+                Debug.Log($"[Artifacts] review of {(string)result["id"]}: {why}"
+                          + (review != null ? " " + review.ToString(Newtonsoft.Json.Formatting.None) : ""));
+                done(result);
+            }
+            try
+            {
+                ForgeNet.Post(ReviewPath, body, text => Finish(Review(text, out string why), why), error => Finish(null, "failed: " + error));
+                ForgeNet.Instance.StartCoroutine(After(ReviewTimeoutS, () => Finish(null, "timeout")));
+            }
+            catch (Exception e)  // the artifact is saved: its result goes back whatever happens to the review
+            {
+                Finish(null, "failed: " + e.Message);
+            }
+        }
+
+        /// <summary>Why no review is asked for right now, or null when the hub is live.</summary>
+        public static string NoReview()
+        {
+            if (!Application.isPlaying) return "edit_mode";
+            if (ForgeNet.IsMock) return "mock";  // the mock Post answers "{}" (ForgeNet.Request)
+            if (!ForgeNet.Connected) return "hub_off";
+            return null;
+        }
+
+        static System.Collections.IEnumerator After(float seconds, Action then)
+        {
+            yield return new WaitForSecondsRealtime(seconds);
+            then();
+        }
+
+        /// <summary>The request body: the person's words (optional), the manifest and scene as saved, and the facts.</summary>
+        public static JObject ReviewBody(JToken request, JObject manifest, JObject scene, string facts)
+        {
+            string said = request != null && request.Type == JTokenType.String ? ((string)request).Trim() : "";
+            if (said.Length > ReviewRequestMax) said = said.Substring(0, ReviewRequestMax);
+            facts = facts ?? "";
+            if (facts.Length > ReviewFactsMax) facts = facts.Substring(0, ReviewFactsMax);
+            return new JObject { ["request"] = said, ["manifest"] = manifest, ["scene"] = scene, ["facts"] = facts };
+        }
+
+        /// <summary>
+        /// The hub's answer as <c>result.review</c>, or null when it isn't a review (<paramref name="why"/> says what it
+        /// was): "{}" from the mock, status skipped or error, no verdicts, or text that isn't JSON. Advisory only.
+        /// </summary>
+        public static JObject Review(string text, out string why)
+        {
+            JObject answer;
+            try { answer = JObject.Parse(string.IsNullOrWhiteSpace(text) ? "{}" : text); }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                why = "bad_response";
+                return null;
+            }
+            string status = answer["status"]?.Type == JTokenType.String ? (string)answer["status"] : null;
+            if (status != "ok")
+            {
+                string reason = answer["reason"]?.Type == JTokenType.String ? (string)answer["reason"] : null;
+                why = status == null ? "empty" : reason != null ? status + ":" + reason : status;
+                return null;
+            }
+            var verdicts = new JArray();
+            var flagged = new List<string>();
+            if (answer["verdicts"] is JArray list)
+                foreach (var v in list)
+                {
+                    if (!(v is JObject o) || o["question"]?.Type != JTokenType.String) continue;
+                    bool ok = o["ok"]?.Type != JTokenType.Boolean || (bool)o["ok"];
+                    double confidence = o["confidence"] != null && (o["confidence"].Type == JTokenType.Float || o["confidence"].Type == JTokenType.Integer)
+                        ? Math.Round((double)o["confidence"], 2) : 0;
+                    verdicts.Add(new JObject { ["question"] = o["question"], ["choice"] = o["choice"], ["ok"] = ok, ["confidence"] = confidence });
+                    if (!ok) flagged.Add((string)o["question"]);
+                }
+            if (verdicts.Count == 0)
+            {
+                why = "no_verdicts";
+                return null;
+            }
+            why = "reviewed";
+            var review = new JObject();
+            if (answer["model"]?.Type == JTokenType.String) review["by"] = answer["model"];
+            review["verdicts"] = verdicts;
+            review["note"] = flagged.Count == 0
+                ? "A text reviewer found nothing wrong. Advisory only."
+                : "Advisory only, it's already saved: a text reviewer (it can't see it) doubts " + string.Join(", ", flagged)
+                  + ". If you agree, fix it and call artifact_create again with the same id; otherwise carry on.";
+            if (flagged.Count > 0) review["flagged"] = new JArray(flagged.ToArray());
+            return review;
         }
 
         public static JObject Open(JObject args)
