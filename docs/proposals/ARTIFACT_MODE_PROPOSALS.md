@@ -399,3 +399,31 @@ Questions, each a Jev `choice` (the form `ml/setup/classify_jev.py` uses):
   `parts_supported` and `matches_request` are never asked.
 - Test fixtures: `hub/tests/fixtures/artifact_review/{seesaw,traffic_light}/` are copies of the two broken
   model-written artifacts saved on the device. `fan.json` is audit 2's archetype A.
+
+## P-C2-1. `artifact_create` asks the hub for an advisory review: optional `request` arg, `result.review` (C-12 section 10, tool only)
+
+**Built** (plan step C2) in the Artifacts module only: `Artifacts/Scripts/ArtifactTools.cs` and `artifacts.json`. No
+node kind, no field the host reads and no generator, so there is no HostRuntime bump. Core (`AlbieTools.cs`,
+`AlbieVoice.cs`, `ForgeNet.cs`) is unchanged: it uses the existing `AlbieTools.AsyncHandler` and `ForgeNet.Post`.
+
+- `artifact_create` is registered as an `AsyncHandler` (the other artifact tools are wrapped and stay synchronous).
+  It saves and opens exactly as before. Then, **only for a written artifact that was saved, with the hub live**
+  (`Application.isPlaying`, not `ForgeNet.IsMock`, `ForgeNet.Connected`), it posts `POST /artifacts/review` with
+  `{request, manifest, scene, facts}` (request cut to 500 chars, facts to 6000, the C1 limits) and waits at most 2.5 s.
+- Only `status: "ok"` with at least one verdict adds `result.review`:
+  `{by, verdicts: [{question, choice, ok, confidence}], flagged?: [question], note}`. The note says it's advisory, the
+  artifact is already saved, and to fix it with the same id only if Albie agrees. Nothing else changes in the result.
+- Everything else answers with the result unchanged: edit mode, mock, hub off, `{}`, `skipped` (no key), `error`,
+  no verdicts, a reply that isn't JSON, a failed request, an exception, the 2.5 s timeout. Templates and refusals answer
+  at once with no review, so `AlbieTools.Call` (SlalomSandbox) still gets the result synchronously.
+- Never a gate, and never delivered through `albie.note`. Each create logs `[Artifacts] review of <id>: <why>`
+  when it posted; `ArtifactTools.LastReview` keeps the last reason for checks.
+- New optional tool arg `request` (string): "The person's own words for what to make, for an advisory review." Without
+  it the hub drops `matches_request`. The guide text is unchanged.
+
+**Asks for sign-off:** the two tool-contract additions (`request` in, `review` out) in C-12 section 10. Phase 2 (a gate
+with code `review_failed`) stays out until agreement with Jev has been measured on a labelled set (audit 3).
+
+**Risk to review:** with the hub live, a written create's tool result now arrives up to 2.5 s after the artifact
+appears. `AlbieVoice.RunTool` already handles late results (A8: a result after a new turn still goes in, with no
+reply), but this hasn't been run live yet.
