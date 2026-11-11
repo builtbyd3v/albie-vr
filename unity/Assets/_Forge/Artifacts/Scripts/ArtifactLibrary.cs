@@ -92,6 +92,10 @@ namespace Forge.Artifacts
         public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors)
         {
             errors = ArtifactValidator.Validate(manifest, scene);
+            // The folder is the id, so a template's id would overwrite the copy made from that template.
+            if (manifest?["id"]?.Type == JTokenType.String && Array.IndexOf(Templates, (string)manifest["id"]) >= 0)
+                errors.Add(new ArtifactError("bad_value", "id", $"\"{manifest["id"]}\" is a template's id",
+                    $"use a new id, like \"my_{manifest["id"]}\"; to change a template's numbers, call artifact_create with template and inputs", Templates));
             if (errors.Count > 0) return null;
             var missing = ArtifactNodes.Missing(scene);
             if (missing.Count > 0)

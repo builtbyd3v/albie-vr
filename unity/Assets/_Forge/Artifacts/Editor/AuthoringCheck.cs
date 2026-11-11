@@ -17,7 +17,7 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
@@ -252,7 +252,8 @@ public static class AuthoringCheck
         Expect("A1", "probe: a scene file outside the folder", e, "bad_value@scene");
         Expect("A3", "probe: position and onClick", e, "unknown_field@nodes[0].position", "unknown_field@nodes[0].onClick");
         Expect("A4", "probe: boolean input, a button on a primitive, set on a colour, a bad verb", e,
-            "bad_value@inputs[0].type", "bad_value@rules[0].do[0].set", "bad_value@rules[0].do[1].sim", "bad_value@rules[0].do[2]");
+            "bad_value@inputs[0].type", "bad_value@rules[0].do[0].set", "unknown_ref@rules[0].do[1].sim", "bad_value@rules[0].do[1].action",
+            "bad_value@rules[0].do[2]", "unknown_ref@rules[0].input");
     }
 
     // ---------- deliberate mistakes on the archetypes ----------
@@ -323,6 +324,98 @@ public static class AuthoringCheck
 
         Fuzz();
         WrittenSceneName();
+        Executable();
+        TemplateIds();
+    }
+
+    static JArray Rules(JObject s) => (JArray)s["rules"];
+    static JArray Nodes(JObject s) => (JArray)s["nodes"];
+    static string NextNode(JObject s) => $"nodes[{Nodes(s).Count}]";
+    static string NextRule(JObject s) => $"rules[{Rules(s).Count}]";
+
+    // ---------- A4: only what the host can run gets through ----------
+
+    static void Executable()
+    {
+        // Actions: one verb, and only the verbs ArtifactHost.Do runs.
+        Mutate("A4", "set a colour", "arch_status_beacon", (m, s) => s["rules"][0]["do"][0]["set"] = "dome_idle.color", s => new[] { "bad_value@rules[0].do[0].set" });
+        Mutate("A4", "set visible to a word", "arch_status_beacon", (m, s) => s["rules"][0]["do"][0]["value"] = "true", s => new[] { "bad_value@rules[0].do[0].value" });
+        Mutate("A4", "set with no property", "arch_status_beacon", (m, s) => s["rules"][0]["do"][0]["set"] = "dome_idle", s => new[] { "bad_value@rules[0].do[0].set" });
+        Mutate("A4", "two verbs in one action", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0]["set"] = "hand.visible", s => new[] { "bad_value@rules[1].do[0]" });
+        Mutate("A4", "an action with no verb", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0] = new JObject { ["action"] = "play" }, s => new[] { "bad_value@rules[1].do[0]" });
+        Mutate("A4", "sim on a timeline", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0] = new JObject { ["sim"] = "clock", ["action"] = "play" }, s => new[] { "unknown_ref@rules[1].do[0].sim" });
+        Mutate("A4", "a sim verb that isn't built", "arch_fan", (m, s) => s["rules"][1]["do"][0]["action"] = "reverse", s => new[] { "bad_value@rules[1].do[0].action" });
+        Mutate("A4", "run reset with no run", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0] = new JObject { ["run"] = "reset" }, s => new[] { "bad_value@rules[1].do[0].run" });
+        Mutate("A4", "a run verb that isn't built", "template:slalom", (m, s) => s["rules"][4]["do"][0]["run"] = "start", s => new[] { "bad_value@rules[4].do[0].run" });
+
+        // Buttons: drawn only on panels, and each one runs something.
+        Mutate("A4", "a button with no on_input rule", "arch_stopwatch", (m, s) => Rules(s).RemoveAt(2), s => new[] { "bad_value@" + P(s, "controls", "widgets[1]") });
+        Mutate("A4", "a button on a primitive", "arch_stopwatch",
+            (m, s) => { Node(s, "dial")["widgets"] = new JArray(new JObject { ["type"] = "button", ["id"] = "lap", ["label"] = "Lap" }); Rules(s).Add(JObject.Parse("{\"type\":\"on_input\",\"input\":\"lap\",\"do\":[{\"timeline\":\"clock\",\"action\":\"pause\"}]}")); },
+            s => new[] { "unknown_field@" + P(s, "dial", "widgets"), "unknown_ref@" + NextRule(s) + ".input" });
+
+        // Course-only rules need a run.
+        Mutate("A4", "on_zone with no run and a bad event", "arch_stopwatch",
+            (m, s) => { Nodes(s).Add(JObject.Parse("{\"id\":\"pad\",\"kind\":\"zone\",\"size\":[0.1,0.1,0.1]}")); Rules(s).Add(JObject.Parse("{\"type\":\"on_zone\",\"zone\":\"pad\",\"event\":\"touch\",\"do\":[{\"timeline\":\"clock\",\"action\":\"play\"}]}")); },
+            s => new[] { "bad_value@" + NextRule(s), "bad_value@" + NextRule(s) + ".event" });
+        Mutate("A4", "an elapsed metric with no run", "arch_stopwatch", (m, s) => Rules(s).Add(JObject.Parse("{\"type\":\"metric\",\"name\":\"t\",\"op\":\"elapsed\"}")), s => new[] { "bad_value@" + NextRule(s) + ".op" });
+        Mutate("A4", "a sim metric needs no run", "arch_fan", (m, s) => { }, s => new[] { "!bad_value@rules[0].op" });
+        Mutate("A4", "two metrics with one name", "template:slalom", (m, s) => Rules(s).Add(s["rules"][3].DeepClone()), s => new[] { "bad_value@" + NextRule(s) + ".name" });
+        Mutate("A4", "hit_count on a zone", "template:slalom", (m, s) => s["rules"][2]["nodes"] = "finish", s => new[] { "bad_value@rules[2].nodes" });
+
+        // Nodes.
+        Mutate("A4", "a part parented to a panel", "arch_lever", (m, s) => Node(s, "load_left")["parent"] = "controls", s => new[] { "bad_value@" + P(s, "load_left", "parent") });
+        Mutate("A4", "a part parented to a timeline", "arch_stopwatch", (m, s) => Node(s, "hand")["parent"] = "clock", s => new[] { "bad_value@" + P(s, "hand", "parent") });
+        Mutate("A4", "a node standing on a list slot", "template:slalom",
+            (m, s) => Nodes(s).Add(JObject.Parse("{\"id\":\"flag\",\"kind\":\"primitive\",\"shape\":\"box\",\"at\":\"course.cones\"}")), s => new[] { "bad_value@" + NextNode(s) + ".at" });
+        Mutate("A4", "a node on a single slot is fine", "template:slalom",
+            (m, s) => Nodes(s).Add(JObject.Parse("{\"id\":\"flag\",\"kind\":\"primitive\",\"shape\":\"box\",\"at\":\"course.start\"}")), s => new[] { "!bad_value@" + NextNode(s) + ".at" });
+        Mutate("A4", "a line with a table source", "arch_lever",
+            (m, s) => Nodes(s).Add(JObject.Parse("{\"id\":\"edge\",\"kind\":\"line\",\"source\":{\"table\":\"rows\"}}")), s => new[] { "bad_value@" + NextNode(s) + ".source" });
+        Mutate("A4", "a text with two metrics", "template:slalom",
+            (m, s) => Nodes(s).Add(JObject.Parse("{\"id\":\"both\",\"kind\":\"text\",\"text\":\"{gates_passed} gates in {completion_time_s} s\"}")), s => new[] { "bad_value@" + NextNode(s) + ".text" });
+
+        // Inputs and scenarios.
+        Mutate("A4", "an input name with capitals", "arch_lever", (m, s) => m["inputs"][0]["name"] = "Tilt", s => new[] { "bad_value@inputs[0].name" });
+        Mutate("A4", "an input named twice", "arch_lever", (m, s) => ((JArray)m["inputs"]).Add(m["inputs"][0].DeepClone()), s => new[] { "bad_value@inputs[1].name" });
+        Mutate("A4", "an integer input with a half", "arch_lever", (m, s) => { m["inputs"][0]["type"] = "integer"; m["inputs"][0]["default"] = 0.5; }, s => new[] { "bad_value@inputs[0].default" });
+        Mutate("A4", "a choice input", "arch_lever", (m, s) => ((JArray)m["inputs"]).Add(JObject.Parse("{\"name\":\"mode\",\"type\":\"choice\",\"options\":[\"a\",\"b\"]}")), s => new[] { "bad_value@inputs[1].type" });
+        Mutate("A4", "maths in a generator param", "template:slalom", (m, s) => s["generators"][0]["params"]["gates"] = "$gates*2", s => new[] { "bad_value@generators[0].params.gates" });
+        Mutate("A4", "a boolean input used as a number", "arch_lever",
+            (m, s) => { ((JArray)m["inputs"]).Add(JObject.Parse("{\"name\":\"on\",\"type\":\"boolean\",\"default\":false}")); Node(s, "beam")["pos"] = new JArray("$on", 0, 0); },
+            s => new[] { "bad_value@inputs[1].type", "bad_value@" + P(s, "beam", "pos[0]") });
+        Mutate("A4", "a scenario param for no input", "arch_lever", (m, s) => m["scenarios"][0]["params"] = new JObject { ["speed"] = 1 }, s => new[] { "unknown_input@scenarios[0].params.speed" });
+        Mutate("A4", "a scenario param out of range", "arch_lever", (m, s) => m["scenarios"][0]["params"] = new JObject { ["tilt"] = 90 }, s => new[] { "bad_value@scenarios[0].params.tilt" });
+        Mutate("A4", "a scenario param in range", "arch_lever", (m, s) => m["scenarios"][0]["params"] = new JObject { ["tilt"] = 10 }, s => new[] { "!bad_value@scenarios[0].params.tilt" });
+
+        // Space, permissions, template.
+        Mutate("A4", "room with no generator", "arch_lever", (m, s) => { s["space"] = "room"; m["permissions"]["room"] = "read"; }, s => new[] { "bad_value@scene.space" });
+        Mutate("A4", "a room permission that isn't a value", "arch_lever", (m, s) => m["permissions"]["room"] = "write", s => new[] { "bad_value@permissions.room" });
+        Mutate("A4", "storage that isn't artifact-local", "arch_lever", (m, s) => m["permissions"]["storage"] = "cloud", s => new[] { "bad_value@permissions.storage" });
+        Mutate("A4", "an unknown template", "arch_lever", (m, s) => m["template"] = "ferris_wheel", s => new[] { "bad_value@template" });
+    }
+
+    // A written artifact can't take a template's id: it would overwrite the copy made from that template.
+    static void TemplateIds()
+    {
+        string root = Path.Combine(Application.temporaryCachePath, "authoring_check_ids");
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        string before = ArtifactLibrary.RootOverride;
+        ArtifactLibrary.RootOverride = root;
+        try
+        {
+            var (m, s) = Load("arch_lever");
+            m = (JObject)m.DeepClone();
+            m["id"] = "slalom";
+            var made = ArtifactLibrary.FromScene(m, s, out var errors);
+            Gate("A4", $"a written artifact with id slalom is refused ({Show(errors)})", made == null && Has(errors, "bad_value", "id"));
+            Gate("A4", "nothing was written over the slalom", !Directory.Exists(ArtifactLibrary.Folder("slalom")));
+        }
+        finally
+        {
+            ArtifactLibrary.RootOverride = before;
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
     }
 
     // Every field of every node, and every top-level key, set to every wrong type: the validator answers with an error

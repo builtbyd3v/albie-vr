@@ -37,6 +37,7 @@ namespace Forge.Artifacts
         static readonly Regex IdRule = new Regex("^[a-z0-9_-]+$");
         static readonly Regex NodeIdRule = new Regex("^[a-z0-9_]+$");
         static readonly Regex InputRef = new Regex(@"^\$[a-z][a-z0-9_]*$");
+        static readonly Regex InputName = new Regex("^[a-z][a-z0-9_]*$");
         static readonly Regex SourceRule = new Regex(@"^(builtin:[a-z0-9_]+|connector:[a-z0-9_]+/[a-z0-9_]+)$");
         static readonly Regex SnapshotRule = new Regex(@"^data/[a-z0-9_-]+\.json$");
         static readonly Regex SceneFile = new Regex(@"^[a-z0-9_-]+\.json$");
@@ -283,6 +284,8 @@ namespace Forge.Artifacts
             readonly HashSet<string> slots = new HashSet<string>(), metrics = new HashSet<string>(), buttons = new HashSet<string>();
             readonly HashSet<string> tables = new HashSet<string>(), assets = new HashSet<string>();
             readonly Dictionary<string, JObject> nodes = new Dictionary<string, JObject>();
+            readonly Dictionary<string, JObject> inputDefs = new Dictionary<string, JObject>();
+            readonly Dictionary<string, string> buttonPaths = new Dictionary<string, string>();
 
             void Add(string code, string path, string message, string hint = null, string[] allowed = null) =>
                 errors.Add(new ArtifactError(code, path, message, hint, allowed));
@@ -570,14 +573,19 @@ namespace Forge.Artifacts
                 if (!ObjectField(manifest, "links", "") && Str(manifest, "kind") == "standalone" && manifest["links"] is JObject links)
                     foreach (var link in links.Properties())
                         if (link.Value.Type != JTokenType.Null) Add("bad_value", "links." + link.Name, "a standalone artifact has no links");
-                StringField(manifest, "template", "");
+                if (!StringField(manifest, "template", "") && Str(manifest, "template") is string madeFrom && System.Array.IndexOf(ArtifactLibrary.Templates, madeFrom) < 0)
+                    Add("bad_value", "template", $"no template \"{madeFrom}\"", "a written artifact has \"template\": null; only one made from a template names it", ArtifactLibrary.Templates);
 
                 Inputs();
 
                 var scenarios = manifest["scenarios"];
                 if (!(scenarios is JArray scenarioList) || scenarioList.Count == 0)
                     Add("bad_value", "scenarios", "at least one is required", "use \"scenarios\": [{\"id\": \"default\", \"seed\": 0, \"params\": {}}]");
-                else ObjectList(manifest, "scenarios", "scenarios", "an object like {\"id\": \"default\"}");
+                else
+                {
+                    ObjectList(manifest, "scenarios", "scenarios", "an object like {\"id\": \"default\"}");
+                    for (int i = 0; i < scenarioList.Count; i++) ScenarioParams(scenarioList[i], $"scenarios[{i}]");
+                }
 
                 var data = ObjectList(manifest, "data", "data", "an object {name, source}");
                 if (data != null)
@@ -619,15 +627,25 @@ namespace Forge.Artifacts
                 {
                     if (!(list[i] is JObject input)) continue;
                     string path = $"inputs[{i}]", name = Str(input, "name"), type = Str(input, "type");
-                    if (string.IsNullOrEmpty(name)) { Add("bad_value", path, "needs a name"); continue; }
-                    inputs.Add(name);
+                    if (string.IsNullOrEmpty(name)) { Add("bad_value", path, "needs a name", "like {\"name\": \"speed\", \"type\": \"number\", \"min\": 0, \"max\": 1, \"default\": 0.5}"); continue; }
+                    if (!InputName.IsMatch(name))
+                        Add("bad_value", path + ".name", $"\"{name}\": use a lowercase letter, then lowercase letters, digits and _", Slug(name) is string fixedName && fixedName.Length > 0 && char.IsLetter(fixedName[0]) ? $"use \"{fixedName}\"" : "like \"speed\"");
+                    if (!inputs.Add(name)) { Add("bad_value", path + ".name", $"\"{name}\" is used twice", "each input needs its own name"); continue; }
+                    inputDefs[name] = input;
                     if (type == null || !ArtifactSchema.InputTypes.Contains(type))
                     {
                         Add("bad_value", path, $"unknown type {Describe(input["type"])}", "a slider needs \"type\": \"number\" (or \"integer\") with min, max and default",
-                            Values(ArtifactSchema.InputTypes));
+                            Values(ArtifactSchema.BuiltInputTypes));
                         continue;
                     }
-                    if (type != "number" && type != "integer") continue;
+                    if (!ArtifactSchema.BuiltInputTypes.Contains(type))
+                    {
+                        Add("bad_value", path + ".type", $"{type} inputs aren't built on this host yet, so nothing could set it",
+                            type == "boolean" ? "use \"type\": \"integer\" with min 0, max 1, and a slider; or a button whose on_input rule sets <node>.visible"
+                                              : "use \"type\": \"integer\" with min 0 and max N-1, one number per option, and a slider",
+                            Values(ArtifactSchema.BuiltInputTypes));
+                        continue;
+                    }
                     numericInputs.Add(name);
                     bool typed = false;
                     foreach (string key in new[] { "min", "max", "default" })
@@ -639,9 +657,34 @@ namespace Forge.Artifacts
                         Add("bad_value", path, "needs min, max and default", $"like {{\"name\": \"{name}\", \"type\": \"{type}\", \"min\": 0, \"max\": 1, \"default\": 0.5}}");
                         continue;
                     }
+                    if (type == "integer")
+                        foreach (string key in new[] { "min", "max", "default" })
+                            if (!Whole(input[key])) Add("bad_value", $"{path}.{key}", $"an integer input needs a whole number, found {Describe(input[key])}", "use a whole number, or \"type\": \"number\"");
                     if (min > max) Add("bad_value", path, $"min {min} is above max {max}");
                     if (value > max) Add("bad_value", path, $"default {value} is above max {max}");
                     if (value < min) Add("bad_value", path, $"default {value} is below min {min}");
+                }
+            }
+
+            // A scenario's params replace input defaults, so each one names an input and stays in its range.
+            void ScenarioParams(JToken scenario, string path)
+            {
+                var token = Get(scenario, "params");
+                if (Absent(token)) return;
+                if (!(token is JObject values)) { Add("bad_value", path + ".params", $"must be an object {{\"<input>\": <number>}}, found {Describe(token)}", "like \"params\": {}"); return; }
+                foreach (var p in values.Properties())
+                {
+                    string at = $"{path}.params.{p.Name}";
+                    if (!inputDefs.TryGetValue(p.Name, out var input))
+                    {
+                        Add("unknown_input", at, $"no input \"{p.Name}\"", "a scenario's params set manifest inputs by name", Names(inputs));
+                        continue;
+                    }
+                    if (!numericInputs.Contains(p.Name)) continue;  // its type is already refused
+                    double? v = Num(p.Value), min = Num(input, "min"), max = Num(input, "max");
+                    if (v == null) { Add("bad_value", at, $"must be a number, found {Describe(p.Value)}", "a plain number inside the input's range"); continue; }
+                    if (Str(input, "type") == "integer" && !Whole(p.Value)) Add("bad_value", at, $"{p.Name} is an integer, found {v}", "use a whole number");
+                    if ((min != null && v < min) || (max != null && v > max)) Add("bad_value", at, $"{v} is outside {min} to {max}", $"use a value from {min} to {max}");
                 }
             }
 
@@ -657,6 +700,14 @@ namespace Forge.Artifacts
                 foreach (var key in p.Properties())
                     if (!ArtifactSchema.Permissions.Contains(key.Name))
                         Add("permission_denied", "permissions." + key.Name, "not a permission in the schema", null, Values(ArtifactSchema.Permissions));
+                foreach (var pair in ArtifactSchema.PermissionValues)
+                {
+                    var value = p[pair.Key];
+                    if (Absent(value)) continue;
+                    if (value.Type != JTokenType.String || System.Array.IndexOf(pair.Value, (string)value) < 0)
+                        Add("bad_value", "permissions." + pair.Key, $"must be one of {string.Join(", ", pair.Value)}, found {Describe(value)}",
+                            "leave a permission out when it isn't needed; absent means none", pair.Value);
+                }
                 ListField(p, "network", "permissions");
                 ListField(p, "connectors", "permissions");
                 if (p["network"] is JArray network && network.Count > 0)
@@ -683,6 +734,10 @@ namespace Forge.Artifacts
                 }
 
                 Generators(space);
+                if (space == "room" && !(scene["generators"] is JArray placed && placed.Count > 0))
+                    Add("bad_value", "scene.space", "room needs a generator: positions in the room come only from one, never from the scene",
+                        "use \"space\": \"volume\" (positions in metres around 0,0,0, scaled to fit) and drop permissions.room; \"room\" is for courses a generator lays out on the floor",
+                        new[] { "volume", "panel" });
                 var nodesToken = scene["nodes"];
                 if (!Absent(nodesToken) && !(nodesToken is JArray)) Add("bad_value", "nodes", $"must be a list of node objects, found {Describe(nodesToken)}");
                 var list = nodesToken as JArray ?? new JArray();
@@ -743,9 +798,13 @@ namespace Forge.Artifacts
                     }
                     if (nodes.ContainsKey(id)) { Add("bad_value", path, $"id \"{id}\" is used twice"); continue; }
                     nodes[id] = node;
-                    if (node["widgets"] is JArray widgets)
-                        foreach (var w in widgets)
-                            if (Str(w, "type") == "button" && Str(w, "id") != null) buttons.Add(Str(w, "id"));
+                    // Only a panel draws widgets, so a button anywhere else can't be pressed.
+                    if (Str(node, "kind") == "panel" && node["widgets"] is JArray widgets)
+                        for (int w = 0; w < widgets.Count; w++)
+                        {
+                            string button = Str(widgets[w], "type") == "button" ? Str(widgets[w], "id") : null;
+                            if (button != null && buttons.Add(button)) buttonPaths[button] = $"{path}.widgets[{w}]";
+                        }
                 }
                 int zones = 0;
                 foreach (var node in nodes.Values) if (IsZone(node)) zones++;
@@ -783,12 +842,18 @@ namespace Forge.Artifacts
                 if (!StringField(n, "parent", path))
                 {
                     string parent = Str(n, "parent");
-                    if (parent != null && !nodes.ContainsKey(parent)) Add("unknown_ref", path + ".parent", $"no node \"{parent}\"", "parent is the id of another node in this scene", NodesOfKind(null));
+                    JObject parentNode = null;
+                    if (parent != null && !nodes.TryGetValue(parent, out parentNode)) Add("unknown_ref", path + ".parent", $"no node \"{parent}\"", "parent is the id of another node in this scene", NodesOfKind(null));
+                    else if (parentNode != null && (Str(parentNode, "kind") == "panel" || Str(parentNode, "kind") == "timeline"))
+                        Add("bad_value", path + ".parent", $"\"{parent}\" is a {Str(parentNode, "kind")}, so it can't hold parts",
+                            Str(parentNode, "kind") == "panel" ? "a panel sits beside the scene; parent the part to a primitive instead" : "a timeline is only a clock; parent the part to a primitive instead");
                 }
                 if (!StringField(n, "at", path))
                 {
                     string at = Str(n, "at");
                     if (at != null && !slots.Contains(at)) Add("unknown_slot", path + ".at", $"no slot \"{at}\"", slots.Count == 0 ? "slots come from a generator; without one, leave out \"at\"" : null, Names(slots));
+                    else if (at != null && !ArtifactSchema.SingletonSlots.Contains(at.Substring(at.IndexOf('.') + 1)))
+                        Add("bad_value", path + ".at", $"\"{at}\" is a list of places, so a single node can't stand on it", "stand on a single slot (start or finish), or make an array with \"source\": \"" + at + "\"", Singletons());
                 }
                 Vec3Field(n, "pos", path);
                 Vec3Field(n, "rot", path);
@@ -801,9 +866,14 @@ namespace Forge.Artifacts
                     case "text":
                         if (Absent(n["text"])) Add("bad_value", path + ".text", "required");
                         else if (!StringField(n, "text", path))
-                            foreach (Match m in Regex.Matches(Str(n, "text"), @"\{([a-z0-9_]+)\}"))
+                        {
+                            var shown = Regex.Matches(Str(n, "text"), @"\{([a-z0-9_]+)\}");
+                            foreach (Match m in shown)
                                 if (!metrics.Contains(m.Groups[1].Value))
                                     Add("unknown_ref", path + ".text", $"no metric \"{m.Groups[1].Value}\"", "{name} shows a metric rule's value; add the rule or drop the braces", Names(metrics));
+                            if (shown.Count > 1)
+                                Add("bad_value", path + ".text", $"shows {shown.Count} metrics: a text node shows at most one {{metric}}", "use one text node per metric, or stat widgets on a panel");
+                        }
                         NumberField(n, "height", path);
                         ColorField(n, "color", path);
                         BoolField(n, "billboard", path);
@@ -826,6 +896,8 @@ namespace Forge.Artifacts
                     case "line":
                         if (Absent(n["points"]) && Absent(n["source"]) && Absent(n["follow"]) && Absent(n["through"]))
                             Add("bad_value", path, "needs points, a source, follow or through", "for a fixed line use \"points\": [[0, 0, 0], [0, 0.2, 0]]");
+                        else if (!Absent(n["source"]) && n["source"].Type != JTokenType.String)
+                            Add("bad_value", path + ".source", $"a line's source is a slot name, found {Describe(n["source"])}", "for a fixed line use \"points\"; for a line between parts use \"through\": [node ids]", Names(slots));
                         else Source(n, path);
                         Points(n, path);
                         NumberField(n, "width", path);
@@ -1013,8 +1085,9 @@ namespace Forge.Artifacts
                 var rules = ObjectList(scene, "rules", "rules", "a rule object {type, ...}");
                 if (rules == null) return;
                 if (rules.Count > ArtifactSchema.MaxRules) Add("too_big", "rules", $"{rules.Count} is over the limit of {ArtifactSchema.MaxRules}");
-                foreach (var rule in rules)
-                    if (Str(rule, "type") == "metric" && Str(rule, "name") != null) metrics.Add(Str(rule, "name"));
+                for (int i = 0; i < rules.Count; i++)
+                    if (Str(rules[i], "type") == "metric" && Str(rules[i], "name") is string metricName && !metrics.Add(metricName))
+                        Add("bad_value", $"rules[{i}].name", $"metric \"{metricName}\" is named twice", "give each metric rule its own name");
                 for (int i = 0; i < rules.Count; i++)
                 {
                     if (!(rules[i] is JObject rule)) continue;
@@ -1029,26 +1102,83 @@ namespace Forge.Artifacts
                     if (type == "on_input" && !buttons.Contains(Str(rule, "input") ?? ""))
                         Add("unknown_ref", path + ".input", $"no button {(Str(rule, "input") != null ? "\"" + Str(rule, "input") + "\"" : Describe(rule["input"]))}",
                             "on_input names a button id from a panel's widgets: {\"type\": \"button\", \"id\": \"<id>\", \"label\": \"...\"}", Names(buttons));
-                    if (type == "on_zone") ZoneRef(rule["zone"], path + ".zone");
+                    if (type == "on_zone")
+                    {
+                        ZoneRef(rule["zone"], path + ".zone");
+                        if (!ArtifactSchema.ZoneEvents.Contains(Str(rule, "event") ?? ""))
+                            Add("bad_value", path + ".event", $"must be enter or exit, found {Describe(rule["event"])}", "\"event\": \"enter\" fires when the Thing comes into the zone", Values(ArtifactSchema.ZoneEvents));
+                        if (Absent(scene["run"]))
+                            Add("bad_value", path, "on_zone fires only while a run is scored, and the scene has no run", "zones are for courses; for a button use on_input, for motion a timeline");
+                    }
                     if (type == "animate") Animate(rule, path);
                     var actions = ObjectList(rule, "do", path + ".do", "an action object like {\"timeline\": \"clock\", \"action\": \"play\"}");
                     if (actions == null) continue;
                     for (int a = 0; a < actions.Count; a++)
-                    {
-                        if (!(actions[a] is JObject action)) continue;
-                        string at = $"{path}.do[{a}]";
-                        if (!StringField(action, "set", at))
-                        {
-                            string target = Str(action, "set");
-                            if (target != null && !nodes.ContainsKey(target.Split('.')[0]))
-                                Add("unknown_ref", at + ".set", $"no node \"{target.Split('.')[0]}\"", "set is \"<node id>.visible\"", NodesOfKind(null));
-                        }
-                        if (Absent(action["timeline"])) continue;
-                        TimelineRef(action["timeline"], at + ".timeline");
-                        if (!ArtifactSchema.TimelineActions.Contains(Str(action, "action") ?? ""))
-                            Add("bad_value", at + ".action", "play, pause or restart", null, Values(ArtifactSchema.TimelineActions));
-                    }
+                        if (actions[a] is JObject action) Action(action, $"{path}.do[{a}]");
                 }
+
+                // A button that runs nothing would look broken: each one needs an on_input rule.
+                var pressed = new HashSet<string>();
+                foreach (var rule in rules)
+                    if (Str(rule, "type") == "on_input" && Str(rule, "input") is string input) pressed.Add(input);
+                foreach (var button in buttonPaths)
+                    if (!pressed.Contains(button.Key))
+                        Add("bad_value", button.Value, $"button \"{button.Key}\" has no on_input rule, so pressing it does nothing",
+                            $"add {{\"type\": \"on_input\", \"input\": \"{button.Key}\", \"do\": [{{\"timeline\": \"<id>\", \"action\": \"play\"}}]}}, or drop the button");
+            }
+
+            static readonly string[] Verbs = { "set", "run", "timeline", "sim" };
+
+            // What the host runs (ArtifactHost.Do): one verb per action, and only what it builds.
+            void Action(JObject action, string at)
+            {
+                int count = 0;
+                foreach (string verb in Verbs) if (!Absent(action[verb])) count++;
+                if (count == 0)
+                {
+                    Add("bad_value", at, "an action needs one verb: set, run, timeline or sim",
+                        "like {\"timeline\": \"<id>\", \"action\": \"play\"} or {\"set\": \"<node>.visible\", \"value\": true}", Verbs);
+                    return;
+                }
+                if (count > 1)
+                {
+                    Add("bad_value", at, $"has {count} verbs, and only the first would run", "split it: one action object per verb, in the order they should run", Verbs);
+                    return;
+                }
+                if (!Absent(action["set"]))
+                {
+                    if (StringField(action, "set", at)) return;
+                    string target = Str(action, "set");
+                    int dot = target.IndexOf('.');
+                    string node = dot < 0 ? target : target.Substring(0, dot), property = dot < 0 ? null : target.Substring(dot + 1);
+                    if (!nodes.ContainsKey(node)) Add("unknown_ref", at + ".set", $"no node \"{node}\"", "set is \"<node id>.visible\"", NodesOfKind(null));
+                    else if (property != "visible")
+                        Add("bad_value", at + ".set", $"only <node>.visible can be set, not \"{target}\"",
+                            "to change a colour, a position or a turn, put an animate rule on a timeline and play it; to swap looks, show one part and hide another",
+                            new[] { node + ".visible" });
+                    if (action["value"]?.Type != JTokenType.Boolean)
+                        Add("bad_value", at + ".value", $"must be true or false, found {Describe(action["value"])}", "\"value\": true shows the node, false hides it", new[] { "true", "false" });
+                    return;
+                }
+                if (!Absent(action["run"]))
+                {
+                    string verb = Str(action, "run");
+                    if (verb == null || !ArtifactSchema.RunVerbs.Contains(verb))
+                        Add("bad_value", at + ".run", $"must be arm or reset, found {Describe(action["run"])}", "\"run\": \"reset\" puts the Thing back at the start", Values(ArtifactSchema.RunVerbs));
+                    if (Absent(scene["run"]))
+                        Add("bad_value", at + ".run", "the scene has no run to arm or reset", "run actions are for scored courses; play a timeline or a sim instead", Values(ArtifactSchema.RunVerbs));
+                    return;
+                }
+                if (!Absent(action["timeline"])) TimelineRef(action["timeline"], at + ".timeline");
+                else
+                {
+                    string sim = Str(action, "sim");
+                    if (sim == null || !nodes.TryGetValue(sim, out var node))
+                        Add("unknown_ref", at + ".sim", $"no node {(sim != null ? "\"" + sim + "\"" : Describe(action["sim"]))}", "sim names a sim node's id", NodesOfKind("sim"));
+                    else if (Str(node, "kind") != "sim") Add("unknown_ref", at + ".sim", $"\"{sim}\" isn't a sim node", "sim names a sim node's id", NodesOfKind("sim"));
+                }
+                if (!ArtifactSchema.TimelineActions.Contains(Str(action, "action") ?? ""))
+                    Add("bad_value", at + ".action", $"must be play, pause or restart, found {Describe(action["action"])}", "like \"action\": \"play\"; restart goes back to the start", Values(ArtifactSchema.TimelineActions));
             }
 
             readonly HashSet<string> animated = new HashSet<string>();
@@ -1125,6 +1255,15 @@ namespace Forge.Artifacts
                     if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node {(target != null ? "\"" + target + "\"" : Describe(t))}", null, NodesOfKind(null));
                 }
                 if (op == "sim") SimMetric(rule, path);
+                else if (op != null && ArtifactSchema.MetricOps.Contains(op) && Absent(scene["run"]))
+                    Add("bad_value", path + ".op", $"{op} counts only while a run is scored, and the scene has no run",
+                        "a number from a sim is op sim; a run is for courses; for a clock, show a timeline playing", Values(new[] { "sim" }));
+                if (op == "hit_count")
+                    foreach (var t in targets)
+                        if (t.Type == JTokenType.String && nodes.TryGetValue((string)t, out var hit) &&
+                            !(Str(hit, "kind") == "array" && Str(hit["template"], "kind") == "primitive" && Get(hit["template"], "collider")?.Type == JTokenType.Boolean && (bool)Get(hit["template"], "collider")))
+                            Add("bad_value", path + ".nodes", $"\"{t}\" isn't an array of collider primitives, so nothing can hit it",
+                                "hit_count counts touches on an array whose template is a primitive with \"collider\": true", NodesOfKind("array"));
             }
 
             void SimMetric(JObject rule, string path)
@@ -1220,9 +1359,33 @@ namespace Forge.Artifacts
                 else if (token?.Type == JTokenType.String)
                 {
                     string s = (string)token;
-                    if (InputRef.IsMatch(s) && !inputs.Contains(s.Substring(1)))
+                    if (!s.StartsWith("$")) return;
+                    if (!InputRef.IsMatch(s))
+                    {
+                        if (!Covered(path))
+                            Add("bad_value", path, $"\"{s}\" isn't an input reference", "\"$name\" is read as it is, with no maths; put the value you need into the input itself", Names(numericInputs));
+                    }
+                    else if (!inputs.Contains(s.Substring(1)))
                         Add("unknown_input", path, $"no input \"{s.Substring(1)}\"", "\"$name\" reads manifest.inputs[].name", Names(inputs));
+                    else if (!numericInputs.Contains(s.Substring(1)) && !Covered(path))
+                        Add("bad_value", path, $"\"{s.Substring(1)}\" isn't a number input, so it can't stand for a number", "only number and integer inputs are read here", Names(numericInputs));
                 }
+            }
+
+            /// <summary>True when an error is already reported at this path or one holding it.</summary>
+            bool Covered(string path)
+            {
+                foreach (var e in errors)
+                    if (!string.IsNullOrEmpty(e.path) && (e.path == path ||
+                        (path.Length > e.path.Length && path.StartsWith(e.path) && (path[e.path.Length] == '.' || path[e.path.Length] == '[')))) return true;
+                return false;
+            }
+
+            string[] Singletons()
+            {
+                var list = new List<string>();
+                foreach (var slot in slots) if (ArtifactSchema.SingletonSlots.Contains(slot.Substring(slot.IndexOf('.') + 1))) list.Add(slot);
+                return list.ToArray();
             }
 
             void OneOf(JObject o, string key, HashSet<string> allowed, string path, string hint)
