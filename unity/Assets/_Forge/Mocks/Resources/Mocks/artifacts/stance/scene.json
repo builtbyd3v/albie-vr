@@ -3,22 +3,28 @@
   "space": "volume",
   "generators": [],
   "nodes": [
-    { "id": "ground", "kind": "primitive", "shape": "cylinder", "size": [0.96, 0.02, 0.96], "color": "#2B2F36" },
-    { "id": "track", "kind": "primitive", "shape": "box", "pos": [0, 0.04, 0], "size": ["$track_m", 0.04, 0.34], "color": "#4D8DFF" },
-    { "id": "mast", "kind": "primitive", "shape": "cylinder", "pos": [0, 0.33, 0], "size": [0.012, 0.6, 0.012], "color": "#CFE0FF" },
-    { "id": "cog", "kind": "primitive", "shape": "sphere", "pos": [0, "$cog_m", 0], "size": [0.08, 0.08, 0.08], "color": "#FF8A3D" },
-    { "id": "cog_label", "kind": "text", "parent": "cog", "pos": [0, 0.08, 0], "text": "CoG", "height": 0.05, "color": "#FFFFFF", "billboard": true },
-    { "id": "controls", "kind": "panel", "title": "Stance check", "widgets": [
-      { "type": "note", "text": "A wider track and a lower centre of gravity both resist rolling over." },
-      { "type": "slider", "input": "track_m" },
-      { "type": "slider", "input": "cog_m" },
-      { "type": "button", "id": "hide_label", "label": "Hide label" },
-      { "type": "button", "id": "show_label", "label": "Show label" }
-    ] }
+    {"id": "ground", "kind": "primitive", "shape": "cylinder", "size": [0.96, 0.02, 0.96], "color": "#2B2F36"},
+    {"id": "track", "kind": "primitive", "shape": "box", "pos": [0, 0.1, 0], "size": ["$track_m", 0.03, 0.2], "color": "#4D8DFF"},
+    {"id": "mast", "kind": "primitive", "shape": "cylinder", "pos": [0, 0.33, 0], "size": [0.012, 0.6, 0.012], "color": "#CFE0FF"},
+    {"id": "cog", "kind": "primitive", "shape": "sphere", "pos": [0, "$cog_m", 0], "size": [0.08, 0.08, 0.08], "color": "#FF8A3D"},
+    {"id": "cog_label", "kind": "text", "parent": "cog", "pos": [0, 0.08, 0], "text": "CoG", "height": 0.05, "color": "#FFFFFF", "billboard": true},
+    {"id": "axle", "kind": "primitive", "shape": "box", "size": [0.001, 0.001, 0.001], "scale": ["$track_m", 1, 1], "color": "#2B2F36"},
+    {"id": "tyre_fl", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [-0.5, 0.08, -0.13], "rot": [0, 0, 90], "size": [0.14, 0.12, 0.14], "color": "#1C1F24"},
+    {"id": "hub_fl", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [-0.5, 0.08, -0.13], "rot": [0, 0, 90], "size": [0.07, 0.13, 0.07], "color": "#AEB6C2"},
+    {"id": "tyre_bl", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [-0.5, 0.08, 0.13], "rot": [0, 0, 90], "size": [0.14, 0.12, 0.14], "color": "#1C1F24"},
+    {"id": "hub_bl", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [-0.5, 0.08, 0.13], "rot": [0, 0, 90], "size": [0.07, 0.13, 0.07], "color": "#AEB6C2"},
+    {"id": "tyre_fr", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [0.5, 0.08, -0.13], "rot": [0, 0, 90], "size": [0.14, 0.12, 0.14], "color": "#1C1F24"},
+    {"id": "hub_fr", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [0.5, 0.08, -0.13], "rot": [0, 0, 90], "size": [0.07, 0.13, 0.07], "color": "#AEB6C2"},
+    {"id": "tyre_br", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [0.5, 0.08, 0.13], "rot": [0, 0, 90], "size": [0.14, 0.12, 0.14], "color": "#1C1F24"},
+    {"id": "hub_br", "kind": "primitive", "parent": "axle", "shape": "cylinder", "pos": [0.5, 0.08, 0.13], "rot": [0, 0, 90], "size": [0.07, 0.13, 0.07], "color": "#AEB6C2"},
+    {"id": "tip_lines", "kind": "line", "parent": "axle", "points": [[-0.5, 0.012, -0.13], [0, "$cog_m", 0], [0.5, 0.012, -0.13]], "width": 0.014, "color": "#FF8A3D"},
+    {"id": "body", "kind": "primitive", "shape": "box", "pos": [0, 0.155, 0.01], "size": [0.18, 0.08, 0.17], "color": "#2D6BE0"},
+    {"id": "cab_glass", "kind": "primitive", "shape": "box", "pos": [0, 0.17, -0.076], "size": [0.15, 0.045, 0.004], "color": "#9CC3FF", "glow": true},
+    {"id": "controls", "kind": "panel", "title": "Stance check", "widgets": [{"type": "note", "text": "A wider track and a lower centre of gravity both resist rolling over. The orange lines run from the centre of gravity to the front wheels: the flatter they are, the further the truck has to lean before it rolls."}, {"type": "slider", "input": "track_m"}, {"type": "slider", "input": "cog_m"}, {"type": "button", "id": "hide_label", "label": "Hide label"}, {"type": "button", "id": "show_label", "label": "Show label"}]}
   ],
   "rules": [
-    { "type": "on_input", "input": "hide_label", "do": [ { "set": "cog_label.visible", "value": false } ] },
-    { "type": "on_input", "input": "show_label", "do": [ { "set": "cog_label.visible", "value": true } ] }
+    {"type": "on_input", "input": "hide_label", "do": [{"set": "cog_label.visible", "value": false}]},
+    {"type": "on_input", "input": "show_label", "do": [{"set": "cog_label.visible", "value": true}]}
   ],
   "run": null
 }

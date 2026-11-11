@@ -174,6 +174,18 @@ namespace Forge.Artifacts
                     (col - (columns - 1) * 0.5f) * (size.x + gap), h * 0.5f, (row - (rows - 1) * 0.5f) * (size.z + gap));
                 copies.Add(child);
             }
+            // An optional plate under the grid, sized to it, so a city stands on a base however many rows the data has.
+            if (grid?.Value<string>("base") is string baseColor && count > 0)
+            {
+                float margin = gap * 1.5f, thick = 0.012f;
+                var plate = ArtifactNodes.Build(new JObject
+                {
+                    ["id"] = id + "_base", ["kind"] = "primitive", ["shape"] = "box", ["color"] = baseColor,
+                    ["size"] = new JArray(columns * (size.x + gap) - gap + 2f * margin, thick, rows * (size.z + gap) - gap + 2f * margin),
+                }, build);
+                plate.transform.SetParent(go.transform, false);
+                plate.transform.localPosition = new Vector3(offset.x, -thick * 0.5f, offset.z);
+            }
             return go;
         }
 

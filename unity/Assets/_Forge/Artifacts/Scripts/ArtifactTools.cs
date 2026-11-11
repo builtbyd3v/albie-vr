@@ -124,11 +124,13 @@ namespace Forge.Artifacts
         }
 
         static ArtifactHost Host() =>
-            ArtifactHost.Current ?? throw new ArgumentException("no_host: there's nowhere to show artifacts in this scene");
+            ArtifactHost.Current ?? ArtifactBootstrap.Ensure()
+            ?? throw new ArgumentException("no_host: there's nowhere to show artifacts in this scene");
 
         // What the agent needs after an open: waiting for a tap, refused (with why), or open with its layout and the line to say.
         static JObject Opened(ArtifactHost host, string id, Action<ArtifactHost> open)
         {
+            if (host.FollowsUser) host.ComeToUser();  // open() closes whatever was showing first
             open(host);
             if (host.AwaitingApproval)
             {

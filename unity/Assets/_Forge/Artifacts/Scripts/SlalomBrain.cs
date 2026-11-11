@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace Forge.Artifacts
 {
     /// <summary>
-    /// SlalomSandbox only: the demo's brain beat end to end on a room slalom (PROJECT_CONTEXT 15.6 step 8, 16.8 "room
+    /// SlalomSandbox (key B) and the app (<see cref="ArtifactBootstrap.EnsureBrain"/>): the demo's brain beat end to end on a room slalom (PROJECT_CONTEXT 15.6 step 8, 16.8 "room
     /// slalom, in the app"). Every piece is the real one except the truck's body:
     /// - the truck is ML A's physics example (<see cref="ExampleTruckBody"/>: a ray fan on the cones' colliders, a crash
     ///   when it touches one) with a <see cref="ControllerThing"/>, standing in for Person 2's Thing runtime;
@@ -49,6 +49,10 @@ namespace Forge.Artifacts
         /// <summary>Checks only: <see cref="Record"/>'s laps are driven by the scripted driver, not by hand. No tool
         /// sets it, so "drive it yourself" by voice is always the person's own laps.</summary>
         public bool ScriptedLaps;
+        /// <summary>The sandbox's key hints ("(2)", "L", "T", "P", "WASD") in <see cref="Status"/>. Off in the app, where
+        /// there are no such keys and Albie reads the status aloud (<c>brain_status</c>).</summary>
+        public bool KeyHints = true;
+        string Hint(string text) => KeyHints ? text : "";
         public int CompletedLaps => Thing != null ? Thing.Recorder.Set.CompletedLaps : 0;
         public BehaviourCloner[] Cloners => cloners;
         public Autopilot Autopilot => autopilot;
@@ -59,6 +63,10 @@ namespace Forge.Artifacts
         ControllerFile manual;
         BehaviourCloner[] cloners;
         int training, trainFrames;
+        // After training, each candidate rehearses the open course in the mock sim; the Autopilot tries them best-first.
+        Rehearsal rehearsal;
+        ControllerFile[] trainedFiles;
+        int[] order;
         // Record(laps, thenAutopilot): the completed-lap count that ends recording (0: one lap at a time, as L does),
         // and whether training and the Autopilot follow with no further call.
         int lapTarget;
@@ -75,7 +83,7 @@ namespace Forge.Artifacts
         Vector2 lastStick;
 
         /// <summary>Makes the brain truck and binds it to <paramref name="host"/>'s runs.</summary>
-        public static SlalomBrain Spawn(ArtifactHost host)
+        public static SlalomBrain Spawn(ArtifactHost host, bool keyHints = true)
         {
             var go = new GameObject("Brain truck");
             go.SetActive(false);  // so ControllerThing's Awake sees the fields set below
@@ -104,6 +112,8 @@ namespace Forge.Artifacts
             go.SetActive(true);
             if (brain.manual != null) brain.Thing.Host.Attach(brain.manual);
             host.Thing = brain.Scored;
+            brain.KeyHints = keyHints;
+            if (!keyHints) brain.Status = "brain truck at the start: ready for a lap driven by hand";
             brain.PlaceAtStart();
             brain.Park();
             return brain;
@@ -175,7 +185,8 @@ namespace Forge.Artifacts
             lastKeyForward = lastKeyLeft = 0f;
             lastStick = Vector2.zero;
             State = Mode.Lap;
-            Status = driver != null ? "scripted lap: recording" : "lap: drive through the gates with WASD or the thumbstick (recording)";
+            Status = driver != null ? "scripted lap: recording"
+                : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)" : "lap: drive through the gates (recording)";
             return null;
         }
 
@@ -187,7 +198,7 @@ namespace Forge.Artifacts
             ManualInputs.Clear();
             Park();
             Status = $"lap {outcome} in {lap.Seconds:0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
-                     (CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
+                     Hint(CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
             if (lapTarget <= 0) return;
             string said = Status;
             if (CompletedLaps < lapTarget)
@@ -215,6 +226,7 @@ namespace Forge.Artifacts
             cloners = new BehaviourCloner[Candidates];
             for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(Thing.Recorder.Set, new BehaviourCloner.Options { Seed = i + 1 });
             training = 0; trainFrames = 0;
+            rehearsal = null; trainedFiles = null; order = null;
             State = Mode.Training;
             Status = $"training {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows)";
             return null;
@@ -223,9 +235,39 @@ namespace Forge.Artifacts
         void TrainStep()
         {
             trainFrames++;
-            if (cloners[training].Step(BudgetMs)) training++;
-            if (training < cloners.Length) return;
+            if (training < cloners.Length)
+            {
+                if (cloners[training].Step(BudgetMs)) training++;
+                if (training < cloners.Length) return;
+                string error = BeginRehearsal();
+                if (error != null) { State = Mode.Idle; Status = error; chainAutopilot = false; return; }
+                if (rehearsal != null) return;
+            }
+            else if (rehearsal != null && !rehearsal.Step(BudgetMs)) return;
+            FinishTraining();
+        }
+
+        // The trained candidates as controller files, then a rehearsal on the open course (none if it was closed).
+        string BeginRehearsal()
+        {
+            trainedFiles = new ControllerFile[cloners.Length];
+            for (int i = 0; i < cloners.Length; i++)
+            {
+                trainedFiles[i] = ControllerFile.Parse(cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
+                if (trainedFiles[i] == null) return error;
+            }
+            rehearsal = host != null && host.Build != null ? new Rehearsal(trainedFiles, CourseFromSlots()) : null;
+            if (rehearsal != null) Status = $"rehearsing {Candidates} candidates on the course";
+            return null;
+        }
+
+        /// <summary>Rehearsal finishes per candidate (out of <see cref="Rehearsal.Starts"/>), in training order, or null.</summary>
+        public int[] RehearsalFinished => rehearsal != null && rehearsal.Done ? rehearsal.Finished : null;
+
+        void FinishTraining()
+        {
             State = Mode.Idle;
+            order = rehearsal != null ? rehearsal.Order() : null;
             double compute = 0;
             foreach (var c in cloners) compute += c.ComputeSeconds;
             // The notebook's training entry (C-17 section 3), as the Controllers sandbox's B reports it.
@@ -234,10 +276,28 @@ namespace Forge.Artifacts
             foreach (var c in cloners) list.Add(c.TrainingBlock());
             block["candidates"] = list;
             TrainingLog.Report("truck_autopilot", 1, block);
-            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute). P: Autopilot";
+            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + RehearsalLine() + Hint(". P: Autopilot");
             if (!chainAutopilot) return;
             chainAutopilot = false;
             StartAutopilot();
+        }
+
+        // "; in rehearsal the best finished 9 of 9 starts (the others 7 and 4), so it drives first"
+        string RehearsalLine()
+        {
+            if (order == null) return "";
+            var f = rehearsal.Finished;
+            var others = new System.Text.StringBuilder();
+            for (int i = 1; i < order.Length; i++) others.Append(i == 1 ? "" : i == order.Length - 1 ? " and " : ", ").Append(f[order[i]]);
+            return $"; in rehearsal the best finished {f[order[0]]} of {Rehearsal.Starts} starts" +
+                   (order.Length > 1 ? $" (the other{(order.Length > 2 ? "s" : "")} {others})" : "") + ", so it drives first";
+        }
+
+        JArray RehearsalInOrder()
+        {
+            var list = new JArray();
+            foreach (int i in order) list.Add(rehearsal.Finished[i]);
+            return list;
         }
 
         // ---- Autopilot ------------------------------------------------------------------------------------------
@@ -246,14 +306,11 @@ namespace Forge.Artifacts
         public string StartAutopilot()
         {
             if (State != Mode.Idle) return Status = "busy: " + State.ToString().ToLowerInvariant();
-            if (cloners == null) return Status = "train first (T)";
+            if (cloners == null) return Status = "train first" + Hint(" (T)");
+            if (trainedFiles == null) return Status = "train first" + Hint(" (T)");
+            // Best rehearsal first (training order if there was no rehearsal).
             var files = new System.Collections.Generic.List<ControllerFile>();
-            for (int i = 0; i < cloners.Length; i++)
-            {
-                var file = ControllerFile.Parse(cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
-                if (file == null) return Status = error;
-                files.Add(file);
-            }
+            for (int i = 0; i < trainedFiles.Length; i++) files.Add(trainedFiles[order != null ? order[i] : i]);
             var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
             var fallback = fallbackAsset != null ? ControllerFile.Parse(fallbackAsset.text, out _) : null;
             autopilot = new Autopilot(files, fallback);
@@ -300,6 +357,9 @@ namespace Forge.Artifacts
                 ["slalom_open"] = host != null && host.Run != null,
                 ["candidates"] = Candidates,
                 ["candidates_trained"] = trained,
+                // Rehearsal finishes per candidate in the order the Autopilot tries them (best first), out of rehearsal_starts.
+                ["rehearsal"] = order != null ? RehearsalInOrder() : null,
+                ["rehearsal_starts"] = order != null ? Rehearsal.Starts : 0,
                 ["autopilot"] = State == Mode.Autopilot ? autopilot.Describe() : null,
                 ["drove"] = Drove,
                 ["attempts"] = attempts,
@@ -329,7 +389,7 @@ namespace Forge.Artifacts
 
         string Arm()
         {
-            if (host == null || host.Run == null) return "open the slalom first (2)";
+            if (host == null || host.Run == null) return "open the slalom first" + Hint(" (2)");
             host.Thing = Scored;
             var file = Thing.Host.File;
             if (file != null) { Scored.ControllerName = file.Name; Scored.ControllerKind = file.Kind; Scored.ControllerVersion = file.Version; }
