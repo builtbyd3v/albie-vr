@@ -356,7 +356,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         AlbieTools.CallAsync(name, args, result =>
         {
             toolsRunning--;
-            Debug.Log($"[AlbieVoice] tool {name} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
+            Debug.Log($"[AlbieVoice] tool {name} call {callId} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
             var output = new JObject
             {
                 ["type"] = "conversation.item.create",
@@ -401,6 +401,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         if (answerDone) return;
         answerDone = true;
         Emit("agent.answer_done", new JObject { ["text"] = text }, "speaking");
+        Debug.Log($"[AlbieVoice] said: {text}");
     }
 
     // An event for the pet, after the pet.state its mode implies (the hub's Emitter does this; only on a change).
