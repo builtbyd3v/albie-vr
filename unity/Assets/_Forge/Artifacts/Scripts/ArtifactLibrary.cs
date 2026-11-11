@@ -101,6 +101,7 @@ namespace Forge.Artifacts
             }
             manifest = (JObject)manifest.DeepClone();
             scene = (JObject)scene.DeepClone();
+            manifest["scene"] = "scene.json";  // the only file Write saves, so the manifest has to name it
             if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone")
             {
                 if (!(manifest["links"] is JObject)) manifest["links"] = new JObject();

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Forge.Artifacts
@@ -21,6 +23,8 @@ namespace Forge.Artifacts
     /// <summary>
     /// The device validator (C-12 section 9). It runs before anything is shown and needs no network. It only reads
     /// JSON, so it knows nothing about Unity scenes. Asset hashes are checked when assets load, not here.
+    /// The agent writes these files, so every field is read through a guarded accessor: a wrong shape is an error at
+    /// that field's own path, and the pass goes on. Only a newer schema stops it.
     /// </summary>
     public static class ArtifactValidator
     {
@@ -29,6 +33,7 @@ namespace Forge.Artifacts
         static readonly Regex InputRef = new Regex(@"^\$[a-z][a-z0-9_]*$");
         static readonly Regex SourceRule = new Regex(@"^(builtin:[a-z0-9_]+|connector:[a-z0-9_]+/[a-z0-9_]+)$");
         static readonly Regex SnapshotRule = new Regex(@"^data/[a-z0-9_-]+\.json$");
+        static readonly Regex SceneFile = new Regex(@"^[a-z0-9_-]+\.json$");
         static readonly Regex HashRule = new Regex("^[0-9a-fA-F]{64}$");
         static readonly Regex ColorRule = new Regex("^#[0-9a-fA-F]{6}$");
         static readonly HashSet<string> FreeText = new HashSet<string> { "text", "title", "label" };
@@ -44,16 +49,42 @@ namespace Forge.Artifacts
         public static List<ArtifactError> Validate(JObject manifest, JObject scene)
         {
             var v = new Pass { manifest = manifest, scene = scene };
-            try
-            {
-                v.Run();
-            }
-            catch (Exception e) when (e is InvalidOperationException || e is InvalidCastException || e is ArgumentException || e is FormatException || e is OverflowException)
-            {
-                // The agent wrote this file, so a wrong shape is an answer, not a crash.
-                v.errors.Add(new ArtifactError("bad_value", "", "a field has the wrong type: " + e.Message));
-            }
+            v.Run();
             return v.errors;
+        }
+
+        // ---------- guarded reads: a wrong type gives null, never an exception ----------
+
+        static JToken Get(JToken o, string key) => o is JObject j ? j[key] : null;
+        static bool Absent(JToken t) => t == null || t.Type == JTokenType.Null;
+        static bool IsNumber(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
+        static string Str(JToken o, string key) => Get(o, key) is JToken t && t.Type == JTokenType.String ? (string)t : null;
+
+        static double? Num(JToken t)
+        {
+            if (!IsNumber(t)) return null;
+            object raw = ((JValue)t).Value;
+            if (raw is System.Numerics.BigInteger big) return (double)big;
+            return Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+        }
+
+        static double? Num(JToken o, string key) => Num(Get(o, key));
+
+        static bool Whole(JToken t) => Num(t) is double d && Math.Abs(d - Math.Round(d)) < 1e-9;
+
+        /// <summary>A short, quotable picture of what the agent wrote, for messages.</summary>
+        static string Describe(JToken t)
+        {
+            if (t == null) return "nothing";
+            string text = t.ToString(Formatting.None);
+            if (text.Length > 40) text = text.Substring(0, 37) + "...";
+            switch (t.Type)
+            {
+                case JTokenType.Object: return "an object " + text;
+                case JTokenType.Array: return "a list " + text;
+                case JTokenType.Null: return "null";
+                default: return text;
+            }
         }
 
         sealed class Pass
@@ -71,95 +102,169 @@ namespace Forge.Artifacts
             {
                 if (manifest == null) { Add("bad_value", "manifest", "missing or not a JSON object"); return; }
                 if (scene == null) { Add("bad_value", "scene", "missing or not a JSON object"); return; }
-                bool readable = Schema(manifest, ArtifactSchema.Manifest, "schema") & Schema(scene, ArtifactSchema.Scene, "scene.schema");
-                if (!readable) return;  // a newer file can't be judged by this version's rules
+                bool newer = Schema(manifest, ArtifactSchema.Manifest, "schema") | Schema(scene, ArtifactSchema.Scene, "scene.schema");
+                if (newer) return;  // a newer file can't be judged by this version's rules; a missing schema can
                 Manifest();
                 Permissions();
                 Scene();
             }
 
+            // True only for a newer major version. A missing or wrong schema is reported and the file is read as /1.
             bool Schema(JObject o, string expected, string path)
             {
-                string found = o.Value<string>("schema");
+                var token = o["schema"];
+                string found = token?.Type == JTokenType.String ? (string)token : null;
                 int slash = expected.LastIndexOf('/');
                 string name = expected.Substring(0, slash + 1);
                 if (found == null || !found.StartsWith(name))
                 {
-                    Add("bad_value", path, $"must be {expected}, found {found ?? "nothing"}");
+                    Add("bad_value", path, $"must be {expected}, found {(Absent(token) ? "nothing" : Describe(token))}");
                     return false;
                 }
-                if (!int.TryParse(found.Substring(slash + 1), out int major) || major > int.Parse(expected.Substring(slash + 1)))
+                if (!int.TryParse(found.Substring(slash + 1), NumberStyles.None, CultureInfo.InvariantCulture, out int major))
+                {
+                    Add("bad_value", path, $"must be {expected}, found {found}");
+                    return false;
+                }
+                if (major > int.Parse(expected.Substring(slash + 1)))
                 {
                     Add("newer_schema", path, $"{found}: this device reads up to {expected}");
-                    return false;
+                    return true;
                 }
+                return false;
+            }
+
+            // ---------- typed field checks; absent is fine unless the caller says otherwise ----------
+
+            bool WrongType(JToken o, string key, string path, Func<JToken, bool> ok, string wants)
+            {
+                var t = Get(o, key);
+                if (Absent(t) || ok(t)) return false;
+                Add("bad_value", string.IsNullOrEmpty(path) ? key : path + "." + key, $"must be {wants}, found {Describe(t)}");
                 return true;
+            }
+
+            bool StringField(JToken o, string key, string path) => WrongType(o, key, path, t => t.Type == JTokenType.String, "a string");
+            bool BoolField(JToken o, string key, string path) => WrongType(o, key, path, t => t.Type == JTokenType.Boolean, "true or false");
+            bool ColorField(JToken o, string key, string path) =>
+                WrongType(o, key, path, t => t.Type == JTokenType.String && ColorRule.IsMatch((string)t), "a colour as \"#RRGGBB\"");
+            bool NumberField(JToken o, string key, string path) => WrongType(o, key, path, NumberOrRef, "a number or an \"$input\"");
+            bool Vec3Field(JToken o, string key, string path) => WrongType(o, key, path, Vec3, "[x, y, z]: three numbers or \"$input\"s");
+            bool ObjectField(JToken o, string key, string path) => WrongType(o, key, path, t => t.Type == JTokenType.Object, "an object");
+            bool ListField(JToken o, string key, string path) => WrongType(o, key, path, t => t.Type == JTokenType.Array, "a list");
+
+            static bool NumberOrRef(JToken t) => IsNumber(t) || (t.Type == JTokenType.String && InputRef.IsMatch((string)t));
+            static bool Vec3(JToken t) => t is JArray a && a.Count == 3 && NumberOrRef(a[0]) && NumberOrRef(a[1]) && NumberOrRef(a[2]);
+
+            /// <summary>The list at <paramref name="key"/>, or null. A non-list is reported; so is every entry that isn't an object.</summary>
+            JArray ObjectList(JToken o, string key, string path, string what)
+            {
+                var t = Get(o, key);
+                if (Absent(t)) return null;
+                if (!(t is JArray list))
+                {
+                    Add("bad_value", path, $"must be a list of {what}, found {Describe(t)}");
+                    return null;
+                }
+                for (int i = 0; i < list.Count; i++)
+                    if (!(list[i] is JObject)) Add("bad_value", $"{path}[{i}]", $"must be {what}, found {Describe(list[i])}");
+                return list;
             }
 
             void Manifest()
             {
-                string id = manifest.Value<string>("id");
-                if (id == null || !IdRule.IsMatch(id)) Add("bad_value", "id", "use lowercase letters, digits, _ and -");
-                if (string.IsNullOrEmpty(manifest.Value<string>("title"))) Add("bad_value", "title", "required");
-                if (manifest["version"]?.Type != JTokenType.Integer || manifest.Value<int>("version") < 1)
+                var idToken = manifest["id"];
+                string id = Str(manifest, "id");
+                if (id == null || !IdRule.IsMatch(id))
+                    Add("bad_value", "id", "use lowercase letters, digits, _ and -" + (Absent(idToken) || id != null ? "" : $", found {Describe(idToken)}"));
+                if (!StringField(manifest, "title", "") && string.IsNullOrEmpty(Str(manifest, "title"))) Add("bad_value", "title", "required");
+                var version = manifest["version"];
+                if (version?.Type != JTokenType.Integer || Num(version) < 1)
                     Add("bad_value", "version", "must be an integer from 1");
                 OneOf(manifest, "kind", ArtifactSchema.Kinds, "kind");
                 OneOf(manifest, "category", ArtifactSchema.Categories, "category");
 
-                if (manifest["script"] != null && manifest["script"].Type != JTokenType.Null)
+                var sceneFile = manifest["scene"];
+                if (Absent(sceneFile)) Add("bad_value", "scene", "required: the scene's file name, \"scene.json\"");
+                else if (sceneFile.Type != JTokenType.String || !SceneFile.IsMatch((string)sceneFile))
+                    Add("bad_value", "scene", $"must be a plain file name like \"scene.json\", found {Describe(sceneFile)}");
+
+                if (!Absent(manifest["script"]))
                     Add("script_not_allowed", "script", "script must be null in Phase 1");
 
-                var runtime = manifest["runtime"] as JObject;
-                if (runtime == null || runtime.Value<string>("type") != "scene") Add("bad_value", "runtime.type", "must be scene in Phase 1");
-                else if (runtime.Value<int?>("min_runtime") > ArtifactSchema.HostRuntime)
-                    Add("newer_schema", "runtime.min_runtime", $"needs host {runtime.Value<int>("min_runtime")}, this device runs {ArtifactSchema.HostRuntime}");
+                var runtimeToken = manifest["runtime"];
+                if (!Absent(runtimeToken) && !(runtimeToken is JObject))
+                    Add("bad_value", "runtime", $"must be an object {{\"type\": \"scene\"}}, found {Describe(runtimeToken)}");
+                else if (!(runtimeToken is JObject runtime) || Str(runtime, "type") != "scene") Add("bad_value", "runtime.type", "must be scene in Phase 1");
+                else
+                {
+                    var min = runtime["min_runtime"];
+                    if (!Absent(min) && !Whole(min)) Add("bad_value", "runtime.min_runtime", $"must be a whole number, found {Describe(min)}");
+                    else if (Num(min) > ArtifactSchema.HostRuntime)
+                        Add("newer_schema", "runtime.min_runtime", $"needs host {min}, this device runs {ArtifactSchema.HostRuntime}");
+                }
 
-                if (manifest.Value<string>("kind") == "standalone" && manifest["links"] is JObject links)
+                if (!ObjectField(manifest, "links", "") && Str(manifest, "kind") == "standalone" && manifest["links"] is JObject links)
                     foreach (var link in links.Properties())
                         if (link.Value.Type != JTokenType.Null) Add("bad_value", "links." + link.Name, "a standalone artifact has no links");
+                StringField(manifest, "template", "");
 
                 Inputs();
 
-                var scenarios = manifest["scenarios"] as JArray;
-                if (scenarios == null || scenarios.Count == 0) Add("bad_value", "scenarios", "at least one is required");
+                var scenarios = manifest["scenarios"];
+                if (!(scenarios is JArray scenarioList) || scenarioList.Count == 0) Add("bad_value", "scenarios", "at least one is required");
+                else ObjectList(manifest, "scenarios", "scenarios", "an object like {\"id\": \"default\"}");
 
-                if (manifest["data"] is JArray data)
+                var data = ObjectList(manifest, "data", "data", "an object {name, source}");
+                if (data != null)
                     for (int i = 0; i < data.Count; i++)
                     {
-                        string name = data[i].Value<string>("name"), source = data[i].Value<string>("source");
+                        if (!(data[i] is JObject entry)) continue;
+                        string name = Str(entry, "name"), source = Str(entry, "source");
                         if (name != null) tables.Add(name);
                         if (source == null || !SourceRule.IsMatch(source))
                             Add("bad_value", $"data[{i}].source", "use builtin:<name> or connector:<connector>/<tool>");
                         else if (source.StartsWith("connector:") && !Asks(ArtifactData.Permission(source)))
                             Add("permission_missing", $"data[{i}].source", $"{source} needs \"{ArtifactData.Permission(source)}\" in permissions.connectors");
-                        string snapshot = data[i].Value<string>("snapshot");
-                        if (snapshot != null && !SnapshotRule.IsMatch(snapshot))
-                            Add("bad_value", $"data[{i}].snapshot", "use data/<name>.json");
+                        if (!StringField(entry, "snapshot", $"data[{i}]"))
+                        {
+                            string snapshot = Str(entry, "snapshot");
+                            if (snapshot != null && !SnapshotRule.IsMatch(snapshot))
+                                Add("bad_value", $"data[{i}].snapshot", "use data/<name>.json");
+                        }
                     }
 
-                if (manifest["assets"] is JArray list)
+                var list = ObjectList(manifest, "assets", "assets", "an object {path, sha256, license}");
+                if (list != null)
                     for (int i = 0; i < list.Count; i++)
                     {
-                        string path = list[i].Value<string>("path"), at = $"assets[{i}]";
+                        if (!(list[i] is JObject entry)) continue;
+                        string path = Str(entry, "path"), at = $"assets[{i}]";
                         if (path == null || !ArtifactPackage.SafeAsset.IsMatch(path)) Add("bad_value", at + ".path", "use assets/<name>.glb");
                         else if (!assets.Add(path)) Add("bad_value", at + ".path", $"\"{path}\" is listed twice");
-                        if (!HashRule.IsMatch(list[i].Value<string>("sha256") ?? "")) Add("bad_value", at + ".sha256", "needs the file's sha256, as 64 hex digits");
-                        if (string.IsNullOrEmpty(list[i].Value<string>("license"))) Add("bad_value", at + ".license", "required (CC0, CC-BY-4.0, own)");
+                        if (!HashRule.IsMatch(Str(entry, "sha256") ?? "")) Add("bad_value", at + ".sha256", "needs the file's sha256, as 64 hex digits");
+                        if (string.IsNullOrEmpty(Str(entry, "license"))) Add("bad_value", at + ".license", "required (CC0, CC-BY-4.0, own)");
                     }
             }
 
             void Inputs()
             {
-                if (!(manifest["inputs"] is JArray list)) return;
+                var list = ObjectList(manifest, "inputs", "inputs", "an object {name, type, min, max, default}");
+                if (list == null) return;
                 for (int i = 0; i < list.Count; i++)
                 {
-                    string path = $"inputs[{i}]", name = list[i].Value<string>("name"), type = list[i].Value<string>("type");
+                    if (!(list[i] is JObject input)) continue;
+                    string path = $"inputs[{i}]", name = Str(input, "name"), type = Str(input, "type");
                     if (string.IsNullOrEmpty(name)) { Add("bad_value", path, "needs a name"); continue; }
                     inputs.Add(name);
-                    if (type == null || !ArtifactSchema.InputTypes.Contains(type)) { Add("bad_value", path, $"unknown type {type}"); continue; }
+                    if (type == null || !ArtifactSchema.InputTypes.Contains(type)) { Add("bad_value", path, $"unknown type {Describe(input["type"])}"); continue; }
                     if (type != "number" && type != "integer") continue;
                     numericInputs.Add(name);
-                    double? min = list[i].Value<double?>("min"), max = list[i].Value<double?>("max"), value = list[i].Value<double?>("default");
+                    bool typed = false;
+                    foreach (string key in new[] { "min", "max", "default" })
+                        typed |= WrongType(input, key, path, IsNumber, "a number");
+                    if (typed) continue;
+                    double? min = Num(input, "min"), max = Num(input, "max"), value = Num(input, "default");
                     if (min == null || max == null || value == null) { Add("bad_value", path, "needs min, max and default"); continue; }
                     if (min > max) Add("bad_value", path, $"min {min} is above max {max}");
                     if (value > max) Add("bad_value", path, $"default {value} is above max {max}");
@@ -169,33 +274,43 @@ namespace Forge.Artifacts
 
             void Permissions()
             {
-                if (!(manifest["permissions"] is JObject p)) return;
+                var token = manifest["permissions"];
+                if (Absent(token)) return;
+                if (!(token is JObject p))
+                {
+                    Add("bad_value", "permissions", $"must be an object like {{\"room\": \"none\"}}, found {Describe(token)}");
+                    return;
+                }
                 foreach (var key in p.Properties())
                     if (!ArtifactSchema.Permissions.Contains(key.Name))
                         Add("permission_denied", "permissions." + key.Name, "not a permission in the schema");
+                ListField(p, "network", "permissions");
+                ListField(p, "connectors", "permissions");
                 if (p["network"] is JArray network && network.Count > 0)
                     Add("permission_denied", "permissions.network", "permissions.network must be empty in Phase 1");
                 if (p["connectors"] is JArray connectors)
                     foreach (var connector in connectors)
-                        if (!((string)connector ?? "").EndsWith(":read"))
-                            Add("permission_denied", "permissions.connectors", $"{connector}: only :read is allowed in Phase 1");
+                        if (connector.Type != JTokenType.String || !((string)connector).EndsWith(":read"))
+                            Add("permission_denied", "permissions.connectors", $"{Describe(connector)}: only :read is allowed in Phase 1");
             }
 
             void Scene()
             {
-                string space = scene.Value<string>("space");
-                if (space == null || !ArtifactSchema.Spaces.Contains(space)) Add("bad_value", "scene.space", $"unknown space {space}");
+                string space = Str(scene, "space");
+                if (space == null || !ArtifactSchema.Spaces.Contains(space)) Add("bad_value", "scene.space", $"unknown space {(Absent(scene["space"]) ? "" : Describe(scene["space"]))}");
                 if (space == "room" && Permission("room") != "read")
                     Add("permission_missing", "permissions.room", "space is room, so permissions.room must be read");
                 if (scene.ToString().Length > ArtifactSchema.MaxSceneChars) Add("too_big", "scene", "over the 256 KB limit");
-                if (scene["view"] is JObject view)
+                if (!ObjectField(scene, "view", "scene") && scene["view"] is JObject view)
                 {
                     if (space != "volume") Add("bad_value", "scene.view", "view needs space volume");
-                    if (view.Value<double?>("radius") == null || view.Value<double>("radius") <= 0.0) Add("bad_value", "scene.view.radius", "must be above 0");
+                    if (!(Num(view, "radius") > 0.0)) Add("bad_value", "scene.view.radius", "must be above 0");
                 }
 
                 Generators(space);
-                var list = scene["nodes"] as JArray ?? new JArray();
+                var nodesToken = scene["nodes"];
+                if (!Absent(nodesToken) && !(nodesToken is JArray)) Add("bad_value", "nodes", $"must be a list of node objects, found {Describe(nodesToken)}");
+                var list = nodesToken as JArray ?? new JArray();
                 if (list.Count > ArtifactSchema.MaxNodes) Add("too_big", "nodes", $"{list.Count} is over the limit of {ArtifactSchema.MaxNodes}");
                 CollectNodes(list);
                 Rules();  // before nodes, so widgets and text can see the metrics
@@ -208,27 +323,31 @@ namespace Forge.Artifacts
                 InputRefs(scene["nodes"], "nodes");
             }
 
-            string Permission(string key) => (manifest["permissions"] as JObject)?.Value<string>(key);
+            string Permission(string key) => Str(manifest["permissions"], key);
 
             bool Asks(string connector)
             {
-                if (manifest["permissions"]?["connectors"] is JArray list)
-                    foreach (var c in list) if ((string)c == connector) return true;
+                if (Get(manifest["permissions"], "connectors") is JArray list)
+                    foreach (var c in list) if (c.Type == JTokenType.String && (string)c == connector) return true;
                 return false;
             }
 
             void Generators(string space)
             {
-                if (!(scene["generators"] is JArray list)) return;
+                var list = ObjectList(scene, "generators", "generators", "an object {id, type, params}");
+                if (list == null) return;
                 if (list.Count > 0 && space != "room") Add("bad_value", "generators", "generators need space room");
+                if (list.Count > 1) Add("too_big", "generators", $"{list.Count} generators: this host places one per scene");
                 for (int i = 0; i < list.Count; i++)
                 {
-                    string id = list[i].Value<string>("id"), type = list[i].Value<string>("type");
+                    if (!(list[i] is JObject generator)) continue;
+                    string id = Str(generator, "id"), type = Str(generator, "type");
                     if (id == null || type == null || !ArtifactSchema.Generators.TryGetValue(type, out var fills))
                     {
                         Add("bad_value", $"generators[{i}]", $"unknown generator {type}");
                         continue;
                     }
+                    ObjectField(generator, "params", $"generators[{i}]");
                     foreach (var slot in fills) slots.Add(id + "." + slot);
                 }
             }
@@ -239,13 +358,13 @@ namespace Forge.Artifacts
                 {
                     string path = $"nodes[{i}]";
                     if (!(list[i] is JObject node)) { Add("bad_value", path, "must be an object"); continue; }
-                    string id = node.Value<string>("id");
+                    string id = Str(node, "id");
                     if (id == null || !NodeIdRule.IsMatch(id)) { Add("bad_value", path, "needs an id of lowercase letters, digits and _"); continue; }
                     if (nodes.ContainsKey(id)) { Add("bad_value", path, $"id \"{id}\" is used twice"); continue; }
                     nodes[id] = node;
                     if (node["widgets"] is JArray widgets)
                         foreach (var w in widgets)
-                            if (w.Value<string>("type") == "button" && w.Value<string>("id") != null) buttons.Add(w.Value<string>("id"));
+                            if (Str(w, "type") == "button" && Str(w, "id") != null) buttons.Add(Str(w, "id"));
                 }
                 int zones = 0;
                 foreach (var node in nodes.Values) if (IsZone(node)) zones++;
@@ -253,13 +372,17 @@ namespace Forge.Artifacts
             }
 
             static bool IsZone(JObject n) =>
-                n.Value<string>("kind") == "zone" || (n.Value<string>("kind") == "array" && n["template"]?.Value<string>("kind") == "zone");
-
-            static bool IsNumber(JToken t) => t != null && (t.Type == JTokenType.Integer || t.Type == JTokenType.Float);
+                Str(n, "kind") == "zone" || (Str(n, "kind") == "array" && Str(n["template"], "kind") == "zone");
 
             void Node(JObject n, string path)
             {
-                string kind = n.Value<string>("kind");
+                var kindToken = n["kind"];
+                string kind = Str(n, "kind");
+                if (Absent(kindToken))
+                {
+                    Add("unknown_kind", path + ".kind", "kind is required");
+                    return;
+                }
                 if (kind != null && ArtifactSchema.ReservedKinds.Contains(kind))
                 {
                     Add("unsupported_kind", path, $"{kind} isn't available in Phase 1");
@@ -268,50 +391,82 @@ namespace Forge.Artifacts
                 if (kind == null || !ArtifactSchema.NodeKinds.Contains(kind))
                 {
                     string hint = kind != null && KindHints.TryGetValue(kind, out var fix) ? $" (did you mean {fix}?)" : "";
-                    Add("unknown_kind", path, $"unknown kind \"{kind}\"{hint}");
+                    Add("unknown_kind", path, $"unknown kind {(kind != null ? "\"" + kind + "\"" : Describe(kindToken))}{hint}");
                     return;
                 }
 
-                string parent = n.Value<string>("parent");
-                if (parent != null && !nodes.ContainsKey(parent)) Add("unknown_ref", path + ".parent", $"no node \"{parent}\"");
-                string at = n.Value<string>("at");
-                if (at != null && !slots.Contains(at)) Add("unknown_slot", path + ".at", $"no slot \"{at}\"");
+                if (!StringField(n, "parent", path))
+                {
+                    string parent = Str(n, "parent");
+                    if (parent != null && !nodes.ContainsKey(parent)) Add("unknown_ref", path + ".parent", $"no node \"{parent}\"");
+                }
+                if (!StringField(n, "at", path))
+                {
+                    string at = Str(n, "at");
+                    if (at != null && !slots.Contains(at)) Add("unknown_slot", path + ".at", $"no slot \"{at}\"");
+                }
+                Vec3Field(n, "pos", path);
+                Vec3Field(n, "rot", path);
+                Vec3Field(n, "scale", path);
+                BoolField(n, "visible", path);
 
                 switch (kind)
                 {
                     case "primitive": Primitive(n, path); break;
                     case "text":
-                        if (n["text"] == null) Add("bad_value", path + ".text", "required");
-                        else foreach (Match m in Regex.Matches(n.Value<string>("text"), @"\{([a-z0-9_]+)\}"))
-                            if (!metrics.Contains(m.Groups[1].Value)) Add("unknown_ref", path + ".text", $"no metric \"{m.Groups[1].Value}\"");
+                        if (Absent(n["text"])) Add("bad_value", path + ".text", "required");
+                        else if (!StringField(n, "text", path))
+                            foreach (Match m in Regex.Matches(Str(n, "text"), @"\{([a-z0-9_]+)\}"))
+                                if (!metrics.Contains(m.Groups[1].Value)) Add("unknown_ref", path + ".text", $"no metric \"{m.Groups[1].Value}\"");
+                        NumberField(n, "height", path);
+                        ColorField(n, "color", path);
+                        BoolField(n, "billboard", path);
                         break;
                     case "panel": Panel(n, path); break;
                     case "sim": Sim(n, path); break;
                     case "array": Array(n, path); break;
+                    case "zone": Vec3Field(n, "size", path); break;
                     case "gltf":
-                        string asset = n.Value<string>("asset");
-                        if (asset == null || !assets.Contains(asset)) Add("asset_not_listed", path + ".asset", $"\"{asset}\" isn't in the manifest");
+                        string asset = Str(n, "asset");
+                        if (!StringField(n, "asset", path) && (asset == null || !assets.Contains(asset)))
+                            Add("asset_not_listed", path + ".asset", $"\"{asset}\" isn't in the manifest");
                         break;
                     case "timeline":
                         var duration = n["duration_s"];
-                        if (!IsNumber(duration) || duration.Value<double>() <= 0.0) Add("bad_value", path + ".duration_s", "needs a number of seconds above 0");
+                        if (!(Num(duration) > 0.0)) Add("bad_value", path + ".duration_s", "needs a number of seconds above 0");
                         foreach (string flag in new[] { "loop", "autoplay" })
                             if (n[flag] != null && n[flag].Type != JTokenType.Boolean) Add("bad_value", path + "." + flag, "true or false");
                         break;
                     case "line":
-                        if (n["points"] == null && n["source"] == null && n["follow"] == null && n["through"] == null)
+                        if (Absent(n["points"]) && Absent(n["source"]) && Absent(n["follow"]) && Absent(n["through"]))
                             Add("bad_value", path, "needs points, a source, follow or through");
                         else Source(n, path);
+                        Points(n, path);
+                        NumberField(n, "width", path);
+                        ColorField(n, "color", path);
                         Follow(n, path);
                         Through(n, path);
                         break;
                 }
             }
 
+            void Points(JObject n, string path)
+            {
+                var t = n["points"];
+                if (Absent(t)) return;
+                if (!(t is JArray points))
+                {
+                    Add("bad_value", path + ".points", $"must be a list of [x, y, z], found {Describe(t)}");
+                    return;
+                }
+                for (int i = 0; i < points.Count; i++)
+                    if (!Vec3(points[i])) Add("bad_value", $"{path}.points[{i}]", $"must be [x, y, z]: three numbers or \"$input\"s, found {Describe(points[i])}");
+            }
+
             // A line through nodes reads their local positions each frame, so they have to share its parent too.
             void Through(JObject n, string path)
             {
-                if (n["through"] == null) return;
+                if (Absent(n["through"])) return;
                 if (!(n["through"] is JArray through) || through.Count < 2)
                 {
                     Add("bad_value", path + ".through", "a list of at least 2 node ids");
@@ -322,8 +477,8 @@ namespace Forge.Artifacts
                 for (int i = 0; i < through.Count; i++)
                 {
                     string id = through[i].Type == JTokenType.String ? (string)through[i] : null;
-                    if (id == null || !nodes.TryGetValue(id, out var target)) Add("unknown_ref", $"{path}.through[{i}]", $"no node \"{through[i]}\"");
-                    else if (target.Value<string>("parent") != n.Value<string>("parent"))
+                    if (id == null || !nodes.TryGetValue(id, out var target)) Add("unknown_ref", $"{path}.through[{i}]", $"no node {Describe(through[i])}");
+                    else if (Str(target, "parent") != Str(n, "parent"))
                         Add("bad_value", $"{path}.through[{i}]", $"a line through nodes needs the same parent as \"{id}\"");
                 }
             }
@@ -331,19 +486,23 @@ namespace Forge.Artifacts
             // A trail records its target's local position, so the two have to share a parent to line up.
             void Follow(JObject n, string path)
             {
-                string follow = n.Value<string>("follow");
+                if (WrongType(n, "length", path, Whole, "a whole number")) return;
+                if (Num(n, "length") > ArtifactSchema.MaxTrailPoints)
+                    Add("too_big", path + ".length", $"{n["length"]} is over the limit of {ArtifactSchema.MaxTrailPoints}");
+                if (StringField(n, "follow", path)) return;
+                string follow = Str(n, "follow");
                 if (follow == null) return;
                 if (!nodes.TryGetValue(follow, out var target)) Add("unknown_ref", path + ".follow", $"no node \"{follow}\"");
-                else if (target.Value<string>("parent") != n.Value<string>("parent"))
+                else if (Str(target, "parent") != Str(n, "parent"))
                     Add("bad_value", path + ".follow", $"a trail needs the same parent as \"{follow}\"");
-                if (n.Value<int?>("length") > ArtifactSchema.MaxTrailPoints)
-                    Add("too_big", path + ".length", $"{n.Value<int>("length")} is over the limit of {ArtifactSchema.MaxTrailPoints}");
             }
 
             void Sim(JObject n, string path)
             {
-                string solver = n.Value<string>("solver");
-                if (solver == null || !ArtifactSchema.Solvers.ContainsKey(solver)) Add("bad_value", path + ".solver", $"unknown solver \"{solver}\"");
+                string solver = Str(n, "solver");
+                if (solver == null || !ArtifactSchema.Solvers.ContainsKey(solver)) Add("bad_value", path + ".solver", $"unknown solver {(solver != null ? "\"" + solver + "\"" : Describe(n["solver"]))}");
+                NumberField(n, "rate", path);
+                bool paramsTyped = ObjectField(n, "params", path);
                 if (!(n["bodies"] is JArray bodies) || bodies.Count == 0)
                 {
                     Add("bad_value", path + ".bodies", "at least one is required");
@@ -353,47 +512,65 @@ namespace Forge.Artifacts
                 var seen = new HashSet<string>();
                 for (int i = 0; i < bodies.Count; i++)
                 {
-                    string at = $"{path}.bodies[{i}]", node = bodies[i].Value<string>("node");
-                    if (node == null || !nodes.ContainsKey(node)) Add("unknown_ref", at + ".node", $"no node \"{node}\"");
+                    string at = $"{path}.bodies[{i}]";
+                    if (!(bodies[i] is JObject body)) { Add("bad_value", at, $"must be an object {{node, mass}}, found {Describe(bodies[i])}"); continue; }
+                    string node = Str(body, "node");
+                    if (node == null || !nodes.ContainsKey(node)) Add("unknown_ref", at + ".node", $"no node {(node != null ? "\"" + node + "\"" : Describe(body["node"]))}");
                     else if (!seen.Add(node)) Add("bad_value", at + ".node", $"\"{node}\" is driven twice");
-                    if (bodies[i]["mass"]?.Type == JTokenType.Float || bodies[i]["mass"]?.Type == JTokenType.Integer)
-                        if (bodies[i].Value<double>("mass") <= 0.0) Add("bad_value", at + ".mass", "must be above 0");
+                    foreach (string key in new[] { "mass", "length", "angle", "omega" }) NumberField(body, key, at);
+                    Vec3Field(body, "pos", at);
+                    Vec3Field(body, "vel", at);
+                    if (Num(body, "mass") <= 0.0) Add("bad_value", at + ".mass", "must be above 0");
                 }
-                if (n["params"] is JObject p && (p["step"]?.Type == JTokenType.Float || p["step"]?.Type == JTokenType.Integer) && p.Value<double>("step") <= 0.0)
-                    Add("bad_value", path + ".params.step", "must be above 0");
+                if (!paramsTyped && n["params"] is JObject p)
+                {
+                    NumberField(p, "step", path + ".params");
+                    if (Num(p, "step") <= 0.0) Add("bad_value", path + ".params.step", "must be above 0");
+                }
                 if (solver == "pendulum")
                 {
                     if (bodies.Count > PendulumSolver.MaxLinks)
                         Add("too_big", path + ".bodies", $"a pendulum has 1 or {PendulumSolver.MaxLinks} links, not {bodies.Count}");
                     for (int i = 0; i < bodies.Count; i++)
-                        if ((bodies[i]["length"]?.Type == JTokenType.Float || bodies[i]["length"]?.Type == JTokenType.Integer) && bodies[i].Value<double>("length") <= 0.0)
+                        if (Num(Get(bodies[i], "length")) <= 0.0)
                             Add("bad_value", $"{path}.bodies[{i}].length", "must be above 0");
                 }
             }
 
             void Primitive(JObject n, string path)
             {
-                string shape = n.Value<string>("shape");
-                if (shape == null || !ArtifactSchema.Shapes.Contains(shape)) Add("bad_value", path + ".shape", $"unknown shape \"{shape}\"");
+                string shape = Str(n, "shape");
+                if (shape == null || !ArtifactSchema.Shapes.Contains(shape))
+                    Add("bad_value", path + ".shape", $"unknown shape {(shape != null ? "\"" + shape + "\"" : Absent(n["shape"]) ? "\"\"" : Describe(n["shape"]))}");
+                Vec3Field(n, "size", path);
+                ColorField(n, "color", path);
+                BoolField(n, "collider", path);
+                BoolField(n, "glow", path);
             }
 
             void Panel(JObject n, string path)
             {
-                if (!(n["widgets"] is JArray widgets)) return;
+                StringField(n, "title", path);
+                var widgets = ObjectList(n, "widgets", path + ".widgets", "a widget object {type, ...}");
+                if (widgets == null) return;
                 for (int i = 0; i < widgets.Count; i++)
                 {
-                    string at = $"{path}.widgets[{i}]", type = widgets[i].Value<string>("type");
-                    if (type == null || !ArtifactSchema.Widgets.Contains(type)) { Add("bad_value", at, $"unknown widget \"{type}\""); continue; }
-                    string metric = widgets[i].Value<string>("metric");
-                    if (metric != null && !metrics.Contains(metric)) Add("unknown_ref", at + ".metric", $"no metric \"{metric}\"");
-                    if (widgets[i]["columns"] is JArray columns)
+                    if (!(widgets[i] is JObject widget)) continue;
+                    string at = $"{path}.widgets[{i}]", type = Str(widget, "type");
+                    if (type == null || !ArtifactSchema.Widgets.Contains(type)) { Add("bad_value", at, $"unknown widget {(type != null ? "\"" + type + "\"" : Describe(widget["type"]))}"); continue; }
+                    if (!StringField(widget, "metric", at))
+                    {
+                        string metric = Str(widget, "metric");
+                        if (metric != null && !metrics.Contains(metric)) Add("unknown_ref", at + ".metric", $"no metric \"{metric}\"");
+                    }
+                    if (!ListField(widget, "columns", at) && widget["columns"] is JArray columns)
                         foreach (var column in columns)
-                            if (!metrics.Contains((string)column)) Add("unknown_ref", at + ".columns", $"no metric \"{column}\"");
-                    if (type == "button" && widgets[i].Value<string>("id") == null) Add("bad_value", at, "a button needs an id");
+                            if (column.Type != JTokenType.String || !metrics.Contains((string)column)) Add("unknown_ref", at + ".columns", $"no metric {Describe(column)}");
+                    if (type == "button" && Str(widget, "id") == null) Add("bad_value", at, "a button needs an id");
                     if (type == "slider")
                     {
-                        string input = widgets[i].Value<string>("input");
-                        if (input == null || !inputs.Contains(input)) Add("unknown_input", at + ".input", $"no input \"{input}\"");
+                        string input = Str(widget, "input");
+                        if (input == null || !inputs.Contains(input)) Add("unknown_input", at + ".input", $"no input {(input != null ? "\"" + input + "\"" : Describe(widget["input"]))}");
                         else if (!numericInputs.Contains(input)) Add("bad_value", at + ".input", $"\"{input}\" isn't a number, so it can't have a slider");
                     }
                 }
@@ -401,65 +578,88 @@ namespace Forge.Artifacts
 
             void Array(JObject n, string path)
             {
-                string template = n["template"]?.Value<string>("kind");
-                if (template != "primitive" && template != "zone") Add("bad_value", path + ".template", "must be a primitive or a zone");
-                if (template == "primitive") Primitive((JObject)n["template"], path + ".template");
-                if (n["source"] == null) Add("bad_value", path + ".source", "required");
+                var templateToken = n["template"];
+                var template = templateToken as JObject;
+                string kind = Str(template, "kind");
+                if (kind != "primitive" && kind != "zone") Add("bad_value", path + ".template", "must be a primitive or a zone");
+                if (template != null)
+                {
+                    if (kind == "primitive") Primitive(template, path + ".template");
+                    if (kind == "zone") Vec3Field(template, "size", path + ".template");
+                    Vec3Field(template, "pos", path + ".template");
+                    Vec3Field(template, "rot", path + ".template");
+                }
+                ObjectField(n, "map", path);
+                if (Absent(n["source"])) Add("bad_value", path + ".source", "required");
                 else Source(n, path);
             }
 
             void Source(JObject n, string path)
             {
                 var source = n["source"];
-                if (source == null) return;
+                if (Absent(source)) return;
                 if (source.Type == JTokenType.String)
                 {
                     if (!slots.Contains((string)source)) Add("unknown_slot", path + ".source", $"no slot \"{source}\"");
                 }
-                else if (source["table"] != null && !tables.Contains(source.Value<string>("table")))
-                    Add("unknown_ref", path + ".source.table", $"no data \"{source.Value<string>("table")}\" in the manifest");
+                else if (source is JObject table)
+                {
+                    if (StringField(table, "table", path + ".source")) return;
+                    string name = Str(table, "table");
+                    if (name != null && !tables.Contains(name))
+                        Add("unknown_ref", path + ".source.table", $"no data \"{name}\" in the manifest");
+                    ObjectField(table, "grid", path + ".source");
+                }
+                else Add("bad_value", path + ".source", $"must be a slot name or {{\"table\": ...}}, found {Describe(source)}");
             }
 
             void Rules()
             {
-                if (!(scene["rules"] is JArray rules)) return;
+                var rules = ObjectList(scene, "rules", "rules", "a rule object {type, ...}");
+                if (rules == null) return;
                 if (rules.Count > ArtifactSchema.MaxRules) Add("too_big", "rules", $"{rules.Count} is over the limit of {ArtifactSchema.MaxRules}");
                 foreach (var rule in rules)
-                    if (rule.Value<string>("type") == "metric" && rule.Value<string>("name") != null) metrics.Add(rule.Value<string>("name"));
+                    if (Str(rule, "type") == "metric" && Str(rule, "name") != null) metrics.Add(Str(rule, "name"));
                 for (int i = 0; i < rules.Count; i++)
                 {
-                    string path = $"rules[{i}]", type = rules[i].Value<string>("type");
-                    if (type == null || !ArtifactSchema.Rules.Contains(type)) { Add("bad_value", path, $"unknown rule \"{type}\""); continue; }
-                    if (type == "metric") Metric(rules[i], path);
-                    if (type == "on_input" && !buttons.Contains(rules[i].Value<string>("input") ?? ""))
-                        Add("unknown_ref", path + ".input", $"no button \"{rules[i].Value<string>("input")}\"");
-                    if (type == "on_zone") ZoneRef(rules[i].Value<string>("zone"), path + ".zone");
-                    if (type == "animate") Animate(rules[i], path);
-                    if (rules[i]["do"] is JArray actions)
-                        for (int a = 0; a < actions.Count; a++)
+                    if (!(rules[i] is JObject rule)) continue;
+                    string path = $"rules[{i}]", type = Str(rule, "type");
+                    if (type == null || !ArtifactSchema.Rules.Contains(type)) { Add("bad_value", path, $"unknown rule {(type != null ? "\"" + type + "\"" : Describe(rule["type"]))}"); continue; }
+                    if (type == "metric") Metric(rule, path);
+                    if (type == "on_input" && !buttons.Contains(Str(rule, "input") ?? ""))
+                        Add("unknown_ref", path + ".input", $"no button {(Str(rule, "input") != null ? "\"" + Str(rule, "input") + "\"" : Describe(rule["input"]))}");
+                    if (type == "on_zone") ZoneRef(rule["zone"], path + ".zone");
+                    if (type == "animate") Animate(rule, path);
+                    var actions = ObjectList(rule, "do", path + ".do", "an action object like {\"timeline\": \"clock\", \"action\": \"play\"}");
+                    if (actions == null) continue;
+                    for (int a = 0; a < actions.Count; a++)
+                    {
+                        if (!(actions[a] is JObject action)) continue;
+                        string at = $"{path}.do[{a}]";
+                        if (!StringField(action, "set", at))
                         {
-                            string target = actions[a].Value<string>("set");
+                            string target = Str(action, "set");
                             if (target != null && !nodes.ContainsKey(target.Split('.')[0]))
-                                Add("unknown_ref", $"{path}.do[{a}].set", $"no node \"{target.Split('.')[0]}\"");
-                            string timeline = actions[a].Value<string>("timeline");
-                            if (timeline == null) continue;
-                            TimelineRef(timeline, $"{path}.do[{a}].timeline");
-                            if (!ArtifactSchema.TimelineActions.Contains(actions[a].Value<string>("action") ?? ""))
-                                Add("bad_value", $"{path}.do[{a}].action", "play, pause or restart");
+                                Add("unknown_ref", at + ".set", $"no node \"{target.Split('.')[0]}\"");
                         }
+                        if (Absent(action["timeline"])) continue;
+                        TimelineRef(action["timeline"], at + ".timeline");
+                        if (!ArtifactSchema.TimelineActions.Contains(Str(action, "action") ?? ""))
+                            Add("bad_value", at + ".action", "play, pause or restart");
+                    }
                 }
             }
 
             readonly HashSet<string> animated = new HashSet<string>();
 
-            void Animate(JToken rule, string path)
+            void Animate(JObject rule, string path)
             {
-                string target = rule.Value<string>("target"), property = rule.Value<string>("property");
-                JObject clock = TimelineRef(rule.Value<string>("timeline"), path + ".timeline");
-                if (target == null || !nodes.TryGetValue(target, out var node)) Add("unknown_ref", path + ".target", $"no node \"{target}\"");
-                else if (node.Value<string>("kind") == "timeline" || node.Value<string>("kind") == "panel")
-                    Add("bad_value", path + ".target", $"a {node.Value<string>("kind")} can't be animated");
-                else if (node["at"] != null && (property == "pos" || property == "rot"))
+                string target = Str(rule, "target"), property = Str(rule, "property");
+                JObject clock = TimelineRef(rule["timeline"], path + ".timeline");
+                if (target == null || !nodes.TryGetValue(target, out var node)) Add("unknown_ref", path + ".target", $"no node {(target != null ? "\"" + target + "\"" : Describe(rule["target"]))}");
+                else if (Str(node, "kind") == "timeline" || Str(node, "kind") == "panel")
+                    Add("bad_value", path + ".target", $"a {Str(node, "kind")} can't be animated");
+                else if (!Absent(node["at"]) && (property == "pos" || property == "rot"))
                     Add("bad_value", path + ".property", $"\"{target}\" stands on a slot, so its {property} can't be animated");
                 if (property == null || !ArtifactSchema.AnimateProperties.TryGetValue(property, out string shape))
                 {
@@ -473,12 +673,12 @@ namespace Forge.Artifacts
                     return;
                 }
                 if (keys.Count > ArtifactSchema.MaxKeys) Add("too_big", path + ".keys", $"{keys.Count} is over the limit of {ArtifactSchema.MaxKeys}");
-                double end = clock != null && IsNumber(clock["duration_s"]) ? clock.Value<double>("duration_s") : double.MaxValue, before = -1.0;
+                double end = Num(Get(clock, "duration_s")) ?? double.MaxValue, before = -1.0;
                 for (int k = 0; k < keys.Count; k++)
                 {
                     string at = $"{path}.keys[{k}]";
                     if (!(keys[k] is JArray key) || key.Count != 2 || !IsNumber(key[0])) { Add("bad_value", at, "use [t, value]"); continue; }
-                    double t = key[0].Value<double>();
+                    double t = Num(key[0]).Value;
                     if (t < 0.0 || t > end) Add("bad_value", at, $"t {t} is outside the timeline (0 to {end} s)");
                     else if (t < before) Add("bad_value", at, "times have to go up");
                     before = t;
@@ -497,45 +697,48 @@ namespace Forge.Artifacts
                 }
             }
 
-            JObject TimelineRef(string id, string path)
+            JObject TimelineRef(JToken idToken, string path)
             {
-                if (id == null || !nodes.TryGetValue(id, out var node)) Add("unknown_ref", path, $"no node \"{id}\"");
-                else if (node.Value<string>("kind") != "timeline") Add("unknown_ref", path, $"\"{id}\" isn't a timeline");
+                string id = idToken?.Type == JTokenType.String ? (string)idToken : null;
+                if (id == null || !nodes.TryGetValue(id, out var node)) Add("unknown_ref", path, $"no node {(id != null ? "\"" + id + "\"" : Describe(idToken))}");
+                else if (Str(node, "kind") != "timeline") Add("unknown_ref", path, $"\"{id}\" isn't a timeline");
                 else return node;
                 return null;
             }
 
-            void Metric(JToken rule, string path)
+            void Metric(JObject rule, string path)
             {
-                string op = rule.Value<string>("op"), probe = rule.Value<string>("probe");
-                if (op == null || !ArtifactSchema.MetricOps.Contains(op)) Add("bad_value", path + ".op", $"unknown op \"{op}\"");
-                if (probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", path + ".probe", $"unknown probe \"{probe}\"");
-                if (rule["zones"] != null) ZoneRef(rule.Value<string>("zones"), path + ".zones");
-                var targets = rule["nodes"] as JArray ?? (rule["nodes"] != null ? new JArray(rule["nodes"]) : new JArray());
+                string op = Str(rule, "op"), probe = Str(rule, "probe");
+                if (op == null || !ArtifactSchema.MetricOps.Contains(op)) Add("bad_value", path + ".op", $"unknown op {(op != null ? "\"" + op + "\"" : Describe(rule["op"]))}");
+                if (!StringField(rule, "probe", path) && probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", path + ".probe", $"unknown probe \"{probe}\"");
+                if (rule["zones"] != null) ZoneRef(rule["zones"], path + ".zones");
+                var raw = rule["nodes"];
+                var targets = raw as JArray ?? (Absent(raw) ? new JArray() : new JArray(raw));
                 foreach (var t in targets)
                 {
-                    string target = (string)t;
-                    if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node \"{target}\"");
+                    string target = t.Type == JTokenType.String ? (string)t : null;
+                    if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node {(target != null ? "\"" + target + "\"" : Describe(t))}");
                 }
                 if (op == "sim") SimMetric(rule, path);
             }
 
-            void SimMetric(JToken rule, string path)
+            void SimMetric(JObject rule, string path)
             {
-                string sim = rule.Value<string>("sim"), value = rule.Value<string>("value");
-                if (sim == null || !nodes.TryGetValue(sim, out var node) || node.Value<string>("kind") != "sim")
+                string sim = Str(rule, "sim"), value = Str(rule, "value");
+                if (sim == null || !nodes.TryGetValue(sim, out var node) || Str(node, "kind") != "sim")
                 {
-                    Add("unknown_ref", path + ".sim", $"no sim node \"{sim}\"");
+                    Add("unknown_ref", path + ".sim", $"no sim node {(sim != null ? "\"" + sim + "\"" : Describe(rule["sim"]))}");
                     return;
                 }
-                string solver = node.Value<string>("solver");
+                string solver = Str(node, "solver");
                 if (solver != null && ArtifactSchema.Solvers.TryGetValue(solver, out var values) && System.Array.IndexOf(values, value) < 0)
                     Add("unknown_ref", path + ".value", $"{solver} has no value \"{value}\"");
             }
 
-            void ZoneRef(string id, string path)
+            void ZoneRef(JToken idToken, string path)
             {
-                if (id == null || !nodes.TryGetValue(id, out var node)) Add("unknown_ref", path, $"no node \"{id}\"");
+                string id = idToken?.Type == JTokenType.String ? (string)idToken : null;
+                if (id == null || !nodes.TryGetValue(id, out var node)) Add("unknown_ref", path, $"no node {(id != null ? "\"" + id + "\"" : Absent(idToken) ? "\"\"" : Describe(idToken))}");
                 else if (!IsZone(node)) Add("unknown_ref", path, $"\"{id}\" isn't a zone");
             }
 
@@ -544,7 +747,7 @@ namespace Forge.Artifacts
                 foreach (var start in nodes)
                 {
                     var seen = new HashSet<string> { start.Key };
-                    for (string at = start.Value.Value<string>("parent"); at != null && nodes.TryGetValue(at, out var next); at = next.Value<string>("parent"))
+                    for (string at = Str(start.Value, "parent"); at != null && nodes.TryGetValue(at, out var next); at = Str(next, "parent"))
                         if (!seen.Add(at))
                         {
                             Add("bad_value", "nodes", $"\"{start.Key}\" is its own ancestor");
@@ -555,32 +758,43 @@ namespace Forge.Artifacts
 
             void RunBlock()
             {
-                if (!(scene["run"] is JObject run)) return;
+                var token = scene["run"];
+                if (Absent(token)) return;
+                if (!(token is JObject run))
+                {
+                    Add("bad_value", "run", $"must be an object {{start, finish}} or null, found {Describe(token)}");
+                    return;
+                }
                 if (Permission("things") != "read") Add("permission_missing", "permissions.things", "the scene has a run, so permissions.things must be read");
-                ZoneRef(run["start"]?.Value<string>("zone"), "run.start.zone");
-                ZoneRef(run["finish"]?.Value<string>("zone"), "run.finish.zone");
-                if (run["finish"]?["needs"] is JArray needs)
-                    foreach (var need in needs)
+                ZoneRef(Get(run["start"], "zone"), "run.start.zone");
+                ZoneRef(Get(run["finish"], "zone"), "run.finish.zone");
+                if (Get(run["finish"], "needs") is JArray needs)
+                    for (int i = 0; i < needs.Count; i++)
                     {
-                        string metric = need.Value<string>("metric"), min = need["min"]?.Type == JTokenType.String ? (string)need["min"] : null;
+                        var need = needs[i];
+                        if (!(need is JObject)) { Add("bad_value", $"run.finish.needs[{i}]", $"must be an object {{metric, min}}, found {Describe(need)}"); continue; }
+                        string metric = Str(need, "metric"), min = Str(need, "min");
                         if (metric == null || !metrics.Contains(metric)) Add("unknown_ref", "run.finish.needs", $"no metric \"{metric}\"");
                         if (min != null && min.StartsWith("@") && !slots.Contains(min.Substring(1))) Add("unknown_slot", "run.finish.needs", $"no slot \"{min.Substring(1)}\"");
                     }
-                if (run["fail"] is JArray fails)
+                var fails = ObjectList(run, "fail", "run.fail", "an object {reason, ...}");
+                if (fails != null)
                     for (int i = 0; i < fails.Count; i++)
                     {
-                        if (fails[i].Value<string>("reason") == null) Add("bad_value", $"run.fail[{i}]", "needs a reason");
-                        string probe = fails[i].Value<string>("probe");
+                        if (!(fails[i] is JObject fail)) continue;
+                        if (Str(fail, "reason") == null) Add("bad_value", $"run.fail[{i}]", "needs a reason");
+                        string probe = Str(fail, "probe");
                         if (probe != null && !ArtifactSchema.Probes.Contains(probe)) Add("bad_value", $"run.fail[{i}].probe", $"unknown probe \"{probe}\"");
                     }
             }
 
             void Outputs()
             {
-                if (!(manifest["outputs"] is JArray outputs)) return;
+                var outputs = ObjectList(manifest, "outputs", "outputs", "an object {name, ...}");
+                if (outputs == null) return;
                 foreach (var output in outputs)
                 {
-                    string name = output.Value<string>("name");
+                    string name = Str(output, "name");
                     if (name != null && !metrics.Contains(name)) Add("output_mismatch", "outputs", $"\"{name}\" has no metric rule");
                 }
             }
@@ -605,8 +819,9 @@ namespace Forge.Artifacts
 
             void OneOf(JObject o, string key, HashSet<string> allowed, string path)
             {
-                string value = o.Value<string>(key);
-                if (value == null || !allowed.Contains(value)) Add("bad_value", path, $"\"{value}\" isn't one of {string.Join(", ", allowed)}");
+                string value = Str(o, key);
+                if (value == null || !allowed.Contains(value))
+                    Add("bad_value", path, $"{(value != null || Absent(o[key]) ? "\"" + value + "\"" : Describe(o[key]))} isn't one of {string.Join(", ", allowed)}");
             }
         }
     }
