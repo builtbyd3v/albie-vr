@@ -1,0 +1,202 @@
+{
+  "schema": "albie.scene/1",
+  "space": "room",
+  "nodes": [
+    {
+      "id": "red",
+      "kind": "primitive",
+      "shape": "cylinder",
+      "position": [
+        0,
+        2.1,
+        0
+      ],
+      "scale": [
+        0.3,
+        0.3,
+        0.1
+      ],
+      "color": "#ff0000",
+      "emissive": "#ff0000",
+      "emissiveIntensity": 1
+    },
+    {
+      "id": "yellow",
+      "kind": "primitive",
+      "shape": "cylinder",
+      "position": [
+        0,
+        1.5,
+        0
+      ],
+      "scale": [
+        0.3,
+        0.3,
+        0.1
+      ],
+      "color": "#333333",
+      "emissive": "#000000",
+      "emissiveIntensity": 0
+    },
+    {
+      "id": "green",
+      "kind": "primitive",
+      "shape": "cylinder",
+      "position": [
+        0,
+        0.9,
+        0
+      ],
+      "scale": [
+        0.3,
+        0.3,
+        0.1
+      ],
+      "color": "#333333",
+      "emissive": "#000000",
+      "emissiveIntensity": 0
+    },
+    {
+      "id": "pole",
+      "kind": "primitive",
+      "shape": "cylinder",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.08,
+        2.5,
+        0.08
+      ],
+      "color": "#444444"
+    },
+    {
+      "id": "button",
+      "kind": "primitive",
+      "shape": "cylinder",
+      "position": [
+        0.8,
+        0.2,
+        0.4
+      ],
+      "scale": [
+        0.25,
+        0.08,
+        0.25
+      ],
+      "color": "#cccccc",
+      "onClick": "cycle"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "cycle",
+      "trigger": "button.onClick",
+      "actions": [
+        {
+          "type": "setState",
+          "target": "light",
+          "property": "phase",
+          "operation": "next",
+          "values": [
+            "red",
+            "yellow",
+            "green"
+          ]
+        },
+        {
+          "type": "if",
+          "condition": {
+            "state": "light.phase",
+            "equals": "red"
+          },
+          "then": [
+            {
+              "type": "setMaterial",
+              "target": "red",
+              "color": "#ff0000",
+              "emissive": "#ff0000",
+              "emissiveIntensity": 1
+            },
+            {
+              "type": "setMaterial",
+              "target": "yellow",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            },
+            {
+              "type": "setMaterial",
+              "target": "green",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": {
+            "state": "light.phase",
+            "equals": "yellow"
+          },
+          "then": [
+            {
+              "type": "setMaterial",
+              "target": "red",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            },
+            {
+              "type": "setMaterial",
+              "target": "yellow",
+              "color": "#ffcc00",
+              "emissive": "#ffcc00",
+              "emissiveIntensity": 1
+            },
+            {
+              "type": "setMaterial",
+              "target": "green",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            }
+          ]
+        },
+        {
+          "type": "if",
+          "condition": {
+            "state": "light.phase",
+            "equals": "green"
+          },
+          "then": [
+            {
+              "type": "setMaterial",
+              "target": "red",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            },
+            {
+              "type": "setMaterial",
+              "target": "yellow",
+              "color": "#333333",
+              "emissive": "#000000",
+              "emissiveIntensity": 0
+            },
+            {
+              "type": "setMaterial",
+              "target": "green",
+              "color": "#00ff00",
+              "emissive": "#00ff00",
+              "emissiveIntensity": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
