@@ -11,7 +11,7 @@ namespace Forge.Artifacts
     /// Opens an artifact: read it, validate it, ask for its permissions the first time, then build it. It needs no project,
     /// no desk and no hub, so a standalone artifact is as normal as a project one (docs/ARTIFACTS_BRIEF.md). Anything it
     /// can't do it says so in a panel: it never shows half an artifact.
-    /// Put the prefab (Artifacts/Prefabs/ArtifactHost.prefab) where artifacts should appear, then call <see cref="Open"/>.
+    /// Put the prefab (Artifacts/Resources/ArtifactHost.prefab) where artifacts should appear, then call <see cref="Open"/>.
     /// </summary>
     public class ArtifactHost : MonoBehaviour
     {
@@ -67,6 +67,34 @@ namespace Forge.Artifacts
         public ArtifactRun Run => run;
         /// <summary>The scoreboard's runs row, so a finished run can refresh it.</summary>
         public ArtifactRunsRow RunsRow;
+
+        /// <summary>
+        /// True when <see cref="ArtifactBootstrap"/> added this host to a scene that had none (the app's Main). Nobody
+        /// placed it, so each open from Albie's tools brings it in front of whoever is looking.
+        /// </summary>
+        public bool FollowsUser;
+
+        /// <summary>A scene was built: after an open (and its permissions sheet) or a relayout. <see cref="Run"/>,
+        /// <see cref="SceneOrigin"/> and <see cref="OpenManifest"/> are the new scene's.</summary>
+        public event System.Action<ArtifactHost> Shown;
+
+        /// <summary>
+        /// Stands the host in front of the camera at desk height, turned to face the same way: 0.8 m ahead, 0.2 m left
+        /// (its panel opens 0.5 m to the right) and 0.5 m below the eyes, as the sandbox's table is. Level, whatever the
+        /// head's pitch. Does nothing with no main camera.
+        /// </summary>
+        public void ComeToUser()
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            var eye = cam.transform;
+            var ahead = Vector3.ProjectOnPlane(eye.forward, Vector3.up);
+            if (ahead.sqrMagnitude < 1e-4f) ahead = Vector3.ProjectOnPlane(eye.up, Vector3.up);  // looking straight down
+            ahead.Normalize();
+            var right = Vector3.Cross(Vector3.up, ahead);
+            transform.SetPositionAndRotation(eye.position + ahead * 0.8f - right * 0.2f + Vector3.down * 0.5f,
+                Quaternion.LookRotation(ahead, Vector3.up));
+        }
 
         void OnEnable() => Current = this;
 
@@ -369,6 +397,7 @@ namespace Forge.Artifacts
             inputs.Changed += OnInputChanged;
             BindRun();
             reveal = StartCoroutine(Reveal(root, scale));
+            Shown?.Invoke(this);
         }
 
         // C-12 section 7: sample rows always carry a "Sample data" label, floating just above everything else in the scene.

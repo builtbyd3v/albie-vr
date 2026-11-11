@@ -47,6 +47,7 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 - **P** runs the Autopilot: each candidate, then the pretrained fallback, gets a scored run until one completes.
 - A touch on a cone or a wall aborts the run, and the truck parks after each run.
 - The mock rooms' walls and furniture have colliders, so the truck's rays see them. **Forge > Artifacts > Check Brain Loop (Play)** runs every mock room through the whole loop in Play mode, with storage in a scratch folder.
+- **In the app (Main), with no keys:** when a truck slalom is built (after the Allow tap, or a relayout), `ArtifactBootstrap.EnsureBrain` puts the brain truck at its start. The truck is then the active brain loop, so `brain_record {start: true, laps: 2, then_autopilot: true}` and ML B's brain panel drive it. Laps are driven with the Touch thumbstick or the hands transmitter. The truck's sensors see the cones and Main's EffectMesh colliders (walls, tables, couches, storage, beds). Its status has no sandbox key hints, because Albie reads it aloud. Opening any other artifact lets go of the truck.
 
 **Scoring a body that moves in physics.** These apply to any Thing, not just the truck:
 - A run counts a hit (`hit_count`) when the Thing comes within its radius of the collider's surface (`ClosestPoint`). It used to use the collider's bounds grown by the radius, which counted a clean weave 0.12 m off every cone as 4 hits.
@@ -59,6 +60,11 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 Albie calls `artifact_create {template: "repo_activity"}`. This shows commits as a small city on a base: one block per commit, height for lines changed, and colour for the author. The data is read through the `array` node's `source: {table, grid}` (C-12 section 7). The rows are never typed into the scene.
 - **Where the rows come from** (`Scripts/ArtifactData.cs`). The host tries `ArtifactData.Provider` first. That's the hook for Person 3's connector host, and it's null until that's on main. Next it tries the artifact's own `data/<name>.json`, then the bundled sample in `Resources/ArtifactData/`. Today that means the bundled sample: 18 made-up commits.
 - **Sample data** always gets a yellow "Sample data" label, and Albie says the commits are made up. A commit with no line count is a grey stub, not a zero.
+- **The local fixture connector** (`Scripts/LocalRepoConnector.cs`, Nov 9). This is the stand-in section 16.5 asks for until Person 3's connector host lands. It installs itself as `ArtifactData.Provider` only when nothing else has, so the real host replaces it with no change here. It answers only `connector:source_control/list_commits`, with this repo's real commits from the last 7 days: up to 120, newest first, merges left out, in the sample's five columns. `lines_changed` counts text lines, leaving out `.meta` files; a binary-only commit is null (a grey stub).
+  - **On a computer** it runs `git log` on the checkout, cached for 60 s. The data comes from `connector`, isn't sample data, and Albie says nothing about it.
+  - **On a Quest** (no git) it reads the copy the build step saved: `Editor/RepoSnapshotBuild.cs` runs before every player build, or from **Forge > Artifacts > Save Repo Commits For Quest**. The copy is marked `saved_copy`, so Albie says "This is a saved copy of the data, from November 9." It's git-ignored (`Resources/ArtifactData/Repo/.gitignore`), so builds don't leave a changed file.
+  - **With neither**, the bundled sample comes back with its "Sample data" label, as before.
+  - The template's grid has no fixed column count now, so any number of commits makes a square city, and `grid.base` draws a plate sized to it.
 - **Albie's own artifacts.** `artifact_create {manifest, scene}` validates the artifact and saves it versioned. If it's invalid, the result is `status: "invalid"` with every error, and nothing is saved. A source this headset has no copy of opens as `no_data`.
 
 The template needs host runtime 3.
@@ -96,11 +102,24 @@ Two templates for things you change and watch play out, like the three-body fixt
 - **`line` field `through`** (`Scripts/ArtifactTrail.cs`). A list of node ids with the line's parent. The line joins them every frame after the sims have moved, for the pendulums' rods.
 - Both need host runtime 6. The scenes were written by a script (planet starting speeds are 2π/√a AU a year) and are plain `albie.scene/1`.
 
+## How the fixtures look (Nov 9)
+
+The four sandbox fixtures got the same finish as the templates. Every node and rule they had is kept, in its old order, so the checks that point at them still mean the same thing.
+- **`stance`** is a truck on four wheels whose axle stretches with the track-width slider. Orange lines run from the centre of gravity to the front wheels, and they follow both sliders: wide and low gives flat lines (hard to roll), narrow and high gives steep ones.
+- **`three_body`** shows the perfect figure eight as a faint line (one period, integrated offline from the same starting values) and the centre of mass, so a nudge visibly pulls the bodies off the path.
+- **`repo_city`** stands on a dark base with an outline, like a model.
+- **`launch`** has a pad, a red service tower with an arm that pulls back, a two-part flame, a glow on the pad, eight puffs of exhaust that roll out and cool from flame-lit to grey, and Ignition / Liftoff / Engine cut-off captions.
+
+Two host fixes came out of this (`Scripts/ArtifactTrail.cs`):
+- A `line`'s `points` can name inputs (`"$cog_m"`) and follow them live, like any other bound value.
+- A line's width is set when it's built. Before, a new line reported bounds 1 m wide until its first frame, and a volume without `view.radius` fitted to those bounds: the scene stood too high and too small. That was making `repo_city` look small.
+
 ## Files
 
 | Path | What it is |
 |---|---|
 | `Scripts/ArtifactHost.cs` | Opens, validates, asks permission, places generated scenes in the room, relayouts, and scores runs. `ArtifactHost.Current` is the host the tools use. |
+| `Scripts/ArtifactBootstrap.cs`, `Resources/ArtifactHost.prefab` | **In the app.** Any scene with a `Workspace` (Main) and no host gets one from `Resources/ArtifactHost` at load, so nobody has to edit Main.unity. That host follows the user: each open from Albie's tools brings it 0.8 m in front of the eyes at desk height. Room courses still stand where the room generator puts them. Sandboxes place their own host and are left alone. |
 | `Scripts/ArtifactRun.cs`, `Scripts/ArtifactRuns.cs` | The run engine (`albie.run/1`) and the device records. |
 | `Scripts/ArtifactThing.cs` | `IArtifactThing` probes, plus a kinematic stand-in until Person 2's Thing runtime exposes them. |
 | `Scripts/Room/` | `IFloorPlan` (free floor and ceiling height), plus the MRUK and mock rooms, the `floor_slalom` and `room_hoops` generators, layout records, spatial anchors, and `ArtifactGenerators`. |
@@ -119,13 +138,15 @@ Two templates for things you change and watch play out, like the three-body fixt
 | `Editor/BioTemplatesCheck.cs` | 7 headless checks on the six biology templates (valid, made offline, model hash and licence, labels, hidden captions, beat centre, DNA spin): **Forge > Artifacts > Check Biology Templates**. |
 | `Scripts/ArtifactPendulum.cs` | The `pendulum` solver (one or two links, RK4 in doubles). |
 | `Editor/SimTemplatesCheck.cs` | 9 headless checks on the physics templates (valid, made offline, the textbook period, energy, chaos, friction, Earth's year, half a Sun, the new validator refusals): **Forge > Artifacts > Check Physics Templates**. |
+| `Scripts/LocalRepoConnector.cs`, `Editor/RepoSnapshotBuild.cs` | The local fixture connector (this repo's commits by git, or a copy saved at build time) and its build step. |
+| `Editor/RepoConnectorCheck.cs` | 7 headless checks on the fixture connector: **Forge > Artifacts > Check Repo Connector**. |
 | `Editor/ArtifactShot.cs` | Test helper: `ArtifactShot.Take(path)` renders the open artifact and its panels to a PNG in Play mode, since the Game view is black in XR. |
 | `Editor/VoiceRulesCheck.cs` | Every tool named in Albie's voice rules exists: **Forge > Artifacts > Check Voice Rules**. |
 
 ## For other modules
 
 ```csharp
-var host = ArtifactHost.Current;      // the ArtifactHost prefab in the scene
+var host = ArtifactHost.Current;      // the scene's host; in Main, the one ArtifactBootstrap added
 host.Open("slalom");                  // or the tool: AlbieTools.Call("artifact_create", {template: "slalom"})
 host.Thing = aThing;                  // any IArtifactThing (Person 2's runtime, or ArtifactThing)
 host.ArmRun();                        // or the tool: artifact_run
