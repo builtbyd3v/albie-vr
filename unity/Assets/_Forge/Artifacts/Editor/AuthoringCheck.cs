@@ -17,7 +17,7 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
@@ -212,7 +212,9 @@ public static class AuthoringCheck
             "bad_value@schema", "bad_value@scene.schema", "bad_value@id", "bad_value@title", "bad_value@kind",
             "bad_value@category", "bad_value@runtime.type", "bad_value@scenarios", "bad_value@scene", "bad_value@scene.space",
             "unknown_kind@nodes[0].kind");
-        Expect("A3", "traffic light try 1 names its unknown fields", e, "unknown_field@nodes[0].position", "unknown_field@scene.scripts", "unknown_field@name");
+        // Its nodes have no kind, so their fields aren't judged (the kind comes first); the top-level slips are named.
+        Expect("A3", "traffic light try 1 names its unknown fields", e, "unknown_field@scene.scripts", "unknown_field@name", "unknown_field@description",
+            "!unknown_field@nodes[0].position");
 
         (m, s) = Load("live_traffic_light_2");
         e = Validate(m, s, "live_traffic_light_2");
@@ -446,6 +448,8 @@ public static class AuthoringCheck
         Allowed("a timeline that isn't there", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0]["timeline"] = "timer", s => "rules[1].do[0].timeline", "unknown_ref", "clock");
         Allowed("a slider on no input", "arch_lever", (m, s) => Node(s, "controls")["widgets"][1]["input"] = "angle", s => P(s, "controls", "widgets[1].input"), "unknown_input", "tilt");
 
+        UnknownFields();
+
         // Kind advice for what models reach for.
         foreach (var (kind, says) in new[] { ("group", "parent"), ("node", "parent"), ("light", "glow"), ("button", "panel"), ("slider", "panel"), ("rope", "line"), ("clock", "timeline") })
         {
@@ -524,6 +528,62 @@ public static class AuthoringCheck
                 ArtifactLibrary.RootOverride = before;
                 if (Directory.Exists(root)) Directory.Delete(root, true);
             }
+        }
+    }
+
+    // ---------- A3: unknown fields are named, with what was meant ----------
+
+    /// <summary>One key added (or set) on an archetype: unknown_field at exactly that path, its hint says <paramref name="says"/>.</summary>
+    static void Field(string what, string fixture, Action<JObject, JObject> edit, Func<JObject, string> path, string says)
+    {
+        var (m, s) = fixture.StartsWith("template:") ? Template(fixture.Substring(9)) : Load(fixture);
+        m = (JObject)m.DeepClone();
+        s = (JObject)s.DeepClone();
+        string at = path(s);
+        edit(m, s);
+        var errors = Validate(m, s, what);
+        var e = At(errors, "unknown_field", at);
+        bool ok = e != null && e.hint != null && e.hint.Contains(says) && e.allowed != null && e.allowed.Length > 0;
+        Gate("A3", $"{what}: unknown_field at {at}, hint mentions {says} (got {(e == null ? "[" + Show(errors) + "]" : e.hint)})", ok);
+    }
+
+    static void UnknownFields()
+    {
+        // General slips, read off the hint as "did you mean".
+        Field("position", "arch_lever", (m, s) => Node(s, "beam")["position"] = new JArray(0, 0, 0), s => P(s, "beam", "position"), "did you mean \"pos\"");
+        Field("rotation", "arch_lever", (m, s) => Node(s, "beam")["rotation"] = new JArray(0, 0, 0), s => P(s, "beam", "rotation"), "did you mean \"rot\"");
+        Field("emissive", "arch_lever", (m, s) => Node(s, "beam")["emissive"] = true, s => P(s, "beam", "emissive"), "did you mean \"glow\"");
+        Field("colour", "arch_lever", (m, s) => Node(s, "beam")["colour"] = "#FFFFFF", s => P(s, "beam", "colour"), "did you mean \"color\"");
+        Field("a typo of shape", "arch_lever", (m, s) => Node(s, "beam")["shap"] = "box", s => P(s, "beam", "shap"), "did you mean \"shape\"");
+        Field("dimensions", "arch_lever", (m, s) => Node(s, "beam")["dimensions"] = new JArray(1, 1, 1), s => P(s, "beam", "dimensions"), "did you mean \"size\"");
+        Field("camelCase durationS", "arch_stopwatch", (m, s) => Node(s, "clock")["durationS"] = 3, s => P(s, "clock", "durationS"), "did you mean \"duration_s\"");
+        Field("type beside kind", "arch_lever", (m, s) => Node(s, "beam")["type"] = "box", s => P(s, "beam", "type"), "did you mean \"kind\"");
+        Field("name on the manifest", "arch_lever", (m, s) => m["name"] = "Lever", s => "name", "did you mean \"title\"");
+        // Things with no counterpart: what to build instead.
+        Field("onClick", "arch_lever", (m, s) => Node(s, "beam")["onClick"] = "tilt()", s => P(s, "beam", "onClick"), "on_input");
+        Field("scripts on the scene", "arch_lever", (m, s) => s["scripts"] = new JArray("x"), s => "scene.scripts", "on_input");
+        Field("children", "arch_lever", (m, s) => Node(s, "beam")["children"] = new JArray(), s => P(s, "beam", "children"), "\"parent\"");
+        Field("widgets on a primitive", "arch_lever", (m, s) => Node(s, "beam")["widgets"] = new JArray(), s => P(s, "beam", "widgets"), "panel");
+        Field("animation on a primitive", "arch_lever", (m, s) => Node(s, "beam")["animation"] = "spin", s => P(s, "beam", "animation"), "animate rule");
+        Field("description on the manifest", "arch_lever", (m, s) => m["description"] = "a lever", s => "description", "note widget");
+        // Kind-specific tables.
+        Field("rot on a panel", "arch_lever", (m, s) => Node(s, "controls")["rot"] = new JArray(0, 30, 0), s => P(s, "controls", "rot"), "panel");
+        Field("pos on a timeline", "arch_stopwatch", (m, s) => Node(s, "clock")["pos"] = new JArray(0, 0, 0), s => P(s, "clock", "pos"), "timeline");
+        Field("a slider with its own max", "arch_lever", (m, s) => Node(s, "controls")["widgets"][1]["max"] = 5, s => P(s, "controls", "widgets[1].max"), "slider widget");
+        Field("vel on a pendulum body", "arch_fan", (m, s) => Node(s, "rotor_a")["bodies"][0]["vel"] = new JArray(0, 0, 0), s => P(s, "rotor_a", "bodies[0].vel"), "pendulum body");
+        Field("options on a number input", "arch_lever", (m, s) => m["inputs"][0]["options"] = new JArray("a"), s => "inputs[0].options", "an input takes");
+        Field("a generator param typo", "template:slalom", (m, s) => s["generators"][0]["params"]["gate"] = 6, s => "generators[0].params.gate", "did you mean \"gates\"");
+        Field("an action with a fourth key", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0]["delay"] = 1, s => "rules[1].do[0].delay", "action");
+
+        // Every unknown_field in the real failures says what to do, and the kinds come before the fields.
+        foreach (string live in new[] { "live_traffic_light_5", "saved_seesaw", "probe_mixed" })
+        {
+            var (m, s) = Load(live);
+            var errors = Validate(m, s, live);
+            int fields = 0, bare = 0;
+            foreach (var e in errors)
+                if (e.code == "unknown_field") { fields++; if (e.hint == null || e.allowed == null) bare++; }
+            Gate("A3", $"{live}: {fields} unknown fields, every one with a hint and the allowed keys ({bare} without)", fields > 0 && bare == 0);
         }
     }
 

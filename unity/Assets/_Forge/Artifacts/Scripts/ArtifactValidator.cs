@@ -74,6 +74,126 @@ namespace Forge.Artifacts
             return advice;
         }
 
+        // ---------- unknown fields: what the agent meant, from general vocabulary (no request-specific words) ----------
+
+        /// <summary>
+        /// Normalised slip (lowercase, no _ or -) to the real keys it may stand for, in order. The first one the object
+        /// allows is offered.
+        /// </summary>
+        static readonly Dictionary<string, List<string>> FieldRenames = BuildRenames();
+
+        static Dictionary<string, List<string>> BuildRenames()
+        {
+            var renames = new Dictionary<string, List<string>>();
+            void To(string key, params string[] slips)
+            {
+                foreach (var s in slips)
+                {
+                    if (!renames.TryGetValue(s, out var list)) renames[s] = list = new List<string>();
+                    list.Add(key);
+                }
+            }
+            To("pos", "position", "location", "translate", "translation", "offset", "xyz", "center", "centre", "localposition");
+            To("rot", "rotation", "rotate", "euler", "eulerangles", "angles", "angle", "orientation", "localrotation");
+            To("scale", "scaling", "localscale");
+            To("size", "dimensions", "dimension", "dims", "extents", "extent", "radius", "diameter", "width", "height", "depth", "length", "bounds");
+            To("color", "colour", "material", "fill", "tint", "albedo", "rgb", "hex");
+            To("glow", "emissive", "emission", "emit", "light", "lit", "glowing", "emissiveintensity", "intensity", "bright");
+            To("kind", "type", "nodetype", "class");
+            To("duration_s", "duration", "seconds", "length", "time", "period");
+            To("loop", "repeat", "looping", "loops", "repeats");
+            To("autoplay", "autostart", "playonstart", "startonload", "auto");
+            To("title", "name", "label", "heading", "caption");
+            To("text", "content", "string", "value", "label", "caption");
+            To("parent", "parentid", "attach", "attachto", "attachedto");
+            To("collider", "collision", "solid");
+            To("billboard", "facecamera", "facesuser", "lookat");
+            To("widgets", "controls", "buttons", "items");
+            To("input", "inputs", "variable", "bind", "binding");
+            To("do", "actions", "then", "effects", "steps");
+            To("keys", "keyframes", "frames", "values");
+            To("target", "node", "object");
+            To("property", "prop", "field", "channel");
+            To("timeline", "clock", "timer");
+            To("solver", "physics", "integrator");
+            To("bodies", "objects", "masses");
+            To("points", "vertices", "path", "positions");
+            To("through", "connect", "connects", "between");
+            To("follow", "trail", "track");
+            To("min", "minimum", "from", "low");
+            To("max", "maximum", "to", "high");
+            To("default", "initial", "start", "value");
+            return renames;
+        }
+
+        /// <summary>Normalised slip to advice, for keys with no direct counterpart in this object.</summary>
+        static readonly Dictionary<string, string> FieldAdvice = BuildFieldAdvice();
+
+        const string NoScripts = "no scripts: a button is a panel widget {\"type\": \"button\", \"id\": \"go\", \"label\": \"Go\"} plus an on_input rule; motion is a timeline with animate rules, or a sim node";
+
+        static Dictionary<string, string> BuildFieldAdvice()
+        {
+            var advice = new Dictionary<string, string>();
+            void Say(string text, params string[] slips) { foreach (var s in slips) advice[s] = text; }
+            Say(NoScripts, "onclick", "onpress", "ontap", "onselect", "ontouch", "onhover", "action", "actions", "script", "scripts", "code",
+                "onupdate", "update", "behavior", "behaviour", "behaviors", "behaviours", "logic", "events", "handlers", "interactions", "interaction", "onstart", "program");
+            Say("nodes are one flat list: give each child \"parent\": \"<this node's id>\"", "children", "nodes", "parts", "components", "child", "subnodes", "contents");
+            Say("controls go on a panel node: {\"kind\": \"panel\", \"widgets\": [{\"type\": \"slider\", \"input\": \"<manifest input>\"}]}; a button also needs an on_input rule",
+                "slider", "sliders", "button", "buttons", "controls", "control", "ui", "widgets", "widget", "knob", "switch", "toggle");
+            Say("motion is an animate rule {\"type\": \"animate\", \"target\": \"<id>\", \"property\": \"rot\", \"keys\": [[0, [0, 0, 0]], [2, [0, 360, 0]]], \"timeline\": \"<timeline id>\"}",
+                "animation", "animations", "animate", "keyframes", "tween", "motion", "spin", "rotationspeed", "speed", "velocity", "angularvelocity", "move", "movement");
+            Say("not a field: say it in a note widget on a panel, or a text node", "description", "notes", "note", "summary", "author", "tags", "comment", "comments", "about", "info");
+            Say("a name shown in the scene is a text node with \"parent\": \"<this node's id>\"", "name", "label", "caption", "title");
+            Say("motion under gravity or a swing is a sim node {\"kind\": \"sim\", \"solver\": \"pendulum\", \"bodies\": [{\"node\": \"<id>\", \"length\": 0.2}]}", "mass", "gravity", "rigidbody", "physics", "weight");
+            Say("only bundled models load: a gltf node with an \"asset\" listed in the manifest's assets", "mesh", "model", "url", "src", "file");
+            return advice;
+        }
+
+        static string Norm(string key)
+        {
+            var sb = new System.Text.StringBuilder(key.Length);
+            foreach (char c in key)
+                if (c != '_' && c != '-' && c != ' ') sb.Append(char.ToLowerInvariant(c));
+            return sb.ToString();
+        }
+
+        static int Distance(string a, string b)
+        {
+            var row = new int[b.Length + 1];
+            for (int j = 0; j <= b.Length; j++) row[j] = j;
+            for (int i = 1; i <= a.Length; i++)
+            {
+                int diagonal = row[0];
+                row[0] = i;
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int above = row[j];
+                    row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), diagonal + (a[i - 1] == b[j - 1] ? 0 : 1));
+                    diagonal = above;
+                }
+            }
+            return row[b.Length];
+        }
+
+        /// <summary>The allowed key the agent most likely meant, or null.</summary>
+        static string Suggest(string key, string[] allowed)
+        {
+            string norm = Norm(key);
+            foreach (var a in allowed) if (Norm(a) == norm) return a;  // a case or underscore slip
+            if (FieldRenames.TryGetValue(norm, out var candidates))
+                foreach (var to in candidates)
+                    if (System.Array.IndexOf(allowed, to) >= 0) return to;
+            if (FieldAdvice.ContainsKey(norm)) return null;  // the advice says more than a near spelling would
+            string best = null;
+            int bestDistance = norm.Length <= 4 ? 1 : 2;
+            foreach (var a in allowed)
+            {
+                int d = Distance(norm, Norm(a));
+                if (d <= bestDistance && (best == null || d < Distance(norm, Norm(best)))) { best = a; bestDistance = d; }
+            }
+            return best;
+        }
+
         /// <summary>The most a tool result carries; the rest is counted, not listed.</summary>
         public const int MaxReported = 25;
 
@@ -191,6 +311,154 @@ namespace Forge.Artifacts
                 Manifest();
                 Permissions();
                 Scene();
+                Fields();
+            }
+
+            // ---------- unknown fields (strict allow-lists, ArtifactSchema.Keys) ----------
+
+            /// <summary>Each key of <paramref name="o"/> outside <paramref name="allowed"/> is unknown_field, with what was meant.</summary>
+            void Keys(JToken o, string[] allowed, string path, string what, string label = null)
+            {
+                if (!(o is JObject obj)) return;
+                foreach (var p in obj.Properties())
+                {
+                    if (System.Array.IndexOf(allowed, p.Name) >= 0) continue;
+                    string at = string.IsNullOrEmpty(path) ? p.Name : path + "." + p.Name;
+                    string meant = Suggest(p.Name, allowed);
+                    string takes = $"{label ?? what} takes: {string.Join(", ", allowed)}";
+                    string hint;
+                    if (meant != null) hint = $"did you mean \"{meant}\"? {takes}";
+                    else if (FieldAdvice.TryGetValue(Norm(p.Name), out var advice)) hint = $"{advice}. {takes}";
+                    else hint = $"remove it; {takes}";
+                    Add("unknown_field", at, $"{what} has no field \"{p.Name}\"", hint, allowed);
+                }
+            }
+
+            static string[] Join(string[] a, string[] b)
+            {
+                var all = new string[a.Length + b.Length];
+                a.CopyTo(all, 0);
+                b.CopyTo(all, a.Length);
+                return all;
+            }
+
+            static string[] Union(IEnumerable<string[]> tables)
+            {
+                var seen = new List<string>();
+                foreach (var t in tables) foreach (var k in t) if (!seen.Contains(k)) seen.Add(k);
+                return seen.ToArray();
+            }
+
+            void EachObject(JToken list, string path, string[] allowed, string what)
+            {
+                if (!(list is JArray a)) return;
+                for (int i = 0; i < a.Count; i++) Keys(a[i], allowed, $"{path}[{i}]", $"{path}[{i}]", what);
+            }
+
+            void Fields()
+            {
+                Keys(manifest, ArtifactSchema.Keys.Manifest, "", "the manifest");
+                Keys(manifest["links"], ArtifactSchema.Keys.Links, "links", "links");
+                Keys(manifest["runtime"], ArtifactSchema.Keys.Runtime, "runtime", "runtime");
+                if (manifest["inputs"] is JArray inputList)
+                    for (int i = 0; i < inputList.Count; i++)
+                    {
+                        var allowed = ArtifactSchema.Keys.Input;
+                        if (Str(inputList[i], "type") != "choice") allowed = System.Array.FindAll(allowed, key => key != "options");
+                        Keys(inputList[i], allowed, $"inputs[{i}]", $"inputs[{i}]", Str(inputList[i], "type") == "choice" ? "a choice input" : "an input");
+                    }
+                EachObject(manifest["scenarios"], "scenarios", ArtifactSchema.Keys.Scenario, "a scenario");
+                EachObject(manifest["data"], "data", ArtifactSchema.Keys.Data, "a data entry");
+                EachObject(manifest["assets"], "assets", ArtifactSchema.Keys.Asset, "an asset");
+                EachObject(manifest["outputs"], "outputs", ArtifactSchema.Keys.Output, "an output");
+
+                Keys(scene, ArtifactSchema.Keys.Scene, "scene", "the scene");
+                Keys(scene["view"], ArtifactSchema.Keys.View, "scene.view", "view");
+                if (scene["generators"] is JArray generators)
+                    for (int i = 0; i < generators.Count; i++)
+                    {
+                        string at = $"generators[{i}]";
+                        Keys(generators[i], ArtifactSchema.Keys.Generator, at, "a generator");
+                        string type = Str(generators[i], "type");
+                        if (type != null && ArtifactSchema.Keys.GeneratorParams.TryGetValue(type, out var paramKeys))
+                            Keys(Get(generators[i], "params"), paramKeys, at + ".params", $"{type} params");
+                    }
+                if (scene["nodes"] is JArray nodeList)
+                    for (int i = 0; i < nodeList.Count; i++)
+                        if (nodeList[i] is JObject node) NodeFields(node, $"nodes[{i}]");
+                if (scene["rules"] is JArray rules)
+                    for (int i = 0; i < rules.Count; i++)
+                    {
+                        string at = $"rules[{i}]", type = Str(rules[i], "type");
+                        if (type == null || !ArtifactSchema.Keys.Rule.TryGetValue(type, out var ruleKeys)) continue;  // an unknown rule is already refused
+                        if (type == "metric")
+                        {
+                            string op = Str(rules[i], "op");
+                            ruleKeys = op != null && ArtifactSchema.Keys.MetricOp.TryGetValue(op, out var opKeys)
+                                ? Join(ruleKeys, opKeys) : Join(ruleKeys, Union(ArtifactSchema.Keys.MetricOp.Values));
+                        }
+                        Keys(rules[i], ruleKeys, at, $"a {type} rule");
+                        EachObject(Get(rules[i], "do"), at + ".do", ArtifactSchema.Keys.Action, "an action");
+                    }
+                if (scene["run"] is JObject run)
+                {
+                    Keys(run, ArtifactSchema.Keys.Run, "run", "run");
+                    Keys(run["start"], ArtifactSchema.Keys.RunStart, "run.start", "run.start");
+                    Keys(run["finish"], ArtifactSchema.Keys.RunFinish, "run.finish", "run.finish");
+                    EachObject(Get(run["finish"], "needs"), "run.finish.needs", ArtifactSchema.Keys.Need, "a need");
+                    EachObject(run["fail"], "run.fail", ArtifactSchema.Keys.Fail, "a fail");
+                }
+            }
+
+            void NodeFields(JObject n, string path)
+            {
+                string kind = Str(n, "kind"), id = Str(n, "id");
+                if (kind == null || !ArtifactSchema.NodeKinds.Contains(kind)) return;  // an unknown kind is refused first; its fields can't be judged
+                string what = $"{path} ({kind}{(id != null ? " \"" + id + "\"" : "")})";
+                string[] allowed;
+                if (!ArtifactSchema.Keys.NodeOnly.TryGetValue(kind, out allowed))
+                {
+                    allowed = Join(ArtifactSchema.Keys.NodeCommon, ArtifactSchema.Keys.NodeOwn[kind]);
+                    if (kind == "array") allowed = System.Array.FindAll(allowed, key => key != "at");
+                    if (kind == "line" && Absent(n["follow"])) allowed = System.Array.FindAll(allowed, key => key != "length");
+                }
+                Keys(n, allowed, path, what, (kind == "array" ? "an " : "a ") + kind);
+
+                switch (kind)
+                {
+                    case "panel":
+                        if (n["widgets"] is JArray widgets)
+                            for (int i = 0; i < widgets.Count; i++)
+                            {
+                                string type = Str(widgets[i], "type");
+                                if (type != null && ArtifactSchema.Keys.Widget.TryGetValue(type, out var widgetKeys))
+                                    Keys(widgets[i], widgetKeys, $"{path}.widgets[{i}]", $"a {type} widget");
+                            }
+                        break;
+                    case "sim":
+                        string solver = Str(n, "solver");
+                        bool known = solver != null && ArtifactSchema.Keys.Bodies.ContainsKey(solver);
+                        var bodyKeys = known ? ArtifactSchema.Keys.Bodies[solver] : Union(ArtifactSchema.Keys.Bodies.Values);
+                        EachObject(n["bodies"], path + ".bodies", bodyKeys, known ? "a " + solver + " body" : "a body");
+                        Keys(n["params"], known ? ArtifactSchema.Keys.SimParams[solver] : Union(ArtifactSchema.Keys.SimParams.Values), path + ".params", (known ? solver : "sim") + " params");
+                        break;
+                    case "array":
+                        string templateKind = Str(n["template"], "kind");
+                        if (templateKind != null && ArtifactSchema.Keys.ArrayTemplate.TryGetValue(templateKind, out var templateKeys))
+                            Keys(n["template"], templateKeys, path + ".template", $"an array's {templateKind} template");
+                        if (n["source"] is JObject source)
+                        {
+                            Keys(source, ArtifactSchema.Keys.TableSource, path + ".source", "a table source");
+                            Keys(source["grid"], ArtifactSchema.Keys.Grid, path + ".source.grid", "grid");
+                        }
+                        if (n["map"] is JObject map)
+                        {
+                            Keys(map, ArtifactSchema.Keys.Map, path + ".map", "map");
+                            foreach (var entry in map.Properties())
+                                Keys(entry.Value, ArtifactSchema.Keys.MapEntry, $"{path}.map.{entry.Name}", $"map.{entry.Name}");
+                        }
+                        break;
+                }
             }
 
             // True only for a newer major version. A missing or wrong schema is reported and the file is read as /1.
