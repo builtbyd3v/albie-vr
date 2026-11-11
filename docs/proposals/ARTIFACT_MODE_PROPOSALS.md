@@ -6,6 +6,85 @@ HostRuntime bump. Nothing here adds a node kind, a field the host reads, or a ge
 
 Later steps add their own entries below.
 
+## P-A7-1. The artifact_create guide and a shallow typed schema (C-12 section 10, tool text only)
+
+**Built** (commit "Artifacts A7"). No contract field changes and no HostRuntime bump. It is in the Artifacts module
+(`Resources/AlbieTools/artifacts.json`), but every voice session is billed for it, so the size is recorded here.
+
+- The `artifact_create` description is now a general authoring guide: units and axes, the node kinds and their
+  fields, the only four ways an artifact acts (slider binding, button to action, timeline plus animate, sim), the
+  results, and one worked example (a stopwatch, short form). It's 4,894 characters, of which the example is 930. The
+  old description was about 3,900. It's still a little over the ~4.5k target. The next thing to cut is the example's
+  second button.
+- It follows the code as built: on_input matches `input`, inputs are number or integer only, line points are
+  bindable, timeline autoplay defaults to false, and only `<node>.visible` can be set. It tells the agent to say what
+  it's building in under 8 words before calling, and which fields the tool fills.
+- The parameters now carry a shallow typed schema: enums for template, category, input type, space (volume or panel
+  only, because room is for templates), node kind, shape, solver, widget type, rule type, metric op, animate
+  property, zone event, action and run verb. It has no `additionalProperties: false`; the validator is the guarantee.
+  The manifest requires only `title`; the scene requires `space` and `nodes`.
+- Check Authoring (A7) keeps the two in sync. Each enum must equal its `ArtifactSchema` set
+  (`NodeKinds`, `Shapes`, `Solvers`, `Widgets`, `Rules`, `MetricOps`, `AnimateProperties`, `ZoneEvents`,
+  `TimelineActions`, `RunVerbs`, `BuiltInputTypes`, `Categories`, `Spaces` minus room, `ArtifactLibrary.Templates`).
+  Every property the schema names must be a key the validator takes (`ArtifactSchema.Keys`). The worked example is
+  parsed out of the description and sent through `artifact_create`, and it must save valid, with controls and
+  motion.
+- Not verified: whether grok-voice-3.0 enforces nested `enum`/`required`, and its size limit for a tool definition.
+
+## P-A6-1. `artifact_create` accepts a short form, and says what it built (C-12 section 10)
+
+**Built** (commit "Artifacts A6"). No HostRuntime bump. The files on disk are still full C-12.
+
+Proposed text for section 10's `artifact_create` row, as built:
+1. **Looser input.** `manifest` and `scene` can be JSON objects or the same objects written as JSON strings. When
+   these are absent, the tool fills them: `schema`, `id` (a slug of `title`), `version` 1, `kind` standalone,
+   `category` (sim if there's a sim node, otherwise tool), `template` null, all-null `links`,
+   `runtime {type: scene, min_runtime}`, `scene` "scene.json", `script` null, `inputs` [], `scenarios`
+   `[{id: default, seed: 0, params: {}}]`, `data` [], `assets` [], `outputs` [], and a `permissions` block that grants
+   nothing (network [], connectors [], storage artifact-local, write_project none, room none, things none). It also
+   fills `scene.schema`. It never fills `space` or generators, and never grants a permission, so a room scene
+   written with no permissions is still refused at `permissions.room`. The result lists what was filled:
+   `filled: [paths]`.
+2. `min_runtime` is computed from the HostRuntime history in `ArtifactSchema`: room_hoops 2; table arrays 3; gltf,
+   timeline and animate 4; the versions widget 5; the pendulum solver and lines `through` nodes 6. **For the Core
+   owner:** the templates don't follow this history consistently. `solar_system` (n_body) says 6, while the
+   `three_body` fixture (n_body) and `repo_city` (table array) say 1. Please confirm the history, or say what
+   `min_runtime` should mean.
+3. **Success** adds `built: {parts, controls: [{slider: input} | {button, label, does}], moving: [{node, by}]}`.
+   `by` is "timeline <id>", "sim <id>" or "slider <input>". When there are no controls, it adds
+   `say: "It has no controls: it's there to look at."`.
+4. **Refusal** adds `attempt: n`, which counts written artifacts refused in a row, reset by any success or after
+   90 s. On the third refusal, `next` says to stop, tell the person the first problem in plain words, and offer the
+   closest template or a simpler version.
+5. **Repeats collapse.** An unknown key with the same hint on many objects (such as `position` on every node) is one
+   entry, at the first path, with up to 10 more under `also`. The message says how many more places there are. Live
+   traffic light try 5 goes from 16 errors to 7 entries. `ArtifactValidator.Validate` still returns every error.
+
+## P-A5-1. A dry open before saving (C-12 section 9: open-time codes now also come from `artifact_create`)
+
+**Built** (commit "Artifacts A5"). No HostRuntime bump.
+
+- `ArtifactLibrary.FromScene` validates, refuses a template's id, runs `ArtifactNodes.Missing`, and then runs
+  `DryOpen` on an in-memory package (`ArtifactPackage.InMemory`) before writing anything. The dry open runs the
+  same reads the open does:
+  - `ArtifactData.Resolve` gives `no_data` at `data`;
+  - `ArtifactAssets.Resolve` gives `asset_missing`, `asset_not_listed`, `too_big`, `hash_mismatch` or `bad_value` at
+    `assets[i]`;
+  - `ArtifactArray.Problem` for each table array gives `unknown_ref` at `nodes[i].source`.
+  Each error has a hint, and `artifact_create` returns them with `status: invalid`. Nothing is saved.
+- **The 1,024-copies-per-scene limit** (section 9 "Limits") is enforced here. A table array counts
+  `min(rows, 256)`. A slot array counts its slot's poses: 1 for start and finish; for a list, the generator's count
+  param, at its input's max when a slider sets it, or the generator's default. Over 1,024 is `too_big` at `nodes`.
+  Proposed: section 9 should say this is checked at `artifact_create`, not by the validator, because the count
+  depends on the data.
+- Room placement (`no_free_floor`, `no_headroom`, `no_room_data`) stays an open-time error, because it depends on
+  the room.
+- Templates are unaffected (`FromTemplate` doesn't call it, and neither does open). slalom and hoop_course written
+  under new ids pass the dry open, and repo_city written under a new id still saves from the bundled sample.
+- One existing check changed with it. `RepoActivityCheck` used to save an artifact whose connector has no data
+  anywhere, and then resolve it. That save is now refused with the same `no_data` message, and the check asserts the
+  refusal.
+
 ## P-A4-1. Refuse what the host can't run (C-12 sections 2, 3, 7, 8 and 9, as built)
 
 **Built** (commit "Artifacts A4"). Each rule refuses input that the host ignored, dropped or mishandled. None of
@@ -136,4 +215,4 @@ An older host that reads a scene using either one ignores the field, without an 
 
 ## Not part of this work
 
-No edits were made to `Core/` (`AlbieVoice.cs`) or `hub/main.py` in steps A0 to A4, so there's nothing in Core to sign off yet.
+No edits were made to `Core/` (`AlbieVoice.cs`) or `hub/main.py` in steps A0 to A7, so there's nothing in Core to sign off yet.
