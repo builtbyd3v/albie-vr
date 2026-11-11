@@ -64,6 +64,8 @@ namespace Forge.Artifacts
             ArtifactLibrary.Created made;
             JObject written = null;
             List<string> filled = null;
+            List<ArtifactError> warnings = null;
+            string facts = null;
             if (args["manifest"] != null || args["scene"] != null)
             {
                 if (template != null) throw new ArgumentException("bad_value: give a template or a manifest and scene, not both");
@@ -74,11 +76,14 @@ namespace Forge.Artifacts
                 if (manifest == null || scene == null)
                     throw new ArgumentException("bad_value: a written artifact needs both manifest and scene, as JSON objects");
                 filled = Fill(ref manifest, scene);
-                made = ArtifactLibrary.FromScene(manifest, scene, out var errors);
+                made = ArtifactLibrary.FromScene(manifest, scene, out var errors, out warnings, out facts);
                 if (made == null)
                 {
                     // Returned as data, not thrown, so the agent can fix every problem in one go (C-12 section 9).
-                    return Refused(errors, filled);
+                    var refused = Refused(errors, filled);
+                    if (warnings.Count > 0) refused["checks"] = Items(warnings, ArtifactValidator.MaxReported);
+                    if (facts != null) refused["facts"] = facts;
+                    return refused;
                 }
                 written = scene;
             }
@@ -96,6 +101,13 @@ namespace Forge.Artifacts
                 result["built"] = built;
                 if (((JArray)built["controls"]).Count == 0)
                     result["say"] = "It has no controls: it's there to look at.";
+                if (facts != null) result["facts"] = facts;
+                if (warnings != null && warnings.Count > 0)
+                {
+                    result["checks"] = Items(warnings, ArtifactValidator.MaxReported);
+                    result["next"] = $"Saved, but {warnings.Count} thing{(warnings.Count == 1 ? "" : "s")} may look physically off (checks). "
+                                     + "If the person would notice, fix them and call artifact_create again with the same id; otherwise carry on.";
+                }
             }
             if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
             return result;
@@ -366,6 +378,21 @@ namespace Forge.Artifacts
             };
             if (more > 0) result["more"] = more;
             return result;
+        }
+
+        /// <summary>Errors or warnings as the tool result lists them: code, path, message, and hint when there is one.</summary>
+        static JArray Items(List<ArtifactError> list, int most)
+        {
+            var items = new JArray();
+            for (int i = 0; i < list.Count && i < most; i++)
+            {
+                var e = list[i];
+                var item = new JObject { ["code"] = e.code, ["path"] = e.path, ["message"] = e.message };
+                if (e.hint != null) item["hint"] = e.hint;
+                if (e.allowed != null) item["allowed"] = new JArray(e.allowed);
+                items.Add(item);
+            }
+            return items;
         }
 
         static string Leaf(string path)

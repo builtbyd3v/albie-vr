@@ -89,8 +89,19 @@ namespace Forge.Artifacts
         /// validator passes and this host can build every part; otherwise <paramref name="errors"/> says what to fix, as
         /// data (C-12 section 9). A project or code artifact made while a notebook is open is linked to that project.
         /// </summary>
-        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors)
+        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors) =>
+            FromScene(manifest, scene, out errors, out _, out _);
+
+        /// <summary>
+        /// As above, and then whether it makes physical sense (<see cref="ArtifactPlausibility"/>): its errors refuse the
+        /// save like any other; <paramref name="warnings"/> are saved anyway and go back to the agent; <paramref name="facts"/>
+        /// says what was measured. Only written artifacts are checked this way: templates and opens never are.
+        /// </summary>
+        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors,
+            out List<ArtifactError> warnings, out string facts)
         {
+            warnings = new List<ArtifactError>();
+            facts = null;
             errors = ArtifactValidator.Validate(manifest, scene);
             // The folder is the id, so a template's id would overwrite the copy made from that template.
             if (manifest?["id"]?.Type == JTokenType.String && Array.IndexOf(Templates, (string)manifest["id"]) >= 0)
@@ -104,6 +115,11 @@ namespace Forge.Artifacts
                 return null;
             }
             errors.AddRange(DryOpen(manifest, scene));
+            if (errors.Count > 0) return null;
+            var plausible = ArtifactPlausibility.Check(manifest, scene);
+            warnings.AddRange(plausible.Warnings);
+            facts = plausible.Facts;
+            errors.AddRange(plausible.Errors);
             if (errors.Count > 0) return null;
             manifest = (JObject)manifest.DeepClone();
             scene = (JObject)scene.DeepClone();
