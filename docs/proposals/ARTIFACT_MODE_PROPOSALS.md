@@ -427,3 +427,33 @@ with code `review_failed`) stays out until agreement with Jev has been measured 
 **Risk to review:** with the hub live, a written create's tool result now arrives up to 2.5 s after the artifact
 appears. `AlbieVoice.RunTool` already handles late results (A8: a result after a new turn still goes in, with no
 reply), but this hasn't been run live yet.
+
+## P-B-2. Physical checks after review: fewer false refusals (amends P-B-1, as built)
+
+A review wrote fresh artifacts that the validator accepts and the physical checks wrongly refused. As built now:
+
+- `parts_coincident` compares the solids, not their bounding boxes: the same shape with the same oriented corners
+  (or two equal round spheres). Two boxes crossed at +45 and -45 degrees (an X, diagonal sails, scissors) save.
+- `parts_collapsed` counts only top-level parts with no `pos` that cut through each other or are alike. Parts nested
+  one inside another (a target's rings, nested shells) share the origin by design and aren't a collapse. The hint now
+  also says: if they share that centre on purpose, write `"pos": [0, 0, 0]` on each. Residual: unplaced parts that
+  cross but are concentric on purpose (a planet with two flat rings, no pos written) are still refused, with that hint.
+- `control_invisible` sweeps a `$input` in `pos`/`rot`/`scale` only on a node that is, or holds, a measured part. A
+  slider moving a text or a line is taken on trust (as a text's height already was): the host applies it, the check
+  can't measure it.
+- A line `through` parts joins them in the contact graph (bonds and ropes don't make `part_floating`), and a primitive
+  a line is drawn through or follows is exempt from `part_too_small` (a rope's 2 mm hook, a tracer point).
+
+No new code, no runtime bump; templates, sandboxes and the saved live fixtures give the same results as before.
+
+## P-A6-2. Two tool-fill fixes (C-12 section 10, as built), and one open behaviour question
+
+- A filled `id` that slugs to a template's id is filled as `my_<slug>` ("Heart" gives `my_heart`), because `FromScene`
+  refuses a template's id. Before, the tool filled an id and then refused it on try 1.
+- The `kind` hint no longer says "use standalone; it's linked to the open project for you". `FromScene` links to the
+  open notebook project only when `kind` isn't `standalone`, and the tool fills an absent `kind` as `standalone`.
+  The hint now says to use `project` to link it.
+
+**Open for the Core owner:** since the A6 fill, an artifact written while a notebook is open is never linked unless
+the model writes `kind` itself (in 51f83ba the model's own kind decided linking). Option: fill `kind` as `project`
+when `NotebookStore.IsOpen`. Not built: it changes what gets linked to a project.
