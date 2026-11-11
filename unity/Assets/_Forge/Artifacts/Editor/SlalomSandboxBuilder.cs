@@ -17,7 +17,7 @@ using UnityEngine.Rendering.Universal;
 public static class SlalomSandboxBuilder
 {
     const string ScenePath = "Assets/_Forge/Artifacts/SlalomSandbox.unity";
-    const string HostPath = "Assets/_Forge/Artifacts/Prefabs/ArtifactHost.prefab";
+    const string HostPath = "Assets/_Forge/Artifacts/Resources/ArtifactHost.prefab";
     const string MrukPath = "Packages/com.meta.xr.mrutilitykit/Core/Tools/MRUK.prefab";
     const string Rooms = "Packages/com.meta.xr.mrutilitykit/Core/Rooms/Prefabs/";
     static readonly string[] RoomPrefabs =

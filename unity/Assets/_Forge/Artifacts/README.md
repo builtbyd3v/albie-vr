@@ -118,6 +118,7 @@ Two host fixes came out of this (`Scripts/ArtifactTrail.cs`):
 | Path | What it is |
 |---|---|
 | `Scripts/ArtifactHost.cs` | Opens, validates, asks permission, places generated scenes in the room, relayouts, and scores runs. `ArtifactHost.Current` is the host the tools use. |
+| `Scripts/ArtifactBootstrap.cs`, `Resources/ArtifactHost.prefab` | **In the app.** Any scene with a `Workspace` (Main) and no host gets one from `Resources/ArtifactHost` at load, so nobody has to edit Main.unity. That host follows the user: each open from Albie's tools brings it 0.8 m in front of the eyes at desk height. Room courses still stand where the room generator puts them. Sandboxes place their own host and are left alone. |
 | `Scripts/ArtifactRun.cs`, `Scripts/ArtifactRuns.cs` | The run engine (`albie.run/1`) and the device records. |
 | `Scripts/ArtifactThing.cs` | `IArtifactThing` probes, plus a kinematic stand-in until Person 2's Thing runtime exposes them. |
 | `Scripts/Room/` | `IFloorPlan` (free floor and ceiling height), plus the MRUK and mock rooms, the `floor_slalom` and `room_hoops` generators, layout records, spatial anchors, and `ArtifactGenerators`. |
@@ -144,7 +145,7 @@ Two host fixes came out of this (`Scripts/ArtifactTrail.cs`):
 ## For other modules
 
 ```csharp
-var host = ArtifactHost.Current;      // the ArtifactHost prefab in the scene
+var host = ArtifactHost.Current;      // the scene's host; in Main, the one ArtifactBootstrap added
 host.Open("slalom");                  // or the tool: AlbieTools.Call("artifact_create", {template: "slalom"})
 host.Thing = aThing;                  // any IArtifactThing (Person 2's runtime, or ArtifactThing)
 host.ArmRun();                        // or the tool: artifact_run

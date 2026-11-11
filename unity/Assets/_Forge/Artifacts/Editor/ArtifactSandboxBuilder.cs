@@ -8,13 +8,13 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Forge > Build Artifacts Sandbox: Artifacts/Prefabs/ArtifactHost.prefab and Artifacts/ArtifactsSandbox.unity (desktop rig,
+/// Forge > Build Artifacts Sandbox: Artifacts/Resources/ArtifactHost.prefab and Artifacts/ArtifactsSandbox.unity (desktop rig,
 /// hub off, a table for the volume to stand on). Safe to run again; it overwrites both. Keys are in ArtifactSandboxKeys.
 /// </summary>
 public static class ArtifactSandboxBuilder
 {
     const string Dir = "Assets/_Forge/Artifacts";
-    const string PrefabPath = Dir + "/Prefabs/ArtifactHost.prefab";
+    const string PrefabPath = Dir + "/Resources/ArtifactHost.prefab";
     const string ScenePath = Dir + "/ArtifactsSandbox.unity";
 
     [MenuItem("Forge/Build Artifacts Sandbox")]
@@ -105,7 +105,7 @@ public static class ArtifactSandboxBuilder
 
     static GameObject BuildPrefab()
     {
-        if (!AssetDatabase.IsValidFolder(Dir + "/Prefabs")) AssetDatabase.CreateFolder(Dir, "Prefabs");
+        if (!AssetDatabase.IsValidFolder(Dir + "/Resources")) AssetDatabase.CreateFolder(Dir, "Resources");
         var root = new GameObject("ArtifactHost");
         var host = root.AddComponent<ArtifactHost>();
         host.panelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ForgePrefabBuilder.PanelPath).GetComponent<ForgePanel>();
