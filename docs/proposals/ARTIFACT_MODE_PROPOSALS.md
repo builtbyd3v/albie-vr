@@ -6,6 +6,56 @@ HostRuntime bump. Nothing here adds a node kind, a field the host reads, or a ge
 
 Later steps add their own entries below.
 
+## P-A8-1. Voice routing for artifact creation, and two log lines (Core: `AlbieVoice.cs`, needs sign-off)
+
+**Built** in two commits of their own ("Voice A8", "Voice D1"). They are Core code, so the Core owner signs off.
+No contract field changes and no HostRuntime bump.
+
+- `ToolRules`: the old artifact sentence ("never make up positions") is now a general create rule. Any "make, build
+  or show" request goes to `artifact_create`. A template is used when one fits (slalom, hoop_course, repo_activity,
+  and the tool lists the others). Otherwise the model writes the manifest and scene itself. It picks positions inside
+  the artifact, never room positions, so it never uses space room. It says what it's building in under eight words,
+  fixes an invalid result without talking, and stops when the result says stop. `VoiceRulesCheck` still needs
+  `hoop_course` and `repo_activity` in a tool description, and they are still there.
+- `Brevity` / `BrevityNow`: the verb list now includes make, build and create. BrevityNow also says "never say you
+  can't make something before calling artifact_create".
+- Stale tool results are no longer dropped. Before, a result that finished after a new turn started (`seq !=
+  turnSeq`), or one queued when a reply was cut off (`StopSpeech`), was thrown away, so the next turn didn't know
+  an artifact had been made. Now it is still sent as `function_call_output`, with no `response.create`, and only on
+  the socket the call came from.
+- D1: `Debug.Log("[AlbieVoice] said: ...")` after `agent.answer_done`, and `call <call_id>` on the tool result line.
+- Not done, from the audit's list: the Keyterms additions (artifact, slider, button) and the optional 6-round cap
+  per turn. The cap would touch the `stt.start` case, which feat/voice-cost rewrites.
+
+**How it merges with `origin/feat/voice-cost`.** `git merge-tree --write-tree origin/feat/voice-cost HEAD`
+auto-merges `AlbieVoice.cs` with no conflict. The merged `AnswerDone` has voice-cost's `Remember("Albie: ", text)`
+and then the D1 log, and `StopSpeech` has voice-cost's `speechEnd` line before the stale-output send. The merge does
+report one conflict, in `Pet/Scripts/Voice/AlbieFollowUp.cs`, but that one comes from the GatorFollowUp to
+AlbieFollowUp rename on main. The same conflict shows up with the commit before these (1acf7dc).
+
+**Follow-up once voice-cost is in** (it can't be written before, because `Remember` exists only there). Put this in
+`RunTool`'s callback, after the Debug.Log:
+
+```csharp
+// A saved artifact's result has id and version and no status; a refusal has status "invalid".
+if (name == "artifact_create" && result["status"] == null && result["id"] != null)
+    Remember("Albie: ", $"made artifact {(string)result["id"]} v{(int?)result["version"] ?? 1}");
+```
+
+## P-D-1. Live-test harness tools (editor only, Artifacts module)
+
+No contract change. These are all in `Artifacts/Editor`, so they are never in a build.
+- `VoiceTurn.TypeTurn(text)` types a turn into the open voice session. It sends a user `input_text` item, then one
+  `response.create` with the usual BrevityNow, over AlbieVoice's own send queue. It reaches AlbieVoice by
+  reflection, so Core has no test code. `VoiceTurn.Check()` lists any member that has gone missing. The members it
+  uses (`turnSeq`, `finalSent`, `Send`, `RequestResponse`, `StopSpeech`, `Emit`, `BrevityNow`) are all still in the
+  voice-cost version, and it calls `Remember` when that exists.
+- `LiveTranscript.Start(dir)` / `Stop()` record the voice and artifact events from `ForgeNet.On`, plus the
+  `[AlbieVoice]`/`[Artifacts]` log lines, as JSONL. It refuses any folder inside the repo.
+- `ArtifactShot` (D4) collects renderers from `ArtifactHost.ContentRoot` and waits for the reveal. When nothing
+  opened, it says why.
+- Not done: playing a WAV through stt.start, OnBinary and stt.stop (optional in the plan).
+
 ## P-A7-1. The artifact_create guide and a shallow typed schema (C-12 section 10, tool text only)
 
 **Built** (commit "Artifacts A7"). No contract field changes and no HostRuntime bump. It is in the Artifacts module
@@ -215,4 +265,4 @@ An older host that reads a scene using either one ignores the field, without an 
 
 ## Not part of this work
 
-No edits were made to `Core/` (`AlbieVoice.cs`) or `hub/main.py` in steps A0 to A7, so there's nothing in Core to sign off yet.
+Steps A0 to A7 made no edits to `Core/` or `hub/main.py`. The Core edits to sign off are the two `AlbieVoice.cs` commits in P-A8-1. `hub/main.py` is untouched.
