@@ -232,7 +232,7 @@ namespace Forge.Artifacts
             return list.ToArray();
         }
 
-        static string Slug(string title)
+        internal static string Slug(string title)
         {
             if (string.IsNullOrEmpty(title)) return null;
             var sb = new System.Text.StringBuilder();
