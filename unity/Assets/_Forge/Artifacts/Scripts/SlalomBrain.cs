@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace Forge.Artifacts
 {
     /// <summary>
-    /// SlalomSandbox only: the demo's brain beat end to end on a room slalom (PROJECT_CONTEXT 15.6 step 8, 16.8 "room
+    /// SlalomSandbox (key B) and the app (<see cref="ArtifactBootstrap.EnsureBrain"/>): the demo's brain beat end to end on a room slalom (PROJECT_CONTEXT 15.6 step 8, 16.8 "room
     /// slalom, in the app"). Every piece is the real one except the truck's body:
     /// - the truck is ML A's physics example (<see cref="ExampleTruckBody"/>: a ray fan on the cones' colliders, a crash
     ///   when it touches one) with a <see cref="ControllerThing"/>, standing in for Person 2's Thing runtime;
@@ -49,6 +49,10 @@ namespace Forge.Artifacts
         /// <summary>Checks only: <see cref="Record"/>'s laps are driven by the scripted driver, not by hand. No tool
         /// sets it, so "drive it yourself" by voice is always the person's own laps.</summary>
         public bool ScriptedLaps;
+        /// <summary>The sandbox's key hints ("(2)", "L", "T", "P", "WASD") in <see cref="Status"/>. Off in the app, where
+        /// there are no such keys and Albie reads the status aloud (<c>brain_status</c>).</summary>
+        public bool KeyHints = true;
+        string Hint(string text) => KeyHints ? text : "";
         public int CompletedLaps => Thing != null ? Thing.Recorder.Set.CompletedLaps : 0;
         public BehaviourCloner[] Cloners => cloners;
         public Autopilot Autopilot => autopilot;
@@ -75,7 +79,7 @@ namespace Forge.Artifacts
         Vector2 lastStick;
 
         /// <summary>Makes the brain truck and binds it to <paramref name="host"/>'s runs.</summary>
-        public static SlalomBrain Spawn(ArtifactHost host)
+        public static SlalomBrain Spawn(ArtifactHost host, bool keyHints = true)
         {
             var go = new GameObject("Brain truck");
             go.SetActive(false);  // so ControllerThing's Awake sees the fields set below
@@ -104,6 +108,8 @@ namespace Forge.Artifacts
             go.SetActive(true);
             if (brain.manual != null) brain.Thing.Host.Attach(brain.manual);
             host.Thing = brain.Scored;
+            brain.KeyHints = keyHints;
+            if (!keyHints) brain.Status = "brain truck at the start: ready for a lap driven by hand";
             brain.PlaceAtStart();
             brain.Park();
             return brain;
@@ -175,7 +181,8 @@ namespace Forge.Artifacts
             lastKeyForward = lastKeyLeft = 0f;
             lastStick = Vector2.zero;
             State = Mode.Lap;
-            Status = driver != null ? "scripted lap: recording" : "lap: drive through the gates with WASD or the thumbstick (recording)";
+            Status = driver != null ? "scripted lap: recording"
+                : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)" : "lap: drive through the gates (recording)";
             return null;
         }
 
@@ -187,7 +194,7 @@ namespace Forge.Artifacts
             ManualInputs.Clear();
             Park();
             Status = $"lap {outcome} in {lap.Seconds:0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
-                     (CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
+                     Hint(CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
             if (lapTarget <= 0) return;
             string said = Status;
             if (CompletedLaps < lapTarget)
@@ -234,7 +241,7 @@ namespace Forge.Artifacts
             foreach (var c in cloners) list.Add(c.TrainingBlock());
             block["candidates"] = list;
             TrainingLog.Report("truck_autopilot", 1, block);
-            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute). P: Autopilot";
+            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + Hint(". P: Autopilot");
             if (!chainAutopilot) return;
             chainAutopilot = false;
             StartAutopilot();
@@ -246,7 +253,7 @@ namespace Forge.Artifacts
         public string StartAutopilot()
         {
             if (State != Mode.Idle) return Status = "busy: " + State.ToString().ToLowerInvariant();
-            if (cloners == null) return Status = "train first (T)";
+            if (cloners == null) return Status = "train first" + Hint(" (T)");
             var files = new System.Collections.Generic.List<ControllerFile>();
             for (int i = 0; i < cloners.Length; i++)
             {
@@ -329,7 +336,7 @@ namespace Forge.Artifacts
 
         string Arm()
         {
-            if (host == null || host.Run == null) return "open the slalom first (2)";
+            if (host == null || host.Run == null) return "open the slalom first" + Hint(" (2)");
             host.Thing = Scored;
             var file = Thing.Host.File;
             if (file != null) { Scored.ControllerName = file.Name; Scored.ControllerKind = file.Kind; Scored.ControllerVersion = file.Version; }

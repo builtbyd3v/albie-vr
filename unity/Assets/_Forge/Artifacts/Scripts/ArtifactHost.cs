@@ -74,6 +74,10 @@ namespace Forge.Artifacts
         /// </summary>
         public bool FollowsUser;
 
+        /// <summary>A scene was built: after an open (and its permissions sheet) or a relayout. <see cref="Run"/>,
+        /// <see cref="SceneOrigin"/> and <see cref="OpenManifest"/> are the new scene's.</summary>
+        public event System.Action<ArtifactHost> Shown;
+
         /// <summary>
         /// Stands the host in front of the camera at desk height, turned to face the same way: 0.8 m ahead, 0.2 m left
         /// (its panel opens 0.5 m to the right) and 0.5 m below the eyes, as the sandbox's table is. Level, whatever the
@@ -393,6 +397,7 @@ namespace Forge.Artifacts
             inputs.Changed += OnInputChanged;
             BindRun();
             reveal = StartCoroutine(Reveal(root, scale));
+            Shown?.Invoke(this);
         }
 
         // C-12 section 7: sample rows always carry a "Sample data" label, floating just above everything else in the scene.
