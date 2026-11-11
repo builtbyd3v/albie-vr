@@ -18,7 +18,7 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4", "C2" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
@@ -61,6 +61,7 @@ public static class AuthoringCheck
                 ToolErgonomics();
                 Guide();
                 Plausible();
+                Reviewed();
             }
             finally
             {
@@ -1184,6 +1185,90 @@ public static class AuthoringCheck
         times.Sort();
         if (times.Count > 0)
             notes.Add($"physical checks took {times[times.Count / 2]:0.0} ms median, {times[times.Count - 1]:0.0} ms worst over {times.Count} scenes (editor, not Quest)");
+    }
+
+    // ---------- C2: the hub's review is advisory: skipped here, never blocks, never drops the result ----------
+
+    static void Reviewed()
+    {
+        Gate("C2", $"in edit mode no review is asked for ({ArtifactTools.NoReview()})", ArtifactTools.NoReview() == "edit_mode");
+
+        InScratch("authoring_check_review", () =>
+        {
+            ArtifactTools.ResetAttempts();
+            string Async(JObject args, out int calls)
+            {
+                int n = 0;
+                JObject got = null;
+                ArtifactTools.CreateAsync(args, r => { n++; got = r; });
+                calls = n;
+                return got?.ToString(Newtonsoft.Json.Formatting.None);
+            }
+
+            // A written artifact: saved, answered at once and exactly once, with no review and nothing pending.
+            var (m, s) = Copy("arch_fan");
+            m["id"] = "review_sync";
+            var sync = ArtifactTools.Create(new JObject { ["manifest"] = m.DeepClone(), ["scene"] = s.DeepClone(), ["open"] = false });
+            m["id"] = "review_async";
+            string text = Async(new JObject { ["manifest"] = m, ["scene"] = s, ["open"] = false, ["request"] = "a desk fan" }, out int calls);
+            var r = text != null ? JObject.Parse(text) : null;
+            Gate("C2", $"a written create answers at once, once, unreviewed ({calls} calls, {ArtifactTools.LastReview}: {text})",
+                calls == 1 && r != null && r["review"] == null && r["pending"] == null && r["error"] == null && r["status"] == null
+                && ArtifactTools.LastReview == "edit_mode" && Saved("review_async"));
+            if (r != null)
+            {
+                var want = new List<string>();
+                foreach (var prop in sync.Properties()) want.Add(prop.Name);
+                var have = new List<string>();
+                foreach (var prop in r.Properties()) have.Add(prop.Name);
+                Gate("C2", $"its result has the same fields as the plain create ({string.Join(",", have)} vs {string.Join(",", want)})",
+                    string.Join(",", have) == string.Join(",", want));
+            }
+
+            // A refusal and a template answer at once with no review body.
+            var (bm, bs) = Copy("saved_seesaw");
+            text = Async(new JObject { ["manifest"] = bm, ["scene"] = bs, ["open"] = false }, out calls);
+            Gate("C2", $"a refused create answers at once with no review ({calls}, {ArtifactTools.LastReview})",
+                calls == 1 && text != null && text.Contains("\"invalid\"") && !text.Contains("\"review\"") && ArtifactTools.LastReview == "template_or_refused");
+            ArtifactTools.Create(new JObject { ["manifest"] = Copy("saved_seesaw").manifest, ["scene"] = Copy("saved_seesaw").scene, ["open"] = false }, out var none);
+            Gate("C2", "a refusal makes no review body", none == null);
+            ArtifactTools.ResetAttempts();
+            text = Async(new JObject { ["template"] = "double_pendulum", ["open"] = false }, out calls);
+            Gate("C2", $"a template create answers at once with no review ({calls}, {ArtifactTools.LastReview}: {text})",
+                calls == 1 && text != null && !text.Contains("\"review\"") && !text.Contains("\"error\"") && ArtifactTools.LastReview == "template_or_refused");
+
+            // The body the hub gets: the person's words (cut to the hub's 500), the saved manifest and scene, the facts.
+            (m, s) = Copy("arch_fan");
+            m["id"] = "review_body";
+            ArtifactTools.Create(new JObject { ["manifest"] = m, ["scene"] = s, ["open"] = false, ["request"] = "  " + new string('w', 600) }, out var body);
+            Gate("C2", $"the review body has request, manifest, scene and facts ({body?.ToString(Newtonsoft.Json.Formatting.None).Length ?? 0} chars)",
+                body != null && ((string)body["request"]).Length == ArtifactTools.ReviewRequestMax && body["manifest"]?["title"] != null
+                && body["scene"]?["nodes"] is JArray && ((string)body["facts"]).Length > 0 && ((string)body["facts"]).Length <= ArtifactTools.ReviewFactsMax);
+            ArtifactTools.Create(new JObject { ["manifest"] = Copy("arch_fan").manifest, ["scene"] = Copy("arch_fan").scene, ["open"] = false, ["request"] = 5 }, out body);
+            Gate("C2", "a request that isn't text is sent as empty", body != null && (string)body["request"] == "");
+            ArtifactTools.ResetAttempts();
+        });
+
+        // What the hub can answer. Only status ok with verdicts becomes result.review; everything else is "not reviewed".
+        void NotReviewed(string answer, string expectWhy)
+        {
+            var review = ArtifactTools.Review(answer, out string why);
+            Gate("C2", $"hub answer {answer} is not a review ({why})", review == null && why == expectWhy);
+        }
+        NotReviewed("{}", "empty");
+        NotReviewed("", "empty");
+        NotReviewed("not json", "bad_response");
+        NotReviewed("{\"status\":\"skipped\",\"reason\":\"no_key\",\"verdicts\":[]}", "skipped:no_key");
+        NotReviewed("{\"status\":\"error\",\"reason\":\"timeout\",\"elapsed_ms\":2201}", "error:timeout");
+        NotReviewed("{\"status\":\"ok\",\"verdicts\":[]}", "no_verdicts");
+
+        var good = ArtifactTools.Review("{\"status\":\"ok\",\"model\":\"jev\",\"verdicts\":[{\"question\":\"parts_supported\",\"choice\":\"supported\",\"confidence\":0.912,\"probabilities\":{},\"ok\":true}],\"elapsed_ms\":420}", out string goodWhy);
+        Gate("C2", $"all-ok verdicts become a review with nothing flagged ({goodWhy}: {good?.ToString(Newtonsoft.Json.Formatting.None)})",
+            goodWhy == "reviewed" && good != null && good["flagged"] == null && (double)good["verdicts"][0]["confidence"] == 0.91 && good["verdicts"][0]["probabilities"] == null);
+        var bad = ArtifactTools.Review("{\"status\":\"ok\",\"verdicts\":[{\"question\":\"matches_request\",\"choice\":\"missing_parts\",\"confidence\":0.8,\"ok\":false},{\"question\":\"space_fits\",\"choice\":\"volume\",\"confidence\":0.7,\"ok\":true},\"junk\"]}", out string badWhy);
+        Gate("C2", $"a named problem is flagged, advisory, and says how to fix it ({badWhy}: {bad?.ToString(Newtonsoft.Json.Formatting.None)})",
+            badWhy == "reviewed" && bad != null && ((JArray)bad["verdicts"]).Count == 2 && bad["flagged"] is JArray f && f.Count == 1 && (string)f[0] == "matches_request"
+            && ((string)bad["note"]).Contains("Advisory") && ((string)bad["note"]).Contains("same id"));
     }
 }
 
