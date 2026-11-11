@@ -47,6 +47,7 @@ The template needs host runtime 2 (`ArtifactSchema.HostRuntime`), because adding
 - **P** runs the Autopilot: each candidate, then the pretrained fallback, gets a scored run until one completes.
 - A touch on a cone or a wall aborts the run, and the truck parks after each run.
 - The mock rooms' walls and furniture have colliders, so the truck's rays see them. **Forge > Artifacts > Check Brain Loop (Play)** runs every mock room through the whole loop in Play mode, with storage in a scratch folder.
+- **In the app (Main), with no keys:** when a truck slalom is built (after the Allow tap, or a relayout), `ArtifactBootstrap.EnsureBrain` puts the brain truck at its start. The truck is then the active brain loop, so `brain_record {start: true, laps: 2, then_autopilot: true}` and ML B's brain panel drive it. Laps are driven with the Touch thumbstick or the hands transmitter. The truck's sensors see the cones and Main's EffectMesh colliders (walls, tables, couches, storage, beds). Its status has no sandbox key hints, because Albie reads it aloud. Opening any other artifact lets go of the truck.
 
 **Scoring a body that moves in physics.** These apply to any Thing, not just the truck:
 - A run counts a hit (`hit_count`) when the Thing comes within its radius of the collider's surface (`ClosestPoint`). It used to use the collider's bounds grown by the radius, which counted a clean weave 0.12 m off every cone as 4 hits.
