@@ -17,6 +17,9 @@ nothing here ships in a build. Each `.json` file is `{ "manifest": ..., "scene":
 - `plaus_*.json`: inputs for the physical checks (`ArtifactPlausibility`, plan B1 to B4). Each one is valid C-12, so
   `FromScene` reaches those checks, and carries its own `note` and `expect` (`errors` and `warnings`: "code" or
   "code@path"; an empty list means none). `plaus_seesaw_ok`, `plaus_seesaw_gap` and `plaus_windmill_bad` are ports of the
-  audit prototype's fixtures; the others are one-problem mutations of the archetypes.
+  audit prototype's fixtures; the others are one-problem mutations of the archetypes. `plaus_xsign_ok`, `plaus_target_ok`,
+  `plaus_textslide_ok`, `plaus_swing_ok` and `plaus_molecule_ok` are designs a review found wrongly refused (an X of
+  two crossed boxes, concentric rings with no pos, a slider that moves a text, a rope from a 2 mm hook, parts joined
+  only by line bonds): they must pass. `plaus_pile_collapsed` is the real collapse they are told apart from.
 
 The expected error codes and paths for each fixture live in the check, so that a rule change shows up as a diff there.
