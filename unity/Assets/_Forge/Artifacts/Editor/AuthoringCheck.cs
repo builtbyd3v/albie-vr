@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Forge.Artifacts;
 using Newtonsoft.Json.Linq;
@@ -17,7 +18,7 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
@@ -51,6 +52,19 @@ public static class AuthoringCheck
             LiveFixtures();
             Mutations();
             Hints();
+            var provider = ArtifactData.Provider;
+            ArtifactData.Provider = null;  // no live connector: what this headset has bundled is what the checks see
+            try
+            {
+                DryOpen();
+                ToolErgonomics();
+                Guide();
+            }
+            finally
+            {
+                ArtifactData.Provider = provider;
+                ArtifactTools.ResetAttempts();
+            }
         }
         catch (Exception e)
         {
@@ -705,5 +719,301 @@ public static class AuthoringCheck
             ArtifactLibrary.RootOverride = before;
             if (Directory.Exists(root)) Directory.Delete(root, true);
         }
+    }
+
+    // ---------- scratch library ----------
+
+    static void InScratch(string name, Action body)
+    {
+        string root = Path.Combine(Application.temporaryCachePath, name);
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        string before = ArtifactLibrary.RootOverride;
+        ArtifactLibrary.RootOverride = root;
+        try { body(); }
+        finally
+        {
+            ArtifactLibrary.RootOverride = before;
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
+    static bool Saved(string id) => File.Exists(Path.Combine(ArtifactLibrary.Folder(id), "manifest.json"));
+
+    static JObject SavedManifest(string id) => JObject.Parse(File.ReadAllText(Path.Combine(ArtifactLibrary.Folder(id), "manifest.json")));
+
+    static (JObject manifest, JObject scene) Copy(string fixture)
+    {
+        var (m, s) = fixture.StartsWith("template:") ? Template(fixture.Substring(9)) : Load(fixture);
+        return ((JObject)m.DeepClone(), (JObject)s.DeepClone());
+    }
+
+    static JObject Create(JObject manifest, JToken scene) =>
+        ArtifactTools.Create(new JObject { ["manifest"] = manifest, ["scene"] = scene, ["open"] = false });
+
+    static List<ArtifactError> Errors(JObject result)
+    {
+        var list = new List<ArtifactError>();
+        if (result["errors"] is JArray errors)
+            foreach (var e in errors) list.Add(new ArtifactError((string)e["code"], (string)e["path"], (string)e["message"]));
+        return list;
+    }
+
+    // ---------- A5: what the open would refuse is refused before saving ----------
+
+    static void DryOpen()
+    {
+        InScratch("authoring_check_dry", () =>
+        {
+            // A connector nothing on this headset can answer: no_data, and nothing written.
+            var (m, s) = Copy("arch_lever");
+            m["id"] = "needs_issues";
+            m["data"] = new JArray(new JObject { ["name"] = "issues", ["source"] = "connector:issues/list_issues" });
+            m["permissions"]["connectors"] = new JArray("issues:read");
+            var made = ArtifactLibrary.FromScene(m, s, out var errors);
+            Gate("A5", $"a connector with no data on this headset is refused before saving ({Show(errors)})", made == null && Has(errors, "no_data", "data"));
+            Gate("A5", "the artifact with no data wasn't saved", !Saved("needs_issues"));
+
+            // A model that isn't bundled: the agent can't send .glb bytes, so it would never open.
+            (m, s) = Copy("arch_lever");
+            m["id"] = "unbundled_model";
+            m["assets"] = new JArray(new JObject { ["path"] = "assets/rocket.glb", ["sha256"] = new string('a', 64), ["license"] = "own" });
+            Nodes(s).Add(new JObject { ["id"] = "model", ["kind"] = "gltf", ["asset"] = "assets/rocket.glb", ["pos"] = new JArray(0, 0.1, 0) });
+            made = ArtifactLibrary.FromScene(m, s, out errors);
+            Gate("A5", $"an unbundled .glb is refused before saving ({Show(errors)})", made == null && Has(errors, "asset_missing", "assets[0]"));
+            Gate("A5", "the artifact with an unbundled model wasn't saved", !Saved("unbundled_model"));
+
+            // A table array mapping a column the table doesn't have: refused at that node.
+            var city = ArtifactPackage.Load("repo_city", out _);
+            m = (JObject)city.Manifest.DeepClone();
+            s = (JObject)city.Scene.DeepClone();
+            m["id"] = "city_typo";
+            Node(s, "city")["map"]["height"]["column"] = "lines_chnaged";
+            made = ArtifactLibrary.FromScene(m, s, out errors);
+            Gate("A5", $"a table array naming a missing column is refused before saving ({Show(errors)})", made == null && Has(errors, "unknown_ref", P(s, "city", "source")));
+
+            // The same city with its real columns still saves (the bundled sample answers its source).
+            m["id"] = "city_ok";
+            made = ArtifactLibrary.FromScene(m, (JObject)city.Scene.DeepClone(), out errors);
+            Gate("A5", $"repo_city written under a new id still saves ({Show(errors)})", made != null && Saved("city_ok"));
+
+            // The room templates written under new ids pass the dry open: placement is left to the open.
+            foreach (string t in new[] { "slalom", "hoop_course" })
+            {
+                (m, s) = Copy("template:" + t);
+                m["id"] = "my_" + t;
+                m["template"] = JValue.CreateNull();
+                made = ArtifactLibrary.FromScene(m, s, out errors);
+                Gate("A5", $"{t} written under a new id passes the dry open ({Show(errors)})", made != null);
+            }
+
+            // 1,024 copies a scene: a slider that can ask for 600 gates makes 1,200 cones and gates.
+            (m, s) = Copy("template:slalom");
+            m["id"] = "huge_slalom";
+            m["template"] = JValue.CreateNull();
+            foreach (JObject input in (JArray)m["inputs"]) if ((string)input["name"] == "gates") input["max"] = 600;
+            var direct = ArtifactValidator.Validate(m, s);
+            made = ArtifactLibrary.FromScene(m, s, out errors);
+            Gate("A5", $"a scene whose arrays can make over 1,024 copies is refused before saving (validator alone: {Show(direct)}; FromScene: {Show(errors)})",
+                direct.Count == 0 && made == null && Has(errors, "too_big", "nodes"));
+        });
+    }
+
+    // ---------- A6: the tool fills boilerplate, takes strings, counts tries, says what it built ----------
+
+    static void ToolErgonomics()
+    {
+        InScratch("authoring_check_tool6", () =>
+        {
+            ArtifactTools.ResetAttempts();
+
+            // Short form: a title and a scene with no schema. Everything else is filled, and the saved files are full C-12.
+            var (_, s) = Copy("arch_stopwatch");
+            s.Remove("schema");
+            var r = Create(new JObject { ["title"] = "Desk Clock" }, s);
+            var filled = r["filled"] as JArray;
+            var wantFilled = new[] { "schema", "id", "version", "kind", "category", "template", "links", "runtime", "scene", "script", "inputs", "scenarios", "data", "assets", "permissions", "outputs", "scene.schema" };
+            bool allFilled = filled != null && Array.TrueForAll(wantFilled, f => filled.ToString().Contains("\"" + f + "\""));
+            Gate("A6", $"the short form saves, with the id from the title ({r.ToString(Newtonsoft.Json.Formatting.None)})", r["status"] == null && (string)r["id"] == "desk_clock");
+            Gate("A6", $"the result lists what was filled ({filled?.ToString(Newtonsoft.Json.Formatting.None)})", allFilled);
+            if (Saved("desk_clock"))
+            {
+                var saved = SavedManifest("desk_clock");
+                var package = ArtifactPackage.Load("desk_clock", out string why);
+                var again = package != null ? ArtifactValidator.Validate(package.Manifest, package.Scene) : null;
+                Gate("A6", $"the saved short form loads and is valid as it stands ({why ?? (again != null ? Show(again) : "")})", again != null && again.Count == 0);
+                Gate("A6", $"filled permissions ask for nothing ({saved["permissions"]?.ToString(Newtonsoft.Json.Formatting.None)})",
+                    ArtifactApprovals.Lines(saved).Count == 0 && (string)saved["permissions"]["room"] == "none");
+                Gate("A6", $"min_runtime is the lowest host that builds it (timeline and animate: 4, got {saved["runtime"]?["min_runtime"]})", (int?)saved["runtime"]?["min_runtime"] == 4);
+                Gate("A6", $"the category is tool with no sim node ({saved["category"]})", (string)saved["category"] == "tool");
+            }
+
+            // Space, generators and permissions are never filled or granted: a room scene with no permissions is refused.
+            var (_, room) = Copy("template:slalom");
+            r = Create(new JObject { ["title"] = "Floor course" }, room);
+            Gate("A6", $"a room scene gets no room permission from the fill ({Show(Errors(r))})", (string)r["status"] == "invalid" && Has(Errors(r), "permission_missing", "permissions.room"));
+            var (_, nospace) = Copy("arch_lever");
+            nospace.Remove("space");
+            r = Create(new JObject { ["title"] = "No space" }, nospace);
+            Gate("A6", $"a scene with no space is refused, not filled ({Show(Errors(r))})", (string)r["status"] == "invalid" && Has(Errors(r), "bad_value", "scene.space"));
+
+            // Manifest and scene sent as JSON strings are read as objects; a string that isn't JSON is an error at its path.
+            var (m, lever) = Copy("arch_lever");
+            m["id"] = "string_lever";
+            r = ArtifactTools.Create(new JObject { ["manifest"] = m.ToString(), ["scene"] = lever.ToString(), ["open"] = false });
+            Gate("A6", $"manifest and scene as JSON strings are saved ({r.ToString(Newtonsoft.Json.Formatting.None)})", r["status"] == null && Saved("string_lever"));
+            r = ArtifactTools.Create(new JObject { ["manifest"] = "{\"title\": \"Lever\",", ["scene"] = lever, ["open"] = false });
+            Gate("A6", $"a manifest string that isn't JSON is refused at manifest ({Show(Errors(r))})", (string)r["status"] == "invalid" && Has(Errors(r), "bad_value", "manifest"));
+
+            // What it built: the parts, every control and what it does, and what moves.
+            ArtifactTools.ResetAttempts();
+            var (fm, fs) = Copy("arch_fan");
+            r = Create(fm, fs);
+            var built = r["built"] as JObject;
+            string b = built?.ToString(Newtonsoft.Json.Formatting.None) ?? "none";
+            Gate("A6", $"built names the fan's slider and buttons ({b})",
+                b.Contains("{\"slider\":\"speed\"}") && b.Contains("\"button\":\"start\"") && b.Contains("play rotor_a"));
+            Gate("A6", $"built says the fan's tips move by their sims ({b})", b.Contains("{\"node\":\"tip_a\",\"by\":\"sim rotor_a\"}"));
+            Gate("A6", "an artifact with controls gets no 'no controls' line", r["say"] == null);
+            (m, lever) = Copy("arch_lever");
+            m["id"] = "built_lever";
+            r = Create(m, lever);
+            b = r["built"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "none";
+            Gate("A6", $"built says the lever's beam moves by its slider ({b})", b.Contains("{\"node\":\"beam\",\"by\":\"slider tilt\"}"));
+            (m, s) = Copy("arch_stopwatch");
+            m["id"] = "no_controls";
+            var nodes = Nodes(s);
+            nodes.RemoveAt(Index(s, "controls"));
+            var rules = Rules(s);
+            for (int i = rules.Count - 1; i >= 0; i--) if ((string)rules[i]["type"] == "on_input") rules.RemoveAt(i);
+            Node(s, "clock")["autoplay"] = true;
+            r = Create(m, s);
+            Gate("A6", $"an artifact with no controls says so ({r.ToString(Newtonsoft.Json.Formatting.None)})",
+                r["status"] == null && r["say"] != null && ((JArray)r["built"]["controls"]).Count == 0);
+
+            // Tries: the third refusal in a row says stop; a success starts the count again.
+            ArtifactTools.ResetAttempts();
+            JObject last = null;
+            var attempts = new List<int>();
+            for (int i = 0; i < 3; i++)
+            {
+                (m, lever) = Copy("arch_lever");
+                m["id"] = "broken_lever";
+                Node(lever, "pin")["kind"] = "cube";
+                last = Create(m, lever);
+                attempts.Add((int?)last["attempt"] ?? -1);
+            }
+            Gate("A6", $"refusals count 1, 2, 3 (got {string.Join(", ", attempts)})", attempts.Count == 3 && attempts[0] == 1 && attempts[1] == 2 && attempts[2] == 3);
+            Gate("A6", $"the third refusal says stop and offers a template ({last?["next"]})",
+                last?["next"] != null && ((string)last["next"]).Contains("Stop") && ((string)last["next"]).Contains("template"));
+            (m, lever) = Copy("arch_lever");
+            m["id"] = "fixed_lever";
+            r = Create(m, lever);
+            Gate("A6", $"a success starts the count again (attempts now {ArtifactTools.Attempts})", r["status"] == null && ArtifactTools.Attempts == 0);
+
+            // One slip on every node is one entry, so it doesn't crowd out the other problems.
+            ArtifactTools.ResetAttempts();
+            var (tm, ts) = Copy("live_traffic_light_5");
+            int raw = ArtifactValidator.Validate(tm, ts).Count;
+            r = Create(tm, ts);
+            var listed = r["errors"] as JArray ?? new JArray();
+            JToken position = null;
+            int positions = 0;
+            foreach (var e in listed)
+                if ((string)e["code"] == "unknown_field" && ((string)e["path"]).EndsWith(".position")) { positions++; position = e; }
+            Gate("A6", $"position on every node is one entry with the other paths under also ({positions} entries; {position?.ToString(Newtonsoft.Json.Formatting.None)}; {raw} raw errors, {listed.Count} listed)",
+                positions == 1 && position["also"] is JArray also && also.Count == Nodes(ts).Count - 1);
+            ArtifactTools.ResetAttempts();
+        });
+    }
+
+    // ---------- A7: the authoring guide and its schema stay true to the validator ----------
+
+    static readonly string[] NoRoom = { "room" };
+
+    static void Same(string what, JToken listed, IEnumerable<string> real, params string[] except)
+    {
+        var want = new SortedSet<string>(real, StringComparer.Ordinal);
+        foreach (var x in except) want.Remove(x);
+        var got = new SortedSet<string>(StringComparer.Ordinal);
+        if (listed is JArray a) foreach (var v in a) got.Add((string)v);
+        Gate("A7", $"the schema's {what} match the validator's ([{string.Join(", ", got)}] vs [{string.Join(", ", want)}])", got.SetEquals(want));
+    }
+
+    static void Within(string what, JToken properties, IEnumerable<string> allowed)
+    {
+        var ok = new HashSet<string>(allowed);
+        var extra = new List<string>();
+        if (properties is JObject o) foreach (var p in o.Properties()) if (!ok.Contains(p.Name)) extra.Add(p.Name);
+        Gate("A7", $"the schema's {what} are all fields the validator takes{(extra.Count > 0 ? " (not: " + string.Join(", ", extra) + ")" : "")}", properties is JObject && extra.Count == 0);
+    }
+
+    static IEnumerable<string> All(IEnumerable<string[]> tables)
+    {
+        foreach (var t in tables) foreach (var k in t) yield return k;
+    }
+
+    static void Guide()
+    {
+        var file = Resources.Load<TextAsset>("AlbieTools/artifacts");
+        JObject tool = null;
+        foreach (JObject t in JArray.Parse(file.text)) if ((string)t["name"] == "artifact_create") tool = t;
+        Gate("A7", "artifacts.json has artifact_create", tool != null);
+        if (tool == null) return;
+        string guide = (string)tool["description"];
+        Gate("A7", $"the guide is about 4.5k characters ({guide.Length})", guide.Length >= 3500 && guide.Length <= 5200);
+
+        var p = tool["parameters"]["properties"];
+        var manifest = p["manifest"]["properties"];
+        var scene = p["scene"]["properties"];
+        var node = scene["nodes"]["items"]["properties"];
+        var widget = node["widgets"]["items"]["properties"];
+        var rule = scene["rules"]["items"]["properties"];
+        var action = rule["do"]["items"]["properties"];
+        Same("templates", p["template"]["enum"], ArtifactLibrary.Templates);
+        Same("categories", manifest["category"]["enum"], ArtifactSchema.Categories);
+        Same("input types", manifest["inputs"]["items"]["properties"]["type"]["enum"], ArtifactSchema.BuiltInputTypes);
+        Same("spaces (room is for templates only)", scene["space"]["enum"], ArtifactSchema.Spaces, NoRoom);
+        Same("node kinds", node["kind"]["enum"], ArtifactSchema.NodeKinds);
+        Same("shapes", node["shape"]["enum"], ArtifactSchema.Shapes);
+        Same("solvers", node["solver"]["enum"], ArtifactSchema.Solvers.Keys);
+        Same("widgets", widget["type"]["enum"], ArtifactSchema.Widgets);
+        Same("rules", rule["type"]["enum"], ArtifactSchema.Rules);
+        Same("metric ops", rule["op"]["enum"], ArtifactSchema.MetricOps);
+        Same("animate properties", rule["property"]["enum"], ArtifactSchema.AnimateProperties.Keys);
+        Same("zone events", rule["event"]["enum"], ArtifactSchema.ZoneEvents);
+        Same("timeline and sim actions", action["action"]["enum"], ArtifactSchema.TimelineActions);
+        Same("run verbs", action["run"]["enum"], ArtifactSchema.RunVerbs);
+        Within("manifest fields", manifest, ArtifactSchema.Keys.Manifest);
+        Within("input fields", manifest["inputs"]["items"]["properties"], ArtifactSchema.Keys.Input);
+        Within("scene fields", scene, ArtifactSchema.Keys.Scene);
+        Within("node fields", node, All(new[] { ArtifactSchema.Keys.NodeCommon }).Concat(All(ArtifactSchema.Keys.NodeOwn.Values)).Concat(All(ArtifactSchema.Keys.NodeOnly.Values)));
+        Within("widget fields", widget, All(ArtifactSchema.Keys.Widget.Values));
+        Within("rule fields", rule, All(ArtifactSchema.Keys.Rule.Values).Concat(All(ArtifactSchema.Keys.MetricOp.Values)));
+        Within("action fields", action, ArtifactSchema.Keys.Action);
+
+        // The worked example is sent as the guide shows it (short form) and must save, valid, with controls.
+        int at = guide.IndexOf("EXAMPLE ", StringComparison.Ordinal);
+        JObject example = null;
+        if (at >= 0)
+            try
+            {
+                using (var reader = new Newtonsoft.Json.JsonTextReader(new StringReader(guide.Substring(at + 8))))
+                    example = JObject.Load(reader);
+            }
+            catch (Newtonsoft.Json.JsonException e) { failures.Add("(A7) the guide's example isn't JSON: " + e.Message); }
+        Gate("A7", "the guide has a worked example with manifest and scene", example?["manifest"] is JObject && example["scene"] is JObject);
+        if (!(example?["manifest"] is JObject)) return;
+        InScratch("authoring_check_guide", () =>
+        {
+            ArtifactTools.ResetAttempts();
+            var r = Create((JObject)example["manifest"], example["scene"]);
+            Gate("A7", $"the guide's example saves as written ({Show(Errors(r))})", r["status"] == null && r["id"] != null);
+            if (r["status"] != null) return;
+            var package = ArtifactPackage.Load((string)r["id"], out string why);
+            var errors = package != null ? ArtifactValidator.Validate(package.Manifest, package.Scene) : new List<ArtifactError>();
+            Gate("A7", $"the saved example is valid and buildable ({why ?? Show(errors)})", package != null && errors.Count == 0 && ArtifactNodes.Missing(package.Scene).Count == 0);
+            Gate("A7", $"the example has controls and motion ({r["built"]?.ToString(Newtonsoft.Json.Formatting.None)})",
+                ((JArray)r["built"]["controls"]).Count > 0 && ((JArray)r["built"]["moving"]).Count > 0);
+        });
     }
 }
