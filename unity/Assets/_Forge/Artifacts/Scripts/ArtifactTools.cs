@@ -52,13 +52,7 @@ namespace Forge.Artifacts
                 if (made == null)
                 {
                     // Returned as data, not thrown, so the agent can fix every problem in one go (C-12 section 9).
-                    var list = new JArray();
-                    foreach (var e in errors) list.Add(new JObject { ["code"] = e.code, ["path"] = e.path, ["message"] = e.message });
-                    return new JObject
-                    {
-                        ["status"] = "invalid", ["errors"] = list,
-                        ["next"] = "Nothing was saved. Fix these and call artifact_create again with the whole manifest and scene.",
-                    };
+                    return Invalid(errors);
                 }
             }
             else
@@ -68,6 +62,32 @@ namespace Forge.Artifacts
             }
             var result = new JObject { ["id"] = made.Id, ["version"] = made.Version, ["change"] = made.Change };
             if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
+            return result;
+        }
+
+        /// <summary>
+        /// A refusal as data: the first <see cref="ArtifactValidator.MaxReported"/> errors (structural first, as the
+        /// validator sorts them), each with its hint and allowed values when it has them, and a count of the rest.
+        /// </summary>
+        public static JObject Invalid(List<ArtifactError> errors)
+        {
+            var list = new JArray();
+            for (int i = 0; i < errors.Count && i < ArtifactValidator.MaxReported; i++)
+            {
+                var e = errors[i];
+                var item = new JObject { ["code"] = e.code, ["path"] = e.path, ["message"] = e.message };
+                if (e.hint != null) item["hint"] = e.hint;
+                if (e.allowed != null) item["allowed"] = new JArray(e.allowed);
+                list.Add(item);
+            }
+            int more = errors.Count - list.Count;
+            var result = new JObject
+            {
+                ["status"] = "invalid", ["errors"] = list,
+                ["next"] = "Nothing was saved. Fix these and call artifact_create again with the whole manifest and scene."
+                           + (more > 0 ? $" {more} more problems aren't listed; fixing these first usually clears them." : ""),
+            };
+            if (more > 0) result["more"] = more;
             return result;
         }
 

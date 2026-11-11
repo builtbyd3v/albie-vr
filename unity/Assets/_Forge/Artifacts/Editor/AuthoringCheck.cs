@@ -17,7 +17,7 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
@@ -50,6 +50,7 @@ public static class AuthoringCheck
             StillValid();
             LiveFixtures();
             Mutations();
+            Hints();
         }
         catch (Exception e)
         {
@@ -398,6 +399,132 @@ public static class AuthoringCheck
         Check(threw == 0, $"the validator never throws ({threw} of {runs} wrong-type edits threw)");
         Gate("A1", $"every error has a path ({pathless} pathless over {runs} wrong-type edits; first: {firstPathless})", pathless == 0);
         Gate("A1", $"a typed node field with the wrong type is refused at that field ({unrefused} not; first: {firstUnrefused})", unrefused == 0);
+    }
+
+    // ---------- A2: every error says how to fix it ----------
+
+    static ArtifactError At(List<ArtifactError> errors, string code, string path)
+    {
+        foreach (var e in errors) if (e.code == code && e.path == path) return e;
+        return null;
+    }
+
+    static bool Lists(ArtifactError e, string value) => e?.allowed != null && Array.IndexOf(e.allowed, value) >= 0;
+
+    static void Allowed(string what, string fixture, Action<JObject, JObject> edit, Func<JObject, string> path, string code, string mustList)
+    {
+        var (m, s) = fixture.StartsWith("template:") ? Template(fixture.Substring(9)) : Load(fixture);
+        m = (JObject)m.DeepClone();
+        s = (JObject)s.DeepClone();
+        string at = path(s);
+        edit(m, s);
+        var errors = Validate(m, s, what);
+        var e = At(errors, code, at);
+        Gate("A2", $"{what}: {code} at {at} lists {mustList} (got {(e == null ? "[" + Show(errors) + "]" : e.allowed == null ? "no allowed" : string.Join(",", e.allowed))})", Lists(e, mustList));
+    }
+
+    static void Hints()
+    {
+        // Every enum error lists its values.
+        Allowed("shape blob", "arch_lever", (m, s) => Node(s, "beam")["shape"] = "blob", s => P(s, "beam", "shape"), "bad_value", "box");
+        Allowed("widget dial", "arch_lever", (m, s) => Node(s, "controls")["widgets"][1]["type"] = "dial", s => P(s, "controls", "widgets[1]"), "bad_value", "slider");
+        Allowed("rule on_click", "arch_stopwatch", (m, s) => s["rules"][1]["type"] = "on_click", s => "rules[1]", "bad_value", "on_input");
+        Allowed("solver spring", "arch_fan", (m, s) => Node(s, "rotor_a")["solver"] = "spring", s => P(s, "rotor_a", "solver"), "bad_value", "pendulum");
+        Allowed("space room3", "arch_lever", (m, s) => s["space"] = "room3", s => "scene.space", "bad_value", "volume");
+        Allowed("manifest kind app", "arch_lever", (m, s) => m["kind"] = "app", s => "kind", "bad_value", "standalone");
+        Allowed("category game", "arch_lever", (m, s) => m["category"] = "game", s => "category", "bad_value", "tool");
+        Allowed("input type float", "arch_lever", (m, s) => m["inputs"][0]["type"] = "float", s => "inputs[0]", "bad_value", "number");
+        Allowed("timeline action rewind", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0]["action"] = "rewind", s => "rules[1].do[0].action", "bad_value", "restart");
+        Allowed("animate property spin", "arch_stopwatch", (m, s) => s["rules"][0]["property"] = "spin", s => "rules[0].property", "bad_value", "rot");
+        Allowed("generator maze", "template:slalom", (m, s) => s["generators"][0]["type"] = "maze", s => "generators[0]", "bad_value", "floor_slalom");
+        Allowed("permission camera", "arch_lever", (m, s) => m["permissions"]["camera"] = "read", s => "permissions.camera", "permission_denied", "room");
+        Allowed("kind cube", "arch_lever", (m, s) => Node(s, "beam")["kind"] = "cube", s => P(s, "beam"), "unknown_kind", "primitive");
+        Allowed("missing scene file", "arch_lever", (m, s) => m.Remove("scene"), s => "scene", "bad_value", "scene.json");
+        Allowed("missing schema", "arch_lever", (m, s) => m.Remove("schema"), s => "schema", "bad_value", ArtifactSchema.Manifest);
+        // References list what does exist.
+        Allowed("on_input with no button", "arch_stopwatch", (m, s) => s["rules"][1]["input"] = "go", s => "rules[1].input", "unknown_ref", "start");
+        Allowed("a timeline that isn't there", "arch_stopwatch", (m, s) => s["rules"][1]["do"][0]["timeline"] = "timer", s => "rules[1].do[0].timeline", "unknown_ref", "clock");
+        Allowed("a slider on no input", "arch_lever", (m, s) => Node(s, "controls")["widgets"][1]["input"] = "angle", s => P(s, "controls", "widgets[1].input"), "unknown_input", "tilt");
+
+        // Kind advice for what models reach for.
+        foreach (var (kind, says) in new[] { ("group", "parent"), ("node", "parent"), ("light", "glow"), ("button", "panel"), ("slider", "panel"), ("rope", "line"), ("clock", "timeline") })
+        {
+            var (m, s) = Load("arch_lever");
+            s = (JObject)s.DeepClone();
+            string at = P(s, "beam");
+            Node(s, "beam")["kind"] = kind;
+            var e = At(Validate(m, s, "kind " + kind), "unknown_kind", at);
+            Gate("A2", $"kind {kind} gets a hint that mentions {says} ({e?.hint})", e?.hint != null && e.hint.Contains(says) && Lists(e, "primitive"));
+        }
+        {
+            var (m, s) = Load("arch_lever");
+            s = (JObject)s.DeepClone();
+            string at = P(s, "beam");
+            Node(s, "beam")["kind"] = "cube";
+            var e = At(Validate(m, s, "kind cube"), "unknown_kind", at);
+            Gate("A2", $"kind cube keeps its \"did you mean\" message ({e?.message})", e != null && e.message.Contains("did you mean primitive with shape box"));
+        }
+
+        // The real failures: every error carries a hint or an allowed list, and they come structural first.
+        foreach (string live in new[] { "live_traffic_light_1", "live_traffic_light_2", "live_traffic_light_3", "live_traffic_light_4", "live_traffic_light_5", "probe_mixed" })
+        {
+            var (m, s) = Load(live);
+            var errors = Validate(m, s, live);
+            var bare = new List<string>();
+            bool ordered = true;
+            for (int i = 0; i < errors.Count; i++)
+            {
+                if (errors[i].hint == null && errors[i].allowed == null) bare.Add(errors[i].ToString());
+                if (i > 0 && ArtifactValidator.Rank(errors[i]) < ArtifactValidator.Rank(errors[i - 1])) ordered = false;
+            }
+            Gate("A2", $"{live}: every error says how to fix it (bare: {string.Join("; ", bare)})", bare.Count == 0);
+            Gate("A2", $"{live}: errors come structural first ({Show(errors)})", ordered);
+        }
+        {
+            var (m, s) = Load("live_traffic_light_1");
+            var e = At(Validate(m, s, "try 1 id"), "bad_value", "id");
+            Gate("A2", $"a missing id suggests one from the name ({e?.hint})", e?.hint != null && e.hint.Contains("\"traffic_light\""));
+        }
+        {
+            var (m, s) = Load("arch_lever");
+            m = (JObject)m.DeepClone();
+            s = (JObject)s.DeepClone();
+            Node(s, "beam")["color"] = "red";
+            Node(s, "load_left")["parent"] = "nowhere";
+            Node(s, "pin")["kind"] = "cube";
+            var errors = Validate(m, s, "mixed order");
+            Gate("A2", $"kind, then ref, then value ({Show(errors)})",
+                errors.Count == 3 && errors[0].code == "unknown_kind" && errors[1].code == "unknown_ref" && errors[2].code == "bad_value");
+        }
+
+        // The tool result: hints and allowed are serialised, and the list stops at 25 with a count of the rest.
+        {
+            string root = Path.Combine(Application.temporaryCachePath, "authoring_check_tool");
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+            string before = ArtifactLibrary.RootOverride;
+            ArtifactLibrary.RootOverride = root;
+            try
+            {
+                var (m, s) = Load("arch_lever");
+                m = (JObject)m.DeepClone();
+                s = (JObject)s.DeepClone();
+                m["id"] = "too_many_mistakes";
+                var nodes = (JArray)s["nodes"];
+                for (int i = 0; i < 40; i++) nodes.Add(new JObject { ["id"] = "extra_" + i, ["kind"] = "cube" });
+                var result = ArtifactTools.Create(new JObject { ["manifest"] = m, ["scene"] = s, ["open"] = false });
+                var list = result["errors"] as JArray;
+                Gate("A2", $"the tool lists {ArtifactValidator.MaxReported} errors and counts the rest (got {list?.Count} listed, more {result["more"]})",
+                    (string)result["status"] == "invalid" && list != null && list.Count == ArtifactValidator.MaxReported && (int?)result["more"] == 40 - ArtifactValidator.MaxReported);
+                Gate("A2", $"the tool result carries hint and allowed ({list?[0]?.ToString(Newtonsoft.Json.Formatting.None)})",
+                    list != null && list.Count > 0 && list[0]["hint"] != null && list[0]["allowed"] is JArray);
+                Gate("A2", "nothing was written", !Directory.Exists(ArtifactLibrary.Folder("too_many_mistakes")));
+            }
+            finally
+            {
+                ArtifactLibrary.RootOverride = before;
+                if (Directory.Exists(root)) Directory.Delete(root, true);
+            }
+        }
     }
 
     // FromScene writes scene.json whatever manifest.scene said, so the saved manifest has to say scene.json too.
