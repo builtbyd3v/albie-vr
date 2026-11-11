@@ -6,6 +6,75 @@ HostRuntime bump. Nothing here adds a node kind, a field the host reads, or a ge
 
 Later steps add their own entries below.
 
+## P-B-1. Physical checks before saving a written artifact: new codes, `checks` and `facts` (C-12 sections 9 and 10)
+
+**Built** (plan steps B1 to B4) in the Artifacts module only: `Artifacts/Scripts/ArtifactPlausibility.cs`, called from
+`ArtifactLibrary.FromScene` after the validator, `ArtifactNodes.Missing` and the dry open. It is never called from
+`ArtifactHost.Open`, so templates, sandboxes and artifacts already saved open exactly as before. No node kind, no field
+the host reads and no generator is added, so there is no HostRuntime bump. It reads only JSON, with its own
+double-precision maths (Unity's Euler order), runs once per `artifact_create` and never in `Update`. It skips any node
+on a generator slot (`at`) and everything under it: it never guesses room positions.
+
+What it measures: every visible primitive (not gltf, text, line, zone; not sim bodies, which are stepped with their own
+solver), as an oriented box in scene space, composed down the parent chain with full 3x3 matrices so a rotated,
+non-uniformly scaled parent shears its children correctly. Round shapes are measured by their rims, not box corners.
+A speck under 4 mm that only holds children is treated as a hinge (there is no group kind), not as a part.
+
+New error codes (refuse the save, `status: invalid`, each with a `hint`):
+
+| code | rule |
+|---|---|
+| `size_missing` | a primitive with no `size` and a `scale` other than 1: size defaults to 0.1 m, so the part is 10x smaller than meant |
+| `parts_collapsed` | at least 3 top-level parts, and at least half of them, have no `pos` and share one centre (the `position` slip) |
+| `parts_coincident` | two parts with the same centre and the same box (within 2% or 1 mm per axis), unless both are inside a bigger part |
+| `part_too_small` | a part under max(4 mm, 1/250 of the scene) across; planes exempt |
+| `too_big_for_space` | a panel scene over 0.8 m across (shown at true size), or a room course's own parts outside 0.05 to 8 m |
+| `outside_view` | in a volume with `view.radius` r, a part (at rest, at any of 9 swept poses, or a sim body over its first 2 s) reaches past 1.15 r |
+| `part_floating` | a group of parts touches nothing in the main group (contact: gap at most max(3 mm, 5% of the smaller part)). Error when grounded (volume with no view, panel, room); a **warning** in a volume with a view |
+| `control_unbound` | a slider whose input no host-read field uses (`$name` outside panels and free text, or in generator params) |
+| `control_invisible` | a slider whose min-to-max sweep moves no part corner more than max(5 mm, 1% of the scene) and changes no sim it drives; or a button whose actions only play/pause timelines that animate nothing that changes |
+
+New warning codes (saved and opened; returned as `checks`):
+
+| code | rule |
+|---|---|
+| `would_tip` | grounded: the volume-weighted centre of the main group is past its footprint by more than 5% |
+| `pivot_unsupported` | grounded: a part that turns (bound or animated `rot`) touches a part that holds it, but its pivot (its own origin) is more than max(1 cm, 0.55 x its thinnest size) from it |
+| `moving_part_collides` | over 9 swept poses (input min to max, or animate keys and midpoints), a moving part goes more than max(5 mm, 10% of the thinner part) into a static part it didn't touch at rest, or below the base |
+| `motion_invisible` | the keys or range are all one value, or the part turns about the round axis of everything riding on it |
+| `sim_not_checked` | a slider drives a sim and the 20,000-step budget ran out before a difference showed |
+| `not_checked` | the checks themselves threw; never blocks a save the validator allowed |
+
+A sim input counts as working if it changes the sim at all (start, rate, or path within the first watched second),
+however small: a chaos demo's 1-degree nudge is tiny at first. It catches a slider wired to a number the motion ignores.
+
+The moving-part checks and `would_tip` are warnings until their thresholds are tuned on live harness output (audit 3:
+the windmill gap of 5 mm sat next to the 4 mm tolerance). Proposal: promote them to errors once the D5 corpus shows
+no false refusals.
+
+Tool result changes (additive):
+- On a refusal, `checks` (warnings) and `facts` are added next to `errors`.
+- On a save, `facts` is always added; when there are warnings, `checks` (code, path, message, hint) and a `next` line:
+  "Saved, but N things may look physically off (checks). If the person would notice, fix them and call artifact_create
+  again with the same id; otherwise carry on."
+- `facts` is a few plain lines (under 1,500 characters): how it is shown, the scene's size, each part's box, what
+  touches what, what each slider moves and by how much, and what turns about which world axis. It is for the agent to
+  say what it built and to fix from; it is not a contract field the host reads.
+
+The `artifact_create` guide (`Resources/AlbieTools/artifacts.json`) gains one line saying the parts are measured before
+saving, and its worked example's pivot moved from z -0.01 to -0.004 so it touches the dial (it was 5 mm in front of
+it, which would come back as a part_floating warning). Guide length 5,091 characters, inside the check's 3,500 to 5,200.
+
+Verified (offline, see the run log in the work report): every template gives 0 errors and 0 warnings; the 5 Mocks
+fixtures and 4 archetypes give 0 errors (warnings: fan hub 15 mm off its mast, stopwatch pivot 5 mm off its dial,
+launch arm 4 mm off its tower, stance CoG marker passing through the track); the saved live seesaw gives size_missing
+x3 and parts_collapsed; the saved live traffic light gives size_missing x5, parts_coincident x3 and parts_collapsed.
+The prototype's fixtures and 10 one-problem mutations are in `Mocks/artifacts/authoring/plaus_*.json`, each with its
+expected codes. Forge/Artifacts/Check Authoring asserts all of it (steps B1 to B4).
+
+Not measured: the time on Quest. On this Mac it is under 30 ms for every template and fixture (worst: the double
+pendulum, with its sim sweeps).
+
 ## P-A8-1. Voice routing for artifact creation, and two log lines (Core: `AlbieVoice.cs`, needs sign-off)
 
 **Built** in two commits of their own ("Voice A8", "Voice D1"). They are Core code, so the Core owner signs off.
@@ -265,4 +334,4 @@ An older host that reads a scene using either one ignores the field, without an 
 
 ## Not part of this work
 
-Steps A0 to A7 made no edits to `Core/` or `hub/main.py`. The Core edits to sign off are the two `AlbieVoice.cs` commits in P-A8-1. `hub/main.py` is untouched.
+Steps A0 to A7 and B1 to B4 made no edits to `Core/` or `hub/main.py`. The Core edits to sign off are the two `AlbieVoice.cs` commits in P-A8-1. `hub/main.py` is untouched.
