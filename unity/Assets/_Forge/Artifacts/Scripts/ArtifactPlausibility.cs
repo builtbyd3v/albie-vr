@@ -194,6 +194,9 @@ namespace Forge.Artifacts
             double extent;
             readonly HashSet<string> movingRoots = new HashSet<string>();
             readonly Dictionary<string, string> rootOf = new Dictionary<string, string>();  // part id -> the moving root it rides on
+            readonly HashSet<string> lineEnds = new HashSet<string>();                       // nodes a line is drawn through or follows
+            readonly Dictionary<string, HashSet<string>> linked = new Dictionary<string, HashSet<string>>();  // joined by a line
+            HashSet<string> measurable;                                                      // parts at rest and their ancestors
 
             public Pass(JObject manifest, JObject scene, Result result)
             {
@@ -276,6 +279,52 @@ namespace Forge.Artifacts
                     }
                     if (guard >= 64) n.skipped = true;  // a parent loop: the validator says so
                 }
+                // A line drawn through parts joins them (a rope, a rod, a bond), and the small parts it is drawn from or that a
+                // trail follows are anchors on purpose, like a hinge speck that holds children.
+                foreach (var n in nodes)
+                {
+                    if (n.kind != "line") continue;
+                    if (Str(n.json, "follow") is string followed) lineEnds.Add(followed);
+                    if (!(n.json["through"] is JArray through)) continue;
+                    string before = null;
+                    foreach (var t in through)
+                    {
+                        string id = t.Type == JTokenType.String ? (string)t : null;
+                        if (id == null) { before = null; continue; }
+                        lineEnds.Add(id);
+                        if (before != null && before != id)
+                        {
+                            Link(before, id);
+                            Link(id, before);
+                        }
+                        before = id;
+                    }
+                }
+            }
+
+            void Link(string a, string b)
+            {
+                if (!linked.TryGetValue(a, out var set)) linked[a] = set = new HashSet<string>();
+                set.Add(b);
+            }
+
+            bool Linked(Part a, Part b) => linked.TryGetValue(a.node.id, out var set) && set.Contains(b.node.id);
+
+            /// <summary>Whether a node, or something under it, is a part <see cref="Parts"/> measures: only then is a change
+            /// to its pos, rot or scale something the sweep can see.</summary>
+            bool HoldsPart(Node n)
+            {
+                if (measurable == null)
+                {
+                    measurable = new HashSet<string>();
+                    foreach (var p in parts)
+                    {
+                        int guard = 0;
+                        for (var a = p.node; a != null && guard < 64; a = a.parent != null && byId.TryGetValue(a.parent, out var up) ? up : null, guard++)
+                            measurable.Add(a.id);
+                    }
+                }
+                return measurable.Contains(n.id);
             }
 
             /// <summary>Animate rules and $input pos/rot/scale make a node a moving root; its children ride on it.</summary>
@@ -463,14 +512,58 @@ namespace Forge.Artifacts
                 {
                     // Only parts that never said where they go: concentric parts placed on purpose (a target's rings) are fine.
                     // A child with no pos sits on its parent's centre on purpose (a bulb in its lamp), so only top-level parts count.
+                    var unplaced = new List<Part>();
+                    foreach (var p in g) if (p.node.json["pos"] == null && p.node.parent == null) unplaced.Add(p);
+                    // Parts that nest one inside another (a target's rings, a cell's shells) share a centre by design; a
+                    // collapse is parts that cut through each other or are alike, which is what a forgotten pos gives.
                     var ids = new List<string>();
-                    foreach (var p in g) if (p.node.json["pos"] == null && p.node.parent == null) ids.Add(p.node.id);
-                    int unplaced = ids.Count;
-                    if (unplaced < Math.Max(3, (parts.Count + 1) / 2)) continue;
+                    foreach (var p in unplaced)
+                        foreach (var q in unplaced)
+                            if (p != q && !Nested(p, q) && !Nested(q, p)) { ids.Add(p.node.id); break; }
+                    if (ids.Count < Math.Max(3, (parts.Count + 1) / 2)) continue;
                     Error("parts_collapsed", "nodes",
-                        $"{unplaced} of {parts.Count} parts ({Join(ids, 6)}) have no pos, so they all sit at one point {Show(g[0].centre)}",
-                        "give each part its own \"pos\": [x, y, z] in metres (fields are pos, rot, size: not position, rotation, scale)");
+                        $"{ids.Count} of {parts.Count} parts ({Join(ids, 6)}) have no pos, so they all sit at one point {Show(g[0].centre)} and cut through each other",
+                        "give each part its own \"pos\": [x, y, z] in metres (fields are pos, rot, size: not position, rotation, scale); if they share that centre on purpose, write \"pos\": [0, 0, 0] on each");
                 }
+            }
+
+            /// <summary>Whether <paramref name="inner"/>'s box fits in <paramref name="outer"/>'s on every axis (allowing a
+            /// little extra thickness) and <paramref name="outer"/> is clearly the bigger.</summary>
+            static bool Nested(Part outer, Part inner)
+            {
+                if (outer.MaxExtent <= 1.1 * inner.MaxExtent) return false;
+                for (int k = 0; k < 3; k++)
+                {
+                    double eo = outer.hi[k] - outer.lo[k], ei = inner.hi[k] - inner.lo[k];
+                    if (ei > eo + Math.Max(0.005, 0.25 * ei)) return false;
+                }
+                return true;
+            }
+
+            /// <summary>Whether two parts are the same solid: the same shape with the same oriented corners (a box turned
+            /// +45 and one turned -45 degrees share a bounding box but make an X), or two equal round spheres.</summary>
+            static bool SameSolid(Part a, Part b)
+            {
+                if (a.shape != b.shape) return false;
+                double tol = Math.Max(0.001, 0.02 * Math.Max(a.MaxExtent, b.MaxExtent));
+                if (a.shape == "sphere" && Ball(a, out double ra) && Ball(b, out double rb)) return Math.Abs(ra - rb) <= tol;
+                foreach (var c in a.corners)
+                {
+                    bool match = false;
+                    foreach (var d in b.corners)
+                        if ((c - d).Length <= tol) { match = true; break; }
+                    if (!match) return false;
+                }
+                return true;
+            }
+
+            /// <summary>A sphere that is round in the scene (any turn of it looks the same), and its radius.</summary>
+            static bool Ball(Part p, out double radius)
+            {
+                double x = p.frame.A.Column(0).Length * p.half.x, y = p.frame.A.Column(1).Length * p.half.y, z = p.frame.A.Column(2).Length * p.half.z;
+                radius = x;
+                double tol = Math.Max(Eps, 0.01 * x);
+                return Math.Abs(x - y) <= tol && Math.Abs(x - z) <= tol;
             }
 
             void Coincident()
@@ -482,13 +575,7 @@ namespace Forge.Artifacts
                     Part a = parts[i], b = parts[j];
                     double near = Math.Max(SameCentre, 0.05 * Math.Min(a.MinExtent, b.MinExtent));
                     if ((a.centre - b.centre).Length > near) continue;
-                    bool same = true;
-                    for (int k = 0; k < 3; k++)
-                    {
-                        double ea = a.hi[k] - a.lo[k], eb = b.hi[k] - b.lo[k];
-                        if (Math.Abs(ea - eb) > Math.Max(0.001, 0.02 * Math.Max(ea, eb))) same = false;
-                    }
-                    if (!same || (Enclosed(a) && Enclosed(b))) continue;  // both inside a bigger part: neither is seen
+                    if (!SameSolid(a, b) || (Enclosed(a) && Enclosed(b))) continue;  // both inside a bigger part: neither is seen
                     reported++;
                     Error("parts_coincident", $"nodes[{b.node.index}]",
                         $"{a.node.id} and {b.node.id} are the same shape in the same place {Show(a.centre)}, so only one of them shows",
@@ -514,7 +601,7 @@ namespace Forge.Artifacts
                 double limit = Math.Max(Smallest, extent / SmallShare);
                 foreach (var p in parts)
                 {
-                    if (p.shape == "plane" || p.MaxExtent >= limit) continue;
+                    if (p.shape == "plane" || p.MaxExtent >= limit || lineEnds.Contains(p.node.id)) continue;  // a line's anchor
                     Error("part_too_small", $"nodes[{p.node.index}].size",
                         $"{p.node.id} is {Mm(p.MaxExtent)} across in a scene {M2(extent)} m across, too small to see",
                         $"size is in metres: make {p.node.id} at least {Mm(limit)} across");
@@ -568,8 +655,8 @@ namespace Forge.Artifacts
                 return v;
             }
 
-            /// <summary>The contact graph's connected groups; returns each part's group index.</summary>
-            static Dictionary<Part, int> Components(List<Part> list, out List<List<Part>> groups)
+            /// <summary>The contact graph's connected groups (parts that touch, or that a line joins); returns each part's group index.</summary>
+            Dictionary<Part, int> Components(List<Part> list, out List<List<Part>> groups)
             {
                 var of = new Dictionary<Part, int>();
                 groups = new List<List<Part>>();
@@ -585,7 +672,7 @@ namespace Forge.Artifacts
                         var x = stack.Pop();
                         group.Add(x);
                         foreach (var y in list)
-                            if (!of.ContainsKey(y) && Touch(x, y)) { of[y] = groups.Count; stack.Push(y); }
+                            if (!of.ContainsKey(y) && (Touch(x, y) || Linked(x, y))) { of[y] = groups.Count; stack.Push(y); }
                     }
                     groups.Add(group);
                 }
@@ -666,7 +753,9 @@ namespace Forge.Artifacts
                         var refs = new HashSet<string>();
                         Refs(p.Value, refs);
                         used.UnionWith(refs);
-                        bool measured = p.Name == "pos" || p.Name == "rot" || p.Name == "scale" || (n.kind == "primitive" && p.Name == "size")
+                        // pos, rot and scale are measured only on what the sweep measures: a moved text or line works, but
+                        // isn't a part, so it is taken on trust like a text's height.
+                        bool measured = ((p.Name == "pos" || p.Name == "rot" || p.Name == "scale") && HoldsPart(n)) || (n.kind == "primitive" && p.Name == "size")
                                         || (n.kind == "sim" && (p.Name == "rate" || p.Name == "params" || p.Name == "bodies"));
                         if (!measured) unmeasured.UnionWith(refs);
                     }
