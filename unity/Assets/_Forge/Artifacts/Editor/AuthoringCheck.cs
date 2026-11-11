@@ -18,14 +18,14 @@ using UnityEngine;
 public static class AuthoringCheck
 {
     /// <summary>Plan steps that are in the code. An expectation for any other step is reported, not enforced.</summary>
-    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7" };
+    static readonly HashSet<string> Built = new HashSet<string> { "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2", "B3", "B4" };
 
     static readonly string Dir = Path.Combine(Application.dataPath, "_Forge/Mocks/artifacts/authoring");
     static readonly string[] MockFixtures = { "slalom", "repo_city", "stance", "three_body", "launch" };
     static readonly string[] Archetypes = { "arch_fan", "arch_stopwatch", "arch_lever", "arch_status_beacon" };
 
     static int passed, pending;
-    static readonly List<string> failures = new List<string>(), waiting = new List<string>();
+    static readonly List<string> failures = new List<string>(), waiting = new List<string>(), notes = new List<string>();
 
     [MenuItem("Forge/Artifacts/Check Authoring")]
     static void Menu()
@@ -46,6 +46,7 @@ public static class AuthoringCheck
         passed = pending = 0;
         failures.Clear();
         waiting.Clear();
+        notes.Clear();
         try
         {
             StillValid();
@@ -59,6 +60,7 @@ public static class AuthoringCheck
                 DryOpen();
                 ToolErgonomics();
                 Guide();
+                Plausible();
             }
             finally
             {
@@ -76,6 +78,7 @@ public static class AuthoringCheck
           .Append(" pending (steps built: ").Append(string.Join(", ", Built)).Append(")");
         foreach (var f in failures) sb.Append("\n  FAIL ").Append(f);
         foreach (var w in waiting) sb.Append("\n  pending ").Append(w);
+        foreach (var n in notes) sb.Append("\n  note ").Append(n);
         return sb.ToString();
     }
 
@@ -1016,4 +1019,171 @@ public static class AuthoringCheck
                 ((JArray)r["built"]["controls"]).Count > 0 && ((JArray)r["built"]["moving"]).Count > 0);
         });
     }
+
+    // ---------- B1 to B4: whether what it describes makes physical sense (ArtifactPlausibility, FromScene only) ----------
+
+    static readonly HashSet<string> MovingCodes = new HashSet<string> { "pivot_unsupported", "moving_part_collides", "motion_invisible" };
+
+    static string StepOf(string code) =>
+        code.StartsWith("control_") || code == "sim_not_checked" ? "B2" : MovingCodes.Contains(code) ? "B3" : "B1";
+
+    static ArtifactPlausibility.Result Plaus(JObject m, JObject s, string what, List<double> times = null)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            var r = ArtifactPlausibility.Check(m, s);
+            times?.Add(watch.Elapsed.TotalMilliseconds);
+            foreach (var w in r.Warnings)
+                if (w.code == "not_checked") failures.Add($"(B1) {what}: the physical checks threw: {w.message}");
+            return r;
+        }
+        catch (Exception e)
+        {
+            failures.Add($"(B1) {what}: ArtifactPlausibility.Check threw {e.GetType().Name}: {e.Message}");
+            return new ArtifactPlausibility.Result();
+        }
+    }
+
+    static string Show(ArtifactPlausibility.Result r) =>
+        $"errors [{Show(r.Errors)}], warnings [{Show(r.Warnings)}]";
+
+    static int Count(List<ArtifactError> list, string code)
+    {
+        int n = 0;
+        foreach (var e in list) if (e.code == code) n++;
+        return n;
+    }
+
+    static void Plausible()
+    {
+        var times = new List<double>();
+
+        // Templates: nothing to say, error or warning. Mocks fixtures and archetypes: no errors (warnings are noted).
+        foreach (string t in ArtifactLibrary.Templates)
+        {
+            var (m, s) = Template(t);
+            var r = Plaus(m, s, "template " + t, times);
+            Gate("B1", $"template {t} has no physical findings ({Show(r)})", r.Errors.Count == 0 && r.Warnings.Count == 0);
+        }
+        foreach (string id in MockFixtures)
+        {
+            var p = ArtifactPackage.Load(id, out _);
+            if (p == null) continue;  // StillValid already failed it
+            var r = Plaus(p.Manifest, p.Scene, "fixture " + id, times);
+            Gate("B1", $"fixture {id} has no physical errors ({Show(r.Errors)})", r.Errors.Count == 0);
+            if (r.Warnings.Count > 0) notes.Add($"fixture {id} warnings: {Show(r.Warnings)}");
+        }
+        foreach (string a in Archetypes)
+        {
+            var (m, s) = Load(a);
+            var r = Plaus(m, s, a, times);
+            Gate("B1", $"{a} has no physical errors ({Show(r.Errors)})", r.Errors.Count == 0);
+            if (r.Warnings.Count > 0) notes.Add($"{a} warnings: {Show(r.Warnings)}");
+        }
+
+        // The two artifacts the live test saved: refused for what actually went wrong on the headset.
+        {
+            var (m, s) = Load("saved_seesaw");
+            var r = Plaus(m, s, "saved_seesaw", times);
+            Expect("B1", "saved seesaw: no size (scale on a 0.1 m box) and every part at one point", r.Errors,
+                "size_missing@nodes[0].size", "size_missing@nodes[1].size", "size_missing@nodes[2].size", "parts_collapsed@nodes");
+            Gate("B1", $"saved seesaw: exactly 3 size_missing ({Count(r.Errors, "size_missing")})", Count(r.Errors, "size_missing") == 3);
+            (m, s) = Load("saved_traffic_light");
+            r = Plaus(m, s, "saved_traffic_light", times);
+            Expect("B1", "saved traffic light: no size, three identical lamps in one place, every part at one point", r.Errors,
+                "size_missing@nodes[0].size", "size_missing@nodes[3].size", "parts_coincident@nodes[1]", "parts_coincident@nodes[2]", "parts_collapsed@nodes");
+            Gate("B1", $"saved traffic light: 5 size_missing and 3 parts_coincident ({Count(r.Errors, "size_missing")}, {Count(r.Errors, "parts_coincident")})",
+                Count(r.Errors, "size_missing") == 5 && Count(r.Errors, "parts_coincident") == 3);
+            Gate("B1", "every physical error carries a hint", r.Errors.TrueForAll(e => !string.IsNullOrEmpty(e.hint)));
+        }
+
+        // The prototype's fixtures and one-problem mutations (Mocks/artifacts/authoring/plaus_*.json, each with its expect).
+        foreach (string file in Directory.GetFiles(Dir, "plaus_*.json"))
+        {
+            string name = Path.GetFileNameWithoutExtension(file);
+            var doc = JObject.Parse(File.ReadAllText(file));
+            var m = (JObject)doc["manifest"];
+            var s = (JObject)doc["scene"];
+            var valid = Validate(m, s, name);
+            Check(valid.Count == 0, $"(B1) {name} is valid, so FromScene reaches the physical checks: {Show(valid)}");
+            var r = Plaus(m, s, name, times);
+            var expect = doc["expect"] as JObject ?? new JObject();
+            foreach (string kind in new[] { "errors", "warnings" })
+            {
+                if (!(expect[kind] is JArray want)) continue;
+                var got = kind == "errors" ? r.Errors : r.Warnings;
+                if (want.Count == 0)
+                {
+                    Gate("B1", $"{name}: no {kind} ({Show(got)})", got.Count == 0);
+                    continue;
+                }
+                foreach (var w in want)
+                {
+                    string spec = (string)w, code = spec.Split('@')[0];
+                    Expect(StepOf(code), $"{name}: {kind} {spec}", got, spec);
+                }
+            }
+        }
+
+        // B4: what it measured, in words the agent can repeat and fix from.
+        {
+            var (m, s) = Load("arch_lever");
+            var r = Plaus(m, s, "arch_lever facts");
+            string f = r.Facts ?? "";
+            Gate("B4", $"facts name the parts, what touches and what turns ({f.Replace("\n", " | ")})",
+                f.Contains("beam: box") && f.Contains("Touching:") && f.Contains("beam turns about world Z") && f.Contains("Slider tilt"));
+            Gate("B4", $"facts stay short ({f.Length} chars)", f.Length > 0 && f.Length < 1500);
+        }
+
+        // The tool: physical errors refuse the save; warnings are saved and returned as checks with a next line.
+        InScratch("authoring_check_plaus", () =>
+        {
+            ArtifactTools.ResetAttempts();
+            var gap = JObject.Parse(File.ReadAllText(Path.Combine(Dir, "plaus_seesaw_gap.json")));
+            var r = Create((JObject)gap["manifest"], gap["scene"]);
+            Gate("B1", $"a seesaw whose board floats is refused through the tool, with facts ({r.ToString(Newtonsoft.Json.Formatting.None)})",
+                (string)r["status"] == "invalid" && Has(Errors(r), "part_floating", "nodes[2].pos") && r["facts"] != null && !Saved("plaus_seesaw_gap"));
+            var item = (r["errors"] as JArray)?[0];
+            Gate("B1", "the refusal's physical error has a hint", item?["hint"] != null);
+            var wind = JObject.Parse(File.ReadAllText(Path.Combine(Dir, "plaus_windmill_bad.json")));
+            r = Create((JObject)wind["manifest"], wind["scene"]);
+            Gate("B2", $"a windmill whose speed slider is bound to nothing is refused ({Show(Errors(r))})",
+                (string)r["status"] == "invalid" && Has(Errors(r), "control_unbound", "nodes[4].widgets[0].input"));
+            var ok = JObject.Parse(File.ReadAllText(Path.Combine(Dir, "plaus_seesaw_ok.json")));
+            r = Create((JObject)ok["manifest"], ok["scene"]);
+            Gate("B1", $"the seesaw resting on its fulcrum saves with no checks ({r.ToString(Newtonsoft.Json.Formatting.None)})",
+                r["status"] == null && Saved("plaus_seesaw_ok") && r["checks"] == null && r["facts"] != null);
+            var tip = JObject.Parse(File.ReadAllText(Path.Combine(Dir, "plaus_beacon_tips.json")));
+            r = Create((JObject)tip["manifest"], tip["scene"]);
+            var checks = r["checks"] as JArray;
+            Gate("B1", $"a warning saves, and comes back as checks with a next line ({r.ToString(Newtonsoft.Json.Formatting.None)})",
+                r["status"] == null && Saved("plaus_beacon_tips") && checks != null && checks.Count > 0 && (string)checks[0]["code"] == "would_tip"
+                && checks[0]["hint"] != null && r["next"] != null);
+            ArtifactTools.ResetAttempts();
+        });
+
+        // Nothing the agent can write makes the checks throw: every node field and top-level key set to every wrong type.
+        int runs = 0;
+        foreach (string a in Archetypes)
+        {
+            var (m0, s0) = Load(a);
+            var nodes = (JArray)s0["nodes"];
+            for (int i = 0; i < nodes.Count; i++)
+                foreach (var prop in ((JObject)nodes[i]).Properties().ToList())
+                    foreach (var junk in Junk)
+                    {
+                        var s = (JObject)s0.DeepClone();
+                        s["nodes"][i][prop.Name] = junk.DeepClone();
+                        Plaus(m0, s, $"{a} nodes[{i}].{prop.Name} = {junk.ToString(Newtonsoft.Json.Formatting.None)}");
+                        runs++;
+                    }
+        }
+        Check(runs > 0, "(B1) the physical-check fuzz ran");
+
+        times.Sort();
+        if (times.Count > 0)
+            notes.Add($"physical checks took {times[times.Count / 2]:0.0} ms median, {times[times.Count - 1]:0.0} ms worst over {times.Count} scenes (editor, not Quest)");
+    }
 }
+

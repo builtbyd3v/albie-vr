@@ -14,4 +14,9 @@ nothing here ships in a build. Each `.json` file is `{ "manifest": ..., "scene":
 - `probe_mixed.json`: one artifact that combines many mistakes (a bad scene file name, a boolean input, a button on a
   primitive, set on a colour).
 
+- `plaus_*.json`: inputs for the physical checks (`ArtifactPlausibility`, plan B1 to B4). Each one is valid C-12, so
+  `FromScene` reaches those checks, and carries its own `note` and `expect` (`errors` and `warnings`: "code" or
+  "code@path"; an empty list means none). `plaus_seesaw_ok`, `plaus_seesaw_gap` and `plaus_windmill_bad` are ports of the
+  audit prototype's fixtures; the others are one-problem mutations of the archetypes.
+
 The expected error codes and paths for each fixture live in the check, so that a rule change shows up as a diff there.
