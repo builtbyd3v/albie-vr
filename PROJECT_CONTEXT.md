@@ -2668,6 +2668,21 @@ Out of scope for Person 4 until after Nov 18: cloud reinforcement learning, ONNX
   - The notebook got the run and the training entry.
   - Still to do: the same on a Quest 3, in a real room.
 
+**ML A: the Autopilot rehearses before it drives (2026-11-11, Editor, mock sim, then Main in Play mode).** Validation loss can't pick which candidate will drive, but the course is known. So after training, each candidate rehearses the open slalom in the mock truck sim from 9 starts (on the line and ±0.08 m, ±0.05 rad), and the Autopilot tries them best-first (`Controllers/Scripts/Learning/Rehearsal.cs`).
+- It runs 4 ms a frame, like training. It took at most 250 ms of compute in the Editor. A Quest is slower, so it adds a few seconds to the training moment at most. **The Quest timing is still to do.**
+- **Results:** 2 demo laps, 3 candidates, and the first driver from one random hand-placed start, which the rehearsal never sees:
+
+  | Rooms | Training order | Rehearsal order | Some candidate could |
+  |---|---|---|---|
+  | 6 mock + 30 random rooms, 144 attempts | 113 | **127** | 130 |
+  | 30 unseen random rooms, 120 attempts | 89 | **102** | 105 |
+  | `RoomSlalomCheck` (6 mock + 10 random, 32 attempts) | 24 | **28** | 29 |
+
+  So the truck crashes on camera before it succeeds about half as often: from about 1 in 4 runs to about 1 in 8.
+- **In Main** (LivingRoom02, physics truck), the rehearsal scored the candidates 6, 5 and 9 of 9 in training order. The 9/9 one drove first and completed the course.
+- `brain_status` now has `rehearsal` (the finishes in the order they're tried) and `rehearsal_starts`, so Albie can say why that candidate drives first. "Candidate 1 of 3" now means the first in rehearsal order.
+- The rehearsal runs in the mock sim, not physics, with no walls (cones, gates and finish only). The physics brain check still passes, and candidate 1 drove all 6 rooms, as before.
+
 **ML A decision for Nov 14: which ML templates work with no network (2026-11-05, Editor; the Quest pass is still to do).**
 - **The Python templates need the laptop hub.** That's `ml-examples/cifar10` and `ml-examples/text-classification`. Both train with PyTorch, which doesn't run on a Quest, and each downloads its dataset once (CIFAR-10, and about 31 MB for AG News). With no hub, the headset can show only their bundled replay: the ML panels' mock run.
 - **One bundled template runs fully on the device: "obstacle ahead"** (`Controllers/Scripts/Learning/ObstacleTemplate.cs`). This is the stretch goal above, and it's now the default.

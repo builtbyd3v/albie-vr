@@ -63,6 +63,10 @@ namespace Forge.Artifacts
         ControllerFile manual;
         BehaviourCloner[] cloners;
         int training, trainFrames;
+        // After training, each candidate rehearses the open course in the mock sim; the Autopilot tries them best-first.
+        Rehearsal rehearsal;
+        ControllerFile[] trainedFiles;
+        int[] order;
         // Record(laps, thenAutopilot): the completed-lap count that ends recording (0: one lap at a time, as L does),
         // and whether training and the Autopilot follow with no further call.
         int lapTarget;
@@ -222,6 +226,7 @@ namespace Forge.Artifacts
             cloners = new BehaviourCloner[Candidates];
             for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(Thing.Recorder.Set, new BehaviourCloner.Options { Seed = i + 1 });
             training = 0; trainFrames = 0;
+            rehearsal = null; trainedFiles = null; order = null;
             State = Mode.Training;
             Status = $"training {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows)";
             return null;
@@ -230,9 +235,39 @@ namespace Forge.Artifacts
         void TrainStep()
         {
             trainFrames++;
-            if (cloners[training].Step(BudgetMs)) training++;
-            if (training < cloners.Length) return;
+            if (training < cloners.Length)
+            {
+                if (cloners[training].Step(BudgetMs)) training++;
+                if (training < cloners.Length) return;
+                string error = BeginRehearsal();
+                if (error != null) { State = Mode.Idle; Status = error; chainAutopilot = false; return; }
+                if (rehearsal != null) return;
+            }
+            else if (rehearsal != null && !rehearsal.Step(BudgetMs)) return;
+            FinishTraining();
+        }
+
+        // The trained candidates as controller files, then a rehearsal on the open course (none if it was closed).
+        string BeginRehearsal()
+        {
+            trainedFiles = new ControllerFile[cloners.Length];
+            for (int i = 0; i < cloners.Length; i++)
+            {
+                trainedFiles[i] = ControllerFile.Parse(cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
+                if (trainedFiles[i] == null) return error;
+            }
+            rehearsal = host != null && host.Build != null ? new Rehearsal(trainedFiles, CourseFromSlots()) : null;
+            if (rehearsal != null) Status = $"rehearsing {Candidates} candidates on the course";
+            return null;
+        }
+
+        /// <summary>Rehearsal finishes per candidate (out of <see cref="Rehearsal.Starts"/>), in training order, or null.</summary>
+        public int[] RehearsalFinished => rehearsal != null && rehearsal.Done ? rehearsal.Finished : null;
+
+        void FinishTraining()
+        {
             State = Mode.Idle;
+            order = rehearsal != null ? rehearsal.Order() : null;
             double compute = 0;
             foreach (var c in cloners) compute += c.ComputeSeconds;
             // The notebook's training entry (C-17 section 3), as the Controllers sandbox's B reports it.
@@ -241,10 +276,28 @@ namespace Forge.Artifacts
             foreach (var c in cloners) list.Add(c.TrainingBlock());
             block["candidates"] = list;
             TrainingLog.Report("truck_autopilot", 1, block);
-            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + Hint(". P: Autopilot");
+            Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + RehearsalLine() + Hint(". P: Autopilot");
             if (!chainAutopilot) return;
             chainAutopilot = false;
             StartAutopilot();
+        }
+
+        // "; in rehearsal the best finished 9 of 9 starts (the others 7 and 4), so it drives first"
+        string RehearsalLine()
+        {
+            if (order == null) return "";
+            var f = rehearsal.Finished;
+            var others = new System.Text.StringBuilder();
+            for (int i = 1; i < order.Length; i++) others.Append(i == 1 ? "" : i == order.Length - 1 ? " and " : ", ").Append(f[order[i]]);
+            return $"; in rehearsal the best finished {f[order[0]]} of {Rehearsal.Starts} starts" +
+                   (order.Length > 1 ? $" (the other{(order.Length > 2 ? "s" : "")} {others})" : "") + ", so it drives first";
+        }
+
+        JArray RehearsalInOrder()
+        {
+            var list = new JArray();
+            foreach (int i in order) list.Add(rehearsal.Finished[i]);
+            return list;
         }
 
         // ---- Autopilot ------------------------------------------------------------------------------------------
@@ -254,13 +307,10 @@ namespace Forge.Artifacts
         {
             if (State != Mode.Idle) return Status = "busy: " + State.ToString().ToLowerInvariant();
             if (cloners == null) return Status = "train first" + Hint(" (T)");
+            if (trainedFiles == null) return Status = "train first" + Hint(" (T)");
+            // Best rehearsal first (training order if there was no rehearsal).
             var files = new System.Collections.Generic.List<ControllerFile>();
-            for (int i = 0; i < cloners.Length; i++)
-            {
-                var file = ControllerFile.Parse(cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
-                if (file == null) return Status = error;
-                files.Add(file);
-            }
+            for (int i = 0; i < trainedFiles.Length; i++) files.Add(trainedFiles[order != null ? order[i] : i]);
             var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
             var fallback = fallbackAsset != null ? ControllerFile.Parse(fallbackAsset.text, out _) : null;
             autopilot = new Autopilot(files, fallback);
@@ -307,6 +357,9 @@ namespace Forge.Artifacts
                 ["slalom_open"] = host != null && host.Run != null,
                 ["candidates"] = Candidates,
                 ["candidates_trained"] = trained,
+                // Rehearsal finishes per candidate in the order the Autopilot tries them (best first), out of rehearsal_starts.
+                ["rehearsal"] = order != null ? RehearsalInOrder() : null,
+                ["rehearsal_starts"] = order != null ? Rehearsal.Starts : 0,
                 ["autopilot"] = State == Mode.Autopilot ? autopilot.Describe() : null,
                 ["drove"] = Drove,
                 ["attempts"] = attempts,

@@ -16,6 +16,8 @@ using UnityEngine;
 /// 4. The demo loop in each mock room, as <see cref="FiveInARowCheck"/> runs it: two laps, three candidates, the
 ///    Autopilot from a hand-placed start, then the pretrained fallback. It passes when every attempt drove the course.
 /// 5. Rooms nobody tested (<see cref="RoomCourses.Random"/>): one attempt each, and the fallback alone.
+/// 6. The rehearsal (<see cref="Rehearsal"/>): in the mock rooms and 10 random ones, the candidate it puts first finishes
+///    from a random hand-placed start at least as often as candidate 1 does.
 /// Forge > Controllers > Check Room Slalom; <see cref="Run"/> returns the report (about a minute). Mock truck, Editor.
 /// </summary>
 public static class RoomSlalomCheck
@@ -61,6 +63,7 @@ public static class RoomSlalomCheck
         ok &= Check(sb, "scripted laps finish in every mock room", ScriptedLaps);
         ok &= Check(sb, "the demo loop drives every mock room", DemoLoop);
         ok &= Check(sb, "rooms nobody tested: the demo loop and the fallback", Unseen);
+        ok &= Check(sb, "the rehearsal's first pick finishes at least as often as candidate 1", Rehearses);
         ManualInputs.Clear();
         return (ok ? "PASS" : "FAIL") + " room slalom check (mock truck, Editor)\n" + sb;
     }
@@ -218,6 +221,47 @@ public static class RoomSlalomCheck
         note = $"{rooms} random rooms: live {live}/{rooms} ({first} on candidate 1), fallback {fell}, nothing {none}; the fallback alone drove {fallbackAlone}/{rooms}" +
                (misses.Count > 0 ? " (missed: " + string.Join("; ", misses) + ")" : "");
         return none > 1 ? note : null;
+    }
+
+    // Two demo laps, 3 candidates, one random hand-placed start (as FiveInARowCheck places it): does the first driver
+    // finish, in training order and in the rehearsal's order? The rehearsal never sees the live start.
+    static string Rehearses(out string note)
+    {
+        note = null;
+        var courses = new List<MockCourse>();
+        foreach (var (_, course) in RoomCourses.MockRooms()) courses.Add(course);
+        for (int seed = 9000; courses.Count < 16; seed++) { var (_, c) = RoomCourses.Random(seed); if (c != null) courses.Add(c); }
+        int n = 0, first = 0, picked = 0, any = 0;
+        double worstMs = 0;
+        for (int ci = 0; ci < courses.Count; ci++)
+            for (int d = 0; d < 2; d++)
+            {
+                int driverSeed = 30000 + ci * 17 + d;
+                var laps = FiveInARowCheck.RecordLaps(driverSeed, 1f, new FiveInARowCheck.Attempt(), FiveInARowCheck.LapStyle.Demo, courses[ci]);
+                var files = new ControllerFile[3];
+                for (int i = 0; i < files.Length; i++)
+                {
+                    var cloner = new BehaviourCloner(laps, new BehaviourCloner.Options { Seed = i + 1 });
+                    while (!cloner.Step(4.0)) { }
+                    files[i] = ControllerFile.Parse(cloner.ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
+                    if (files[i] == null) return error;
+                }
+                var rehearsal = new Rehearsal(files, courses[ci]);
+                while (!rehearsal.Step(4.0)) { }
+                worstMs = Math.Max(worstMs, rehearsal.ComputeSeconds * 1000);
+                var placement = new System.Random(driverSeed * 7919);
+                float y0 = (float)(placement.NextDouble() * 2 - 1) * FiveInARowCheck.StartOffset;
+                float turn = (float)(placement.NextDouble() * 2 - 1) * FiveInARowCheck.StartTurn;
+                var live = new bool[files.Length];
+                for (int i = 0; i < files.Length; i++) live[i] = Drives(files[i], courses[ci], y0, turn);
+                n++;
+                if (live[0]) first++;
+                if (live[rehearsal.Order()[0]]) picked++;
+                if (live[0] || live[1] || live[2]) any++;
+            }
+        note = $"{courses.Count} rooms, {n} attempts: the first driver finished {first}/{n} in training order, {picked}/{n} in the rehearsal's; " +
+               $"some candidate could {any}/{n}; rehearsal at most {worstMs:0} ms of compute";
+        return picked < first ? note : null;
     }
 
     static int FallbackStarts(ControllerFile fallback, MockCourse course)
