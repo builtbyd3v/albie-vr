@@ -22,6 +22,14 @@ namespace Forge.Artifacts
 
         public string Title => Manifest?.Value<string>("title") ?? Id;
 
+        /// <summary>
+        /// An artifact that isn't saved yet, for a dry open before it is (<see cref="ArtifactLibrary.FromScene"/>). Data and
+        /// assets resolve exactly as they will once it's saved under <paramref name="id"/>: from that folder, the bundled
+        /// fixtures or its template, never from the agent. <paramref name="id"/> must already have passed the validator.
+        /// </summary>
+        internal static ArtifactPackage InMemory(string id, JObject manifest, JObject scene) =>
+            new ArtifactPackage { Id = id, Manifest = manifest, Scene = scene };
+
         /// <summary>The artifact, or null with <paramref name="error"/> saying why.</summary>
         public static ArtifactPackage Load(string id, out string error)
         {

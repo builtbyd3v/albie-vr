@@ -15,7 +15,7 @@ namespace Forge.Artifacts
 
         public const int MaxNodes = 512, MaxZones = 64, MaxRules = 64, MaxSceneChars = 256 * 1024;
         public const int MaxBodies = 16, MaxTrailPoints = 2048;
-        public const int MaxArrayCopies = 256;
+        public const int MaxArrayCopies = 256, MaxSceneCopies = 1024;
         public const int MaxAssetBytes = 8 * 1024 * 1024, MaxTextureSize = 2048, MaxKeys = 64;
 
         /// <summary>What an <c>animate</c> rule can move, and the value each key holds.</summary>
