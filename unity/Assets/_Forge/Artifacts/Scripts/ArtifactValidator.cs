@@ -545,7 +545,7 @@ namespace Forge.Artifacts
                 var version = manifest["version"];
                 if (version?.Type != JTokenType.Integer || Num(version) < 1)
                     Add("bad_value", "version", "must be an integer from 1", "use \"version\": 1 (an integer, not \"1.0.0\"); saving sets the real one");
-                OneOf(manifest, "kind", ArtifactSchema.Kinds, "kind", "use \"standalone\"; it's linked to the open project for you");
+                OneOf(manifest, "kind", ArtifactSchema.Kinds, "kind", "use \"standalone\" for something on its own, or \"project\" to link it to the open notebook project");
                 OneOf(manifest, "category", ArtifactSchema.Categories, "category", "\"sim\" if it has a sim node, \"tool\" for something you operate, \"viz\" for something you look at");
 
                 var sceneFile = manifest["scene"];
