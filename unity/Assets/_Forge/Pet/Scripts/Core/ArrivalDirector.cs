@@ -6,17 +6,17 @@ using UnityEngine;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Bit's arrival choreography: the ONE pet script that listens to DeskPresence.stateChanged (Main.unity, on PetRuntime).
-    ///   Near / Seated → the desk NavMesh follows DeskPresence.Table (GatorMrukAdapter.SyncDeskToPresence) and Bit hops onto it.
+    /// Albie's arrival choreography: the ONE pet script that listens to DeskPresence.stateChanged (Main.unity, on PetRuntime).
+    ///   Near / Seated → the desk NavMesh follows DeskPresence.Table (AlbieMrukAdapter.SyncDeskToPresence) and Albie hops onto it.
     ///   First arrival of a session (re-armed after rearmAwaySeconds Away; stepping away for a moment or walking round the
-    ///   desk doesn't count) → the dock is held back (Workspace.HoldDock), Bit walks to the greeting spot (in front of the
-    ///   seated user, a little to their left, outside the DeskDock keep-out) and faces them (GatorController.StationAt),
+    ///   desk doesn't count) → the dock is held back (Workspace.HoldDock), Albie walks to the greeting spot (in front of the
+    ///   seated user, a little to their left, outside the DeskDock keep-out) and faces them (AlbieController.StationAt),
     ///   POST /messages/digest, and the greeting card shows the digest line (which the hub also speaks; count 0 =
     ///   "You have no new messages today.", hub never live = "Hub offline.") with a START pill beside it (ArrivalGreeting).
-    ///   START → card + ring fold, the dock comes in (frame slides in, rings plop on), Bit walks over to the right of the desk, and after
+    ///   START → card + ring fold, the dock comes in (frame slides in, rings plop on), Albie walks over to the right of the desk, and after
     ///   the dock has landed Workspace.Open("code") (fallback "screens"). No timeout: the card stays up until START or Away.
     ///   Later arrivals → just the hop; the dock shows on Near as Core always did.
-    ///   Away → everything cancels and folds, the hold is released; Bit hops down and follows (GatorState.Following) or
+    ///   Away → everything cancels and folds, the hold is released; Albie hops down and follows (AlbieState.Following) or
     ///   wanders off (followOnAway).
     /// It also tells the hub which desk mode is open: workspace.mode {pet_id, mode} on Workspace.modeChanged and once after
     /// every (re)connect, mode "" when closed. Null-safe: without a DeskPresence (sandbox) it idles; without a Workspace the
@@ -25,12 +25,12 @@ namespace Forge.Pet
     [DisallowMultipleComponent]
     public class ArrivalDirector : MonoBehaviour
     {
-        [SerializeField, Tooltip("Bit. Auto-found in children / scene if empty.")]
-        GatorController controller;
-        [SerializeField, Tooltip("Bit's bridge (pet_id). Auto-found in children / scene if empty.")]
-        GatorAgentBridge bridge;
+        [SerializeField, Tooltip("Albie. Auto-found in children / scene if empty.")]
+        AlbieController controller;
+        [SerializeField, Tooltip("Albie's bridge (pet_id). Auto-found in children / scene if empty.")]
+        AlbieAgentBridge bridge;
         [SerializeField, Tooltip("Builds the desk NavMesh from DeskPresence.Table. Auto-found in children / scene if empty.")]
-        GatorMrukAdapter adapter;
+        AlbieMrukAdapter adapter;
         [SerializeField, Tooltip("The greeting card + START pill (built into PetRuntime by the editor). Auto-found in children if empty.")]
         ArrivalGreeting greeting;
 
@@ -60,7 +60,7 @@ namespace Forge.Pet
         [Header("Places (desk frame, m: x right of the front-edge midpoint, z into the desk)")]
         [SerializeField, Tooltip("Greeting spot: in front of the seated user, to their left of the laptop / dock keep-out. Clamped to the desk; nudged further left while inside the keep-out.")]
         Vector3 greetingSpot = new Vector3(-0.42f, 0f, 0.18f);
-        [SerializeField, Tooltip("Where Bit wanders off to after START (his side of the desk). Clamped to the desk, keep-out safe.")]
+        [SerializeField, Tooltip("Where Albie wanders off to after START (his side of the desk). Clamped to the desk, keep-out safe.")]
         Vector3 afterStartSpot = new Vector3(0.35f, 0f, 0.30f);
 
         [Header("Modes")]
@@ -77,20 +77,20 @@ namespace Forge.Pet
         float _nextWorkspaceCheck, _awaySince = -1f;
         bool _greeted, _greetingUp, _digestSent, _digestArrived;
         string _digestLine;
-        GatorCaption _caption;
+        AlbieCaption _caption;
 
         /// <summary>The first-arrival greeting has played this session (until rearmAwaySeconds Away).</summary>
         public bool Greeted => _greeted;
 
         void Awake()
         {
-            if (controller == null) controller = GetComponentInChildren<GatorController>(true);
-            if (controller == null) controller = FindAnyObjectByType<GatorController>();
-            if (bridge == null) bridge = controller != null ? controller.GetComponent<GatorAgentBridge>() : null;
-            if (bridge == null) bridge = GetComponentInChildren<GatorAgentBridge>(true);
-            if (bridge == null) bridge = FindAnyObjectByType<GatorAgentBridge>();
-            if (adapter == null) adapter = GetComponentInChildren<GatorMrukAdapter>(true);
-            if (adapter == null) adapter = FindAnyObjectByType<GatorMrukAdapter>();
+            if (controller == null) controller = GetComponentInChildren<AlbieController>(true);
+            if (controller == null) controller = FindAnyObjectByType<AlbieController>();
+            if (bridge == null) bridge = controller != null ? controller.GetComponent<AlbieAgentBridge>() : null;
+            if (bridge == null) bridge = GetComponentInChildren<AlbieAgentBridge>(true);
+            if (bridge == null) bridge = FindAnyObjectByType<AlbieAgentBridge>();
+            if (adapter == null) adapter = GetComponentInChildren<AlbieMrukAdapter>(true);
+            if (adapter == null) adapter = FindAnyObjectByType<AlbieMrukAdapter>();
             if (greeting == null) greeting = GetComponentInChildren<ArrivalGreeting>(true);
         }
 
@@ -199,10 +199,10 @@ namespace Forge.Pet
                 if (!asked && !controller.IsHopping)
                 {
                     if (adapter != null) adapter.SyncDeskToPresence();
-                    GatorNavSurface desk = GatorNavSurface.Desk;
+                    AlbieNavSurface desk = AlbieNavSurface.Desk;
                     if (desk != null && desk.IsBuilt)
                     {
-                        if (controller.State == GatorState.Following) controller.SetState(GatorState.Wandering);   // follow = floor
+                        if (controller.State == AlbieState.Following) controller.SetState(AlbieState.Wandering);   // follow = floor
                         Log("Hop onto the desk.");
                         controller.HopToUserDesk(toGreetingSpot ? GreetingSpot() : (Vector3?)null);
                         asked = true;
@@ -277,12 +277,12 @@ namespace Forge.Pet
             _sequence = null;
         }
 
-        // The card shows the digest line, and the hub's pet.say puts the same line in Bit's bubble, right over the card
+        // The card shows the digest line, and the hub's pet.say puts the same line in Albie's bubble, right over the card
         // and the START pill. Keep the bubble quiet until START; the hub still speaks the line.
         void GreetingUp(bool up)
         {
             _greetingUp = up;
-            if (_caption == null && controller != null) _caption = controller.GetComponentInChildren<GatorCaption>(true);
+            if (_caption == null && controller != null) _caption = controller.GetComponentInChildren<AlbieCaption>(true);
             if (_caption != null) _caption.Muted = up;
         }
 
@@ -324,7 +324,7 @@ namespace Forge.Pet
             Transform frame = _presence.Frame;
             float half = Mathf.Max(0.15f, _presence.FrameWidth * 0.5f);
             float x = -Mathf.Min(Mathf.Abs(greetingSpot.x), half - 0.12f);
-            GatorNavSurface desk = GatorNavSurface.Desk;
+            AlbieNavSurface desk = AlbieNavSurface.Desk;
             Vector3 p = frame.TransformPoint(new Vector3(x, 0f, greetingSpot.z));
             if (desk == null || !desk.IsBuilt) return p;
             p = desk.ClosestPoint(p, 0.08f);
@@ -344,10 +344,10 @@ namespace Forge.Pet
             if (head != null)
             {
                 Vector3 d = p - head.position; d.y = 0f;
-                float reach = GatorController.NearDeskReach - 0.1f;
+                float reach = AlbieController.NearDeskReach - 0.1f;
                 if (d.magnitude > reach) p = head.position + d * (reach / d.magnitude) + Vector3.up * (p.y - head.position.y);
             }
-            GatorNavSurface desk = GatorNavSurface.Desk;
+            AlbieNavSurface desk = AlbieNavSurface.Desk;
             return desk != null && desk.IsBuilt ? desk.ClosestPoint(p, 0.08f) : p;
         }
 
@@ -357,7 +357,7 @@ namespace Forge.Pet
             if (followOnAway)
             {
                 Log("Away: following the user.");
-                controller.SetState(GatorState.Following);   // Following hops to the floor when on the desk
+                controller.SetState(AlbieState.Following);   // Following hops to the floor when on the desk
             }
             else
             {

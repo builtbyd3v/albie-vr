@@ -241,7 +241,7 @@ def test_store_history_is_top_level_oldest_first_and_pages(tmp_path: Path) -> No
 
 # ------------------------------------------------------------------ digest
 def test_digest_empty_still_greets(tmp_path: Path) -> None:
-    """Nothing new: the line is the zero-case sentence and Bit says it (the arrival card needs a headline)."""
+    """Nothing new: the line is the zero-case sentence and Albie says it (the arrival card needs a headline)."""
     svc, bus, spoken = make_service(tmp_path)
     d = asyncio.run(svc.digest())
     assert d.count == 0 and d.line == "You have no new messages today." and d.messages == []
@@ -321,7 +321,7 @@ def test_on_event_filters(tmp_path: Path) -> None:
     async def run() -> list[Any]:
         out = [
             await svc.on_event(event(bot_id="B1")),                       # another bot
-            await svc.on_event(event(user="UBOT")),                       # Bit's own post
+            await svc.on_event(event(user="UBOT")),                       # Albie's own post
             await svc.on_event(event(subtype="message_changed")),         # edit
             await svc.on_event(event(text="")),                           # nothing to show
             await svc.on_event(event()),                                  # the real one
@@ -685,7 +685,7 @@ def test_draft_create_send_emits_and_posts_as_user(tmp_path: Path) -> None:
     assert draft.reply_to is not None and draft.reply_to.text == "build ready by 3?"
     assert sent is draft and ts == "1700000099.000100" and svc.open_draft is None
     assert svc._user_client.posted == [{"channel": "C1", "text": "yes, by 3", "thread_ts": "1700000010.000100"}]
-    assert svc._client.posted == []  # not as Bit
+    assert svc._client.posted == []  # not as Albie
     assert bus.flow() == ["notify.draft", "notify.message", "notify.sent"]  # the post shows in the panel at once
     posted = bus.last("notify.message")
     assert (posted.channel, posted.ts, posted.text, posted.thread_ts, posted.is_me, posted.user, posted.user_name) == (
@@ -709,7 +709,7 @@ def test_draft_falls_back_to_bot_without_user_token(tmp_path: Path) -> None:
     assert svc._client.posted == [{"channel": "C1", "text": "on it", "thread_ts": None}]
     assert bus.flow() == ["notify.draft", "notify.message", "notify.sent"]
     posted = bus.last("notify.message")
-    assert (posted.user, posted.user_name, posted.is_me) == ("UBOT", "Albie", True)  # Bit is "me" without a user token
+    assert (posted.user, posted.user_name, posted.is_me) == ("UBOT", "Albie", True)  # Albie is "me" without a user token
 
 
 def test_draft_supersede_cancel_and_unknown(tmp_path: Path) -> None:
@@ -830,7 +830,7 @@ def test_send_tool_to_a_person_drafts_into_their_dm(tmp_path: Path) -> None:
     assert bus.last("notify.draft").channel == "DU1"
 
 
-# ------------------------------------------------------------------ focus ("Reply with Bit")
+# ------------------------------------------------------------------ focus ("Reply with Albie")
 def test_focus_speaks_notes_and_seeds_the_next_send(tmp_path: Path) -> None:
     svc, bus, spoken = make_service(tmp_path, as_user=True)
     svc.store.add(msg("1700000001.000100", text="unrelated"))
@@ -1141,15 +1141,15 @@ def test_history_keeps_the_users_own_app_posts(tmp_path: Path) -> None:
     assert [(m.text, m.is_me) for m in rows] == [("hello", False), ("sent from the headset", True)]
 
 
-def test_history_keeps_bit_posts_in_the_bot_fallback(tmp_path: Path) -> None:
-    """Without a user token the hub posts as Bit, so Bit's posts are the user's sends and survive a history reload."""
+def test_history_keeps_albie_posts_in_the_bot_fallback(tmp_path: Path) -> None:
+    """Without a user token the hub posts as Albie, so Albie's posts are the user's sends and survive a history reload."""
     svc, _, _ = make_service(tmp_path)
     reader(svc).history["C1"] = [
-        {"ts": "1700000002.000100", "user": "UBOT", "bot_id": "B1", "text": "sent as Bit"},
+        {"ts": "1700000002.000100", "user": "UBOT", "bot_id": "B1", "text": "sent as Albie"},
         {"ts": "1700000001.000100", "user": "U1", "text": "hello"},
     ]
     _, rows, _ = asyncio.run(svc.history("C1", 10))
-    assert [(m.text, m.is_me) for m in rows] == [("hello", False), ("sent as Bit", True)]
+    assert [(m.text, m.is_me) for m in rows] == [("hello", False), ("sent as Albie", True)]
 
 
 class UnityStub(BusRecorder):

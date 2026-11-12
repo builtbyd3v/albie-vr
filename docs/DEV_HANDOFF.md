@@ -28,13 +28,13 @@ Laptop hub/ (Python) = optional. Hub off = everything above.
 | Cloud client | `unity/Assets/_Forge/Core/Net/ForgeCloud.cs` | CAD and ML calls to the HF Space. URL default in code, PlayerPrefs `Albie.CloudUrl` overrides it. |
 | Cloud server | `cloud-py/app.py` | Wraps the existing `hub/cad` and `hub/ml` Python. Every route needs the `x-albie-key` header. |
 | Token + Claude proxy | `cloud/api/voice-token.ts`, `cloud/api/claude.ts` | The proxy caps models, tokens and rate. |
-| Wake + follow-up | `unity/Assets/_Forge/Pet/Scripts/Voice/WakeListener.cs`, `GatorFollowUp.cs` | Room speech, follow-up window, barge-in. |
+| Wake + follow-up | `unity/Assets/_Forge/Pet/Scripts/Voice/WakeListener.cs`, `AlbieFollowUp.cs` | Room speech, follow-up window, barge-in. |
 | Proactive tips | `unity/Assets/_Forge/Core/Scripts/AlbieTips.cs` | Max 1 tip per 120 s, held while Albie is busy. |
 
 What runs where with no laptop:
 - **Real:** voice, CAD (versions, analysis, flight sim), ML training on cloud CPU, the Neural Net Lab (C# on the headset), the neutral messenger with local drafts, crew tasks (one Claude call per task).
 - **Partial:** the code panel works on a bundled sample project only.
-- **Laptop only:** live screens (screen bridge), VS Code, iMessage. Off by default.
+- **Laptop only:** iMessage. Off by default. (The screen bridge and VS Code were removed on 2026-11-06, D-41.)
 
 ## 2. `feat/voice-cost` (WIP, pushed, not merged)
 
@@ -53,9 +53,9 @@ The branch is 4 commits behind `main` (the plan docs). Rebase or merge `main` in
 ## 3. Merged but not tested on the headset
 
 From the overnight UI lane (Oct 28), all on `main`:
-- Hands-only: fingertip poke on the gator (`GatorHandPoke`), system keyboard for text fields (`Assets/Oculus/OculusProjectConfig`, `requiresSystemKeyboard`).
+- Hands-only: fingertip poke on Albie (`AlbieHandPoke`), system keyboard for text fields (`Assets/Oculus/OculusProjectConfig`, `requiresSystemKeyboard`).
 - Proactive tips: spoken with voice on, caption with voice off.
-- Test on a Quest with hands only (no controllers): poke the gator, type in a text field, trigger a tip.
+- Test on a Quest with hands only (no controllers): poke Albie, type in a text field, trigger a tip.
 
 ## 4. Next (proposed by Dev, not decided)
 

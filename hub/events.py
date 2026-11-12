@@ -1,8 +1,7 @@
 """WebSocket event bus (`/ws`) and payload models. Mirror of ForgeEvents.cs.
 
-Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight, the VS Code push event,
-the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), screen.status (the screen-bridge supervisor, hub/screens;
-docs/PET_AGENT_CONTRACT.md Addendum F), the desk extras (ui.widgets, timers.updated, notes.updated, movie.state),
+Every message is {"type": ..., "payload": {...}}. Models so far: CAD, ui.highlight,
+the Slack notify.* events (PROJECT_CONTEXT 7 + 8.8), the desk extras (ui.widgets, timers.updated, notes.updated),
 and Albie driving the views: ui.mode, cad.action, draft attachments (Addendum H).
 The ML and pet models from section 7 still belong to their owners; add them next to these.
 """
@@ -161,7 +160,7 @@ class CadModelUpdated(BaseModel):
     removed_ids: list[str] = []
     source: str = "api"               # api | pet | preset | script | undo | reset | open | startup
     analysis: CadAnalysis | None = None
-    label: str = ""                   # the version in words: Bit's request, a preset, "Saved rocket.py", a change
+    label: str = ""                   # the version in words: Albie's request, a preset, "Saved rocket.py", a change
 
 
 class CadRegenFailed(BaseModel):
@@ -185,7 +184,7 @@ class CadView(BaseModel):
 
 
 class CadAction(BaseModel):
-    """Bit pressing a button in the CAD view (docs/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
+    """Albie pressing a button in the CAD view (docs/archive/PET_AGENT_CONTRACT.md Addendum H). One-off, not sticky: a client
     that connects later must not replay it. Unity applies it once the model of `version` is on screen."""
     action: Literal["expand", "demo", "markers", "dimensions", "tab", "reassemble", "take_off", "put_back"]
     on: bool | None = None            # expand (Inspect: the model big in front of the user) / demo (Fly, Hover, Run) /
@@ -198,33 +197,8 @@ class CadAction(BaseModel):
     seq: int = 0                      # increasing per hub run: a CadSession that starts late applies the last one once
 
 
-class VscodeEvent(BaseModel):
-    """Pushed by the Forge Bit VS Code extension so Bit can speak up on its own."""
-    kind: Literal["errors", "command_finished"]
-    file: str | None = None           # workspace-relative
-    line: int | None = None           # 1-based, first error
-    message: str | None = None        # first error
-    count: int | None = None          # errors in the saved file; 0 = just fixed
-    command: str | None = None        # command_finished: the command line
-    exit_code: int | None = None
-
-
-SCREEN_STATUS = "screen.status"
-
-
-class ScreenStatus(BaseModel):
-    """State of the screen bridge (screen-bridge/start.js, supervised by hub/screens). Sticky on /ws.
-
-    starting: the child was (re)spawned and is bringing up signaling + Chrome; sharing: Chrome is capturing
-    `source`; stopped: disabled, or the hub is shutting down; error: the child died and restarts are exhausted.
-    """
-    state: Literal["starting", "sharing", "stopped", "error"]
-    source: str | None = None         # what Chrome shares ("| gatorhack-dubz", "Entire screen")
-    detail: str | None = None         # last status line ("signaling: connected", "video: connected h264", an error)
-
-
 class UiMode(BaseModel):
-    """hub -> clients: Bit opens a workspace view (Addendum H). Unity answers with workspace.mode {mode, reason?}."""
+    """hub -> clients: Albie opens a workspace view (Addendum H). Unity answers with workspace.mode {mode, reason?}."""
     mode: str                         # cad | code | ml | messages; "" closes the open view
 
 
@@ -286,7 +260,7 @@ class Attachment(BaseModel):
 
 
 class Draft(BaseModel):
-    """A reply Bit wrote but has NOT sent. Payload of notify.draft; Unity shows it as a Send / Cancel card.
+    """A reply Albie wrote but has NOT sent. Payload of notify.draft; Unity shows it as a Send / Cancel card.
 
     Nothing reaches Slack until POST /messages/drafts/{id}/send (the card's Send button) or the
     messages_confirm tool ("yes, send it"). Posting uses the user's own token, so it lands under their name.
@@ -330,7 +304,7 @@ NO_NEW_MESSAGES = "You have no new messages today."
 
 
 def digest_line(count: int, mentions: int) -> str:
-    """The one sentence Bit says on sit-down (the greeting card's headline too). Never empty: the zero case is
+    """The one sentence Albie says on sit-down (the greeting card's headline too). Never empty: the zero case is
     NO_NEW_MESSAGES, so the wording lives here and nowhere in Unity."""
     if count <= 0:
         return NO_NEW_MESSAGES
@@ -365,8 +339,8 @@ class NotifyDigest(BaseModel):
         )
 
 
-# Desk extras (hub/desk): the focus timer, notes and the movie screen. Bit adds them on top of any mode and they stay
-# open across mode switches. Proposed contract additions: hub/README "Desk (timer, notes, movie)".
+# Desk extras (hub/desk): the focus timer and notes. Albie adds them on top of any mode and they stay
+# open across mode switches. Proposed contract additions: hub/README "Desk (timers, notes)".
 
 WidgetState = Literal["open", "minimized", "closed"]
 
@@ -375,7 +349,6 @@ class UiWidgets(BaseModel):
     """Which desk extras are showing. Always the whole map, so a client that connects later gets the layout."""
     timer: WidgetState = "closed"     # the timers: minimized = one dot showing the one that ends soonest
     notes: WidgetState = "closed"     # minimized = the notes dot
-    movie: WidgetState = "closed"
 
 
 class TimerState(BaseModel):
@@ -407,26 +380,6 @@ class NotesUpdated(BaseModel):
     last_removed: Note | None = None
 
 
-class MovieInfo(BaseModel):
-    movie_id: str                     # file name in .data/media without .mp4
-    title: str
-    year: int | None = None
-    duration_s: float | None = None
-    url: str                          # hub path for ForgeNet.Url: /movie/files/<id>.mp4 (byte ranges, so seeking works)
-    subtitles_url: str | None = None  # /movie/files/<id>.en.srt when there is one
-
-
-class MovieState(BaseModel):
-    """The movie screen. Unity's VideoPlayer keeps time and reports it (POST /movie/position); the hub estimates
-    position_s in between. A deliberate jump (seek, skip, play from the start) bumps seek_rev: Unity seeks to
-    position_s when seek_rev changes and otherwise leaves the player alone."""
-    status: Literal["closed", "playing", "paused"] = "closed"
-    movie: MovieInfo | None = None
-    position_s: float = 0.0
-    volume: float = 0.8               # 0..1
-    seek_rev: int = 0
-
-
 def _body(payload: BaseModel | dict[str, Any]) -> dict[str, Any]:
     return payload.model_dump() if isinstance(payload, BaseModel) else payload
 
@@ -441,12 +394,12 @@ class EventBus:
         self._current: dict[str, Callable[[], BaseModel | dict[str, Any]]] = {}
 
     def make_sticky(self, type_: str) -> None:
-        """Replay the last `type_` payload to late joiners too (modules register their own, e.g. screen.status)."""
+        """Replay the last `type_` payload to late joiners too (modules register their own)."""
         self.sticky.add(type_)
 
     def sticky_fresh(self, type_: str, current: Callable[[], BaseModel | dict[str, Any]]) -> None:
         """Replay `type_` to clients that connect later from `current()`, not from the last payload sent: for state
-        that moves on its own, like the timers' remaining time or the movie's position."""
+        that moves on its own, like the timers' remaining time."""
         self._current[type_] = current
 
     def latest(self, prefix: str = "") -> dict[str, dict[str, Any]]:

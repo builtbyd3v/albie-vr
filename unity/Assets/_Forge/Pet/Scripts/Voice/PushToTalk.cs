@@ -7,12 +7,12 @@ namespace Forge.Pet
 {
     /// <summary>
     /// Push-to-talk: hold Space / XR primary button → Listening + STT; release → StopListening.
-    /// FinalTranscript → Thinking + GatorAgentBridge.Ask(text). PartialTranscript → caption (partial).
+    /// FinalTranscript → Thinking + AlbieAgentBridge.Ask(text). PartialTranscript → caption (partial).
     /// Provider: HubSpeechToText (mic over ForgeNet) in hub mode; TypedSpeechToText only exists in the sandbox scenes
     /// (with the MockEventSource), where the key only OPENS the input field (Enter sends, Esc cancels), because Space must
     /// be typeable while the field is focused. Nothing is ever auto-added outside hub mode.
     ///
-    /// Hands-free (GatorSummon / whistle): BeginHandsFree() listens without a held key. The session ends on
+    /// Hands-free (AlbieSummon / whistle): BeginHandsFree() listens without a held key. The session ends on
     /// endSilence after speech (mic level from IMicLevel), noSpeechTimeout without any speech (cancelled), or the
     /// maxUtterance cap; CancelSession() drops it without asking. Pressing Space/A mid-session hands it to hold mode.
     /// This stays the ONLY reader of transcripts, so nothing is ever asked twice.
@@ -26,11 +26,11 @@ namespace Forge.Pet
         [SerializeField, Tooltip("Optional explicit STT provider (must implement ISpeechToText). Auto-picked if empty.")]
         MonoBehaviour sttProvider;
         [SerializeField, Tooltip("Auto-found on this GameObject / parents / scene if empty.")]
-        GatorController controller;
+        AlbieController controller;
         [SerializeField, Tooltip("Auto-found in children / scene if empty.")]
-        GatorCaption caption;
+        AlbieCaption caption;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
-        GatorAgentBridge bridge;
+        AlbieAgentBridge bridge;
 
         [Header("Hands-free (whistle)")]
         [SerializeField, Tooltip("Give up (cancel) if no speech is heard within this many seconds.")]
@@ -81,12 +81,12 @@ namespace Forge.Pet
                 talkAction.AddBinding("<XRController>{RightHand}/primaryButton");
                 talkAction.AddBinding("<XRController>{LeftHand}/primaryButton");
             }
-            if (controller == null) controller = GetComponentInParent<GatorController>();
-            if (controller == null) controller = FindAnyObjectByType<GatorController>();
-            if (caption == null) caption = GetComponentInChildren<GatorCaption>(true);
-            if (caption == null) caption = FindAnyObjectByType<GatorCaption>();
-            if (bridge == null) bridge = GetComponent<GatorAgentBridge>();
-            if (bridge == null) bridge = FindAnyObjectByType<GatorAgentBridge>();
+            if (controller == null) controller = GetComponentInParent<AlbieController>();
+            if (controller == null) controller = FindAnyObjectByType<AlbieController>();
+            if (caption == null) caption = GetComponentInChildren<AlbieCaption>(true);
+            if (caption == null) caption = FindAnyObjectByType<AlbieCaption>();
+            if (bridge == null) bridge = GetComponent<AlbieAgentBridge>();
+            if (bridge == null) bridge = FindAnyObjectByType<AlbieAgentBridge>();
         }
 
         void OnEnable() => talkAction?.Enable();
@@ -104,14 +104,14 @@ namespace Forge.Pet
         }
 
         // Mic stopped, no stt.final: the hub lost the turn (socket hiccup, voice session gone). Treat it as empty and
-        // swallow a late final, instead of Bit standing in Listening with the mic blocked for everyone else.
+        // swallow a late final, instead of Albie standing in Listening with the mic blocked for everyone else.
         void FinalTimedOut()
         {
             _finalDeadline = -1f;
             Debug.LogWarning("[PushToTalk] No stt.final within " + finalTimeout.ToString("F0") + " s; dropping the turn.");
             _discardFinal = true;
             if (caption != null) caption.Clear();
-            if (controller != null && controller.State == GatorState.Listening) controller.SetState(GatorState.Wandering);
+            if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
             EndHandsFree(false);
         }
 
@@ -144,7 +144,7 @@ namespace Forge.Pet
             return true;
         }
 
-        /// <summary>The caller already heard speech (GatorFollowUp's barge-in check, 0.3 s over the level): count it, so a
+        /// <summary>The caller already heard speech (AlbieFollowUp's barge-in check, 0.3 s over the level): count it, so a
         /// short "Stop." whose only speech is in the pre-roll still ends on silence. Live 2026-10-25: such a turn
         /// waited 8 s for speech that had already been said, then was cancelled, and Albie kept talking.</summary>
         public void MarkSpeechHeard()
@@ -155,7 +155,7 @@ namespace Forge.Pet
             _speechTime = minSpeechSeconds;
         }
 
-        /// <summary>Drops the open session without asking anything; the gator goes back to Wandering.</summary>
+        /// <summary>Drops the open session without asking anything; Albie goes back to Wandering.</summary>
         public void CancelSession()
         {
             if (!SessionActive) return;
@@ -168,7 +168,7 @@ namespace Forge.Pet
                 _stt.StopListening();
             }
             if (caption != null) caption.Clear();
-            if (controller != null && controller.State == GatorState.Listening) controller.SetState(GatorState.Wandering);
+            if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
             EndHandsFree(false);
         }
 
@@ -184,13 +184,13 @@ namespace Forge.Pet
                     if (!ok)
                     {
                         if (caption != null) caption.SetText("I need microphone permission.", false);
-                        if (controller != null && controller.State == GatorState.Listening) controller.SetState(GatorState.Wandering);
+                        if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
                         EndHandsFree(false);
                         return;
                     }
                 }
                 if (caption != null) caption.Clear();
-                if (controller != null) controller.SetState(GatorState.Listening);
+                if (controller != null) controller.SetState(AlbieState.Listening);
                 _sessionStart = _lastSpeech = Time.time;
                 stt.StartListening();                        // failures arrive as Error → OnSttError ends the session
             }
@@ -237,14 +237,14 @@ namespace Forge.Pet
         /// <summary>
         /// Resolves the provider lazily (config is loaded async, so EventSourceIsHub is known late). Hub mode: the
         /// HubSpeechToText on this object (added if the prefab lost it). Sandbox (mock source): the TypedSpeechToText the
-        /// sandbox builder put on the gator. Nothing else is ever created; no provider = a warning, not a text box.
+        /// sandbox builder put on Albie. Nothing else is ever created; no provider = a warning, not a text box.
         /// </summary>
         ISpeechToText ResolveProvider()
         {
             ISpeechToText wanted = sttProvider as ISpeechToText;
             if (wanted == null)
             {
-                bool hub = GatorAgentBridge.EventSourceIsHub;
+                bool hub = AlbieAgentBridge.EventSourceIsHub;
                 MonoBehaviour pick = null;
                 if (hub) pick = GetComponent<HubSpeechToText>();
                 else pick = GetComponent<TypedSpeechToText>();
@@ -257,7 +257,7 @@ namespace Forge.Pet
                 if (pick == null && !_warnedNoStt)
                 {
                     _warnedNoStt = true;
-                    Debug.LogWarning("[PushToTalk] No speech-to-text provider on " + name + " yet (hub mode undecided, or a sandbox gator without TypedSpeechToText).", this);
+                    Debug.LogWarning("[PushToTalk] No speech-to-text provider on " + name + " yet (hub mode undecided, or a sandbox Albie without TypedSpeechToText).", this);
                 }
                 wanted = pick as ISpeechToText;
             }
@@ -304,7 +304,7 @@ namespace Forge.Pet
                 }
 
                 if (caption != null) caption.Clear();
-                if (controller != null) controller.SetState(GatorState.Listening);
+                if (controller != null) controller.SetState(AlbieState.Listening);
                 stt.StartListening();
             }
             catch (Exception e) { Debug.LogException(e); }
@@ -337,15 +337,15 @@ namespace Forge.Pet
             {
                 // Nothing heard: go back to idle instead of hanging in Listening.
                 if (caption != null) caption.Clear();
-                if (controller != null && controller.State == GatorState.Listening) controller.SetState(GatorState.Wandering);
+                if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
                 EndHandsFree(false);
                 return;
             }
             if (caption != null) caption.SetText(text, false);
-            if (controller != null) controller.SetState(GatorState.Thinking);
+            if (controller != null) controller.SetState(AlbieState.Thinking);
             if (HubVoiceAnswers()) { /* the hub's voice session is already answering this turn */ }
             else if (bridge != null) bridge.Ask(text);
-            else Debug.LogWarning("[PushToTalk] No GatorAgentBridge; transcript dropped: " + text);
+            else Debug.LogWarning("[PushToTalk] No AlbieAgentBridge; transcript dropped: " + text);
             EndHandsFree(true);
         }
 
@@ -360,7 +360,7 @@ namespace Forge.Pet
                 if (caption != null) caption.SetText("(" + message + ")", false);
             }
             else if (caption != null) caption.Clear();
-            if (controller != null && controller.State == GatorState.Listening) controller.SetState(GatorState.Wandering);
+            if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
             EndHandsFree(false);
         }
 

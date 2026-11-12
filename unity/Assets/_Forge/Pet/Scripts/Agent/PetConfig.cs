@@ -10,7 +10,7 @@ namespace Forge.Pet
 {
     /// <summary>
     /// Contents of Assets/StreamingAssets/pet_config.json. Parsed with JsonUtility (IL2CPP-safe).
-    /// Missing file / bad JSON → defaults (live hub through ForgeNet). "mock" only takes effect on a gator that carries a
+    /// Missing file / bad JSON → defaults (live hub through ForgeNet). "mock" only takes effect on an agent that carries a
     /// MockEventSource, i.e. in the sandbox scenes; Main always talks to the hub.
     /// </summary>
     [Serializable]

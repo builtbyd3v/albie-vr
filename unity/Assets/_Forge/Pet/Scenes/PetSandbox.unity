@@ -147,7 +147,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e57177141a65f462ab37a257eed2943b, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorNavSurface
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieNavSurface
   buildOnStart: 0
   startSize: {x: 1, y: 1}
   role: 0
@@ -478,7 +478,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_Name
-      value: GatorAssistant
+      value: AlbieAssistant
       objectReference: {fileID: 0}
     - target: {fileID: 283743111020266995, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_LocalPosition.x
@@ -541,7 +541,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6b02f17689afe4729b83f6a0ff834d80, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorController
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieController
 --- !u!1 &593238223 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
@@ -609,7 +609,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e59598a5e213e49e8bfee1a3add59c8d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.TypedSpeechToText
-  placeholder: Ask the gator... (Enter = send, Esc = cancel)
+  placeholder: Ask Albie... (Enter = send, Esc = cancel)
   fontSize: 28
   sortingOrder: 500
 --- !u!1 &922152690
@@ -886,7 +886,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10d0c78c8736e4d32aead7d4d33001e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.PetSandboxHotkeys
-  gator: {fileID: 593238222}
+  albie: {fileID: 593238222}
   jumpKey: 24
   bounceKey: 16
   spinKey: 25
@@ -941,7 +941,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e57177141a65f462ab37a257eed2943b, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorNavSurface
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieNavSurface
   buildOnStart: 0
   startSize: {x: 1, y: 1}
   role: 0
@@ -1681,7 +1681,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 880cb09b164d74af6bccbd159b92e60a, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorSandboxNav
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieSandboxNav
   floor: {fileID: 1527647937}
   desk: {fileID: 57147064}
   controller: {fileID: 593238222}

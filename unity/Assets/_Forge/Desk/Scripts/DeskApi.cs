@@ -13,8 +13,6 @@ public static class DeskApi
     static readonly List<DeskTimer> timers = new List<DeskTimer>();
     static float timersAt;                      // realtimeSinceStartup when `timers` was true
     static NotesUpdated notes = new NotesUpdated();
-    static MovieState movie = new MovieState();
-    static float movieAt;
     static int mockIds;
 
     static bool Live => ForgeNet.Status == ForgeNetStatus.Live;
@@ -26,7 +24,6 @@ public static class DeskApi
         widgets = new UiWidgets();
         timers.Clear();
         notes = new NotesUpdated();
-        movie = new MovieState();
     }
 
     // ---------------------------------------------------------------- the local copy
@@ -43,15 +40,9 @@ public static class DeskApi
 
     public static void Seen(NotesUpdated value) => notes = value ?? new NotesUpdated();
 
-    public static void Seen(MovieState value)
-    {
-        movie = value ?? new MovieState();
-        movieAt = Now;
-    }
-
     // ---------------------------------------------------------------- widgets
 
-    /// <summary>Open, minimize or close one: "timer", "notes" or "movie". Closing the timers stops them all.</summary>
+    /// <summary>Open, minimize or close one: "timer" or "notes". Closing the timers stops them all.</summary>
     public static void SetWidget(string widget, string state)
     {
         if (Live)
@@ -64,17 +55,10 @@ public static class DeskApi
             timers.Clear();
             EmitTimers();
         }
-        if (widget == "movie" && state == "closed" && movie.status != "closed")
-        {
-            movie.positionS = MoviePosition();
-            movie.status = "closed";
-            EmitMovie();
-        }
-        bool hasContent = widget == "timer" ? timers.Count > 0 : widget == "movie" ? movie.status != "closed" : true;
+        bool hasContent = widget != "timer" || timers.Count > 0;
         if (state != "closed" && !hasContent) return;
         if (widget == "timer") widgets.timer = state;
         else if (widget == "notes") widgets.notes = state;
-        else if (widget == "movie") widgets.movie = state;
         ForgeNet.Emit(ForgeEvents.UiWidgetsType, widgets);
     }
 
@@ -121,7 +105,7 @@ public static class DeskApi
         EmitTimers();
     }
 
-    /// <summary>A new timer (the sandbox's keys; Bit starts them through the hub).</summary>
+    /// <summary>A new timer (the sandbox's keys; Albie starts them through the hub).</summary>
     public static DeskTimer TimerStart(float seconds, string label)
     {
         if (Live)
@@ -244,7 +228,7 @@ public static class DeskApi
         NotesChanged();
     }
 
-    /// <summary>A new note (the sandbox's keys; Bit writes them through the hub).</summary>
+    /// <summary>A new note (the sandbox's keys; Albie writes them through the hub).</summary>
     public static void NoteAdd(string text)
     {
         if (Live)
@@ -364,107 +348,5 @@ public static class DeskApi
         note.text = text.Trim();
         note.updatedAt = (System.DateTime.UtcNow - new System.DateTime(1970, 1, 1)).TotalSeconds;
         NotesChanged();
-    }
-
-    // ---------------------------------------------------------------- movie
-
-    /// <summary>Hub off: the local copy (read only) and where it is now.</summary>
-    public static MovieState Movie => movie;
-    public static float MovieNow => MoviePosition();
-
-    /// <summary>Hub off, <paramref name="start"/>: play from there (default: 0 for another movie, where it was for this one).</summary>
-    public static void MoviePlay(MovieInfo info, float? start = null)
-    {
-        if (Live)
-        {
-            ForgeNet.Post("/movie/play", new { movie_id = info?.movieId });
-            return;
-        }
-        if (info != null && (movie.movie == null || movie.movie.movieId != info.movieId))
-        {
-            movie.movie = info;
-            movie.positionS = 0f;
-            movie.seekRev++;
-        }
-        if (movie.movie == null) return;
-        if (start.HasValue)
-        {
-            movie.positionS = Mathf.Clamp(start.Value, 0f, movie.movie.durationS ?? float.MaxValue);
-            movieAt = Now;
-            movie.seekRev++;
-        }
-        else if (movie.status == "closed") movie.seekRev++;  // back where it was
-        MovieSet("playing");
-    }
-
-    public static void MoviePause() => MovieAction("/movie/pause", null, () => MovieSet("paused"));
-    public static void MovieResume() => MovieAction("/movie/resume", null, () => MovieSet("playing"));
-    public static void MovieClose() => MovieAction("/movie/close", null, () =>
-    {
-        MovieSet("closed");
-        SetWidget("movie", "closed");
-    });
-
-    public static void MovieSeek(float position) => MovieAction("/movie/seek", new { position_s = position }, () => Jump(position));
-    public static void MovieSkip(float seconds) => MovieAction("/movie/seek", new { delta_s = seconds }, () => Jump(MoviePosition() + seconds));
-
-    public static void MovieVolume(float volume) => MovieAction("/movie/volume", new { volume = Mathf.Clamp01(volume) }, () =>
-    {
-        movie.positionS = MoviePosition();
-        movieAt = Now;
-        movie.volume = Mathf.Clamp01(volume);
-        EmitMovie();
-    });
-
-    /// <summary>The player says where it is (every few seconds, on pause, at the end). No event back.</summary>
-    public static void MovieReport(float position, float duration, bool ended)
-    {
-        if (Live)
-        {
-            ForgeNet.Post("/movie/position", new { position_s = Mathf.Max(0f, position), duration_s = duration > 0f ? duration : (float?)null, ended });
-            return;
-        }
-        if (movie.status == "closed") return;
-        movie.positionS = position;
-        movieAt = Now;
-        MovieTools.Keep(movie, position);
-        if (ended && movie.status == "playing") MovieSet("paused");
-    }
-
-    static void MovieAction(string path, object body, System.Action local)
-    {
-        if (Live)
-        {
-            ForgeNet.Post(path, body);
-            return;
-        }
-        if (movie.movie == null || (movie.status == "closed" && path != "/movie/resume")) return;
-        local();
-    }
-
-    static void MovieSet(string status)
-    {
-        movie.positionS = MoviePosition();
-        movieAt = Now;
-        movie.status = status;
-        EmitMovie();
-        if (status != "closed" && widgets.movie == "closed") SetWidget("movie", "open");
-    }
-
-    static void Jump(float position)
-    {
-        float length = movie.movie?.durationS ?? float.MaxValue;
-        movie.positionS = Mathf.Clamp(position, 0f, length);
-        movieAt = Now;
-        movie.seekRev++;
-        EmitMovie();
-    }
-
-    static float MoviePosition() => movie.positionS + (movie.status == "playing" ? Now - movieAt : 0f);
-
-    static void EmitMovie()
-    {
-        MovieTools.Keep(movie, MoviePosition());
-        ForgeNet.Emit(ForgeEvents.MovieStateType, movie);
     }
 }

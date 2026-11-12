@@ -161,7 +161,6 @@ MonoBehaviour:
   host: {fileID: 0}
   timersPrefab: {fileID: 6482698088433693058, guid: b4d2a057b63973040b14d03fc23a1150, type: 3}
   notesPrefab: {fileID: 4441958140030919205, guid: 89691c6a66923a04698fe2b36cb1da64, type: 3}
-  moviePrefab: {fileID: 4518143668574369261, guid: a1326720613a77e4d8524c50d40016a3, type: 3}
   orbPrefab: {fileID: 8755594479428941228, guid: f31f0b975a9c47744bdb6005c044a012, type: 3}
   chime: {fileID: 2998176582843699717}
   assistantName: Albie

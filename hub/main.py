@@ -1,14 +1,13 @@
 """Forge hub: one FastAPI process, a router per module, one `/ws` event bus.
 
-Modules: CAD, agent (pet), VS Code push, messaging (Slack), screens (the screen-bridge child process), desk
-(timers, notes, movie), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
+Modules: CAD, agent (pet), messaging (Slack), desk (timers, notes), ML (training runs, datasets and results for the ML desk; `ml/router.py`).
 `/ws` is the one socket: the EventBus publishes to it and the agent (pet) session reads it, since Unity talks to
-the hub through one ForgeNet socket. See README "Agent module (pet)". Bit drives the views over it too (agent/workspace.py:
+the hub through one ForgeNet socket. See README "Agent module (pet)". Albie drives the views over it too (agent/workspace.py:
 ui.mode out, workspace.mode back), and his Slack drafts can carry the open CAD design's files (cad/tools.py attachments).
 Run from hub/:  uvicorn main:app --host 0.0.0.0 --port 8000   (no --reload: it would restart the CAD worker)
 
 Env: FORGE_DATA_DIR (default hub/.data), FORGE_CAD_SCRIPT (default hub/cad/parts/rocket.py), SLACK_* (messaging/settings.py),
-SCREEN_BRIDGE=1|0 and SCREEN_BRIDGE_DIR (screens/service.py), FORGE_ML_REPO (default ml-examples/cifar10),
+FORGE_ML_REPO (default ml-examples/cifar10),
 IMESSAGE_* (messaging/imessage/settings.py; off unless IMESSAGE_ENABLED=1 on macOS; only IMESSAGE_ALLOW chats are read).
 """
 from __future__ import annotations
@@ -31,7 +30,6 @@ from agent.workspace import workspace as views
 from cad import tools as cad_tools
 from cad.router import router as cad_router
 from cad.service import CadService, watch_script
-from agent import wake as agent_wake
 from desk import DeskService
 from desk import tools as desk_tools
 from desk.router import router as desk_router
@@ -43,9 +41,6 @@ from messaging.router import router as messaging_router
 from ml.router import router as ml_router
 from ml import nn_lab
 from ml.tools import TOOLS as ML_TOOLS, MLTools
-from screens import ScreenBridgeService
-from screens import router as screens_router
-from vscode.router import router as vscode_router
 
 HUB_DIR = Path(__file__).resolve().parent
 
@@ -59,8 +54,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         bus = EventBus()
         cad = CadService(data_dir / "cad", cad_script, bus)
         app.state.bus, app.state.cad = bus, cad
-        views.publish = bus.publish  # Bit opens workspace views (ui.mode); Unity answers with workspace.mode
-        agent_tools.register_cad(cad, bus)  # Bit's CAD tools for Grok and the Claude runner
+        views.publish = bus.publish  # Albie opens workspace views (ui.mode); Unity answers with workspace.mode
+        agent_tools.register_cad(cad, bus)  # Albie's CAD tools for Grok and the Claude runner
         slack = SlackService(SlackSettings.from_env(), MessageStore(data_dir / "messages"), bus, speech.speak, speech.note)
         app.state.slack = slack
         imessage = None
@@ -88,14 +83,13 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_ws.client_handlers["messages.opened"] = slack.opened_from_ws  # Unity's answer to messages.open
         agent_tools.register(messaging_tools.TOOLS, lambda name, args: messaging_tools.call_tool(
             name, args, slack, imessage, attach=lambda kinds: cad_tools.attachments(cad, kinds), show=views.ensure))
-        desk = DeskService(data_dir, bus, speech.speak)  # timer, notes, movie: .data/desk, .data/media
+        desk = DeskService(data_dir, bus, speech.speak)  # timer, notes: .data/desk
         app.state.desk = desk
-        agent_wake.name_needed = lambda: desk.movie.state().status == "playing"  # its soundtrack is not the user
         agent_tools.register(desk_tools.TOOLS, lambda name, args: desk_tools.call_tool(name, args, desk))
         ml_tools = MLTools(app.state, data_dir, speech.speak)  # "Albie, open my ML project / what can I do better?"
         agent_tools.register(ML_TOOLS, ml_tools.call)
         agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
-        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (BitUiDirector)
+        agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (AlbieUiDirector)
         nn = nn_lab.lab(app.state, speech.speak, speech.note)  # Neural Net Lab: tools, its Apply card, the stall offer
         agent_tools.register(nn_lab.TOOLS, lambda name, args: nn_lab.call_tool(name, args, app.state))
 
@@ -116,12 +110,9 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_ws.card_handlers["nn"] = nn_card  # Apply / Not now on the Neural Net Lab fix
         await cad.start()
         await slack.start()
-        # In the background: the first read of chat.db and the imsg checks never hold up Slack, screens or /health.
+        # In the background: the first read of chat.db and the imsg checks never hold up Slack or /health.
         imessage_start = asyncio.create_task(imessage.start(), name="imessage-start") if imessage is not None else None
-        screens = ScreenBridgeService(bus)  # npm start in screen-bridge/, killed with the hub (SCREEN_BRIDGE=0 to skip)
-        app.state.screens = screens
-        await screens.start()
-        proactive.cad_script = str(cad_script)  # proactive Bit, after start: nobody hears a boot failure
+        proactive.cad_script = str(cad_script)  # proactive Albie, after start: nobody hears a boot failure
         cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
         cad.on_built = lambda record: proactive.notify("cad.built", record)
         app.state.proactive = proactive  # ml/router.py: overfit alerts
@@ -137,7 +128,6 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
             if views.publish == bus.publish:
                 views.publish = None
             desk.stop()
-            await screens.stop()
             if imessage_start is not None:
                 imessage_start.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -151,9 +141,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
     app.include_router(cad_router)
     app.include_router(agent_router)
-    app.include_router(vscode_router)
     app.include_router(messaging_router)
-    app.include_router(screens_router)
     app.include_router(desk_router)
     app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
 
@@ -174,7 +162,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
                            {"enabled": False, "available": False, "status": "off (IMESSAGE_ENABLED=1 on a Mac to turn on)",
                             "error": None, "digest": False})
         return {"ok": True, "cad_version": app.state.cad.head, "slack": app.state.slack.health(),
-                "imessage": imessage_health, "screen": app.state.screens.health(), "desk": app.state.desk.health(),
+                "imessage": imessage_health, "desk": app.state.desk.health(),
                 **agent_health()}
 
     return app

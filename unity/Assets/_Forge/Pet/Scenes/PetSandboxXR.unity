@@ -182,7 +182,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_Name
-      value: GatorAssistant
+      value: AlbieAssistant
       objectReference: {fileID: 0}
     - target: {fileID: 283743111020266995, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_LocalPosition.x
@@ -245,7 +245,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6b02f17689afe4729b83f6a0ff834d80, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorController
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieController
 --- !u!1 &160157775 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
@@ -261,7 +261,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bcf08af4a23de4ef6a4203974ac6db34, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorMrukAdapter
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieMrukAdapter
 --- !u!114 &160157777
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -324,7 +324,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e59598a5e213e49e8bfee1a3add59c8d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.TypedSpeechToText
-  placeholder: Ask the gator... (Enter = send, Esc = cancel)
+  placeholder: Ask Albie... (Enter = send, Esc = cancel)
   fontSize: 28
   sortingOrder: 500
 --- !u!1 &176034416
@@ -357,7 +357,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10d0c78c8736e4d32aead7d4d33001e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.PetSandboxHotkeys
-  gator: {fileID: 160157774}
+  albie: {fileID: 160157774}
   jumpKey: 24
   bounceKey: 16
   spinKey: 25
@@ -1184,7 +1184,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 160157776}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorMrukAdapter, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieMrukAdapter, Assembly-CSharp
         m_MethodName: OnDeskFound
         m_Mode: 0
         m_Arguments:

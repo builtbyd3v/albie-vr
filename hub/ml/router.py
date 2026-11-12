@@ -345,7 +345,7 @@ def start_setup(state, *, open_desk: bool = False, **kwargs) -> dict:
 
 @router.post("/project")
 async def open_project(req: ProjectRequest, request: Request) -> dict:
-    """VS Code (or `python -m ml.open`) says which repo is open: set up, or reuse a working .forge/."""
+    """The headset (or `python -m ml.open`) says which repo is open: set up, or reuse a working .forge/."""
     _call(_svc(request).open_project, req.path)
     _stop_tail(request.app.state)
     return _start_setup(request)
@@ -358,7 +358,7 @@ def get_project(request: Request) -> dict:
 
 @router.post("/project/rescan")
 async def rescan_project(request: Request) -> dict:
-    """"Bit, look again": ignore the existing .forge/ and classify + adapt from scratch."""
+    """"Albie, look again": ignore the existing .forge/ and classify + adapt from scratch."""
     return _start_setup(request, force=True)
 
 

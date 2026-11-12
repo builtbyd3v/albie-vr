@@ -40,7 +40,7 @@ public class SlackComposer
     readonly Image sendIcon;
     readonly bool imessage;                    // on the iMessage panel: Messages' look
     string filesLine = "";                     // the Albie draft's attachments in one line (on the banner), "" for none
-    readonly SlackButton send, askBit, cancel;
+    readonly SlackButton send, askAlbie, cancel;
     BaseEventData updateEvent;
 
     SlackChannel channel;
@@ -119,14 +119,14 @@ public class SlackComposer
         field.onValueChanged.AddListener(_ => RefreshButtons());
 
         // Toolbar inside the box.
-        askBit = SlackButton.Create(box, "AskAlbie", SlackButton.Ghost, 6f, AskBit);
-        var askIcon = SlackUi.Icon(askBit.transform, "Sparkle", "sparkle", SlackUi.Accent);
+        askAlbie = SlackButton.Create(box, "AskAlbie", SlackButton.Ghost, 6f, AskAlbie);
+        var askIcon = SlackUi.Icon(askAlbie.transform, "Sparkle", "sparkle", SlackUi.Accent);
         SlackUi.Place(askIcon.rectTransform, 7f, (ToolH - 13f) * 0.5f, 13f, 13f);
-        var askLabel = SlackUi.Text(askBit.transform, "Label", 11.5f, SlackUi.SkMuted, bold: true);
+        var askLabel = SlackUi.Text(askAlbie.transform, "Label", 11.5f, SlackUi.SkMuted, bold: true);
         askLabel.text = "Ask Albie";
         float aw = SlackUi.Width(askLabel, askLabel.text);
         SlackUi.Place(askLabel.rectTransform, 25f, 0f, aw + 2f, ToolH);
-        askBit.Rect.sizeDelta = new Vector2(25f + aw + 9f, ToolH);
+        askAlbie.Rect.sizeDelta = new Vector2(25f + aw + 9f, ToolH);
 
         send = SlackButton.Create(box, "Send", SlackButton.SendOff, 6f, Send);
         sendIcon = SlackUi.Icon(send.transform, "Arrow", "send", SlackUi.SkMuted);
@@ -154,8 +154,8 @@ public class SlackComposer
         SlackUi.Place(box, 0f, by, w, BoxH);
         SlackUi.Place(fieldRect, 14f, FieldTop, w - 28f, FieldH);
         float ty = BoxH - ToolH - 6f;
-        Vector2 a = askBit.Rect.sizeDelta;
-        SlackUi.Place(askBit.Rect, 6f, ty, a.x, ToolH);
+        Vector2 a = askAlbie.Rect.sizeDelta;
+        SlackUi.Place(askAlbie.Rect, 6f, ty, a.x, ToolH);
         SlackUi.PlaceRight(send.Rect, 8f, ty, SendW, ToolH);
         SlackUi.Place(caption.rectTransform, 4f, by + BoxH + 2f, w - 8f, CaptionH - 3f);
     }
@@ -307,11 +307,11 @@ public class SlackComposer
     }
 
     /// <summary>"Ask Albie": messages.focus on the conversation's latest message, so Albie reads it aloud and offers to answer.</summary>
-    void AskBit()
+    void AskAlbie()
     {
         var m = owner.LatestMessage();
         if (m == null || string.IsNullOrEmpty(m.ts)) { Status("Nothing here for Albie to read yet"); return; }
-        if (!owner.FocusBit(m)) Status("Albie can't hear right now");
+        if (!owner.FocusAlbie(m)) Status("Albie can't hear right now");
         else Status("Albie is reading it…");
     }
 
@@ -426,7 +426,7 @@ public class SlackComposer
             send.SetLook(can ? (imessage ? SlackButton.IMessagePrimary : SlackButton.SendOn) : SlackButton.SendOff);
             sendIcon.color = can ? Color.white : SlackUi.SkMuted;
         }
-        askBit.Interactable = live && channel != null;
+        askAlbie.Interactable = live && channel != null;
         cancel.Interactable = live && !sending;
         field.interactable = !sending;
     }

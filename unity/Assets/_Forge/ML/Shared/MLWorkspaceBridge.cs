@@ -22,7 +22,6 @@ namespace Forge.ML
         readonly Dictionary<string, GameObject> assigned = new Dictionary<string, GameObject>();  // prefabs from Main
         // Neural Net Lab view: the lab alone in the middle of the ML desk. The project's panels wait in projectItems.
         List<WorkspaceItem> projectItems;
-        WorkspaceItem screen;  // screen-main, the connected computer's editor: only on the ML desk while one is connected
         public static bool LabOpen { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -93,12 +92,12 @@ namespace Forge.ML
             var mode = workspace.modes.Find(m => m.id == ModeId);
             if (mode == null) return;
             // Main's builder already slots the ML prefabs (MainSceneBuilder.ModulePrefabs); keep those and
-            // anything that isn't ML (screen-main's VS Code prefab). Resources copies fill in what's missing.
+            // anything that isn't ML. Resources copies fill in what's missing.
             if (requested == null && mode.items.TrueForAll(m => !m.id.StartsWith("ml-") || m.prefab != null)) return;
             foreach (var item in mode.items)
                 if (item.prefab != null && !assigned.ContainsKey(item.id)) assigned[item.id] = item.prefab;
             var items = mode.items.FindAll(m => !m.id.StartsWith("ml-"));
-            if (items.Count == 0) items.Add(screen ?? new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main));
+            items.RemoveAll(m => m.id == "screen-main");  // the old laptop-editor slot: gone
             string[] defaults = { "ml-datastack", "ml-model3d", "ml-results", "ml-training", "ml-controller-brain" };
             for (int i = 0; i < Supported.Length; i++)
             {
@@ -116,20 +115,16 @@ namespace Forge.ML
             Reopen();
         }
 
-        // No computer connected: the main screen would only say so, so the Training dashboard takes the middle instead.
-        // True when the layout changed (the caller reopens the desk).
+        // The ML desk has no laptop editor any more (Main.unity may still list its old screen-main slot until it is
+        // rebuilt): drop it, and the Training dashboard takes the middle. True when the layout changed (the caller
+        // reopens the desk).
         bool FitToComputer()
         {
             var mode = workspace.modes.Find(m => m.id == ModeId);
             if (mode == null || mode.items.Exists(m => m.id == LabId)) return false;
-            bool computer = ForgeNet.Status == ForgeNetStatus.Live;
-            bool changed = false;
-            int i = mode.items.FindIndex(m => m.id == "screen-main");
-            if (!computer && i >= 0) { screen = mode.items[i]; mode.items.RemoveAt(i); changed = true; }
-            else if (computer && i < 0 && screen != null) { mode.items.Insert(0, screen); changed = true; }
+            bool changed = mode.items.RemoveAll(m => m.id == "screen-main") > 0;
             var training = mode.items.Find(m => m.id == "ml-training");
-            var slot = computer ? WorkspaceSlot.Above : WorkspaceSlot.Main;
-            if (training != null && training.slot != slot) { training.slot = slot; changed = true; }
+            if (training != null && training.slot != WorkspaceSlot.Main) { training.slot = WorkspaceSlot.Main; changed = true; }
             return changed;
         }
 

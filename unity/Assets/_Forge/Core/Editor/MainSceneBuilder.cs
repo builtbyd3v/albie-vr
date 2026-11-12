@@ -22,7 +22,7 @@ public static class MainSceneBuilder
     const string CameraRigPath = "Packages/com.meta.xr.sdk.core/Prefabs/OVRCameraRig.prefab";
     const string MrukPath = "Packages/com.meta.xr.mrutilitykit/Core/Tools/MRUK.prefab";
     const string DesktopRoomJsonPath = "Assets/_Forge/Core/Rooms/SimLivingRoom.json";
-    // The pet: gator + voice + whistle + crew + hatchery + ArrivalDirector, one root object in the room.
+    // The pet: Albie + voice + whistle + crew + hatchery + ArrivalDirector, one root object in the room.
     const string PetRuntimePath = "Assets/_Forge/Pet/Prefabs/PetRuntime.prefab";
     const string DeskExtrasPath = "Assets/_Forge/Desk/Resources/DeskExtras.prefab";
 
@@ -34,7 +34,7 @@ public static class MainSceneBuilder
         ("cad-params", "Assets/_Forge/CAD/Prefabs/CadParamsPanel.prefab"),
         ("cad-drawing", "Assets/_Forge/CAD/Prefabs/CadDrawingPanel.prefab"),
         ("cad-timeline", "Assets/_Forge/CAD/Prefabs/CadVersionsPanel.prefab"),
-        ("screen-main", "Assets/_Forge/Screens/ScreenForgePanel.prefab"),
+        ("screen-main", "Assets/_Forge/Code/Resources/CodePanel.prefab"),
         ("messages", "Assets/_Forge/Messages/Resources/SlackPanel.prefab"),
         ("messages-mentions", "Assets/_Forge/Messages/Resources/MentionsPanel.prefab"),
         ("ml-datastack", "Assets/_Forge/ML/Prefabs/DataStack.prefab"),
@@ -93,7 +93,7 @@ public static class MainSceneBuilder
         presence.head = head;
         var dock = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(ForgePrefabBuilder.DockPath), root.transform);
         var workspace = root.AddComponent<Workspace>();
-        root.AddComponent<BitUiDirector>();  // Bit's ui.highlight (hub/agent/ui_tools.py); WorkspaceRemote handles ui.mode
+        root.AddComponent<AlbieUiDirector>();  // Albie's ui.highlight (hub/agent/ui_tools.py); WorkspaceRemote handles ui.mode
         workspace.presence = presence;
         workspace.dock = dock.GetComponent<DeskDock>();
         workspace.panelPrefab = AssetDatabase.LoadAssetAtPath<ForgePanel>(ForgePrefabBuilder.PanelPath);
@@ -114,7 +114,7 @@ public static class MainSceneBuilder
         if (petPrefab != null) ((GameObject)PrefabUtility.InstantiatePrefab(petPrefab)).name = "PetRuntime";
         else Debug.LogWarning($"[MainSceneBuilder] {PetRuntimePath} not found; Main has no pet. Build it (Pet module) and build Main again.");
 
-        // Bit's desk extras (timers, notes, the movie), on top of any mode: the Desk module's prefab, hosted by
+        // Albie's desk extras (timers, notes), on top of any mode: the Desk module's prefab, hosted by
         // WorkspaceExtras (its host field set by name, so Core doesn't need the module's types).
         var extras = root.AddComponent<WorkspaceExtras>();
         extras.workspace = workspace;

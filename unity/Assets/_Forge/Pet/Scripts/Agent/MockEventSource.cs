@@ -7,8 +7,8 @@ using UnityEngine;
 namespace Forge.Pet
 {
     /// <summary>
-    /// SANDBOX ONLY (PetSandbox / PetSandboxXR; GatorSetup adds it to the scene instance, never to the prefab, so Main
-    /// has no mock mode). While it sits enabled on the gator, GatorAgentBridge uses it whatever pet_config.json says
+    /// SANDBOX ONLY (PetSandbox / PetSandboxXR; AlbieSetup adds it to the scene instance, never to the prefab, so Main
+    /// has no mock mode). While it sits enabled on Albie, AlbieAgentBridge uses it whatever pet_config.json says
     /// (overrideConfig); untick the component to test the live hub path from a sandbox scene.
     /// Offline event source: no network. Send("agent.ask") plays a scripted reply (editable in the
     /// inspector, pre-filled in Reset). Asks containing fix/add/change/make (or mode "code") also play

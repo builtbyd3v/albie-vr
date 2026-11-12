@@ -1,7 +1,7 @@
-"""The user's notes: a short list Bit keeps for them ("add that to my notes", "read me my notes").
+"""The user's notes: a short list Albie keeps for them ("add that to my notes", "read me my notes").
 
 Saved in .data/desk/notes.json, so they survive restarts. Removing a note keeps it for Undo (the panel's button, or
-Bit's notes_remove with undo), so the pet never deletes anything for good.
+Albie's notes_remove with undo), so the pet never deletes anything for good.
 """
 from __future__ import annotations
 

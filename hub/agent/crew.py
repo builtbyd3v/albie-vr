@@ -1,18 +1,18 @@
-"""Bit's crew: extra gators the user hatches in Unity, each a Claude runner with its own role.
+"""Albie's crew: extra agents the user hatches in Unity, each a Claude runner with its own role.
 
-Unity owns who exists (it hatches/sends home the gators and sends ``crew.roster`` on every change and on
+Unity owns who exists (it hatches/sends home the agents and sends ``crew.roster`` on every change and on
 reconnect). The hub owns the work: ``assign`` starts a background runner turn for one member, with that
 type's persona and tool set, so several members work in parallel. Crew code tasks run in their own git
 worktree (runner.create_task_worktree), never in the main checkout, so their branches don't fight. When one
 finishes, its changes are applied to the main checkout as uncommitted edits (runner.land_task_worktree).
 
-Bit (the lead) drives the crew with four tools, registered lead-only in agent/tools.py so Grok and Bit's
+Albie (the lead) drives the crew with four tools, registered lead-only in agent/tools.py so Grok and Albie's
 own Claude runner get them but crew runners don't: spawn_agent, dismiss_agent, assign_task, crew_status.
 When a member finishes, listeners are told (ws.py lets the voice session say it out loud).
 
-Wire format (docs/PET_AGENT_CONTRACT.md, Addendum D):
+Wire format (docs/archive/PET_AGENT_CONTRACT.md, Addendum D):
     client -> hub  crew.roster  {members: [{pet_id, agent_type}]}
-    hub -> client  crew.spawn   {agent_type}       (pet_id == agent_type: one gator per type)
+    hub -> client  crew.spawn   {agent_type}       (pet_id == agent_type: one agent per type)
     hub -> client  crew.dismiss {pet_id}
 """
 
@@ -33,7 +33,7 @@ from .turn import TurnControl, classify_mode
 log = logging.getLogger(__name__)
 
 ToolKit = Literal["read", "review", "code", "docs", "cad"]
-SPAWN_WAIT_S = 3.0  # how long spawn_agent waits for Unity's roster to show the new gator
+SPAWN_WAIT_S = 3.0  # how long spawn_agent waits for Unity's roster to show the new agent
 SPOKEN_MAX = 220  # announcements are trimmed to this many characters
 
 
@@ -51,7 +51,7 @@ class AgentType:
         return self.kit in ("read", "review")
 
 
-# Keep ids, names and roles in sync with unity/.../Crew/GatorAgentTypes.cs.
+# Keep ids, names and roles in sync with unity/.../Crew/AlbieAgentTypes.cs.
 TYPES: dict[str, AgentType] = {t.id: t for t in (
     AgentType("scout", "Scout", "maps the codebase and finds where things live",
               "You explore before anyone builds: trace how code fits together, find the files and functions that "
@@ -129,7 +129,7 @@ class Crew:
 
     # ------------------------------------------------------------ roster (Unity is the source of truth)
     def set_roster(self, entries: list[dict[str, Any]]) -> None:
-        """Replace the membership. A gator that left keeps a running code task (its worktree), loses a Q&A."""
+        """Replace the membership. An agent that left keeps a running code task (its worktree), loses a Q&A."""
         seen: dict[str, Member] = {}
         for e in entries:
             t = find_type(e.get("agent_type"))
@@ -165,7 +165,7 @@ class Crew:
         if fn in self._listeners:
             self._listeners.remove(fn)
 
-    # ------------------------------------------------------------ actions (Bit's tools call these)
+    # ------------------------------------------------------------ actions (Albie's tools call these)
     async def spawn(self, type_name: str) -> dict[str, Any]:
         t = find_type(type_name)
         if t is None:
@@ -173,7 +173,7 @@ class Crew:
         if t.id in self.members:
             return {"status": "already_here", "agent": t.name}
         if bus.count == 0:
-            return {"error": "no headset is connected, so there is nowhere to hatch a gator"}
+            return {"error": "no headset is connected, so there is nowhere to hatch an agent"}
         await bus.broadcast(ev.crew_spawn(t.id))
         deadline = asyncio.get_running_loop().time() + SPAWN_WAIT_S
         while t.id not in self.members:
@@ -266,11 +266,11 @@ class Crew:
 crew = Crew()
 
 
-# ------------------------------------------------------------------ Bit's crew tools (lead only)
+# ------------------------------------------------------------------ Albie's crew tools (lead only)
 _AGENT = {"type": "string", "description": "crew member, by type: " + ", ".join(TYPES)}
 TOOLS: list[dict[str, Any]] = [
     {"name": "spawn_agent",
-     "description": "Hatch a helper gator onto the desk. One per type: "
+     "description": "Hatch a helper agent onto the desk. One per type: "
                     + "; ".join(f"{t.id} ({t.role})" for t in TYPES.values()) + ".",
      "parameters": {"type": "object", "properties": {"type": {"type": "string", "enum": list(TYPES)}},
                     "required": ["type"]}},
@@ -284,7 +284,7 @@ TOOLS: list[dict[str, Any]] = [
                   "description": "qa = answer only, code = change code, auto = the agent's default"}},
          "required": ["agent", "task"]}},
     {"name": "dismiss_agent",
-     "description": "Send a crew member home (removes its gator, stops its current question).",
+     "description": "Send a crew member home (removes its albie, stops its current question).",
      "parameters": {"type": "object", "properties": {"agent": _AGENT}, "required": ["agent"]}},
     {"name": "crew_status",
      "description": "Who is on the crew and what each one is working on.",
@@ -305,14 +305,14 @@ async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def lead_rules() -> str:
-    """Appended to Bit's instructions (voice persona and Claude prompt)."""
-    return (" You lead a crew of helper gators the user can hatch: "
+    """Appended to Albie's instructions (voice persona and Claude prompt)."""
+    return (" You lead a crew of helper agents the user can hatch: "
             + "; ".join(f"{t.name} ({t.role})" for t in TYPES.values())
             + ". Use spawn_agent to hatch one, assign_task to give one work (it hatches if needed and works in "
               "parallel on its own branch), dismiss_agent to send one home and crew_status to check on them. "
               "After assigning, just say who's on it; you'll hear back when they finish. Only use the crew when "
-              "the user names a crew member or asks for parallel help: its branch never shows in VS Code, so open, "
-              "create and edit files yourself.")
+              "the user names a crew member or asks for parallel help: its work stays on its own branch until it "
+              "lands, so open, create and edit files yourself.")
 
 
 tools.register(TOOLS, call_tool, lead_only=True)

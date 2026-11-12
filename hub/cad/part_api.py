@@ -1,6 +1,6 @@
 """Types a part script uses to declare its parameters, physics and metrics.
 
-Part scripts (and Bit, when it edits one) import only this module and build123d, so keep it small and stable.
+Part scripts (and Albie, when it edits one) import only this module and build123d, so keep it small and stable.
 Units are millimetres, Z up. Rocket parts put the tail at z=0 and the nose tip at +z.
 
 A part script is one file in hub/cad/parts/ (the file name is the design's id). It defines PARAMS and
@@ -48,7 +48,7 @@ class Param:
     options: tuple[str, ...] | None = None
     label: str = ""
     group: str = ""               # the panel section it sits in ("Body", "Fins"); "" = "General"
-    help: str = ""                # one short line on what it does (panel hint, Bit)
+    help: str = ""                # one short line on what it does (panel hint, Albie)
     parts: tuple[str, ...] = ()   # the parts it shapes, as label patterns ("fin_*"); () = guessed from its name
     dimension: str | None = None  # id of the dimension callout it changes; None = one with the same id as its name
 
@@ -188,7 +188,7 @@ class BuildResult:
 
 @dataclass(frozen=True)
 class Metric:
-    """One number on the design panel (and for Bit). Give min and max to draw it as a gauge.
+    """One number on the design panel (and for Albie). Give min and max to draw it as a gauge.
 
     bands colour the gauge: (upper bound, status) pairs in ascending order, the last one reaching max.
     """

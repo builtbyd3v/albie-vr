@@ -1,12 +1,12 @@
 // WhistleSetup.cs — Forge/Pet/6. Add Whistle To Open Scene
 //
-// Adds the voice + whistle pieces to the gator in the CURRENTLY OPEN scene (no scene is created or saved):
-//   * gator/Voice            AudioSource + StreamedPcmTextToSpeech (hub speech), wired into GatorAgentBridge.tts
-//   * gator                  GatorTalkAnimator (head nod + pulse while speaking), GatorSummon, GatorFollowUp
+// Adds the voice + whistle pieces to Albie in the CURRENTLY OPEN scene (no scene is created or saved):
+//   * Albie/Voice            AudioSource + StreamedPcmTextToSpeech (hub speech), wired into AlbieAgentBridge.tts
+//   * Albie                  AlbieTalkAnimator (head nod + pulse while speaking), AlbieSummon, AlbieFollowUp
 //                            (keeps listening 15 s after an answer, then wanders off)
 //   * WhistleButton          collider puck + Meta Interaction SDK PokeInteractable / RayInteractable, each with an
 //                            InteractableUnityEventWrapper → WhistleButton.Press / HoverOn / HoverOff.
-//                            XR (GatorMrukAdapter present): it becomes the template cloned onto every MRUK table.
+//                            XR (AlbieMrukAdapter present): it becomes the template cloned onto every MRUK table.
 // Idempotent: re-running reuses what exists and re-wires it. Interaction SDK types are looked up by name so this
 // file compiles without the SDK (the button then works with mouse / F / controller B only).
 // Save the scene yourself afterwards. -executeMethod Forge.Pet.Editor.WhistleSetup.AddWhistleToOpenScene
@@ -38,108 +38,108 @@ namespace Forge.Pet.Editor
         [MenuItem("Forge/Pet/6. Add Whistle To Open Scene", priority = 6)]
         public static void AddWhistleToOpenScene()
         {
-            var gator = Object.FindAnyObjectByType<GatorController>();
-            if (gator == null)
+            var albie = Object.FindAnyObjectByType<AlbieController>();
+            if (albie == null)
             {
-                Debug.LogError("[WhistleSetup] No GatorController in the open scene. Open PetSandbox / PetSandboxXR (or a scene with GatorAssistant) first.");
+                Debug.LogError("[WhistleSetup] No AlbieController in the open scene. Open PetSandbox / PetSandboxXR (or a scene with AlbieAssistant) first.");
                 return;
             }
             Undo.SetCurrentGroupName("Add Whistle To Open Scene");
             int group = Undo.GetCurrentGroup();
 
-            GameObject root = gator.gameObject;
+            GameObject root = albie.gameObject;
             StreamedPcmTextToSpeech voice = AddVoice(root);
             AddTalkAnimator(root, voice);
-            WhistleButton button = FindOrCreateButton(gator);
+            WhistleButton button = FindOrCreateButton(albie);
             string isdk = AddInteractionSdk(button);
             AddSummon(root, button, voice);
             AddFollowUp(root, voice);
-            var adapter = Object.FindAnyObjectByType<GatorMrukAdapter>();
+            var adapter = Object.FindAnyObjectByType<AlbieMrukAdapter>();
             if (adapter != null) SetRef(adapter, "whistleTemplate", button);
 
             EditorSceneManager.MarkSceneDirty(root.scene);
             Selection.activeGameObject = button.gameObject;
             Undo.CollapseUndoOperations(group);
-            Debug.Log($"[WhistleSetup] Done in '{root.scene.name}': Voice + GatorTalkAnimator + GatorSummon + GatorFollowUp on '{root.name}', " +
+            Debug.Log($"[WhistleSetup] Done in '{root.scene.name}': Voice + AlbieTalkAnimator + AlbieSummon + AlbieFollowUp on '{root.name}', " +
                       $"WhistleButton ({isdk}{(adapter != null ? ", cloned onto every MRUK table" : "")}). Save the scene to keep it. Test: F / click the button / B.");
         }
 
         // ------------------------------------------------------------------ voice
 
-        internal static StreamedPcmTextToSpeech AddVoice(GameObject gator)
+        internal static StreamedPcmTextToSpeech AddVoice(GameObject albie)
         {
-            var voice = gator.GetComponentInChildren<StreamedPcmTextToSpeech>(true);
+            var voice = albie.GetComponentInChildren<StreamedPcmTextToSpeech>(true);
             if (voice == null)
             {
                 var go = new GameObject("Voice");
                 RegisterCreated(go, "Add Voice");
-                go.transform.SetParent(gator.transform, false);
-                go.transform.position = HeadPosition(gator);
+                go.transform.SetParent(albie.transform, false);
+                go.transform.position = HeadPosition(albie);
                 voice = Add<StreamedPcmTextToSpeech>(go);   // RequireComponent adds the AudioSource
                 var src = go.GetComponent<AudioSource>();
                 if (src != null) { src.playOnAwake = false; src.spatialBlend = 1f; }
             }
 
-            var bridge = gator.GetComponent<GatorAgentBridge>();
-            if (bridge == null) bridge = Object.FindAnyObjectByType<GatorAgentBridge>();
+            var bridge = albie.GetComponent<AlbieAgentBridge>();
+            if (bridge == null) bridge = Object.FindAnyObjectByType<AlbieAgentBridge>();
             if (bridge != null) SetRef(bridge, "tts", voice);
-            else Debug.LogWarning("[WhistleSetup] No GatorAgentBridge found; it will auto-find the Voice child at runtime.");
+            else Debug.LogWarning("[WhistleSetup] No AlbieAgentBridge found; it will auto-find the Voice child at runtime.");
             return voice;
         }
 
-        internal static void AddTalkAnimator(GameObject gator, StreamedPcmTextToSpeech voice)
+        internal static void AddTalkAnimator(GameObject albie, StreamedPcmTextToSpeech voice)
         {
-            var talk = gator.GetComponent<GatorTalkAnimator>();
-            if (talk == null) talk = Add<GatorTalkAnimator>(gator);
+            var talk = albie.GetComponent<AlbieTalkAnimator>();
+            if (talk == null) talk = Add<AlbieTalkAnimator>(albie);
             SetRef(talk, "tts", voice);
-            Animator animator = gator.GetComponentInChildren<Animator>(true);
+            Animator animator = albie.GetComponentInChildren<Animator>(true);
             Transform head = animator != null ? FindChild(animator.transform, "head") : null;
             if (head != null) SetRef(talk, "headBone", head);
-            else Debug.LogWarning("[WhistleSetup] No 'head' bone under the gator's Animator; GatorTalkAnimator will only pulse.");
+            else Debug.LogWarning("[WhistleSetup] No 'head' bone under Albie's Animator; AlbieTalkAnimator will only pulse.");
             Transform jaw = animator != null ? FindChild(animator.transform, "jaw") : null;   // PR 26's Gator_Model.fbx
             if (jaw != null) SetRef(talk, "jawBone", jaw);
-            else Debug.Log("[WhistleSetup] No 'jaw' bone (PR 26 not merged?): the mouth won't move while Bit speaks.");
+            else Debug.Log("[WhistleSetup] No 'jaw' bone (PR 26 not merged?): the mouth won't move while Albie speaks.");
         }
 
-        internal static void AddSummon(GameObject gator, WhistleButton button, StreamedPcmTextToSpeech voice)
+        internal static void AddSummon(GameObject albie, WhistleButton button, StreamedPcmTextToSpeech voice)
         {
-            var summon = gator.GetComponent<GatorSummon>();
-            if (summon == null) summon = Add<GatorSummon>(gator);
-            var ptt = gator.GetComponent<PushToTalk>();
+            var summon = albie.GetComponent<AlbieSummon>();
+            if (summon == null) summon = Add<AlbieSummon>(albie);
+            var ptt = albie.GetComponent<PushToTalk>();
             if (ptt == null) ptt = Object.FindAnyObjectByType<PushToTalk>();
             if (ptt == null) Debug.LogWarning("[WhistleSetup] No PushToTalk in the scene; the whistle can't listen without it.");
             SetRef(summon, "button", button);
-            SetRef(summon, "controller", gator.GetComponent<GatorController>());
+            SetRef(summon, "controller", albie.GetComponent<AlbieController>());
             if (ptt != null) SetRef(summon, "pushToTalk", ptt);
             SetRef(summon, "tts", voice);
             SetRef(summon, "sfxSource", button.GetComponent<AudioSource>());
         }
 
-        internal static void AddFollowUp(GameObject gator, StreamedPcmTextToSpeech voice)
+        internal static void AddFollowUp(GameObject albie, StreamedPcmTextToSpeech voice)
         {
-            var follow = gator.GetComponent<GatorFollowUp>();
-            if (follow == null) follow = Add<GatorFollowUp>(gator);
+            var follow = albie.GetComponent<AlbieFollowUp>();
+            if (follow == null) follow = Add<AlbieFollowUp>(albie);
             SetRef(follow, "tts", voice);
-            var ptt = gator.GetComponent<PushToTalk>();
+            var ptt = albie.GetComponent<PushToTalk>();
             if (ptt == null) ptt = Object.FindAnyObjectByType<PushToTalk>();
             if (ptt != null) SetRef(follow, "pushToTalk", ptt);
-            SetRef(follow, "controller", gator.GetComponent<GatorController>());
+            SetRef(follow, "controller", albie.GetComponent<AlbieController>());
         }
 
         // ------------------------------------------------------------------ button
 
-        static WhistleButton FindOrCreateButton(GatorController gator)
+        static WhistleButton FindOrCreateButton(AlbieController albie)
         {
             var existing = Object.FindAnyObjectByType<WhistleButton>(FindObjectsInactive.Include);
-            return existing != null ? existing : CreateButton(gator, null);
+            return existing != null ? existing : CreateButton(albie, null);
         }
 
-        /// A new whistle puck 0.3 m to the gator's right (it places itself on the desk at runtime), under `parent` (may be null).
-        internal static WhistleButton CreateButton(GatorController gator, Transform parent)
+        /// A new whistle puck 0.3 m to Albie's right (it places itself on the desk at runtime), under `parent` (may be null).
+        internal static WhistleButton CreateButton(AlbieController albie, Transform parent)
         {
             var go = new GameObject("WhistleButton");
             if (parent != null) go.transform.SetParent(parent, false);
-            Transform g = gator.transform;
+            Transform g = albie.transform;
             go.transform.position = g.position + g.right * 0.3f + Vector3.up * (ColliderSize.y * 0.5f);
             go.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(g.forward, Vector3.up).normalized, Vector3.up);
 
@@ -159,7 +159,7 @@ namespace Forge.Pet.Editor
 
             var button = go.AddComponent<WhistleButton>();
             SetRef(button, "visual", cap);
-            SetRef(button, "gator", gator);
+            SetRef(button, "albie", albie);
             RegisterCreated(go, "Create WhistleButton");
             return button;
         }
@@ -283,14 +283,14 @@ namespace Forge.Pet.Editor
 
         // ------------------------------------------------------------------ helpers
 
-        static Vector3 HeadPosition(GameObject gator)
+        static Vector3 HeadPosition(GameObject albie)
         {
-            Renderer[] rs = gator.GetComponentsInChildren<Renderer>();
-            if (rs.Length == 0) return gator.transform.position + Vector3.up * 0.2f;
+            Renderer[] rs = albie.GetComponentsInChildren<Renderer>();
+            if (rs.Length == 0) return albie.transform.position + Vector3.up * 0.2f;
             Bounds b = rs[0].bounds;
             for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-            // Front-top of the body: roughly where the head is (gator faces +Z).
-            return b.center + gator.transform.forward * (b.extents.z * 0.6f) + Vector3.up * (b.extents.y * 0.4f);
+            // Front-top of the body: roughly where the head is (Albie faces +Z).
+            return b.center + albie.transform.forward * (b.extents.z * 0.6f) + Vector3.up * (b.extents.y * 0.4f);
         }
 
         internal static GameObject Child(Transform parent, string name)

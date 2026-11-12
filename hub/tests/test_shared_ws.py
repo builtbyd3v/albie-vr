@@ -20,7 +20,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     cfg = tmp_path / "projects.yaml"
     cfg.write_text(f'projects:\n  demo:\n    path: "{repo.as_posix()}"\n    default_mode: "qa"\n')
     for k, v in {"FAKE_AGENT": "1", "FAKE_AGENT_DELAY": "0.01", "PROJECTS_FILE": str(cfg), "DEFAULT_PROJECT": "demo",
-                 "STT_PROVIDER": "none", "VOICE_PROVIDER": "fake", "FAKE_VOICE_PACE": "0", "SCREEN_BRIDGE": "0"}.items():
+                 "STT_PROVIDER": "none", "VOICE_PROVIDER": "fake", "FAKE_VOICE_PACE": "0"}.items():
         monkeypatch.setenv(k, v)
     from agent.config import load_projects
 
@@ -43,7 +43,7 @@ def _recv(ws: Any) -> tuple[str, Any]:
 def test_cad_and_voice_share_one_socket(client: TestClient) -> None:
     with client.websocket_connect("/ws") as ws:
         assert _recv(ws)[0] == "cad.model_updated"  # sticky CAD state still replayed first
-        assert {_recv(ws)[0] for _ in range(4)} == {"ui.widgets", "timers.updated", "notes.updated", "movie.state"}  # desk
+        assert {_recv(ws)[0] for _ in range(3)} == {"ui.widgets", "timers.updated", "notes.updated"}  # desk
         ws.send_json({"type": "hello", "payload": {"client": "unity", "pet_id": "bit", "project_id": "demo"}})
         assert _recv(ws) == ("voice.ready", {"pet_id": "bit", "provider": "fake", "sample_rate": 24000})
 
@@ -70,11 +70,11 @@ def test_cad_and_voice_share_one_socket(client: TestClient) -> None:
         assert t == "cad.view"
 
 
-def test_health_reports_the_screen_bridge(client: TestClient) -> None:
-    """One process: /health carries the screen bridge too (off here, so no child is spawned in tests)."""
+def test_health_has_no_screen_bridge(client: TestClient) -> None:
+    """The screen bridge is gone: /health has no screen entry and /screens isn't served."""
     body = client.get("/health").json()
-    assert body["screen"] == {"enabled": False, "state": "stopped", "source": None}
-    assert client.get("/screens/status").json()["enabled"] is False
+    assert body["ok"] is True and "screen" not in body
+    assert client.get("/screens/status").status_code == 404
 
 
 def test_albie_routes_ml_requests_to_the_ml_tools_not_delegate(client: TestClient) -> None:

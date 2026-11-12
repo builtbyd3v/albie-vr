@@ -8,7 +8,7 @@
 ## AI tools
 - Claude Code (Anthropic; Claude Opus 5.5 and Claude Fable 5.1): used by Dev, Hudson, Adrian, Satyabrata and Nandani for code generation, debugging, tests and docs. Many commits carry a Claude Co-Authored-By trailer.
 - Claude API via the Anthropic Python SDK (anthropic, MIT), at runtime: the ML desk's setup (hub/ml/setup/) and Albie's "what can I do better?" proposals (hub/ml/improve.py)
-- Claude Agent SDK (claude-agent-sdk, MIT), at runtime: Albie's coding and Q&A runner and the crew gators (hub/agent/runner.py, crew.py)
+- Claude Agent SDK (claude-agent-sdk, MIT), at runtime: Albie's coding and Q&A runner and the crew members (hub/agent/runner.py, crew.py)
 - Grok Voice Agent API (xAI, grok-voice-3.0), at runtime: Albie's speech-to-speech voice and transcription (hub/agent/voice.py)
 - Codex (OpenAI): coding assistant for code generation, debugging and review
 
@@ -23,9 +23,8 @@
 - forge-sdk (forge-sdk/pyproject.toml): hatchling (MIT) build backend, httpx (BSD-3)
 - Unity packages: Meta Interaction SDK (part of Meta XR All-in-One, Meta license), Input System, Newtonsoft Json (com.unity.nuget.newtonsoft-json), TextMesh Pro; plus Unity's default editor packages (collab-proxy, IDE support, uGUI, XR Management)
 - cad-vision (github.com/BAAA-Hacks/cad-vision, MIT), copied unchanged into unity/Assets/_Forge/CAD/ThirdParty/CadVision/
-- Screen bridge: playwright-core (Apache-2.0) drives Google Chrome to share the VS Code window over WebRTC
 - Neural Net Lab: our own C# re-implementation of the TensorFlow Playground idea (datasets, features, init); no Playground code is copied
-- Blender: the gator's opening mouth and our own animation clips (art/gator/, scripts build_gator_*.py and export_gator_fbx.py)
+- Blender: Albie's opening mouth and our own animation clips (art/gator/, scripts build_albie_*.py and export_albie_fbx.py)
 - faster-whisper (MIT), optional and not installed by default: local speech-to-text when STT_PROVIDER=whisper
 - SciPy (BSD-3): convex hulls for the humanoid design (hub/cad/parts/humanoid.py)
 - Offline data prep only, not run by the hub (hub/cad/tools_offline/): trimesh (MIT) and fast-simplification (MIT) for the G1 meshes; MuJoCo (Apache-2.0), PyTorch (BSD-3), PyYAML (MIT) and matplotlib to record the G1 walk clip
@@ -45,7 +44,6 @@
 - CIFAR-10 dataset (Krizhevsky, Nair and Hinton, 2009, University of Toronto), downloaded at run time by torchvision for the ML demo (ml-examples/cifar10/); not committed to the repo
 - Estes C6 motor thrust curve (RASP .eng file made from NAR published certification data, 2000), hub/cad/data/estes_c6.eng: the rocket's flight sim
 - Fonts: Fredoka (SIL OFL 1.1, unity/Assets/_Forge/Pet/ThirdParty/Fredoka/), Inter (SIL OFL 1.1, unity/Assets/_Forge/Core/Fonts/), Liberation Sans (SIL OFL, TextMesh Pro default)
-- Gator model, texture and base animations: Alligator from Quirky Series Ultimate Pack Vol.1 (Omabuarts Studio, Unity Asset Store, paid, Standard Unity Asset Store EULA). Not in this repo: the EULA forbids redistribution, so the pack and the files made from its mesh (Gator_Model.fbx, gator_anims.blend) are git-ignored, as the Gator Hack V organizers advised. Our own work on top of it is in the repo: the opening mouth and talk clips (art/gator/ scripts, Gator_Animations.fbx), the controller and the pet code
+- Albie model, texture and base animations: Alligator from Quirky Series Ultimate Pack Vol.1 (Omabuarts Studio, Unity Asset Store, paid, Standard Unity Asset Store EULA). Not in this repo: the EULA forbids redistribution, so the pack and the files made from its mesh (Gator_Model.fbx, gator_anims.blend) are git-ignored, as the Gator Hack V organizers advised. Our own work on top of it is in the repo: the opening mouth and talk clips (art/gator/ scripts, Gator_Animations.fbx), the controller and the pet code
 - AG News topic dataset (Zhang, Zhao and LeCun, 2015, from AG's corpus), CSVs downloaded at run time from github.com/mhjabreel/CharCnn_Keras for ml-examples/text-classification/; not committed
 - "PyTorch MNIST" import preset: github.com/pytorch/examples (BSD-3) and the MNIST dataset (LeCun, Cortes and Burges), downloaded at run time by that repo; not committed
-- "His Girl Friday" (1940, Columbia Pictures, public domain in the US) streamed at run time over https from the Internet Archive (archive.org/details/his_girl_friday), with the Archive's auto-generated captions (his_girl_friday.asr.srt): the movie screen's film with no laptop. Not committed

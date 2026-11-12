@@ -5,15 +5,15 @@ using UnityEngine;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Say a gator's name and it listens (docs/PET_AGENT_CONTRACT.md, Addendum E). The mic stays on; a small
+    /// Say an agent's name and it listens (docs/archive/PET_AGENT_CONTRACT.md, Addendum E). The mic stays on; a small
     /// energy VAD (adaptive noise floor) cuts the room's speech into segments, and each segment goes to the hub as a
     /// wake turn: stt.start {wake: true} + 0.5 s of pre-roll (so the name itself isn't clipped) + PCM16 + stt.stop.
-    /// The hub (agent/wake.py) only answers segments that name a gator ("Hey Albie ...", "Tester, run the tests")
-    /// or that start while the user faces Bit (stt.start {facing: true}, GatorFollowUp.UserFacing);
+    /// The hub (agent/wake.py) only answers segments that name an agent ("Hey Albie ...", "Tester, run the tests")
+    /// or that start while the user faces Albie (stt.start {facing: true}, AlbieFollowUp.UserFacing);
     /// everything else is dropped without a caption. "Hey &lt;name&gt;" alone comes back as wake.listen:
-    ///  * Bit  → PushToTalk.BeginHandsFree (a normal hands-free turn, then GatorFollowUp keeps the conversation going);
-    ///  * crew → that gator turns to Listening and the next segment is sent for it (no name needed) for followSeconds.
-    /// Pauses (and releases the mic) while push-to-talk / hands-free owns it (HubSpeechToText.MicNeeded), while Bit is
+    ///  * Albie  → PushToTalk.BeginHandsFree (a normal hands-free turn, then AlbieFollowUp keeps the conversation going);
+    ///  * crew → that Albie turns to Listening and the next segment is sent for it (no name needed) for followSeconds.
+    /// Pauses (and releases the mic) while push-to-talk / hands-free owns it (HubSpeechToText.MicNeeded), while Albie is
     /// speaking (so he can't wake his own crew by saying their names) and while the hub is offline.
     /// Hub mode only. No allocations per frame: buffers are allocated once per mic start.
     /// </summary>
@@ -24,14 +24,14 @@ namespace Forge.Pet
         const float Chunk = 0.1f;                       // seconds per analysed / sent chunk
         const int ChunkOut = (int)(Rate * Chunk);       // 1600 samples
 
-        [SerializeField, Tooltip("Listen for gator names all the time (hub mode).")]
+        [SerializeField, Tooltip("Listen for agent names all the time (hub mode).")]
         bool listenForNames = true;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
-        GatorAgentBridge bridge;
+        AlbieAgentBridge bridge;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
         PushToTalk pushToTalk;
         [SerializeField, Tooltip("Look-to-talk cone (its lookAngle). Auto-found on this GameObject / scene if empty.")]
-        GatorFollowUp followUp;
+        AlbieFollowUp followUp;
 
         [Header("Voice activity detection")]
         [SerializeField, Tooltip("Speech must be at least this loud (mic RMS 0..1), whatever the room noise.")]
@@ -50,9 +50,9 @@ namespace Forge.Pet
         float maxSegment = 12f;
 
         [Header("After \"Hey <name>\"")]
-        [SerializeField, Tooltip("How long (s) a named gator waits for the request.")]
+        [SerializeField, Tooltip("How long (s) a named agent waits for the request.")]
         float followSeconds = 8f;
-        [SerializeField, Tooltip("Wait this long (s) after Bit stops talking / a push-to-talk turn before listening again.")]
+        [SerializeField, Tooltip("Wait this long (s) after Albie stops talking / a push-to-talk turn before listening again.")]
         float resumeDelay = 0.6f;
         [SerializeField, Tooltip("Wait this long (s) after a hands-free / push-to-talk turn ends before listening again.")]
         float sessionResumeDelay = 0.15f;
@@ -82,12 +82,12 @@ namespace Forge.Pet
 
         void Awake()
         {
-            if (bridge == null) bridge = GetComponent<GatorAgentBridge>();
-            if (bridge == null) bridge = FindAnyObjectByType<GatorAgentBridge>();
+            if (bridge == null) bridge = GetComponent<AlbieAgentBridge>();
+            if (bridge == null) bridge = FindAnyObjectByType<AlbieAgentBridge>();
             if (pushToTalk == null) pushToTalk = GetComponent<PushToTalk>();
             if (pushToTalk == null) pushToTalk = FindAnyObjectByType<PushToTalk>();
-            if (followUp == null) followUp = GetComponent<GatorFollowUp>();
-            if (followUp == null) followUp = FindAnyObjectByType<GatorFollowUp>();
+            if (followUp == null) followUp = GetComponent<AlbieFollowUp>();
+            if (followUp == null) followUp = FindAnyObjectByType<AlbieFollowUp>();
         }
 
         void Start()
@@ -128,13 +128,13 @@ namespace Forge.Pet
             ResolveClient();
             if (_target != null && Time.time >= _targetUntil) DropTarget();
 
-            // Push-to-talk / hands-free, or GatorFollowUp watching the mic (barge-in, look-to-talk): their mic, not ours.
+            // Push-to-talk / hands-free, or AlbieFollowUp watching the mic (barge-in, look-to-talk): their mic, not ours.
             bool sessionBusy = (pushToTalk != null && pushToTalk.SessionActive)
                                || (pushToTalk != null && pushToTalk.Provider is HubSpeechToText hub && (hub.IsMonitoring || hub.IsListening));
-            bool want = listenForNames && GatorAgentBridge.EventSourceIsHub && _client != null && _client.IsConnected
+            bool want = listenForNames && AlbieAgentBridge.EventSourceIsHub && _client != null && _client.IsConnected
                         && !sessionBusy && !_ttsTalking && Time.time >= _pausedUntil && MicPermission.HasPermission;
             // After his speech: resumeDelay (his echo dies down). After a hands-free turn: almost at once, or the start
-            // of the user's next sentence is lost (lab 2026-10-25: "And then, um ... put on the movie" lost the movie).
+            // of the user's next sentence is lost (lab 2026-10-25: "And then, um ... set a timer" lost the timer).
             if (_ttsTalking) _pausedUntil = Time.time + resumeDelay;
             else if (sessionBusy) _pausedUntil = Mathf.Max(_pausedUntil, Time.time + sessionResumeDelay);
             if (!want)
@@ -144,7 +144,7 @@ namespace Forge.Pet
                 if (!_pauseLogged && Time.time - _pausedSince > 15f)   // once per long pause: why it isn't listening
                 {
                     _pauseLogged = true;
-                    Debug.LogWarning($"[WakeListener] not listening for 15 s: names={listenForNames} hub={GatorAgentBridge.EventSourceIsHub} " +
+                    Debug.LogWarning($"[WakeListener] not listening for 15 s: names={listenForNames} hub={AlbieAgentBridge.EventSourceIsHub} " +
                                      $"connected={_client != null && _client.IsConnected} sessionBusy={sessionBusy} (session={pushToTalk != null && pushToTalk.SessionActive} " +
                                      $"monitor={pushToTalk != null && pushToTalk.Provider is HubSpeechToText h1 && h1.IsMonitoring} " +
                                      $"listening={pushToTalk != null && pushToTalk.Provider is HubSpeechToText h2 && h2.IsListening}) ttsTalking={_ttsTalking} " +
@@ -205,7 +205,7 @@ namespace Forge.Pet
 
         void BeginSegment()
         {
-            bool facing = followUp != null && followUp.UserFacing;   // at speech onset; the hub counts it only with VOICE_FACING=1. ponytail: reuses GatorFollowUp's cone, no shared helper class
+            bool facing = followUp != null && followUp.UserFacing;   // at speech onset; the hub counts it only with VOICE_FACING=1. ponytail: reuses AlbieFollowUp's cone, no shared helper class
             if (followUp != null)   // one line per segment: why facing missed (angle vs cone), read from quest-unity.log
                 Debug.Log($"[WakeListener] segment: facing={facing} angle={followUp.LastLookAngle:F0} limit={followUp.LastLookLimit:F0}");
             var start = new JObject { ["pet_id"] = _target ?? LeadPetId, ["wake"] = true, ["facing"] = facing, ["sample_rate"] = Rate, ["encoding"] = "pcm16" };
@@ -228,7 +228,7 @@ namespace Forge.Pet
             bool enough = _speechChunks * Chunk >= minSpeech;
             if (!enough) _client.Send("stt.cancel", new JObject { ["pet_id"] = LeadPetId });
             _client.Send("stt.stop", new JObject { ["pet_id"] = LeadPetId });
-            if (enough && _target != null) { _target = null; }   // that was the request for the named crew gator
+            if (enough && _target != null) { _target = null; }   // that was the request for the named crew member
         }
 
         void AbortSegment()
@@ -253,27 +253,27 @@ namespace Forge.Pet
                 if (pushToTalk != null) pushToTalk.BeginHandsFree(followSeconds);   // MicNeeded releases our mic
                 return;
             }
-            GatorCrewMember m = CrewMember(pid);
+            AlbieCrewMember m = CrewMember(pid);
             if (m == null) return;
             _target = pid;
             _targetUntil = Time.time + followSeconds;
-            if (m.Controller != null) m.Controller.SetState(GatorState.Listening);
-            GatorCaption c = m.GetComponentInChildren<GatorCaption>(true);
+            if (m.Controller != null) m.Controller.SetState(AlbieState.Listening);
+            AlbieCaption c = m.GetComponentInChildren<AlbieCaption>(true);
             if (c != null) c.SetText("Yes?", false);
         }
 
         void DropTarget()
         {
-            GatorCrewMember m = CrewMember(_target);
+            AlbieCrewMember m = CrewMember(_target);
             _target = null;
-            if (m != null && m.Controller != null && m.Controller.State == GatorState.Listening)
-                m.Controller.SetState(GatorState.Wandering);
+            if (m != null && m.Controller != null && m.Controller.State == AlbieState.Listening)
+                m.Controller.SetState(AlbieState.Wandering);
         }
 
-        static GatorCrewMember CrewMember(string pid)
+        static AlbieCrewMember CrewMember(string pid)
         {
-            GatorCrew crew = GatorCrew.Instance;
-            return crew != null && pid != null ? crew.Find(GatorAgentTypes.Find(pid)) : null;
+            AlbieCrew crew = AlbieCrew.Instance;
+            return crew != null && pid != null ? crew.Find(AlbieAgentTypes.Find(pid)) : null;
         }
 
         string LeadPetId => bridge != null ? bridge.PetId : "bit";

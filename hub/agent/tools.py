@@ -1,13 +1,13 @@
-"""Bit's fast tools: one registry over the module tools (cad/tools.py, vscode/tools.py, messaging/tools.py, the view
+"""Albie's fast tools: one registry over the module tools (cad/tools.py, messaging/tools.py, the view
 tool in agent/workspace.py) for both brains.
 
 Grok calls them directly (voice.py), next to ``delegate``. The Claude runner gets the same tools as an
-in-process MCP server named ``forge`` (runner.py). Lead-only tools (Bit's crew tools, agent/crew.py) go
-to Grok and Bit's runner, not to crew runners; crew runners also pass an ``allow`` list of name prefixes
-(runner.py: ``vscode_`` plus their kit's) so they never see cad_* or messages_*. While a tool runs, Bit walks to its panel
+in-process MCP server named ``forge`` (runner.py). Lead-only tools (Albie's crew tools, agent/crew.py) go
+to Grok and Albie's runner, not to crew runners; crew runners also pass an ``allow`` list of name prefixes
+(runner.py: their kit's) so they never see cad_* or messages_*. While a tool runs, Albie walks to its panel
 (``pet.state`` working + target_panel). Errors come back as ``{"error": ...}`` so the model can explain.
 
-VS Code and view tools are always registered. CAD tools need the hub's CadService, so main.py calls
+View tools are always registered. CAD tools need the hub's CadService, so main.py calls
 ``register_cad`` at startup, and the messaging tools once the Slack service exists. Tools that change what the user
 sees open their view first (``workspace.ensure``), so "open the quadcopter" works with nothing open.
 """
@@ -21,8 +21,6 @@ from typing import Any
 
 from claude_agent_sdk import McpSdkServerConfig, SdkMcpTool, create_sdk_mcp_server, tool
 
-from vscode import tools as vscode_tools
-
 from . import events as ev
 from . import workspace as views
 from .bus import bus
@@ -31,11 +29,11 @@ log = logging.getLogger(__name__)
 
 CallTool = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 SERVER = "forge"
-PANELS = {"cad": "cad-viewer", "vscode": "screen-main", "messages": "messages",  # tool prefix -> panel Bit walks to while working
-          "timer": "timer", "notes": "notes", "movie": "movie", "ml": "ml-training", "nn": "ml-neural-lab"}
+PANELS = {"cad": "cad-viewer", "messages": "messages",  # tool prefix -> panel Albie walks to while working
+          "timer": "timer", "notes": "notes", "ml": "ml-training", "nn": "ml-neural-lab"}
 
 _tools: dict[str, tuple[dict[str, Any], CallTool]] = {}
-_lead_only: set[str] = set()  # Bit's crew tools (agent/crew.py): not offered to crew runners
+_lead_only: set[str] = set()  # Albie's crew tools (agent/crew.py): not offered to crew runners
 
 
 def register(defs: list[dict[str, Any]], call_tool: CallTool, *, lead_only: bool = False) -> None:
@@ -58,11 +56,11 @@ def has(name: str) -> bool:
 
 
 def is_lead_only(name: str) -> bool:
-    """Bit's crew tools (agent/crew.py): offered to Grok only while the CODE view is open (voice.py)."""
+    """Albie's crew tools (agent/crew.py): offered to Grok only while the CODE view is open (voice.py)."""
     return name in _lead_only
 
 
-Allow = Iterable[str] | None  # tool names or name prefixes ("vscode_", "cad_get_params"); None = no filter
+Allow = Iterable[str] | None  # tool names or name prefixes ("cad_", "cad_get_params"); None = no filter
 
 
 def _names(lead: bool = True, allow: Allow = None) -> list[str]:
@@ -89,7 +87,7 @@ async def call(name: str, args: dict[str, Any], pet_id: str) -> dict[str, Any]:
     entry = _tools.get(name)
     if entry is None:
         return {"error": f"unknown tool {name!r}"}
-    if name not in _lead_only:  # crew tools are bookkeeping: Bit doesn't walk anywhere for them
+    if name not in _lead_only:  # crew tools are bookkeeping: Albie doesn't walk anywhere for them
         await bus.broadcast(ev.pet_state(pet_id, "working", target_panel=PANELS.get(name.split("_", 1)[0])))
     try:
         return await entry[1](name, args)
@@ -113,5 +111,4 @@ def mcp_server(pet_id: str, lead: bool = True, allow: Allow = None) -> McpSdkSer
     return create_sdk_mcp_server(SERVER, tools=_mcp_tools(pet_id, lead, allow))
 
 
-register(vscode_tools.TOOLS, vscode_tools.call_tool)
 register(views.TOOLS, views.call_tool)

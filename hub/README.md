@@ -1,8 +1,8 @@
 # Forge hub
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
-Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)) and **ML** (see [hub/ml](ml/README.md)).
-Modules: **CAD** (see `../docs/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), **screens** (the screen bridge child process; see [One process](#one-process)), the **desk** extras (timers, notes, movie; see [Desk](#desk-timers-notes-movie)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)) and **ML** (see [hub/ml](ml/README.md)).
+Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
 
@@ -22,29 +22,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000     # no --reload (it restarts the C
 ```
 
 - `GET /health` once the first design is built (a few seconds on startup).
-- Open `cad/parts/rocket.py` in VS Code: **saving the open design's script regenerates it** and pushes `cad.model_updated`. A broken save keeps the last good model and emits `cad.regen_failed` with the error line.
+- Open `cad/parts/rocket.py` in any editor: **saving the open design's script regenerates it** and pushes `cad.model_updated`. A broken save keeps the last good model and emits `cad.regen_failed` with the error line.
 - Try it: `curl -X POST localhost:8000/cad/params -H "Content-Type: application/json" -d "{\"fin_count\": 4}"`
 - Data (versions, GLBs) lives in `hub/.data/` (gitignored). Delete `.data/cad` to start fresh. Env: `FORGE_DATA_DIR`, `FORGE_CAD_SCRIPT` (the design opened the first time; after that the hub reopens the last one).
 
 ## One process
 
 `uvicorn main:app` is the only thing to start on the laptop. Its lifespan brings up, in order: the CAD worker, Slack
-Socket Mode (plus a history backfill, see Messaging), and the **screen bridge**: `hub/screens/` runs `npm start` in
-`../screen-bridge/` as a child process group (the `prestart` installs the VS Code extension, then `start.js` starts
-`signaling.py` on :8766 and the JPEG fallback `stream.py` on :8765 and launches Chrome sharing the VS Code window).
-Its output shows up in the hub log as `[screen-bridge] ...`. On Ctrl+C the hub sends the whole group SIGINT (SIGKILL
-after 3 s), so Chrome and both python servers die with it; if the child dies on its own it is restarted after 2, 5 and
-10 s, then given up (`screen.status {state: "error"}`).
-
-| | |
-|---|---|
-| `SCREEN_BRIDGE=0` | don't run it (default `1`). It is also skipped, with one warning, when `node` is not on PATH or the directory has no `start.js`. |
-| `SCREEN_BRIDGE_DIR` | where `start.js` lives (default `../screen-bridge`). |
-| `GET /health` | `screen: {enabled, state, source}`; `GET /screens/status` adds `detail`, `fps`, `pid`, `restarts`. |
-| `/ws` | `screen.status {state: starting\|sharing\|stopped\|error, source?, detail?}`, sticky (replayed on connect). |
-
-Everything else the screen bridge needs is unchanged (its `.venv`, `npm install`, the `window.titleSeparator` setting:
-see `screen-bridge/start.js`). Running `npm start` by hand still works: set `SCREEN_BRIDGE=0` so the hub doesn't start a second copy.
+Socket Mode (plus a history backfill, see Messaging).
 
 ## Designs (the CAD library)
 
@@ -84,12 +69,12 @@ Every `*.py` in `cad/parts/` (except `_`-files) is a design; its file name is it
   AP214, mm), `.stl` (3D printing), `_drawing.pdf` (the drawing, no orange) and `_parts.csv` (part, material, qty,
   mass) -> `{part, version, files: [{kind: step|stl|drawing|parts, name, title, bytes}]}`; `GET /cad/files/{name}?v=N`
   downloads one. Made in one worker job on first request (a few seconds), cached in the version's `package/` folder.
-  Bit attaches them to Slack drafts (`messages_send` `attach`, see "Bit runs the workspace").
+  Albie attaches them to Slack drafts (`messages_send` `attach`, see "Albie runs the workspace").
 
 ## Test
 
 ```powershell
-pytest            # a few minutes: CAD (geometry, RocketPy cross-check, designs, library API, watcher), agent, messaging, screens, VS Code
+pytest            # a few minutes: CAD (geometry, RocketPy cross-check, designs, library API, watcher), agent, messaging
 ```
 
 ## Mocks for Unity (hub off)
@@ -125,8 +110,8 @@ Copy that folder to `unity/Assets/_Forge/Mocks/cad/` (see the CAD README there).
 
 ## Agent module (pet)
 
-Adrian's module: the gator pet answers questions about a repo and runs coding tasks through the
-**Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/PET_AGENT_CONTRACT.md`](../docs/PET_AGENT_CONTRACT.md).
+Adrian's module: Albie pet answers questions about a repo and runs coding tasks through the
+**Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/archive/PET_AGENT_CONTRACT.md`](../docs/archive/PET_AGENT_CONTRACT.md).
 
 - REST: `GET /agent/projects`. There is no typed REST fallback: a typed question is `agent.ask` on the socket.
 - WebSocket: **`/ws`**, the hub's one socket (Unity's ForgeNet). `main.py` accepts it, attaches the `EventBus`
@@ -146,7 +131,7 @@ agent/
   crew.py     Albie's crew: agent types, roster, parallel member turns, the lead-only crew tools
   wake.py     "Hey Albie" / "<Crew name>, ..." routing for always-on wake turns
   speech.py   live voice sessions by pet id: speak(text) and note(text) for other modules (digest, focus)
-  workspace.py Bit opens views: ui.mode out, workspace.mode back (the ui_open_view tool; CAD/Slack tools use ensure)
+  workspace.py Albie opens views: ui.mode out, workspace.mode back (the ui_open_view tool; CAD/Slack tools use ensure)
   fake.py     FAKE_AGENT=1 scripted turns (same signature)
   turn.py     auto-mode classifier + TurnControl (cancel/interrupt)
   stt.py      SpeechToText: NoneSTT, WhisperSTT (faster-whisper, optional)
@@ -179,7 +164,6 @@ FAKE_AGENT=1 .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000   # the hub; 
 curl localhost:8000/health
 ```
 
-(Add `SCREEN_BRIDGE=0` to leave Chrome and the screen servers out while you only work on the pet.)
 
 Fake turns: thinking, 3 cumulative partials, answer_done. A code ask gives task_started, 3 progress
 events, task_complete (branch `pet/fake-123`). The text `error` gives agent.error. `FAKE_AGENT_DELAY`
@@ -208,45 +192,45 @@ Real mode: `ANTHROPIC_API_KEY` in `hub/.env` (or the shell) and `FAKE_AGENT=0`.
 - spoken text -> `agent.partial_answer` / `agent.answer_done`, so captions work unchanged
 - `tts.stop` from the client stops the current reply
 
-Grok also gets Albie's fast tools (CAD, VS Code, Slack drafts, the crew) and `delegate` for the Claude runner. Unity's
+Grok also gets Albie's fast tools (CAD, Slack drafts, the crew) and `delegate` for the Claude runner. Unity's
 `workspace.mode {mode}` tells the hub which view is open: Grok gets a one-line note about it, and the crew tools
 only work while the CODE view is open (they answer an error otherwise). `VOICE_PROVIDER=fake` speaks a canned reply from
 `agent/assets/fake_voice_24k.pcm` with no key, for Unity testing:
 
 ```bash
-VOICE_PROVIDER=fake FAKE_AGENT=1 SCREEN_BRIDGE=0 .venv/bin/uvicorn main:app
+VOICE_PROVIDER=fake FAKE_AGENT=1 .venv/bin/uvicorn main:app
 ```
 
-### Say a gator's name (wake turns)
+### Say an agent's name (wake turns)
 
 Unity's `WakeListener` keeps the mic on and sends each speech segment as `stt.start {wake: true}`. `agent/wake.py`
-only answers segments that name a gator ("Hey Albie, ...", "Tester, run the tests"); a name on its own
-("Hey Scout") comes back as `wake.listen` and that gator takes the next sentence. Anything else is dropped
+only answers segments that name an agent ("Hey Albie, ...", "Tester, run the tests"); a name on its own
+("Hey Scout") comes back as `wake.listen` and that Albie takes the next sentence. Anything else is dropped
 without a caption (and deleted from the Grok conversation). In voice mode every segment is transcribed by xAI.
 
-### Crew (extra gators, one per agent type)
+### Crew (extra agents, one per agent type)
 
-The user hatches helper gators in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
+The user hatches helper agents in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
 its own Claude runner with a role, a system prompt and a tool kit (`agent/crew.py` `TYPES`): Scout, Builder, Fixer,
 Tester, Reviewer, Scribe, Shipper, Designer and Sentinel. Albie leads: Grok and Albie's Claude runner get four
-lead-only tools, `spawn_agent`, `assign_task` (hatches the gator first if needed), `dismiss_agent` and
+lead-only tools, `spawn_agent`, `assign_task` (hatches Albie first if needed), `dismiss_agent` and
 `crew_status`. Crew members work in parallel. A code task runs in its own git worktree (`AGENT_WORKTREE_DIR`,
 default `<repo>-crew/`) on `pet/<agent>/<task>`, started from the main checkout's current state (uncommitted edits
 included), so nobody switches the main checkout's branch. When one finishes, its changes are applied to the main
-checkout as uncommitted edits (what VS Code shows) and the worktree is removed; if they conflict, the worktree and
-branch are kept and named in the summary. Albie says so out loud (voice mode) and the gator shows the summary in its bubble.
+checkout as uncommitted edits and the worktree is removed; if they conflict, the worktree and
+branch are kept and named in the summary. Albie says so out loud (voice mode) and Albie shows the summary in its bubble.
 Unity is the source of truth for who exists (`crew.roster`); an `agent.ask` whose `pet_id` is a crew member runs
 that member's turn without touching Albie's.
 
-### Bit runs the workspace (views, CAD, files to Slack)
+### Albie runs the workspace (views, CAD, files to Slack)
 
-From the desk with nothing open: "Bit, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the
+From the desk with nothing open: "Albie, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the
 shaft 10% longer. Draft a message to Adrian with all the files for the supplier. Make it shorter. Send it." Each
-sentence is one or two of Bit's fast tools, called straight from Grok (no `delegate`), so each answers in about a
-second. The contract is `docs/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_bit_script.py` runs that whole script.
+sentence is one or two of Albie's fast tools, called straight from Grok (no `delegate`), so each answers in about a
+second. The contract is `docs/archive/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_albie_script.py` runs that whole script.
 
 - **Views.** `ui_open_view {view: cad|code|ml|messages|none}`. The hub sends `ui.mode {mode}`; Unity opens the view
-  (only at the desk) and answers with `workspace.mode {mode, reason?}`, so Bit's result says what really happened
+  (only at the desk) and answers with `workspace.mode {mode, reason?}`, so Albie's result says what really happened
   (`reason: "not_at_desk"` -> "sit down at the desk first"). `agent/workspace.py` waits 1.5 s for that answer, and only
   0.4 s while the Unity build in use never answers (one without the handler), so no tool stalls on it.
 - **CAD tools open the CAD view themselves** (`cad_open_part`, `cad_set_params`, presets, undo/reset, `cad_view`,
@@ -270,7 +254,7 @@ second. The contract is `docs/PET_AGENT_CONTRACT.md` Addendum H; `tests/test_bit
 FAKE_AGENT=1 .venv/bin/python -m pytest tests/agent -q    # fake mode, a few seconds, no CAD deps
 ```
 
-(Plain `pytest` runs everything in `pytest.ini`'s `testpaths`: CAD, `tests/`, VS Code.)
+(Plain `pytest` runs everything in `pytest.ini`'s `testpaths`: CAD, `tests/`, ML.)
 
 ### Smoke test against a running hub
 
@@ -289,7 +273,7 @@ Through ForgeNet's socket, `/ws` (hub address on the ForgeNet object or PlayerPr
 |---|---|
 | Editor / desktop on the same laptop | `ws://127.0.0.1:8000/ws` |
 | Quest on the same Wi-Fi | `ws://<laptop LAN IP>:8000/ws` (macOS: `ipconfig getifaddr en0`); bind `0.0.0.0`, allow it through the firewall |
-| Quest over USB | `adb reverse tcp:8000 tcp:8000` (the screen bridge does this for you), keep `ws://127.0.0.1:8000/ws` |
+| Quest over USB | `adb reverse tcp:8000 tcp:8000` (`run-demo.sh` does this for you), keep `ws://127.0.0.1:8000/ws` |
 
 The client sends `hello` first, then `agent.ask` / `agent.cancel` / `stt.*` / `workspace.mode` plus binary PCM16 frames
 (mono, 16 kHz, ~100 ms chunks). Every event goes to every `/ws` socket; filter by `pet_id`.
@@ -307,7 +291,7 @@ Setup with the Slack CLI (https://docs.slack.dev/tools/slack-cli), from `hub/`:
 
 ```bash
 slack login                      # once per machine, into the team workspace
-slack install -E local           # creates "Bit (local)" from manifest.json and installs it (bot + user scopes)
+slack install -E local           # creates "Albie (local)" from manifest.json and installs it (bot + user scopes)
 slack run                        # start hook (scripts/slack_cli_start.py) writes SLACK_BOT_TOKEN + SLACK_APP_TOKEN to hub/.env, then exits
 slack app settings               # OAuth & Permissions > "User OAuth Token" (xoxp-...) -> SLACK_USER_TOKEN in hub/.env (the CLI never hands it out)
 ```
@@ -322,7 +306,7 @@ api.slack.com/apps with the same manifest.
 ```
 SLACK_BOT_TOKEN=xoxb-...        # written by `slack run`: the app's identity
 SLACK_APP_TOKEN=xapp-...        # written by `slack run`: Socket Mode
-SLACK_USER_TOKEN=xoxp-...       # you: read your inbox, post as you. Empty = Albie sees only invited channels and posts as "Bit"
+SLACK_USER_TOKEN=xoxp-...       # you: read your inbox, post as you. Empty = Albie sees only invited channels and posts as "Albie"
 SLACK_USER_ID=U...              # optional, derived from the user token; only needed without it
 SLACK_DEFAULT_CHANNEL=#forge-team
 ```
@@ -348,7 +332,7 @@ when `/health` reports `imessage.available` does `MessagesLayout` add the iMessa
 center and move Slack to the right. Selecting an unread item opens its conversation in the matching provider panel.
 
 The first startup also checks whether the hub can read Messages. If macOS blocks access, grant **Full Disk Access**
-to the app running the hub (for example Terminal, iTerm, or VS Code) in **System Settings > Privacy & Security >
+to the app running the hub (for example Terminal or iTerm) in **System Settings > Privacy & Security >
 Full Disk Access**, then restart the hub. macOS requires this explicit user action; `/health` returns the setup
 instructions and a direct link to that Settings pane. The first send may prompt for **Automation** permission to
 control Messages; allow it. Set `IMESSAGE_CLI` only when you intentionally use a custom `imsg` executable.
@@ -424,13 +408,13 @@ delivered twice (bot + user subscription, or `app_mention` + `message`, or histo
 group DM is `is_dm` and counts as a mention; thread replies are stored (for the digest and focus) but left out of
 history, where the parent's `reply_count` grows instead.
 
-## Desk (timers, notes, movie)
+## Desk (timers, notes)
 
-Extras Bit adds on top of any mode: named **focus timers**, the user's **notes** and a **movie screen** above the desk. They
+Extras Albie adds on top of any mode: named **focus timers** and the user's **notes**. They
 don't belong to ML / CAD / CODE / MSG and stay open across mode switches. `ui.widgets` says which ones are showing;
-the hub owns all of it (`desk/service.py`), Unity's buttons and Bit's tools both go through it, so they raise the
+the hub owns all of it (`desk/service.py`), Unity's buttons and Albie's tools both go through it, so they raise the
 same events. Every desk event replays fresh to a client that connects later (`EventBus.sticky_fresh`): the timers'
-remaining time and the movie's position are computed at that moment, not copied from the last message.
+remaining time is computed at that moment, not copied from the last message.
 
 **Proposed contract additions** (PROJECT_CONTEXT section 7; models in `events.py`, mirror them in `ForgeEvents.cs`):
 
@@ -442,41 +426,17 @@ remaining time and the movie's position are computed at that moment, not copied 
 | `GET /notes` | `NotesUpdated {notes: Note[] (newest first), last_removed?}`, `Note {id, text, done, created_at, updated_at}` |
 | `POST /notes {text}` · `POST /notes/{id}/edit {text?, done?}` | add (opens the panel unless it's a dot) · edit or check off |
 | `POST /notes/{id}/remove` · `POST /notes/undo` | remove (kept as `last_removed`) · bring it back |
-| `GET /movie` · `GET /movie/library` | `MovieState {status: closed\|playing\|paused, movie?, position_s, volume, seek_rev}` · `MovieInfo[] {movie_id, title, year, duration_s, url, subtitles_url}` |
-| `GET /movie/files/<id>.mp4` · `<id>.en.srt` | the file, with byte ranges (seeking); subtitles |
-| `POST /movie/play {movie_id?, from_start?}` | opens the screen; resumes where you stopped (a movie stopped in its last 2 min starts over) |
-| `POST /movie/pause` · `/resume` · `/close` · `/seek {position_s \| delta_s \| mark}` · `/volume {volume}` | close keeps your place; seek to a `mark` (id, label or its words) plays it, putting its movie on |
-| `GET /movie/marks?movie_id=` · `POST /movie/marks {label, position_s?, movie_id?}` · `POST /movie/marks/{mark_id}/remove` | `MovieMark {mark_id, label, position_s}`: named spots per movie, by time (hub only, nothing on `/ws`; model in `desk/movie.py`). No position = a few seconds before where it is now; a label that exists moves |
-| `POST /movie/position {position_s, duration_s?, ended?}` | Unity's player reports where it is (every few s, on pause, at the end). No event back: Unity is the clock |
-| `GET /ui/widgets` · `POST /ui/widgets {timer?, notes?, movie?}` | `UiWidgets`, each `open\|minimized\|closed` (minimized = the dot). Closing the timers stops them, closing the movie closes it |
-| `/ws` events | `ui.widgets`, `timers.updated`, `notes.updated`, `movie.state`; `pet.say` "Time's up! ..." when a timer rings (also spoken) |
-| Bit's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}`, `movie_play {title?, from_start?}`, `movie_control {action: pause\|resume\|seek\|skip\|volume\|close, seconds?, mark?, volume?, by?}`, `movie_marks {action: save\|list\|remove, label?, seconds?, title?}`, `movie_status`. `note` / `timer` is an id or a few words of its text or name; a timer action with no `timer` means the only one it can (stop: the ringing ones) |
+| `GET /ui/widgets` · `POST /ui/widgets {timer?, notes?}` | `UiWidgets`, each `open\|minimized\|closed` (minimized = the dot). Closing the timers stops them |
+| `/ws` events | `ui.widgets`, `timers.updated`, `notes.updated`; `pet.say` "Time's up! ..." when a timer rings (also spoken) |
+| Albie's tools | `timer_start {minutes, label?}`, `timer_control {action: pause\|resume\|add\|stop, timer?, minutes?}`, `timer_status`, `notes_add {text}`, `notes_list`, `notes_edit {note, text?, done?}`, `notes_remove {note?, undo?}`, `notes_view {state}` |
 
 Unity, for the panels: count each timer down locally from `remaining_s` when `timers.updated` arrives (the Quest's
-clock isn't the laptop's); play the chime while `status` is `ringing`. Seek the VideoPlayer only when `seek_rev`
-changes, otherwise leave it alone. The `.srt` lines can carry ASS position tags like `{\an8}`: strip `{...}`.
+clock isn't the laptop's); play the chime while `status` is `ringing`.
 
-**Adding a movie.** Files live in `.data/media/` (gitignored; never commit one, and nothing goes into the APK; the
-Quest streams it from the hub over the LAN). Unity's VideoPlayer needs H.264 8-bit + stereo AAC, with the index at
-the front. From a 10-bit HEVC / multi-language source, keeping only the English track (NVIDIA GPU, about 7x real
-time on a laptop 3050 Ti):
+**Mocks for Unity:** `python -m desk.make_mocks` writes `.data/mocks/desk/`: `Resources/Mocks/` (timers, notes,
+ui/widgets REST answers) and `desk/sequence.json` (a ForgeMockPlayer run: a focus and a tea timer,
+notes in, notes to a dot, the tea timer rings and is stopped). Copy both into `unity/Assets/_Forge/Mocks/`.
 
-```powershell
-ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i "in.mkv" -map 0:v:0 -map 0:a:m:language:eng -map_chapters -1 -map_metadata -1 `
-  -vf "scale_cuda=format=nv12" -c:v h264_nvenc -preset p4 -rc vbr -cq 21 -b:v 0 -maxrate 8M -bufsize 16M -profile:v high -g 48 `
-  -c:a aac -b:a 192k -ac 2 -ar 48000 -movflags +faststart .data\media\<id>.part.mp4    # then rename to <id>.mp4
-ffmpeg -i "in.mkv" -map 0:s:0 -c:s srt .data\media\<id>.en.srt     # optional subtitles: one text track (ffprobe lists them; PGS won't convert)
-```
-
-No NVIDIA GPU: drop the two `-hwaccel` flags and the `-vf`, and use `-c:v libx264 -preset veryfast -crf 21 -pix_fmt yuv420p`
-(slower). `<id>` is a file name without dots (`obsession`); a `*.part.mp4` still being written isn't listed. Optional
-`<id>.json`: `{"title": "Obsession", "year": 2025, "duration_s": 6519.8}`.
-
-**Mocks for Unity:** `python -m desk.make_mocks` writes `.data/mocks/desk/`: `Resources/Mocks/` (timers, notes, movie,
-movie/library, ui/widgets REST answers) and `desk/sequence.json` (a ForgeMockPlayer run: a focus and a tea timer,
-notes in, notes to a dot, movie on, the tea timer rings and is stopped). Copy both into `unity/Assets/_Forge/Mocks/`.
-
-Map: `desk/timer.py` (`TimerBoard`, the spoken line), `notes.py` (`NotesStore`, `.data/desk/notes.json`), `movie.py`
-(`MovieService`: library, places per movie, marks and volume in `.data/desk/movie.json`), `service.py` (`DeskService`:
-widgets, events, Bit's voice), `router.py`, `tools.py`, `make_mocks.py`. Tests: `pytest tests/test_desk.py`. Not saved:
+Map: `desk/timer.py` (`TimerBoard`, the spoken line), `notes.py` (`NotesStore`, `.data/desk/notes.json`), `service.py` (`DeskService`:
+widgets, events, Albie's voice), `router.py`, `tools.py`, `make_mocks.py`. Tests: `pytest tests/test_desk.py`. Not saved:
 running timers (a hub restart forgets them).

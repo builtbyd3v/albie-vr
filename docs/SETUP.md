@@ -2,12 +2,12 @@ Paste this into Claude Code: **"Set me up for Albie: follow docs/SETUP.md in thi
 
 # Albie setup (written for a coding agent)
 
-- Goal: this machine runs everything the demo Mac runs: the hub (voice, CAD, ML, Slack, iMessage), Albie's sandbox, the VS Code screen bridge, and the Quest app built in Unity.
-- Full setup needs macOS on Apple silicon. On Windows or Linux, do steps 1-4 and 9 only: there is no screen bridge capture and no iMessage.
+- Goal: this machine runs everything the demo Mac runs: the hub (voice, CAD, ML, Slack, iMessage), Albie's sandbox, and the Quest app built in Unity.
+- Full setup needs macOS on Apple silicon. On Windows or Linux, do steps 1-4 and 9 only: there is no iMessage.
 - Every step is safe to rerun. Run its done-check. Go on only when the check prints what it says.
 - **HUMAN** steps need the person. Ask them, wait for their answer, then run the check yourself.
 - Never print values from `hub/.env`. Never commit `hub/.env`, `hub/.data/`, or a rebuilt `unity/Assets/_Forge/Core/Main.unity`.
-- Shortcut on macOS: `sh dev-setup.sh <env file>` does steps 1-5 and prints the manual steps. Then do steps 5 (HUMAN part) to 10.
+- Shortcut on macOS: `sh dev-setup.sh <env file>` does steps 1-4 and prints the manual steps. Then do steps 6 to 10.
 
 ## 0. Detect first
 
@@ -18,9 +18,6 @@ Run these. Report the results to the person as one short list. Install what is m
 | OS + arch | `uname -sm` | `Darwin arm64` for the full setup |
 | Package manager | `brew --version` (Windows: `winget --version`) | https://brew.sh |
 | Python | `for v in python3.13 python3.12 python3.11 python3; do command -v $v; done` | the first one listed must be 3.11 or newer: `brew install python@3.12`. Call it `$PY` below (macOS's own `python3` is 3.9) |
-| Node | `node --version` | 20 or newer: `brew install node` |
-| VS Code CLI | `code --version` | VS Code > Command Palette > "Shell Command: Install 'code' command in PATH" |
-| Google Chrome | `ls -d "/Applications/Google Chrome.app"` | the screen bridge shares VS Code through real Chrome |
 | Unity Hub | `ls -d "/Applications/Unity Hub.app"` | https://unity.com/download |
 | Unity | `ls /Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/AndroidPlayer/SDK` | Unity Hub > Installs > 6000.6.7f1 with Android Build Support (OpenJDK, Android SDK & NDK) |
 | adb | `ADB=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb; $ADB version` | else `brew install android-platform-tools`, then `ADB=adb` |
@@ -41,7 +38,7 @@ Done-check: `ls "$REPO/hub/.env"`. The path check comes at the end of step 4.
 cd "$REPO/hub" && [ -x .venv/bin/python ] || $PY -m venv .venv
 .venv/bin/pip install -q -r requirements-dev.txt -r ml/requirements.txt
 ```
-Done-check: `cd "$REPO/hub" && BIT_VSCODE_PORT=9 .venv/bin/python -m pytest -q` ends with `passed`. Known fails: `test_github_import` folder-name assert (the clone folder is not named `gatorhack-dubz`), and sometimes `test_agent_live_edits`. `BIT_VSCODE_PORT=9` keeps the tests from opening files in the person's VS Code.
+Done-check: `cd "$REPO/hub" && .venv/bin/python -m pytest -q` ends with `passed`. Known fails: `test_github_import` folder-name assert (the clone folder is not named `gatorhack-dubz`), and sometimes `test_agent_live_edits`. `ALBIE_VSCODE_PORT=9` keeps the tests from opening files in the person's VS Code.
 
 ## 3. ML example env (CIFAR-10)
 
@@ -64,35 +61,25 @@ DEFAULT_PROJECT=sandbox
 FORGE_CAD_SCRIPT=${HOME}/Documents/GitHub/albie-sandbox/cad/rocket.py
 FORGE_ML_REPO=${HOME}/Documents/GitHub/albie-sandbox/ml
 FORGE_ML_VENV=<$REPO>/ml-examples/cifar10/.venv
-VSCODE_FOLDER=${HOME}/Documents/GitHub/albie-sandbox
 ```
 Done-check: `ls ~/Documents/GitHub/albie-sandbox/.albie-sandbox ~/Documents/GitHub/albie-sandbox/ml/data ~/Documents/GitHub/albie-sandbox/ml/.venv/bin/python ~/Documents/GitHub/albie-sandbox/data/unitree_g1` succeeds (missing `ml/.venv`: `ln -s "$REPO/ml-examples/cifar10/.venv" ~/Documents/GitHub/albie-sandbox/ml/.venv`), and the path check in `sh dev-setup.sh` prints `ok: every path exists`.
 
-## 5. Screen bridge + Forge Bit extension (macOS)
+## 5. (Removed)
 
-```sh
-cd "$REPO/screen-bridge" && npm install --silent
-[ -x .venv/bin/python ] || $PY -m venv .venv
-.venv/bin/pip install -q -r requirements.txt
-node "$REPO/vscode-bit/install.js"     # links vscode-bit into ~/.vscode/extensions as forge.forge-bit-<version>
-```
-Add `"window.titleSeparator": " | "` to the VS Code user settings (Chrome finds the VS Code window by it). Relaunch VS Code.
-**HUMAN:** System Settings > Privacy & Security > **Screen Recording**: turn on the terminal app that runs the hub, and Google Chrome. Do the same under **Accessibility** (the bridge resizes VS Code). Quit and reopen that terminal app.
-Done-check: `ls -l ~/.vscode/extensions | grep forge.forge-bit` shows a link to `$REPO/vscode-bit`. With VS Code open: `curl -s -o /dev/null -w '%{http_code}\n' localhost:8770/context` prints `200` (read-only), and VS Code's status bar shows the Forge Bit item.
+The VS Code screen bridge and the Forge Albie extension were removed on 2026-11-06 (PROJECT_CONTEXT.md D-41). Nothing to do here.
 
 ## 6. Run the hub
 
 ```sh
 sh "$REPO/run-demo.sh"
 ```
-It stops an old hub on :8000 and stale bridge children (`node start.js`, `stream.py`, `signaling.py` hold :8765/:8766), starts the hub (log: `/tmp/forge-hub.log`), opens the sandbox ML project, and wires up a plugged-in Quest. The hub opens VS Code on `VSCODE_FOLDER` and starts the screen bridge itself.
+It stops an old hub on :8000, starts the hub (log: `/tmp/forge-hub.log`), opens the sandbox ML project, and wires up a plugged-in Quest.
 `run-demo.sh` clears the inherited `CLAUDECODE` / `ANTHROPIC_BASE_URL` (the agent SDK hangs on them), so an agent can run it too.
-Done-check: `curl -s localhost:8000/health` returns JSON with `"ok": true`; its `screen` field shows the bridge state, `slack` and `imessage` theirs.
-WebRTC video needs the Mac and the Quest on a phone hotspot (venue Wi-Fi blocks it). Without it the VS Code panel falls back to JPEG after about 10 s.
+Done-check: `curl -s localhost:8000/health` returns JSON with `"ok": true`; its `slack` and `imessage` fields show their state.
 
 ## 7. Slack user token (optional; the bot tokens come in the shared env file)
 
-**HUMAN:** a user token belongs to the person who installed the app, so each teammate installs it for themselves. Install the Slack CLI (https://docs.slack.dev/tools/slack-cli). Ask Dev to add you as a collaborator on the Forge Slack app. In `$REPO/hub`: `slack login` (the team workspace), `slack app link -E local` (app id from `slack app list`), `slack install -E local` (installs it for you), then `slack app settings` > OAuth & Permissions > **User OAuth Token** (`xoxp-...`). Paste it into `SLACK_USER_TOKEN` in `hub/.env` yourself. Never use someone else's `xoxp-` token: Albie would post as them. Empty = Albie posts as "Bit".
+**HUMAN:** a user token belongs to the person who installed the app, so each teammate installs it for themselves. Install the Slack CLI (https://docs.slack.dev/tools/slack-cli). Ask Dev to add you as a collaborator on the Forge Slack app. In `$REPO/hub`: `slack login` (the team workspace), `slack app link -E local` (app id from `slack app list`), `slack install -E local` (installs it for you), then `slack app settings` > OAuth & Permissions > **User OAuth Token** (`xoxp-...`). Paste it into `SLACK_USER_TOKEN` in `hub/.env` yourself. Never use someone else's `xoxp-` token: Albie would post as them. Empty = Albie posts as "Albie".
 Done-check: after `sh run-demo.sh`, `/health` shows Slack connected.
 
 ## 8. iMessage (optional, macOS only)
@@ -114,7 +101,7 @@ Done-check: after `sh run-demo.sh`, `/health` shows `imessage.available: true` (
 4. Install and launch:
 ```sh
 $ADB install -r "$REPO/unity/Builds/Forge.apk"
-for p in 8000 8765 8766; do $ADB reverse tcp:$p tcp:$p; done
+$ADB reverse tcp:8000 tcp:8000
 $ADB shell monkey -p com.UnityTechnologies.com.unity.template.urpblank -c android.intent.category.LAUNCHER 1
 ```
 Done-check: `$ADB devices` lists the headset as `device`; `$ADB reverse --list` shows the 3 ports.
@@ -130,9 +117,6 @@ Done-check: `$ADB devices` lists the headset as `device`; `$ADB reverse --list` 
 
 - Voice work (speech-to-speech) is hub-only: edit `hub/agent/`, run `sh run-demo.sh` again. No Unity build.
 - Unity compiles only while its window is focused: bring it to the front after every pull or script change.
-- WebRTC video needs the Mac and the Quest on a phone hotspot; else the VS Code panel falls back to JPEG after about 10 s.
 - `Forge > Build Main Scene` rewrites `Main.unity`: `git checkout -- unity/Assets/_Forge/Core/Main.unity` before a pull.
-- Hub tests: always `BIT_VSCODE_PORT=9`.
-- Kill stale `stream.py` / `signaling.py` before a hub restart (`run-demo.sh` does).
 - Never commit a rebuilt `Main.unity`, `hub/.env`, or `hub/.data/`.
 - Meta's network security config blocks plain http except localhost: keep the Quest on USB with `adb reverse`.

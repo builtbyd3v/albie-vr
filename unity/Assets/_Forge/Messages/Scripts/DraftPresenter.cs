@@ -3,7 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Routes notify.draft (PROJECT_CONTEXT 8.8). With the matching provider panel open, the draft goes into its composer
 /// as editable text, with Send / Cancel and the conversation switched to the draft's. Otherwise it pops
-/// a <see cref="DraftCard"/> (Send / Cancel) floating at the desk's front-right beside Bit, a little closer to the user
+/// a <see cref="DraftCard"/> (Send / Cancel) floating at the desk's front-right beside Albie, a little closer to the user
 /// near the user, or in front of the camera when there is no desk. One card at a time: a new draft replaces the
 /// open one (the hub also emits notify.draft_cancelled with reason superseded for it).
 /// Installs itself on scene load into any scene that has a DeskPresence.

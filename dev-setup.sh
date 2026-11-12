@@ -1,6 +1,6 @@
 #!/bin/sh
-# One-time setup of everything that runs on the laptop (macOS): hub, ML example env, Albie's sandbox, screen bridge,
-# Forge Bit VS Code extension. Safe to rerun: each step skips what is already there. docs/SETUP.md has the full guide.
+# One-time setup of everything that runs on the laptop (macOS): hub, ML example env and Albie's sandbox.
+# Safe to rerun: each step skips what is already there. docs/SETUP.md has the full guide.
 #   sh dev-setup.sh [path/to/forge-hub.env]
 set -eu
 repo=$(cd "$(dirname "$0")" && pwd)
@@ -15,11 +15,7 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING: $1. $2"; exit 1; };
 step "Tools"
 need "$py" "brew install python@3.11"
 "$py" -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "MISSING: Python 3.11+ ($($py --version)). brew install python@3.11, then PYTHON=python3.11 sh dev-setup.sh"; exit 1; }
-need node "brew install node"
-need npm "brew install node"
-command -v code >/dev/null 2>&1 || echo "WARN: no 'code' CLI. VS Code > Command Palette > Shell Command: Install 'code' command in PATH"
-[ -d "/Applications/Google Chrome.app" ] || echo "WARN: Google Chrome not installed; the screen bridge shares VS Code through it"
-echo "ok: $($py --version), node $(node --version)"
+echo "ok: $($py --version)"
 
 step "hub/.env"
 if [ -f "$repo/hub/.env" ]; then echo "ok: hub/.env exists (not overwritten)"
@@ -42,17 +38,10 @@ if [ -f "$sandbox/.albie-sandbox" ]; then echo "ok: exists (rebuild: sh sandbox/
 else ALBIE_SANDBOX="$sandbox" sh "$repo/sandbox/setup.sh"; fi
 [ -e "$sandbox/ml/.venv" ] || { ln -s "$ml/.venv" "$sandbox/ml/.venv" && echo "ok: linked $sandbox/ml/.venv"; }
 
-step "Screen bridge + Forge Bit extension"
-(cd "$repo/screen-bridge" && npm install --silent)
-[ -x "$repo/screen-bridge/.venv/bin/python" ] || "$py" -m venv "$repo/screen-bridge/.venv"
-"$repo/screen-bridge/.venv/bin/pip" install -q -r "$repo/screen-bridge/requirements.txt"
-node "$repo/vscode-bit/install.js"
-echo "ok: bridge deps; extension linked into ~/.vscode/extensions (relaunch VS Code once)"
-
 step "Paths in hub/.env"
 # ponytail: a plain line reader, not a dotenv parser; only expands ${HOME} and ~, like the shared file uses.
 bad=0
-for key in FORGE_ML_VENV FORGE_ML_REPO FORGE_CAD_SCRIPT VSCODE_FOLDER; do
+for key in FORGE_ML_VENV FORGE_ML_REPO FORGE_CAD_SCRIPT; do
   val=$(sed -n "s/^$key=//p" "$repo/hub/.env" | tail -1 | sed "s#\${HOME}#$HOME#g; s#^~#$HOME#; s/^\"//; s/\"\$//")
   if [ -z "$val" ]; then echo "unset: $key"; continue; fi
   [ -e "$val" ] && continue
@@ -63,15 +52,12 @@ Fix: set these in hub/.env:
   FORGE_ML_VENV=$ml/.venv
   FORGE_ML_REPO=$sandbox/ml
   FORGE_CAD_SCRIPT=$sandbox/cad/rocket.py
-  VSCODE_FOLDER=$sandbox
 FIX
 
 cat <<'NEXT'
 
 == Done. Your manual steps (docs/SETUP.md, HUMAN steps):
-1. System Settings > Privacy & Security: Screen Recording + Accessibility for your terminal and Google Chrome.
-2. VS Code settings: "window.titleSeparator": " | ". Relaunch VS Code.
-3. Optional: your own SLACK_USER_TOKEN, iMessage (docs/SETUP.md steps 7 and 8).
-4. Unity 6000.6.7f1 + Android Build Support, build the APK (docs/SETUP.md step 9).
-5. Daily: sh run-demo.sh
+1. Optional: your own SLACK_USER_TOKEN, iMessage (docs/SETUP.md steps 7 and 8).
+2. Unity 6000.6.7f1 + Android Build Support, build the APK (docs/SETUP.md step 9).
+3. Daily: sh run-demo.sh
 NEXT

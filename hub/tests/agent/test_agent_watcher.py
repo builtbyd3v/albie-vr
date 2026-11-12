@@ -26,29 +26,6 @@ def test_regen_failed_from_pet_or_ui_stays_quiet() -> None:
     assert line_for("cad.regen_failed", {"source": "pet", "kind": "params", "error": "x"}, SCRIPT) is None
 
 
-def test_saved_file_errors_and_fixed() -> None:
-    broke = line_for("vscode.event", {"kind": "errors", "file": "src/train.py", "line": 7,
-                                      "message": "undefined name 'lr'", "count": 3}, SCRIPT)
-    assert broke is not None
-    assert broke.text == "Line 7 in train.py has an error, plus 2 more. Want me to look?"
-    assert (broke.path, broke.line) == ("src/train.py", 7)
-    fixed = line_for("vscode.event", {"kind": "errors", "file": "src/train.py", "count": 0}, SCRIPT)
-    assert fixed is not None and fixed.text == "Nice, train.py is clean again." and fixed.line is None
-
-
-def test_errors_in_the_cad_script_are_left_to_regen_failed() -> None:
-    assert line_for("vscode.event", {"kind": "errors", "file": "hub/cad/parts/rocket.py", "line": 3,
-                                     "message": "bad", "count": 1}, SCRIPT) is None
-
-
-def test_command_crash_speaks_but_success_and_ctrl_c_do_not() -> None:
-    crash = line_for("vscode.event", {"kind": "command_finished", "command": "python train.py", "exit_code": 1}, None)
-    assert crash is not None and crash.text == "That command crashed with exit code 1. Want me to look at it?"
-    assert line_for("vscode.event", {"kind": "command_finished", "command": "x", "exit_code": 0}, None) is None
-    assert line_for("vscode.event", {"kind": "command_finished", "command": "x", "exit_code": 130}, None) is None
-    assert line_for("vscode.event", {"kind": "command_finished", "command": "x"}, None) is None
-
-
 class FakeVoice:
     def __init__(self) -> None:
         self.said: list[str] = []
@@ -59,47 +36,51 @@ class FakeVoice:
         self.contexts.append(context)
 
 
-def _watcher(gap_s: float) -> tuple[Watcher, list[Event], list[tuple[Any, ...]]]:
+def _watcher(gap_s: float) -> tuple[Watcher, list[Event]]:
     sent: list[Event] = []
-    glows: list[tuple[Any, ...]] = []
 
     async def broadcast(event: Event) -> None:
         sent.append(event)
 
-    w = Watcher(broadcast=broadcast, highlight=lambda *a: glows.append(a), gap_s=gap_s)
+    w = Watcher(broadcast=broadcast, gap_s=gap_s)
     w.cad_script = SCRIPT
-    return w, sent, glows
+    return w, sent
 
 
 def _says(sent: list[Event]) -> list[str]:
     return [e.payload["text"] for e in sent if e.type == "pet.say"]
 
 
-ERR = {"kind": "errors", "file": "a.py", "line": 2, "message": "boom", "count": 1}
+REGEN = {"source": "script", "kind": "build", "error": "boom", "error_line": 2, "kept_version": 1}
+BROKE = "Line 2 broke the rocket. I kept the last good one. Want me to fix it?"
 
 
-def test_bit_moves_speaks_and_glows() -> None:
+def _mention(ts: str, text: str, channel: str = "C2") -> dict[str, Any]:
+    return {"channel": channel, "channel_name": "forge-team", "user_name": "Hudson", "ts": ts, "is_dm": False,
+            "mentions_me": True, "is_me": False, "text": text, "source": None}
+
+
+def test_albie_moves_and_speaks() -> None:
     async def run() -> None:
-        w, sent, glows = _watcher(gap_s=0)
+        w, sent = _watcher(gap_s=0)
         voice = FakeVoice()
         w.add(voice)
-        w.notify("vscode.event", ERR)
+        w.notify("cad.regen_failed", REGEN)
         await w.idle()
         assert [e.type for e in sent] == ["pet.state", "pet.say"]
         assert sent[0].payload == {"pet_id": "bit", "mode": "working", "target_panel": "screen-main"}
-        assert glows == [("a.py", 2, None, "boom", 8000)]
-        assert voice.said == ["Line 2 in a.py has an error. Want me to look?"]
-        assert voice.contexts[0] is not None and "line 2 of a.py: boom" in voice.contexts[0]
+        assert voice.said == [BROKE]
+        assert voice.contexts[0] is not None and f"line 2 of {SCRIPT}: boom" in voice.contexts[0]
 
     asyncio.run(run())
 
 
 def test_same_error_twice_is_said_once() -> None:
     async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0)
-        w.notify("vscode.event", ERR)
+        w, sent = _watcher(gap_s=0)
+        w.notify("cad.regen_failed", REGEN)
         await w.idle()
-        w.notify("vscode.event", ERR)
+        w.notify("cad.regen_failed", REGEN)
         await w.idle()
         assert len(_says(sent)) == 1
 
@@ -108,59 +89,39 @@ def test_same_error_twice_is_said_once() -> None:
 
 def test_budget_keeps_only_the_newest_queued_line() -> None:
     async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0.2)
-        w.notify("vscode.event", ERR)
+        w, sent = _watcher(gap_s=0.2)
+        w.notify("cad.regen_failed", REGEN)
         await asyncio.sleep(0.01)  # first line goes out now and starts the gap
-        w.notify("vscode.event", {**ERR, "file": "b.py"})
-        w.notify("vscode.event", {"kind": "errors", "file": "b.py", "count": 0})  # fixed before the gap ended
+        w.notify("notify.message", _mention("1", "first"))
+        w.notify("notify.message", _mention("2", "second"))  # same chat before the gap ended: replaces it
         await asyncio.sleep(0.05)
-        assert _says(sent) == ["Line 2 in a.py has an error. Want me to look?"]
+        assert _says(sent) == [BROKE]
         await w.idle()
-        assert _says(sent) == ["Line 2 in a.py has an error. Want me to look?", "Nice, b.py is clean again."]
+        assert _says(sent) == [BROKE, "Hudson mentioned you in forge-team: second Want me to reply?"]
 
     asyncio.run(run())
 
 
-def test_vscode_off_does_not_stop_the_bubble() -> None:
+def test_regen_failed_without_a_line_number() -> None:
+    line = line_for("cad.regen_failed", {"source": "script", "kind": "build", "error": "x", "kept_version": 1}, SCRIPT)
+    assert line is not None and line.text == "The rocket script broke. I kept the last good one. Want me to fix it?"
+    assert line.line is None
+
+
+def test_queued_lines_keep_their_order_and_dropped_lines_are_not_marked_said() -> None:
     async def run() -> None:
-        sent: list[Event] = []
-
-        async def broadcast(event: Event) -> None:
-            sent.append(event)
-
-        def highlight(*_: Any) -> None:
-            raise ConnectionRefusedError
-
-        w = Watcher(broadcast=broadcast, highlight=highlight, gap_s=0)
-        w.notify("vscode.event", ERR)
-        await w.idle()
-        assert len(_says(sent)) == 1
-
-    asyncio.run(run())
-
-
-def test_errors_without_a_line_number() -> None:
-    line = line_for("vscode.event", {"kind": "errors", "file": "a.py", "count": 1, "message": "x"}, None)
-    assert line is not None and line.text == "a.py has an error. Want me to look?" and line.line is None
-
-
-def test_a_crash_does_not_push_out_a_queued_cad_line_and_dropped_lines_are_not_marked_said() -> None:
-    async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0.1)
-        w.notify("vscode.event", ERR)
+        w, sent = _watcher(gap_s=0.1)
+        w.notify("cad.regen_failed", REGEN)
         await asyncio.sleep(0.01)
-        regen = {"source": "script", "kind": "build", "error": "bad", "error_line": 9, "kept_version": 1}
-        w.notify("cad.regen_failed", regen)
-        w.notify("vscode.event", {"kind": "command_finished", "command": "x", "exit_code": 1})
-        w.notify("vscode.event", {**ERR, "file": "b.py"})
-        w.notify("vscode.event", {"kind": "errors", "file": "b.py", "count": 0})  # replaces b.py's queued error
+        w.notify("ml.overfit_alert", {"run_id": "r1", "epoch": 6})
+        w.notify("notify.message", _mention("1", "first"))
+        w.notify("notify.message", _mention("2", "second"))  # replaces the queued "first"
         await w.idle()
-        assert _says(sent)[1:] == ["Line 9 broke the rocket. I kept the last good one. Want me to fix it?",
-                                   "That command crashed with exit code 1. Want me to look at it?",
-                                   "Nice, b.py is clean again."]
-        w.notify("vscode.event", {**ERR, "file": "b.py"})  # never said before, so it is said now
+        assert _says(sent)[1:] == ["Heads up, the model is overfitting since epoch 6. Want me to explain what's going on?",
+                                   "Hudson mentioned you in forge-team: second Want me to reply?"]
+        w.notify("notify.message", _mention("1", "first"))  # never said before, so it is said now
         await w.idle()
-        assert _says(sent)[-1] == "Line 2 in b.py has an error. Want me to look?"
+        assert _says(sent)[-1] == "Hudson mentioned you in forge-team: first Want me to reply?"
 
     asyncio.run(run())
 
@@ -173,10 +134,10 @@ class SlowVoice(FakeVoice):
 
 def test_closed_socket_cancels_queued_speech() -> None:
     async def run() -> None:
-        w, _, _ = _watcher(gap_s=0)
+        w, _ = _watcher(gap_s=0)
         voice = SlowVoice()
         w.add(voice)
-        w.notify("vscode.event", ERR)
+        w.notify("cad.regen_failed", REGEN)
         await w.idle()
         w.drop(voice)
         await asyncio.sleep(0.01)
@@ -187,7 +148,7 @@ def test_closed_socket_cancels_queued_speech() -> None:
 
 def test_fixed_it_only_after_a_spoken_break() -> None:
     async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0)
+        w, sent = _watcher(gap_s=0)
         built = {"source": "script", "version": 3}
         w.notify("cad.built", built)  # a normal save: nothing broke, nothing to say
         await w.idle()
@@ -207,7 +168,7 @@ def test_fixed_it_only_after_a_spoken_break() -> None:
 
 def test_fix_offers_carry_a_card_and_a_tap_runs_the_fix_once() -> None:
     async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0)
+        w, sent = _watcher(gap_s=0)
         w.notify("cad.regen_failed", {"source": "script", "kind": "build", "error": "bad fin", "error_line": 9,
                                       "kept_version": 1})
         await w.idle()
@@ -218,7 +179,7 @@ def test_fix_offers_carry_a_card_and_a_tap_runs_the_fix_once() -> None:
         task = w.take_offer(fix)
         assert task is not None and f"line 9 of {SCRIPT}: bad fin" in task
         assert w.take_offer(fix) is None and w.take_offer(later) is None  # once
-        w.notify("vscode.event", {"kind": "errors", "file": "a.py", "count": 0})
+        w.notify("notify.message", _mention("3", "hi"))
         await w.idle()
         assert next(e for e in reversed(sent) if e.type == "pet.say").payload.get("card") is None  # nothing to fix
 
@@ -227,8 +188,8 @@ def test_fix_offers_carry_a_card_and_a_tap_runs_the_fix_once() -> None:
 
 def test_not_now_forgets_the_offer() -> None:
     async def run() -> None:
-        w, sent, _ = _watcher(gap_s=0)
-        w.notify("vscode.event", ERR)
+        w, sent = _watcher(gap_s=0)
+        w.notify("cad.regen_failed", REGEN)
         await w.idle()
         fix, later = (a["action_id"] for a in next(e for e in sent if e.type == "pet.say").payload["card"]["actions"])
         assert w.take_offer(later) is None and w.take_offer(fix) is None

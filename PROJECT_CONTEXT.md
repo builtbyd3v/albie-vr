@@ -50,7 +50,7 @@ Section 16 numbers the five chunks; a name goes here when someone claims one. Th
 - **Laptop hub (optional).** `hub/` is FastAPI plus one `/ws`. It runs:
   - Grok voice and a shared registry of about 60 tools.
   - A Claude Agent SDK runner with git worktrees, and the gator crew.
-  - Slack and iMessage, the VS Code screen bridge, the ML setup and improve pipeline, and the build123d CAD service.
+  - Slack and iMessage, the ML setup and improve pipeline, and the build123d CAD service. (The VS Code screen bridge was removed on 2026-11-06, D-41.)
 - **Real today:**
   - CAD: versioned build123d designs, analysis, flight sim, GLB, drawings.
   - ML: open repo, classify, adapter, train, live metrics, improve.
@@ -261,7 +261,7 @@ Section 2.1 is the one list of decisions. Section 2.2 gives each person the deci
 | D-19 | **One REST namespace:** `/v1/{code,projects,jobs,artifacts,integrations,voice,model,events}`. Existing `/cad`, `/ml`, `/tools`, `/events` and `ui.mode`, `stt.*`, `tts.*`, `pet.state` stay as they are until a contract PR replaces them (section 13).<br>*Why:* The drafts used three namespaces. | Proposed | Person 3 |
 | D-20 | The agent's brain and voice come from **Meta's Muse**, replacing Grok. In practice that means the pipeline in section 1.2. | Decided | Person 3 |
 | D-21 | Avatar: a Meta Muse avatar if Meta ships a developer 3D model. **It doesn't, so Albie stays the gator for now, and an original avatar of our own is on the roadmap** (D-03, section 5.5). | Decided | Person 1 |
-| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `GatorNavSurface` and `GatorController.Surfaces`). Away from a desk it floats around the room on a small cloud. | Decided | Person 1 |
+| D-22 | Behaviour: at a desk the agent walks on the desk (reuse the gator's desk-walk, `AlbieNavSurface` and `AlbieController.Surfaces`). Away from a desk it floats around the room on a small cloud. | Decided | Person 1 |
 | D-23 | On device where possible, with an app cloud for files that aren't on the device. | Decided | Person 3 |
 | D-24 | Repos: clone the user's GitHub repo into their cloud workspace. Switching repos clears it only when the work is safe (D-25). A project can start with no integrations and be pushed to GitHub later. | Decided | Person 3 |
 | D-25 | **Repo switch rule (canonical):**<br>1. If the workspace has uncommitted or untracked changes, the switch stops and lists them, with one-tap **Commit** or **Stash (with untracked files)**.<br>2. Before any clear, the cloud always saves a `git bundle` of all refs plus the stash, so it's recoverable from the repo list.<br>3. Then it clears.<br>Workspaces are keyed **per user per repo** (`workspaces/{userId}/{repoId}`). A project references zero or more repos.<br>*Why:* Merges three conflicting draft rules. | Proposed | Person 3 |
@@ -279,6 +279,7 @@ Section 2.1 is the one list of decisions. Section 2.2 gives each person the deci
 | D-37 | **Messages are in the demo, on a Meta service.** "Can you send me the updated model?" Albie drafts it, you confirm, and the file reaches your phone through a Messenger Page. The spike is due Nov 6. Slack and iMessage are removed once Messenger works on a Quest (PR-00b, section 14.12). If Messenger fails, try the WhatsApp test number, and then the existing Slack path through the laptop hub, for the video only.<br>*Why:* the user's direction. Sending to yourself is what these APIs allow: the recipient has already messaged the Page. Replying as you to other people isn't possible, so that goes. | Decided | Person 1 |
 | D-38 | **Meta first.** Use a Meta service for each job where a released one exists (section 1.3). A non-Meta service needs a written reason in that table. Today's reasons: Claude for long coding, a third-party TTS only if Meta's doesn't pass, and Grok as the voice fallback until the Muse pipeline passes.<br>*Why:* the user's direction, and the app is built for Meta's competition. | Decided | Person 3 |
 | D-39 | **Five chunks, one lead each, numbered and not named** (section 16). The team decides who takes which. Most people work across chunks; the lead is accountable and reviews.<br>*Why:* the competition cut has to run in parallel over 17 days. | Decided | Person 1 |
+| D-41 | **No VS Code, no laptop editor.** The VS Code extension, the screen bridge that streamed its window, the hub's `vscode` tools and the Unity Screens module are removed. The headset gets its own small code browser instead: a file tree, a file viewer, and simple edits with the virtual keyboard. It reads the cloud workspace, GitHub repos cloned into it, and the starter templates (section 7.14).<br>*Why:* a full desktop IDE in the headset is more than the product needs, and it needed a laptop. | Decided | Person 1 |
 | D-40 | **Controllers.** Every Thing takes three swappable controller types: manual, code (a rule and PID graph) and learned. For the competition, learning is behaviour cloning on the device, with no cloud needed and no ONNX unless Person 4 asks for it (section 15.4).<br>*Why:* it keeps the brain beat working with no network, which passes the take-it-away test. | Proposed | Person 4 |
 
 ### 2.2 Decisions by person
@@ -287,7 +288,7 @@ Dates are in 2026 and are proposals. If a decision misses its date, the stated d
 
 #### Person 1 (product, Albie's presence, hands, code mode, submission)
 
-Owns D-01, D-03, D-07, D-21, D-22, D-31, D-33, D-35, D-37, D-39.
+Owns D-01, D-03, D-07, D-21, D-22, D-31, D-33, D-35, D-37, D-39, D-41.
 
 | By | Decide | Default if undecided |
 |---|---|---|
@@ -481,7 +482,7 @@ Points to decide:
   - Squash and stretch reads well in passthrough.
   - A big face makes blendshape expressions and visemes easy to see.
   - It sits naturally on the small cloud when Albie is away from the desk.
-- **Bridge:** keep the avatar behind one interface (expressions, visemes, talk level, locomotion hooks), so the gator and the bean are swappable prefabs. Start by moving `GatorExpressions` to that interface.
+- **Bridge:** keep the avatar behind one interface (expressions, visemes, talk level, locomotion hooks), so the gator and the bean are swappable prefabs. Start by moving `AlbieExpressions` to that interface.
 
 Roadmap pipeline (proposal):
 1. Concept image of the assistant (original bean design, no Meta or Fall Guys likeness).
@@ -498,7 +499,7 @@ Budget: Quest 3 polycount and bone limits could not be verified (Meta's page ret
 
 Two presence states, driven by the existing desk state:
 
-- **Seated / at desk (`DeskPresence`: Near or Seated).** The assistant walks on the desk surface, the way the gator does. Reuse the existing desk-walk and navigation code: `Pet/Scripts/Core/GatorNavSurface.cs` (runtime desk NavMesh), `GatorController.Surfaces.cs` / `.Motion.cs` / `.KeepOut.cs`, `ArrivalDirector.cs` (the hop onto the desk), `DeskCorner.cs`. Desk layout comes from `Workspace` and `DeskDock`.
+- **Seated / at desk (`DeskPresence`: Near or Seated).** The assistant walks on the desk surface, the way the gator does. Reuse the existing desk-walk and navigation code: `Pet/Scripts/Core/AlbieNavSurface.cs` (runtime desk NavMesh), `AlbieController.Surfaces.cs` / `.Motion.cs` / `.KeepOut.cs`, `ArrivalDirector.cs` (the hop onto the desk), `DeskCorner.cs`. Desk layout comes from `Workspace` and `DeskDock`.
 - **Away (`DeskPresence`: Away).** The assistant floats on a small cloud around the room. It follows the user at a comfortable distance and stays out of the passthrough path. This is new work.
 
 Gaps in current code:
@@ -512,7 +513,7 @@ Gaps in current code:
 |---|---|
 | `Core/Scripts/AlbieVoice.cs` (Grok wss URL, persona, tool rules) | Replace with a `MuseVoice` adapter behind a `VoiceBackend` interface. Persona and rules become content files. |
 | `Core/Scripts/AlbieVoiceToken.cs` (xAI client-secret endpoint, key read from `.env` in editor) | Replace with the Muse token or relay route. Never bundle a key. |
-| `hub/agent/voice.py` `GrokVoiceSession` (turn logic plus xAI wire protocol) | Split turn logic from the wire protocol. Put the Grok or Muse wire code behind `VoiceBackend`. The seam is proposed in `docs/VOICE_TTS_PLAN.md`. |
+| `hub/agent/voice.py` `GrokVoiceSession` (turn logic plus xAI wire protocol) | Split turn logic from the wire protocol. Put the Grok or Muse wire code behind `VoiceBackend`. The seam is proposed in `docs/archive/VOICE_TTS_PLAN.md`. |
 | `PetId = "bit"` in `AlbieTips.cs`, `AlbieVoice.cs`, `WorkspaceRemote.cs` | Make the id a config value. |
 | `hub/agent/addressed.py` (direct Anthropic call, Haiku model) | Route through the model gateway. |
 | Fixed mode ids in `Workspace.DefaultModes` | Data-driven, see the Workspace section of this document. |
@@ -736,8 +737,8 @@ Avatar:
 | `Scripts/Workspace.cs` (about 900 lines) | Desk-frame layout math, saved poses, tween motion, `FoldAll` | Make modes data-driven (CODE, PROJECT, ARTIFACTS). Split into a session model, a layout engine, and a placement component. Add an away/floating mode. Allow several open contexts. | `DefaultModes` ml/cad/code/messages and the item-id hint switch. |
 | `Scripts/DeskDock.cs`, `DockRing.cs` | Desk-anchored mode ring | Data-driven mode list. | Gator-specific comments and props. |
 | `Scripts/AlbieVoice.cs`, `AlbieVoiceToken.cs` | Ephemeral-token pattern, turn state machine | Put Muse behind `VoiceBackend`. Persona and tool rules become content files. | Grok URL, `grok-voice-3.0`, `sirius`, XAI key path. |
-| `AlbieTips.cs`, `BitUiDirector.cs` | Queued tips with busy gate | Generic event source and panel-id highlights. | `PetId = "bit"` constants (use config). |
-| `Panel/Volume/Screen` kits | ForgePanel, PanelOrb, ForgeVolume, ScreenSurface | Keep for Artifacts and streamed browsers. | Gator whistle and crew egg naming. |
+| `AlbieTips.cs`, `AlbieUiDirector.cs` | Queued tips with busy gate | Generic event source and panel-id highlights. | `PetId = "bit"` constants (use config). |
+| `Panel/Volume` kits | ForgePanel, PanelOrb, ForgeVolume | Keep for Artifacts. The Screens module (`ScreenSurface`, the stream receivers) was removed with VS Code (D-41); git history has it if the Playwright panel needs a stream surface. | Gator whistle and crew egg naming. |
 | `hub/agent/tools.py`, `events.py` | Registry, sticky event replay | Scope to a session or device, not process globals. | Nothing yet; these are contract values. |
 | `hub/agent/workspace.py` | Request-ack view open with timeout | Generalize VIEWS and ALIASES. | Changing the `ui.mode` enum is a contract change: propose it. |
 | `hub/agent/voice.py` | Commit ordering, cancel, echo guard, FakeVoiceSession | Split turn logic from Grok wire protocol. | Grok-specific quirks (auto-reply, `force_message`) until a backend needs them. |
@@ -745,13 +746,13 @@ Avatar:
 | `hub/ml/*` | Project-open pipeline, propose-apply-undo loop, archetypes, forge-sdk | Make the sink pluggable (hub, file, cloud). Archetypes become a registry. Model calls go through the gateway. | CIFAR-only demo path inside core. |
 | `hub/agent/runner.py`, `crew.py` | Git task worktrees, role allow-lists, Crew roster, event model | Split generic runner from Albie-specific event adapter. One registry of agent types (currently duplicated in Python and C#). | Hard-coded `pet/` branch prefix and `rocket-lab` project. |
 | `hub/messaging`, `hub/desk` | Draft-then-confirm send gate, floating panel host, timers, notes | Replace Slack and iMessage with a Messenger send (PR-00b); keep the confirm gate. Generic floating-panel host. Persist timers. | Slack and iMessage. |
-| `hub/vscode`, `vscode-bit/` | Localhost bridge, allowlisted commands | Generic editor bridge. Add CI and terminal status events. | Hackathon installer, port 8770 hard-code. |
+| ~~`hub/vscode`, `vscode-albie/`, `screen-bridge/`, `hub/screens/`~~ | Removed (D-41). | The code browser replaces them (section 7.14). | All of it. |
 | `cloud/api/voice-token.ts` | Short-lived token pattern | Re-point to the voice gateway. Fix the `Bearer undefined` case when the key is missing. | xAI endpoint. |
 | `cloud/api/claude.ts` | Field allowlist, token cap, model allowlist | Becomes the model gateway. | Hard-coded model IDs. |
 | `cloud/lib/guard.ts` | App key check, per-IP limit | Per-user auth and a shared rate-limit store (KV). | Public app key. |
 | `cloud-py/app.py` | Per-device sub-app isolation, LRU, seq-numbered event log, `POST /tools/{name}`, worker pool, internal ingest token | Becomes per-project workspace (not per device). Close devices on eviction (`DEVICES.popitem()` leaks workers). Replace path blocklist with a real sandbox. Make `/events` a cursor or stream (400-entry deque loses events). | Scripted text-classifier patch and AG News baked into the image. |
 | `cloud-py/deploy.sh`, `Dockerfile` | `git archive` staging, secrets upload, `/health` check | Env-driven proxy URL. Real secret store, not a file in `Resources/`. Persistent `/data` with attached storage. | Demo training run in the image. |
-| `quest-run.sh`, `run-demo.sh`, `docs/SETUP.md` | adb install/launch/logcat, health wait | Read package name and Unity path from config. Split hub-only steps out of setup. Add cloud deploy and env steps. | Hub-only steps for Slack, iMessage, VS Code bridge. |
+| `quest-run.sh`, `run-demo.sh`, `docs/SETUP.md` | adb install/launch/logcat, health wait | Read package name and Unity path from config. Split hub-only steps out of setup. Add cloud deploy and env steps. | Hub-only steps for Slack and iMessage. |
 
 ### 6.6 Data model (proposal)
 
@@ -963,7 +964,7 @@ Goal: when the Tester runs Playwright, the browser appears as a floating panel a
 1. The cloud sandbox runs headless Chromium under Playwright.
 2. Frames come from `page.screencast.start({ onFrame })` (Playwright 1.59 or later). The equivalent is CDP `Page.startScreencast`. Frame handlers are registered before the screencast starts.
 3. The cloud sends JPEG frames to the headset through ForgeNet. The device never opens its own socket.
-4. The device decodes each frame into a preallocated `Texture2D` on a ForgePanel surface. `ScreenSurface.cs` already does a similar job.
+4. The device decodes each frame into a preallocated `Texture2D` on a ForgePanel surface. The removed `ScreenSurface.cs` did a similar job (D-41; it's in git history).
 5. Target 5 to 10 frames per second at a modest size. Tune after measuring.
 
 **Transport open question.** Sending JPEG bytes as base64 in a JSON event is heavy. A binary channel through ForgeNet is likely needed. The Core owner must decide this. It is a contract change.
@@ -1018,20 +1019,20 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 - `hub/agent/runner.py`: branch and worktree isolation, the `land_task_worktree` patch-land pattern, task event stream.
 - `hub/agent/crew.py`: roster, `Member` cancel, role kits.
 - `unity/.../Code/Scripts/CodeProject.cs`: `Write`, `Undo` ring, `Numbered`.
-- `unity/.../Screens/ScreenSurface.cs`: stream surface for the Playwright panel.
+- The stream surface for the Playwright panel was `Screens/ScreenSurface.cs`, removed with VS Code (D-41). Restore it from git history if the panel needs it.
 - `cloud-py/app.py`: event log with a seq cursor, `POST /tools/{name}` dispatch, device sub-app pattern.
 - `cloud/api/claude.ts`: model gateway with field allowlist and token cap.
 
 **Change.**
-- Crew types are duplicated in Python (`crew.py`), JSON (`crew.json`) and C# (`GatorAgentTypes`). Make one registry.
-- `runner.py` mixes git work with Albie events (`pet_id`, `albie.say`, `vscode_live`). Split a generic runner core from a UI event adapter.
+- Crew types are duplicated in Python (`crew.py`), JSON (`crew.json`) and C# (`AlbieAgentTypes`). Make one registry.
+- `runner.py` mixes git work with Albie events (`pet_id`, `albie.say`; the `vscode_live` hooks went with D-41). Split a generic runner core from a UI event adapter.
 - `CodeProject.cs` hard-codes `rocket-lab` and a Python-only check.
 - Branch prefix `pet/` is Albie-specific.
 - `BLOCKED` path list in `cloud-py/app.py` is not a sandbox.
 - `/events` keeps 400 entries. A slow poller loses events.
 - The cloud app key ships inside the APK, so it is public. Use per-install or per-user auth.
 
-**Drop.** `CodeSample.json`, `vscode-bit/install.js`, the Albie terminal wording.
+**Drop.** `CodeSample.json` (once the code browser reads real templates, 7.14), the Albie terminal wording. `vscode-albie/` is already gone (D-41).
 
 ### 7.12 Open questions and risks
 
@@ -1052,12 +1053,64 @@ Contract changes go to the Core owner under CLAUDE.md section 12.
 
 ### 7.13 Milestones (each demo-able, mock first)
 
-- **M1.** Sign in with GitHub on the device. List repos. Clone to the cloud. Show the file tree on the device.
+- **M1.** Sign in with GitHub on the device. List repos. Clone to the cloud. Show the file tree on the device (the code browser, 7.14).
 - **M2.** One Builder in a worktree. Diff tiles. Confirm-gated push.
 - **M3.** Lead, Builder, Tester and Reviewer. Progress visuals.
 - **M4.** PR review visuals (Level 1), then pins from the Reviewer.
 - **M5.** CI/CD view with polling and log summaries.
 - **M6.** Floating Playwright browser with frames. Measure latency on device first.
+
+
+### 7.14 The code browser: a small IDE on the headset (replaces VS Code, D-41)
+
+> Added 2026-11-06. VS Code, its extension and the screen bridge are gone. Code mode doesn't need a full desktop IDE. It needs a place to see a project's files, read them, and make small edits, on the headset alone.
+
+**What it is**
+- **A file tree.** The folders of one source, collapsible, with a filter box. Files show an icon, their size, and a dot when they have unsaved edits or changes from an agent.
+- **A file viewer.** Line numbers, light syntax colouring (Python, C#, JSON, Markdown first), and scrolling by ray, poke or thumbstick. It's read-only until you choose Edit.
+- **Simple edits.** Choose Edit and the panel comes closer and larger (the focused "enhance" view; the name is still to confirm), and the virtual keyboard pops up under it. Type, select a line, undo. Save writes to the source. Nothing is committed or pushed without a confirm step (CLAUDE.md rule).
+- **Albie in the same panel.** `code_open_file`, `code_highlight` and `code_edit` (today's `CodeTools.cs`) work on whatever is open. A file an agent changes shows its new lines highlighted when you open it. That replaces the old "opens live in VS Code" behaviour.
+
+**Where the files come from (one API, three kinds of source)**
+
+| Source | What it is | Where it lives | Offline |
+|---|---|---|---|
+| **Template** | The starters (15.5): the truck, quadcopter, rocket and ML templates, and today's `CodeSample.json`. | Bundled in the app (read-only). "Use this template" copies it into a new project. | Yes |
+| **Project workspace** | A project's own repo (D-25: every project is a git repo in the cloud workspace). | The per-user cloud workspace (D-23, D-24). The device caches what it opened. | Cached files only. Edits queue until online. |
+| **GitHub repo** | A repo the user picked, cloned into their cloud workspace (D-24), or the judges' demo account (D-30). | Cloud. The device never holds a GitHub token or runs git (D-04, 7.2). | Cached files only |
+
+**Contract (proposal, C-21).** It lives in the `/v1/code` namespace (D-19):
+- `GET /v1/code/sources`: templates, projects and repos, each `{id, kind: template|project|repo, name, writable}`.
+- `GET /v1/code/{source}/tree?path=`: one folder at a time (a large repo never loads whole).
+- `GET /v1/code/{source}/file?path=`: `{path, content, sha, size, binary}`. Files over 256 KB open read-only and truncated. Binary files aren't shown.
+- `PUT /v1/code/{source}/file {path, content, base_sha}`: save. `409` when the file changed underneath (an agent, another device). The panel then shows both versions.
+- `POST /v1/code/{source}/commit {message, paths}`: only after a confirm on the device. Templates are read-only, so you copy one first.
+- Event `code.file_changed {source, path, sha, by}`: an agent or a save changed a file, so an open view refreshes.
+- Hub off (mock first): `Resources/Mocks/code/` holds a sources list, trees and files. Bundled templates work with no network at all.
+
+**On the device**
+- Build on the `Code/` module: `CodePanel`, `CodeProject` (the undo ring, edits saved under `persistentDataPath`) and `CodeTools`. Today `CodeProject` holds one bundled sample. It becomes a client of C-21 with a cache.
+- Draw only the visible lines (a pooled line list), with no allocations in `Update` and text atlases of 2048 or less (Quest rules).
+- Input works with mouse (DesktopRig), ray and poke, like every `ForgePanel`. **Typing uses the Horizon OS system keyboard**, through Unity's `TouchScreenKeyboard` (a `TMP_InputField` opens it on focus). Checked in the SDK 207.0.1 packages on 2026-11-09:
+  - The old in-app `OVRVirtualKeyboard` component (Core SDK v54 and later) was deprecated in Core SDK v201, and Meta's docs say to use the system overlay keyboard instead. It isn't in our 207.0.1 packages at all (Core or All-in-One). Only the OpenXR extension name `XR_META_virtual_keyboard` remains, with no Unity wrapper. Don't plan on an in-world keyboard you can place yourself, and don't downgrade the SDK to get one.
+  - The system keyboard is supported: `OVRProjectConfig.requiresSystemKeyboard` adds `oculus.software.overlay_keyboard` to the manifest, and it's already on in this project (`Assets/Oculus/OculusProjectConfig.asset`). Meta's own Immersive Debugger panel in SDK 207 types this way.
+  - It's an OS overlay, so the app can't choose where it appears or how it looks. The focused "enhance" view should leave room under the panel for it.
+  - Still to check on a Quest 3 and 3S: the overlay with hands only, in passthrough, and over a panel 0.5 m away.
+  - Voice edits through Albie always work.
+
+**Steps (each one demo-able, mock first; PR-23)**
+1. **B1, templates offline:** the sources list, tree and viewer on the bundled templates, hub off. `CodeSample.json` becomes the first template.
+2. **B2, the cloud workspace and GitHub:** the same panel over C-21 on a project workspace and a cloned repo, including the judges' demo account.
+3. **B3, edits:** Edit, the focused view, the virtual keyboard, save with `base_sha`, and the conflict view.
+4. **B4, commit:** the diff of what you changed, then commit after a confirm. Push stays a separate confirm (7.5).
+5. **B5, Albie and agents:** `code.file_changed` refreshes open files and highlights agent edits. Albie's code tools work on any source.
+
+**Not in scope.** Debugging, a terminal, extensions, multi-cursor editing, and running code in the editor. Running happens through controllers and artifacts (15.4, 15.7).
+
+**Open questions**
+- Is "enhance mode" the name the team wants for the focused editing view, or is it something else?
+- How the system keyboard overlay behaves on a Quest 3 and 3S with hands only (above). The API question is settled: no in-app virtual keyboard in SDK 207.
+- Which templates ship editable in the first build. Default: the truck's controller file and the ML template.
 
 ---
 
@@ -1430,7 +1483,7 @@ Current gap: `Workspace.cs` has one open mode at a time and folds other items on
 
 ### 9.12 Repo inventory relevant to artifacts
 
-- Reusable now: `AlbieTools.cs` (tool registry), `ForgePanel`, `PanelManipulator`, `WorkspaceExtras`, `PanelOrb`, `VolumeManipulator`, `ForgeVolume`, `ScreenSurface` (for streamed windows), `ForgeNet` mock mode, `CodeProject.cs` undo ring.
+- Reusable now: `AlbieTools.cs` (tool registry), `ForgePanel`, `PanelManipulator`, `WorkspaceExtras`, `PanelOrb`, `VolumeManipulator`, `ForgeVolume`, `ForgeNet` mock mode, `CodeProject.cs` undo ring.
 - CAD: `hub/cad/part_api.py` (declarative part contract, `Motion` and `Explode` hooks), `hub/cad/drawing.py` (artifact candidate), `hub/cad/flight.py` (flight pattern).
 - Cloud: `cloud-py/app.py` has the event log with seq cursor (`GET /events?after=N`) and the tool dispatch (`POST /tools/{name}`). Both fit artifact status and tool calls.
 - Hub: `hub/agent/tools.py` registry and `hub/agent/workspace.py` view open with acknowledgement. Both need generalizing to artifact views.
@@ -1538,8 +1591,7 @@ Note: the on-device ML path is limited to visualization and small classifiers. Q
 | `agent.session.run` | Run one agent turn (Claude Agent SDK or Managed Agents) with a role kit (read, review, code, docs, cad). | cloud | port | `runner.py` `_run_code`. Managed Agents (beta) runs the loop and cloud sandboxes. Self-hosted sandboxes exist (Vercel, Daytona, Modal). |
 | `agent.progress.map` | Map tool and token events to visuals. | cloud + device | new | Events: `agent.tool_use`, `agent.tool_result`, `session.usage`. No native diff event; compute `git diff` in the sandbox. |
 | Agent Teams (Claude Code) | Built-in team feature. | n/a | not used | Experimental, interactive only, not headless. Our orchestrator runs N sessions instead. |
-| `editor.bridge` | Localhost bridge to an editor for open, highlight, errors, and allowlisted commands. | device-adjacent (Mac) | port | `hub/vscode/tools.py`, `vscode-bit/extension.js`. Not needed on a standalone Quest. |
-| `screen.stream` | Show a streamed window or browser panel. | device + cloud | exists | `ScreenSurface.cs`, `ScreenReceiver.cs`, `JpegScreenReceiver.cs`, `screen-bridge/stream.py`. |
+| `code.tree` / `code.file` / `code.save` | The code browser (section 7.14): list a folder, read a file, save an edit, from any source (cloud workspace, GitHub clone, template). | device + cloud | new | Replaces the removed `editor.bridge` and `screen.stream` (D-41). Contract C-21. |
 
 ### 10.5 Confirm and desk tools
 
@@ -1751,7 +1803,7 @@ The critic found these gaps in the drafts. Each needs an owner and a short spec 
 | **Meta VR Glasses target** | Keep passing the Device Readiness Check.<br>Layouts must fit about 70° horizontal FOV.<br>Test the tethered PC or Mac flow.<br>Input is hands, a virtual keyboard and a trackpad: no controllers. |
 | **Offline and degraded modes** | Per mode, say what works with no network:<br>- the desk, avatar, timers, notes and cached artifacts work;<br>- voice, agents, git and training don't.<br>Show one calm state, like today's "Connect a computer to see its screens". |
 | **Comfort and accessibility** | A seated-first layout.<br>A minimum text size at 1 m.<br>The floating agent stays out of the central view and never moves fast near the head.<br>A "hold still" toggle.<br>Captions for every spoken line (they exist today). |
-| **Evaluation** | Regression scripts for the voice path (the existing `hub/tests/test_bit_script.py` pattern).<br>A small eval set for planning sessions, code tasks and drone results.<br>On-device latency logs per pipeline stage. |
+| **Evaluation** | Regression scripts for the voice path (the existing `hub/tests/test_albie_script.py` pattern).<br>A small eval set for planning sessions, code tasks and drone results.<br>On-device latency logs per pipeline stage. |
 | **Onboarding and consent** | One first-run flow:<br>1. Horizon entitlement.<br>2. Account link.<br>3. Mic and spatial data consent.<br>4. Data Use Checkup scopes.<br>5. Optional GitHub, Sketchfab and Hugging Face sign-ins (device flow).<br>6. A privacy notice that names Meta and Anthropic as processors. |
 | **Cost to the user** | A visible per-day spend meter (tokens, GPU minutes).<br>Hard caps in the cloud gateway.<br>Every paid job needs a confirm step and a timeout. |
 | **Multi-user cloud state** | Scope `tools._tools`, `workspace`, `watcher`, `bus`, `Workspace.Current` and `ForgeNet.Instance` per session before hosting more than one user. |
@@ -1783,6 +1835,7 @@ These are all **proposals**. Under the existing rule, contracts are law: propose
 | C-17 | Notebook: `notebook.entry`, `notebook.updated`, `notebook_*` and `plan_revise` tools. Full proposal: `docs/NOTEBOOK_CONTRACT.md` (2026-11-03, Person 5), which also defines project versions (D-28) and lessons. | 15.8 | New Notebook module, Thing runtime, ML, Code |
 | C-18 | Connectors: one interface over the built-in, broker, MCP and future Muse backends. `connectors.list`, `connector.call`, `connector.snapshot`, permissions like `source_control:read`. | 9.6, 10.7 | New Connectors module, `cloud/`, `cloud-py/`, artifact manifest |
 | C-19 | Controllers: a controller file (rule and PID graph, or MLP weights plus an input and output map), and one tick interface that reads sensors and writes actuators. Full proposal: `docs/CONTROLLER_CONTRACT.md` (2026-11-03, Person 4 / ML A). | 15.4 | Thing runtime, ML, Code |
+| C-21 | Code browser: `GET /v1/code/sources`, `GET /v1/code/{source}/tree?path=`, `GET /v1/code/{source}/file?path=` (with `sha`), `PUT /v1/code/{source}/file {path, content, base_sha}` (409 on conflict), `POST /v1/code/{source}/commit {message, paths}` (confirm-gated), event `code.file_changed {source, path, sha, by}`. | 7.14 | Code module, cloud gateway, `hub/agent/runner.py` |
 | C-20 | Messages: `messages.link`, `messages.draft {text, file_ref}`, `messages.confirm`, and `messages.status {delivered, failed, reason}`. No provider name in the payload. | 10.5, 14.12 | `cloud/`, `Messages/`, `confirm.request` |
 
 ---
@@ -1849,13 +1902,13 @@ Delete (after the replacement is live, in PR-21). Sandbox scenes such as `CAD/CA
 - `unity/Assets/_Forge/Code/Editor/CodeShot.cs` (keep `CodePanelBuilder.cs` only if the new prefab flow needs it).
 - `cloud-py/stubs/agent/` (exists only because the hub imports voice, Slack and Claude together).
 - `cloud-py/text_improve.py` (keep the fallback pattern, drop the file).
-- `vscode-bit/install.js` (hackathon symlink installer).
+- ~~`vscode-albie/install.js`~~: removed with the rest of VS Code (D-41).
 - `hub/cad/make_mocks.py` as-is (it writes Albie demo designs into Mocks). Regenerate mocks per artifact instead.
 - `hub/ml/github_import.py` CIFAR preset fast-path. Keep the generic clone path.
 - `Resources/MLMockAssets.asset` and legacy mock entries. Confirm no sandbox uses them first.
 - The Grok-specific turn code in `hub/agent/voice.py` (`force_message`, `conversation.item.delete`, auto-reply guard) once the Muse backend passes its tests. Keep the turn state machine as a generic core.
 - `hub/agent/voice.py` ROCKET_TERMS, DESIGN_TERMS, ML_TERMS and the "Iron Man" and "humanoid" hints.
-- Bit-specific comments and strings in `DeskDock.cs`, `WorkspaceExtras.cs` (whistle, crew egg) and `BitUiDirector.cs`.
+- Bit-specific comments and strings in `DeskDock.cs`, `WorkspaceExtras.cs` (whistle, crew egg) and `AlbieUiDirector.cs`.
 - `cloud/api/voice-token.ts` xAI call (replace with the chosen voice backend's token flow, if one exists).
 - `run-demo.sh` hub-start steps (keep the health-wait loop).
 
@@ -1879,7 +1932,7 @@ Keep (core):
 - `forge-sdk/` (make the sink pluggable).
 - `unity/.../Core/Net/ForgeNet.cs`, `ForgeMockPlayer.cs`, `ForgeCloud.cs` pattern.
 - `DeskPresence.cs`, `DeskLocator.cs`, `Workspace.cs` (lines 1-500 desk-frame math first), `PanelManipulator`, `ForgePanel`, `WorkspaceExtras`, `PanelOrb`, `VolumeManipulator`, `ForgeVolume`.
-- `CodeProject.cs` undo ring and `ScreenSurface.cs`.
+- `CodeProject.cs` undo ring (the code browser builds on it, 7.14).
 - `cloud-py/app.py` device isolation, event log with `?after=N`, `/tools/{name}`, worker pool, `hmac.compare_digest`.
 - `cloud/api/claude.ts` allowlists, token cap, field allowlist.
 
@@ -1911,6 +1964,7 @@ Each PR is small, mock-first, and never breaks main. Gate means the PR waits for
 20. PR-20 Integrations: GitHub App device-flow sign-in through the cloud, CI status via jobs endpoints, and the connector host (C-18) with an MCP backend. Draft-then-confirm for every write. Gate: D-08. The demo account and sample connector ship earlier, for the competition (section 16.5).
 21. PR-21 Delete pass (section 14.4). Gate: each replacement live.
 22. ~~PR-22 Repo, Vercel and Space rename~~: dropped. The product stays Albie (D-01).
+23. PR-23 Code browser (section 7.14): file tree, viewer and keyboard edits on the headset, over C-21, for templates first, then the cloud workspace and GitHub clones. Gate: C-21 accepted. VS Code was removed first (D-41).
 
 ### 14.6 Team and agent rules
 
@@ -1976,18 +2030,18 @@ Moved to section 2. It's now the one list, with an owner for each decision.
 ### 14.10 Pet module carry-over (the gator body to the new agent body)
 
 - **Keep:**
-  - `GatorController` (state machine, plus the `.Motion`, `.Surfaces`, `.KeepOut` and `.Territory` partials).
-  - `GatorNavSurface`: the runtime desk NavMesh behind the desk walk.
+  - `AlbieController` (state machine, plus the `.Motion`, `.Surfaces`, `.KeepOut` and `.Territory` partials).
+  - `AlbieNavSurface`: the runtime desk NavMesh behind the desk walk.
   - `ArrivalDirector` and `ArrivalGreeting` (the hop and greeting on sit-down).
-  - `GatorCaption` (the speech bubble).
-  - `StreamedPcmTextToSpeech` and `GatorTalkAnimator` (PCM playback and a talk level, which become the viseme driver).
+  - `AlbieCaption` (the speech bubble).
+  - `StreamedPcmTextToSpeech` and `AlbieTalkAnimator` (PCM playback and a talk level, which become the viseme driver).
   - The mic path: `PushToTalk`, `WakeListener`, `HubSpeechToText`, `MicPermission`.
-  - `GatorInteraction` and `GatorHandPoke`.
-  - `WhistleButton` and `GatorSummon` (summoning the agent).
+  - `AlbieInteraction` and `AlbieHandPoke`.
+  - `WhistleButton` and `AlbieSummon` (summoning the agent).
 - **Change:**
-  - `GatorExpressions` maps the Quirky pack's blendshape names. Put it behind the avatar interface (PR-16), so the roadmap bean avatar plugs in later.
-  - The crew (`GatorCrew`, `GatorHatchery`, `GatorCrewMember`, `GatorAgentTypes`) becomes agent-team visuals for CODE MODE (section 7.6), with one shared agent-type registry.
-  - `GatorFollowUp` and `GatorFetch` get neutral names.
+  - `AlbieExpressions` maps the Quirky pack's blendshape names. Put it behind the avatar interface (PR-16), so the roadmap bean avatar plugs in later.
+  - The crew (`AlbieCrew`, `AlbieHatchery`, `AlbieCrewMember`, `AlbieAgentTypes`) becomes agent-team visuals for CODE MODE (section 7.6), with one shared agent-type registry.
+  - `AlbieFollowUp` and `AlbieFetch` get neutral names.
 - **Add:** the away-state float-on-a-cloud locomotion (new), plus the C-03 presence states.
 - **Keep for now:** the Quirky Series alligator and its animator clips. It stays git-ignored, as its EULA requires, and is replaced only when the bean avatar ships (roadmap).
 
@@ -2020,7 +2074,7 @@ The aim is one PR that deletes the feature completely and leaves timers and note
 6. **Docs:** remove the movie from `README.md`, `hub/README.md` ("Desk (timers, notes, movie)") and `docs/DISCLOSURE.md` (the film credit).
 7. **Done-check:**
    - `git grep -i movie -- ':!*.meta' ':!docs/PROJECT_CONTEXT.md' ':!PROJECT_CONTEXT.md'` prints nothing.
-   - The hub tests pass (`BIT_VSCODE_PORT=9`).
+   - The hub tests pass.
    - `DeskSandbox.unity` runs with the hub off and shows timers and notes.
    - The device tool count drops from 59 to 55.
 
@@ -2056,7 +2110,7 @@ The aim: "send me the updated model" works from the headset with no laptop, thro
 2. **Unity, keep:** `DraftCard.cs`, its prefab, `DraftPresenter.cs`, `MessagesTools.cs` and `Resources/AlbieTools/messages.json`, trimmed to the tools in section 10.5. The card also serves `confirm.request` for pushes and merges.
 3. **Unity, edit:**
    - `Pet/Scripts/Core/ArrivalDirector.cs`, `ArrivalGreeting.cs`: drop the digest step (`POST /messages/digest`, `notify.digest`). The greeting uses its existing no-hub line for now, and later the notebook summary. This changes a working sit-down flow, so test it on a Quest.
-   - `Pet/Scripts/Adapters/GatorMrukAdapter.cs`: replace its use of `MessagesDeskZone`.
+   - `Pet/Scripts/Adapters/AlbieMrukAdapter.cs`: replace its use of `MessagesDeskZone`.
    - `Core/Scripts/Workspace.cs`, `Core/Editor/MainSceneBuilder.cs`: remove the MSG mode and the two panels. Core owner only, then rebuild `Main.unity`.
    - `Core/Net/ForgeEvents.cs`: remove the `notify.*` events and add the C-20 ones (a contract change, so propose it).
    - `Core/Scripts/AlbieVoice.cs`, `AlbieTips.cs`, `Core/Resources/AlbieTools/cloud.json`: update message lines and tools.
@@ -2066,11 +2120,11 @@ The aim: "send me the updated model" works from the headset with no laptop, thro
    - `hub/agent/events.py`, `runner.py`, `speech.py`, `tools.py`, `voice.py`, `wake.py`, `watcher.py`, `workspace.py`, `ws.py`.
    - `hub/cad/router.py`, `service.py`: only the comments. `GET /cad/files` stays, and supplies files to send.
    - `hub/desk/tools.py`, `cloud-py/app.py`, `cloud-py/stubs/agent/__init__.py`, `dev-setup.sh`.
-6. **Tests:** update `hub/tests/agent/` (`conftest.py`, `test_agent_fake_flow.py`, `test_agent_views.py`, `test_agent_watcher.py`), `hub/tests/test_bit_script.py`, `hub/cad/tests/test_bit_control.py`, `hub/tests/test_messaging.py`.
+6. **Tests:** update `hub/tests/agent/` (`conftest.py`, `test_agent_fake_flow.py`, `test_agent_views.py`, `test_agent_watcher.py`), `hub/tests/test_albie_script.py`, `hub/cad/tests/test_albie_control.py`, `hub/tests/test_messaging.py`.
 7. **Docs:** `README.md`, `hub/README.md`, `hub/ml/README.md`, `docs/SETUP.md`, `docs/DISCLOSURE.md`. `docs/PROJECT_CONTEXT.md` stays as the record.
 8. **Done-check:**
    - `git grep -il 'slack\|imessage' -- ':!*.meta' ':!docs/PROJECT_CONTEXT.md' ':!PROJECT_CONTEXT.md'` prints nothing, or only reviewed leftovers.
-   - The hub tests pass (`BIT_VSCODE_PORT=9`).
+   - The hub tests pass.
    - Sit-down on a Quest: the gator greets you with the hub off and on.
    - From a Quest with no laptop: a file reaches a phone only after the confirm.
 
@@ -2261,7 +2315,7 @@ Each step is mock-first and runs with the hub off.
 4. **Room-aware arena artifact** (slalom, hoops) with saved layouts and run records (Phase 1 data-driven artifacts, D-18).
 5. **Notebook v1:** attempt records, "that didn't work", lessons shown at session start.
 6. **Behaviour cloning on device** through the Neural Net Lab trainer → Autopilot controller.
-7. **Code mode v1:** the project repo with a controller file, live edit and hot reload, diff to commit. The crew walking to files, and gesture review.
+7. **Code mode v1:** the code browser (7.14) on the project repo and the starter templates, then a controller file, live edit and hot reload, diff to commit. The crew walking to files, and gesture review.
 8. **Send the model:** Messenger link, draft, confirm, a real file on a phone (D-37, section 14.12).
 9. **Starters on the runtime:** the quadcopter (hand-flyable with PID hold) and the rocket (play-physics launch), alongside the existing CAD viewers. The droid and gearbox keep today's demos.
 10. **Polish:** under 10 minutes to the first "wow", FoV-aware layout (fits about 70°), 72 fps, sound, a clean pause and resume.
@@ -2420,6 +2474,7 @@ Everyone starts against mocks (the mock-first rule), so no one waits for a real 
 | PR-02 Correctness bugs | Person 3 | | New: Thing runtime, C-16 | Person 2 |
 | PR-05 Modes from config | Person 2 | | New: Controllers, C-19 | Person 4 |
 | PR-06 Contracts | Core owner accepts, each lead proposes | | New: Notebook, C-17 | Person 5 |
+| PR-23 Code browser, C-21 | Person 1 (Person 3 for the cloud routes) | | | |
 | | | | New: Connector host, C-18 (subset of PR-20) | Person 3 |
 
 The rest of section 14.5 comes after Nov 18, unless a lead needs a piece of it. In particular, PR-03, PR-04 (renames), PR-14 (the agent writes specs for the competition, not part scripts) and PR-17 (cloud float: the rules want seated play, so it's a stretch goal). PR-18 also comes later, so the spend cap protects the public APK key until then.

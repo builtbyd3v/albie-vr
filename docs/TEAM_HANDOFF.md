@@ -4,7 +4,7 @@
 - Hudson (hudmarr) is the point person. Everyone with write access can merge and run the deploy workflows. Only Dev (repo owner) can change repo secrets.
 - Both clouds stay on Dev's accounts. You change them through git: merge to `main` and GitHub Actions redeploys. No account access needed.
 - `main` is the on-device Albie (no laptop). `feat/voice-cost` is untested WIP. Do not merge it.
-- Building an APK needs 2 things that are not in git: the app key and the gator files (section 4).
+- Building an APK needs 2 things that are not in git: the app key and Albie files (section 4).
 
 ## 1. What runs where
 
@@ -27,7 +27,7 @@ The headset reads both URLs from code defaults: `unity/Assets/_Forge/Core/Net/Fo
 4. To redeploy without a code change, open GitHub > Actions, pick the workflow and click **Run workflow**.
 5. Check the result. Vercel is live in about 30 s. The HF Space rebuilds for about 10 min; watch it at https://huggingface.co/spaces/builtbyd3v/albie-cloud.
 
-Both workflows run a script you can also run from a laptop: `cloud/deploy.py` (Vercel REST API, `VERCEL_TOKEN` scoped to the albie-cloud project only) and `cloud-py/deploy.sh` (HF CLI).
+Both workflows run a script you can also run from a laptop: `cloud/deploy.py` (Vercel REST API, `VERCEL_TOKEN` scoped to the agent-cloud project only) and `cloud-py/deploy.sh` (HF CLI).
 
 Health check (needs the app key; want `200`):
 
@@ -49,8 +49,8 @@ A `401` in a browser is normal: every route, `/health` included, needs the `x-al
 
 Before the first build:
 1. Get the app key from Dev's one-time link. Save it as `unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt` (one line, no spaces).
-2. Get the gator files (paid Asset Store pack, never in git): follow `docs/SETUP.md` section 9 step 0 **before** Unity opens the project. Without them, Albie looks gray or is missing.
-3. Gray gator after an import means Unity reset the `.meta`. Fix: `git show 9fd0c93^:unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta > unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta`.
+2. Get Albie files (paid Asset Store pack, never in git): follow `docs/SETUP.md` section 9 step 0 **before** Unity opens the project. Without them, Albie looks gray or is missing.
+3. Gray Albie after an import means Unity reset the `.meta`. Fix: `git show 9fd0c93^:unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta > unity/Assets/_Forge/Pet/Models/Gator_Model.fbx.meta`.
 
 Build (close the Unity Editor first; a batch build fails while the project is open):
 
@@ -83,11 +83,11 @@ Shipping to judges: upload the APK to the Meta VR Developer Dashboard, "Competit
 - Grok bills about $0.08 per open minute. A session left open costs about $4.80/h. Close the app when you finish testing.
 - The HF Space sleeps after 1 h. The first CAD or ML call after that waits for a cold start (about 1 to 2 min).
 - Don't commit the TMP `LiberationSans SDF - Fallback.asset` or `EditorPipelineConfig.json` changes.
-- Never commit `AlbieAppKey.txt`, `hub/.env`, or any gator file.
+- Never commit `AlbieAppKey.txt`, `hub/.env`, or any Albie file.
 
 ## 7. Open items (decide as a team)
 
 1. Headset: who keeps the Quest 3S. It is signed in to Dev's Meta account with Developer Mode on. Any Mac can deploy after you tap Allow.
-2. Gator licence: check whether each person who builds needs their own Asset Store licence.
+2. Albie licence: check whether each person who builds needs their own Asset Store licence.
 3. Meta VR Developer Dashboard: who owns the app and the Competition release channel, and who is the submitting representative.
 4. Demo video (under 3 min, public YouTube or Vimeo) and the Devpost form.

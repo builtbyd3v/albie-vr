@@ -5,8 +5,8 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
-/// Albie's code tools on the headset, on the sample project in <see cref="CodeProject"/>; the device's take on
-/// hub/vscode/tools.py (open, highlight, errors) plus the hub's Claude runner (hub/agent/runner.py) for questions and
+/// Albie's code tools on the headset, on the sample project in <see cref="CodeProject"/>; open, highlight and
+/// errors, plus the hub's Claude runner (hub/agent/runner.py) for questions and
 /// edits. Definitions: Resources/AlbieTools/code.json. code_ask and code_edit call Claude through
 /// <see cref="ClaudeClient"/>: they return "working" at once, and the answer reaches Albie's voice as an
 /// <c>albie.say</c> event (AlbieVoice speaks it) and the panel's status line.
@@ -101,7 +101,7 @@ public static class CodeTools
         ""required"":[""summary"",""text""],""additionalProperties"":false}");
 
     const string AskSystem =
-        "You are Albie, a small gator who helps an engineer with code in a mixed-reality workspace. Answer the question " +
+        "You are Albie, a small assistant who helps an engineer with code in a mixed-reality workspace. Answer the question " +
         "about the file in at most two short spoken sentences (under 35 words): plain words, no markdown, never read code " +
         "aloud. start_line and end_line are the lines your answer is about (0 and 0 if none).";
 

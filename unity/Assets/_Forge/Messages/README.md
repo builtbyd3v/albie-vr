@@ -68,7 +68,7 @@ Core/Resources/ForgeLook); TMP's default font is the fallback. One canvas per pa
 
 | File | What |
 |---|---|
-| `Scripts/SlackPanel.cs` | The Slack panel: sidebar, conversation (dividers, New line, rows), composer; `SlackPanel.Active`, `Open(channelId)`, `FocusBit`. UI built at runtime under Content. |
+| `Scripts/SlackPanel.cs` | The Slack panel: sidebar, conversation (dividers, New line, rows), composer; `SlackPanel.Active`, `Open(channelId)`, `FocusAlbie`. UI built at runtime under Content. |
 | `Scripts/SlackRow.cs` | One message as a Slack row (avatar, name + time, text, replies; grouped follow-ups; hover + Ask Albie). Built in code, pooled. |
 | `Scripts/SlackRemote.cs` | Albie's `messages.open`: opens MSG mode on a conversation, answers `messages.opened`. Self-installs. |
 | `Resources/SlackIcons/*.svg` | send, lock, caret, sparkle (white, imported as sprites). |
@@ -103,7 +103,7 @@ nothing in the scene: they add themselves at load when a `DeskPresence` exists.
 4. Click conversations on the left; the unread pill clears. Scroll the list by dragging it (mouse or hand ray); "Load
    earlier" at the top when there is more. Type in the field, Enter or **Send**: the message appears in Slack under your
    name and comes back as your own (tinted) row.
-5. From your phone, post in a channel or DM Bit: the row lands at the bottom, the Mentions panel lists it, the pill counts.
+5. From your phone, post in a channel or DM Albie: the row lands at the bottom, the Mentions panel lists it, the pill counts.
 6. Say to Albie "reply that I'm on it": his draft lands in the composer with Cancel; edit it, Send: it shows in the
    conversation right away. **Ask Albie** reads the newest message aloud. Close MSG mode and ask for another reply: the
    Send / Cancel card floats beside Albie instead; Send says "Sent to ...", and the message is there when you open MSG.

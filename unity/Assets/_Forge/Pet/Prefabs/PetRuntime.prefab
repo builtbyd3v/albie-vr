@@ -554,7 +554,7 @@ GameObject:
   - component: {fileID: 4895571165733120405}
   - component: {fileID: 7688189690244805259}
   m_Layer: 0
-  m_Name: GatorHatchery
+  m_Name: AlbieHatchery
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -612,7 +612,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: aa71d4ac71be4ceeb8d15e48f70fc15c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorHatchery
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieHatchery
   egg: {fileID: 4202936389329932248}
   picker: {fileID: 6594520014462486948}
   prevButton: {fileID: 7862395430060384473}
@@ -1394,7 +1394,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Confirm
         m_Mode: 1
         m_Arguments:
@@ -1511,7 +1511,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Next
         m_Mode: 1
         m_Arguments:
@@ -2301,7 +2301,7 @@ MonoBehaviour:
   tiltDegrees: 25
   noDeskFallbackSeconds: 2
   spawnRightOffset: 0.3
-  gator: {fileID: 4881072429429037500}
+  albie: {fileID: 4881072429429037500}
   leftHanded: 0
   besideDock: 1
   dockGap: 0.015
@@ -2396,7 +2396,7 @@ GameObject:
   - component: {fileID: 7914246135058929202}
   - component: {fileID: 7822501442380525835}
   m_Layer: 0
-  m_Name: GatorCrew
+  m_Name: AlbieCrew
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2428,7 +2428,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2a15b1dc90f94301a02e19c1348ceeb2, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorCrew
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieCrew
   lead: {fileID: 4881072429429037500}
   crewPrefab: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
   hatMaterial: {fileID: 2100000, guid: 53e017c965e6e4d979c8c07e167c9f94, type: 2}
@@ -2771,7 +2771,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Next
         m_Mode: 1
         m_Arguments:
@@ -2944,7 +2944,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Confirm
         m_Mode: 1
         m_Arguments:
@@ -3324,7 +3324,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: HoverOn
         m_Mode: 1
         m_Arguments:
@@ -3339,7 +3339,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: HoverOff
         m_Mode: 1
         m_Arguments:
@@ -3354,7 +3354,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: TogglePicker
         m_Mode: 1
         m_Arguments:
@@ -3865,7 +3865,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Previous
         m_Mode: 1
         m_Arguments:
@@ -4345,7 +4345,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: HoverOn
         m_Mode: 1
         m_Arguments:
@@ -4360,7 +4360,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: HoverOff
         m_Mode: 1
         m_Arguments:
@@ -4375,7 +4375,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: TogglePicker
         m_Mode: 1
         m_Arguments:
@@ -4805,7 +4805,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 7688189690244805259}
-        m_TargetAssemblyTypeName: Forge.Pet.GatorHatchery, Assembly-CSharp
+        m_TargetAssemblyTypeName: Forge.Pet.AlbieHatchery, Assembly-CSharp
         m_MethodName: Previous
         m_Mode: 1
         m_Arguments:
@@ -5367,7 +5367,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 275768685626357008, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_Name
-      value: GatorAssistant
+      value: AlbieAssistant
       objectReference: {fileID: 0}
     - target: {fileID: 283743111020266995, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
       propertyPath: m_LocalPosition.x
@@ -5469,7 +5469,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 66c1cc47f02dc41278562f00541781c4, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorAgentBridge
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieAgentBridge
 --- !u!114 &4881072429429037500 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1124947603312513688, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
@@ -5480,7 +5480,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6b02f17689afe4729b83f6a0ff834d80, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorController
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieController
 --- !u!4 &5166646542248311468 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 833744025339654536, guid: 9c9a5cd11257448fb999e239599ab882, type: 3}
@@ -5507,7 +5507,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 723e0ebc59d6b44ab954f0d4948829d8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorTalkAnimator
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieTalkAnimator
   tts: {fileID: 4784752714788097287}
   headBone: {fileID: 852566386528534302}
   headBoneName: head
@@ -5559,7 +5559,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bd63c70ca6df24e5a9efc1cec2b090c1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorSummon
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieSummon
   button: {fileID: 650398674954316105}
   controller: {fileID: 4881072429429037500}
   pushToTalk: {fileID: 1435340926003538781}
@@ -5582,7 +5582,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 859ca8e025be403eaa710545feb45613, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorFollowUp
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieFollowUp
   tts: {fileID: 4784752714788097287}
   pushToTalk: {fileID: 1435340926003538781}
   controller: {fileID: 4881072429429037500}
@@ -5610,7 +5610,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e10a380a24c0b44d89d520af25ec6dc1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorFetch
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieFetch
   jawBone: {fileID: 0}
   jawBoneName: jaw
   mouth: {x: 0, y: 0.04, z: 0.13}
@@ -5627,7 +5627,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2de062f4ba71846e2afc61ff5e31818c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorFixCard
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieFixCard
   panelPrefab: {fileID: 3969253326686314734, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
   client: {fileID: 0}
   petId: bit
@@ -5644,4 +5644,4 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bcf08af4a23de4ef6a4203974ac6db34, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.GatorMrukAdapter
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Pet.AlbieMrukAdapter

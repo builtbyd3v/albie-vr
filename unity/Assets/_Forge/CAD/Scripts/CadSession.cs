@@ -11,7 +11,7 @@ using UnityEngine.Networking;
 /// <summary>
 /// Shared CAD state for CadViewer and CadParamsPanel, which Workspace spawns as separate prefabs.
 /// Hub mode: REST to the hub through ForgeNet, and ForgeNet's /ws events (cad.model_updated, cad.view,
-/// cad.regen_failed) for changes made anywhere (sliders, Bit's voice tools, VS Code saves).
+/// cad.regen_failed) for changes made anywhere (sliders, Albie's voice tools, saves to the part files).
 /// Mock mode: the hub's mocks, hub off. The hub address is ForgeNet's (one setting for the Quest).
 /// The hub has a library of designs (rocket, quadcopter, ...); one is open, and everything acts on it.
 /// </summary>
@@ -95,10 +95,10 @@ public class CadSession : MonoBehaviour
 
     /// <summary>The version the viewer has on screen (CadViewer reports every swap); null until one shows.</summary>
     public CadModelUpdated ShownInfo { get; private set; }
-    /// <summary>Bit picked a tab of the design panel: an index into Overview, Parameters, Analysis, History.</summary>
+    /// <summary>Albie picked a tab of the design panel: an index into Overview, Parameters, Analysis, History.</summary>
     public event Action<int> TabRequested;
 
-    // Bit's buttons (cad.action, docs/PET_AGENT_CONTRACT.md Addendum H). Each is for a version of a design: it waits until
+    // Albie's buttons (cad.action, docs/archive/PET_AGENT_CONTRACT.md Addendum H). Each is for a version of a design: it waits until
     // the viewer shows that version (a demo started on the old model would stop at the swap), keeps the order they came
     // in, and is dropped after ActionTimeout if that version never shows. Overlays are session state and apply at once.
     const float ActionTimeout = 15f, LateActionSeconds = 4f;
@@ -106,7 +106,7 @@ public class CadSession : MonoBehaviour
     readonly List<CadAction> pendingActions = new List<CadAction>();
     readonly List<float> pendingSince = new List<float>();
     CadAction handledAction;
-    // Bit can open the CAD view and press a button in one breath: the press may land before this session exists (the CAD
+    // Albie can open the CAD view and press a button in one breath: the press may land before this session exists (the CAD
     // prefabs create it as the view unfolds). A static listener keeps the last one so StartHub can still apply it.
     static CadAction lastAction;
     static float lastActionAt = -100f;
@@ -230,7 +230,7 @@ public class CadSession : MonoBehaviour
         if (lastAction != null && Time.realtimeSinceStartup - lastActionAt < LateActionSeconds) OnCadAction(lastAction);
     }
 
-    // Commands (the same ones Bit's tools call on the hub)
+    // Commands (the same ones Albie's tools call on the hub)
 
     /// <param name="what">The change in words for the panel's building state ("Fin count 4"); optional.</param>
     public void SetParams(Dictionary<string, object> changes, string what = null)
@@ -480,7 +480,7 @@ public class CadSession : MonoBehaviour
         {
             var a = pendingActions[0];
             if (Time.unscaledTime - pendingSince[0] > ActionTimeout)
-                Debug.LogWarning($"[CadSession] Bit's '{a.action}' for {a.part} v{a.version} never had its model on screen; dropped.");
+                Debug.LogWarning($"[CadSession] Albie's '{a.action}' for {a.part} v{a.version} never had its model on screen; dropped.");
             else if (!Shows(a)) return;  // the ones behind it wait too: they came later
             else ApplyAction(a);
             pendingActions.RemoveAt(0);

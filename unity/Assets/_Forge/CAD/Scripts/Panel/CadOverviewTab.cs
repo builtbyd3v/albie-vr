@@ -5,7 +5,7 @@ using UnityEngine;
 /// <summary>
 /// Overview (CAD UX spec 2.5): four tiles (rocket: Apogee, Top speed, To apogee, Off the rail from /cad/flight; other
 /// designs: their first four metrics after the verdict's), the demo's note, and the Last change card (the request in
-/// quotes, "v1 → v2 · by Bit · 4 min ago", the parameter diffs, and effect chips in status colours; "Opened with the
+/// quotes, "v1 → v2 · by Albie · 4 min ago", the parameter diffs, and effect chips in status colours; "Opened with the
 /// defaults" for a first version).
 /// </summary>
 public sealed class CadOverviewTab : CadPanelTab

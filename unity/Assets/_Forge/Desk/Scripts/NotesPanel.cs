@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// The user's notes (Bit keeps them: "add that to my notes"). Newest first, each with a ring to check it off, how long
+/// The user's notes (Albie keeps them: "add that to my notes"). Newest first, each with a ring to check it off, how long
 /// ago, and a small × to remove it (Undo for a few seconds after, the hub keeps it). Notes are added by voice, so the
 /// footer says who to ask (<see cref="DeskExtras.assistantName"/>). The header's − (with Face me / Straight) shrinks it
 /// into a dot with the open count. Built at runtime under the panel's Content (Desk/Prefabs/NotesPanel.prefab).
@@ -70,7 +70,7 @@ public class NotesPanel : MonoBehaviour
         emptyState.SetActive(n == 0);
         panel.Subtitle = n == 0 ? "Empty" : $"{n} {(n == 1 ? "note" : "notes")} · {done} done";
 
-        // Just removed (here, or by Bit): Undo for a few seconds.
+        // Just removed (here, or by Albie): Undo for a few seconds.
         var removed = notes.lastRemoved;
         if (removed != null && removed.id != toastFor)
         {

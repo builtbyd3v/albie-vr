@@ -8,9 +8,9 @@ using UnityEngine;
 
 /// <summary>
 /// Albie's crew on the headset: the device's take on hub/agent/crew.py. Definitions: Resources/AlbieTools/crew.json.
-/// Gators hatch and leave through <see cref="GatorCrew"/>. A task is one <see cref="ClaudeClient.Json"/> call over the
+/// Agents hatch and leave through <see cref="AlbieCrew"/>. A task is one <see cref="ClaudeClient.Json"/> call over the
 /// whole sample project that may change one file (through <see cref="CodeProject.Write"/>, so code_undo takes it
-/// back). Captions: agent.task_started / agent.task_complete / agent.error injected with the crew gator's pet_id, as
+/// back). Captions: agent.task_started / agent.task_complete / agent.error injected with the crew member's pet_id, as
 /// if the hub sent them; Albie speaks the result (<see cref="CodeTools.Say"/>).
 /// </summary>
 public static class CrewTools
@@ -18,7 +18,7 @@ public static class CrewTools
     /// <summary>The last finished task (for tests and logs): {agent, ok, say, file?, start?, end?}.</summary>
     public static JObject LastResult { get; private set; }
 
-    // pet_id -> the running task (one per gator); dismissing removes it, so a late answer is dropped.
+    // pet_id -> the running task (one per Albie); dismissing removes it, so a late answer is dropped.
     static readonly Dictionary<string, (string id, string title)> running = new Dictionary<string, (string, string)>();
     static int taskCount;
 
@@ -39,11 +39,11 @@ public static class CrewTools
         ["crew_status"] = _ => Status(),
     });
 
-    static GatorCrew Crew => GatorCrew.Instance != null ? GatorCrew.Instance : throw new ArgumentException("the crew isn't available here");
+    static AlbieCrew Crew => AlbieCrew.Instance != null ? AlbieCrew.Instance : throw new ArgumentException("the crew isn't available here");
 
-    static GatorAgentType TypeOf(string idOrName)
+    static AlbieAgentType TypeOf(string idOrName)
     {
-        var t = GatorAgentTypes.Find((idOrName ?? "").Trim());
+        var t = AlbieAgentTypes.Find((idOrName ?? "").Trim());
         if (t == null) throw new ArgumentException($"no crew member '{idOrName}'; the types are {Types()}");
         return t;
     }
@@ -51,14 +51,14 @@ public static class CrewTools
     static string Types()
     {
         var names = new StringBuilder();
-        foreach (var t in GatorAgentTypes.All) names.Append(names.Length > 0 ? ", " : "").Append(t.Id);
+        foreach (var t in AlbieAgentTypes.All) names.Append(names.Length > 0 ? ", " : "").Append(t.Id);
         return names.ToString();
     }
 
-    static GatorCrewMember Spawn(string type)
+    static AlbieCrewMember Spawn(string type)
     {
         var m = Crew.Spawn(TypeOf(type));
-        if (m == null) throw new ArgumentException("couldn't hatch a gator here");
+        if (m == null) throw new ArgumentException("couldn't hatch an agent here");
         return m;
     }
 
@@ -74,9 +74,9 @@ public static class CrewTools
     {
         var crew = new JArray();
         var free = new JArray();
-        foreach (var t in GatorAgentTypes.All)
+        foreach (var t in AlbieAgentTypes.All)
         {
-            if (GatorCrew.Instance == null || !GatorCrew.Instance.IsHatched(t)) { free.Add(t.Id); continue; }
+            if (AlbieCrew.Instance == null || !AlbieCrew.Instance.IsHatched(t)) { free.Add(t.Id); continue; }
             crew.Add(new JObject { ["agent"] = t.Id, ["name"] = t.Name, ["role"] = t.Role, ["task"] = running.TryGetValue(t.Id, out var job) ? job.title : null });
         }
         return new JObject { ["crew"] = crew, ["available_types"] = free };
@@ -102,7 +102,7 @@ public static class CrewTools
         return new JObject { ["status"] = "working", ["agent"] = m.PetId, ["task_id"] = id, ["note"] = $"{m.Type.Name} is on it; a system note says what it did in a few seconds." };
     }
 
-    static async Task Run(GatorAgentType t, string id, string task, bool answerOnly)
+    static async Task Run(AlbieAgentType t, string id, string task, bool answerOnly)
     {
         JObject result;
         try { result = await Work(t, task, answerOnly); }
@@ -111,7 +111,7 @@ public static class CrewTools
             Debug.LogWarning($"[CrewTools] {t.Id}: {e.Message}");
             result = new JObject { ["ok"] = false, ["say"] = $"{t.Name} got stuck: {e.Message}." };
         }
-        // Dismissed (or replaced) while Claude worked: the gator is gone, drop the answer.
+        // Dismissed (or replaced) while Claude worked: Albie is gone, drop the answer.
         if (!running.TryGetValue(t.Id, out var job) || job.id != id) return;
         running.Remove(t.Id);
         result["agent"] = t.Id;
@@ -123,13 +123,13 @@ public static class CrewTools
         CodeTools.Say(say);
     }
 
-    static async Task<JObject> Work(GatorAgentType t, string task, bool answerOnly)
+    static async Task<JObject> Work(AlbieAgentType t, string task, bool answerOnly)
     {
         var project = new StringBuilder();
         var before = new Dictionary<CodeProject.File, string>();
         foreach (var f in CodeProject.Files) { project.Append(CodeTools.Prompt(f)).Append('\n'); before[f] = f.text; }
         string system =
-            $"You are {t.Name}, a helper gator who {t.Role}, working on a small project for the user. Do the task. " +
+            $"You are {t.Name}, a helper agent who {t.Role}, working on a small project for the user. Do the task. " +
             (answerOnly ? "Answer only: path and text are empty. "
                         : "If it needs a code change, path is the one file to change and text is its whole new content without " +
                           "the added line numbers: the smallest change, every other line kept exactly. Otherwise path and text are empty. ") +

@@ -396,7 +396,7 @@ public class PanelManipulator : MonoBehaviour
         }
     }
 
-    /// <summary>Flash the frame's rim <paramref name="times"/> times (Bit pointing at this panel, ui.highlight).</summary>
+    /// <summary>Flash the frame's rim <paramref name="times"/> times (Albie pointing at this panel, ui.highlight).</summary>
     // ponytail: the Panel-style rim is white in ForgePanelSurface.shader, so this pulses brightness, not the mode color.
     public void Pulse(int times) => pulseLeft = Mathf.Max(0, times) * PulsePeriod;
 

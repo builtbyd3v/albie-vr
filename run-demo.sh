@@ -1,7 +1,7 @@
 #!/bin/sh
-# Daily loop: stop the old hub and its screen bridge, start the hub, open the sandbox ML project, wire up the Quest.
+# Daily loop: stop the old hub, start the hub, open the sandbox ML project, wire up the Quest.
 #   sh run-demo.sh                 # hub on :8000, log in /tmp/forge-hub.log
-#   PORT=8100 SCREEN_BRIDGE=0 NO_ADB=1 sh run-demo.sh   # a second hub for testing, no bridge, no headset
+#   PORT=8100 NO_ADB=1 sh run-demo.sh   # a second hub for testing, no headset
 # Python: hub/.venv (from dev-setup.sh) when it exists, else $HUB_PYTHON, else the active env's python3
 # (e.g. `conda activate albie-vr` first).
 set -eu
@@ -14,17 +14,13 @@ adb=${ADB:-/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/AndroidPlay
 
 old=$(lsof -ti "tcp:$port" -sTCP:LISTEN || true)
 [ -n "$old" ] && { echo "stopping the hub on :$port ($old)"; kill $old; sleep 2; }
-if [ "${SCREEN_BRIDGE:-1}" != "0" ]; then
-  # Stale bridge children hold :8765/:8766, and the new bridge then exits.
-  pkill -f "node start.js" || true; pkill -f screen-bridge/stream.py || true; pkill -f screen-bridge/signaling.py || true
-fi
 
 cd "$repo/hub"
 if [ -x .venv/bin/python ]; then py=.venv/bin/python; else py=${HUB_PYTHON:-$(command -v python3 || true)}; fi
 "$py" -c 'import uvicorn, fastapi' 2>/dev/null || {
   echo "MISSING: the hub's packages in ${py:-python3}. Run dev-setup.sh, activate the env that has them, or set HUB_PYTHON."; exit 1; }
 # Inherited CLAUDECODE / ANTHROPIC_BASE_URL (a Claude Code shell) make the agent SDK's CLI hang (hub/README.md).
-SCREEN_BRIDGE_DIR="$repo/screen-bridge" nohup env -u CLAUDECODE -u ANTHROPIC_BASE_URL "$py" -m uvicorn main:app --host 0.0.0.0 --port "$port" >> "$log" 2>&1 &
+nohup env -u CLAUDECODE -u ANTHROPIC_BASE_URL "$py" -m uvicorn main:app --host 0.0.0.0 --port "$port" >> "$log" 2>&1 &
 echo "hub starting on :$port (log: $log)"
 i=0
 until curl -sf "localhost:$port/health" >/dev/null; do
@@ -37,6 +33,6 @@ curl -sf -X POST "localhost:$port/ml/project" -H 'content-type: application/json
 
 [ "${NO_ADB:-0}" = "1" ] && exit 0
 if [ -z "$adb" ] || ! "$adb" devices | grep -q "	device$"; then echo "no headset on USB: plug it in, then rerun"; exit 0; fi
-for p in 8000 8765 8766; do "$adb" reverse "tcp:$p" "tcp:$p"; done
+"$adb" reverse tcp:8000 tcp:8000
 "$adb" shell monkey -p com.UnityTechnologies.com.unity.template.urpblank -c android.intent.category.LAUNCHER 1 >/dev/null
-echo "Quest: ports reversed, app launched"
+echo "Quest: port reversed, app launched"

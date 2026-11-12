@@ -189,7 +189,7 @@ public class CadModelUpdated
     [JsonProperty("removed_ids")] public List<string> removedIds = new List<string>();
     [JsonProperty("source")] public string source;            // api | pet | preset | script | undo | reset | open | startup
     [JsonProperty("analysis")] public CadAnalysis analysis;
-    [JsonProperty("label")] public string label;              // the version in words: Bit's request, a preset, the change
+    [JsonProperty("label")] public string label;              // the version in words: Albie's request, a preset, the change
 }
 
 public class CadRegenFailed
@@ -220,7 +220,7 @@ public class CadView
 }
 
 /// <summary>
-/// Bit pressing a button in the CAD view (cad.action, PET_AGENT_CONTRACT Addendum H). Not sticky: it means "now".
+/// Albie pressing a button in the CAD view (cad.action, PET_AGENT_CONTRACT Addendum H). Not sticky: it means "now".
 /// CadSession applies it once the viewer shows <see cref="version"/> of <see cref="part"/>.
 /// </summary>
 public class CadAction
@@ -268,7 +268,7 @@ public class UiHighlight
     [JsonProperty("class_idx")] public int? classIdx;
 }
 
-/// <summary>Bit opens a workspace view (ui.mode, Addendum H); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
+/// <summary>Albie opens a workspace view (ui.mode, Addendum H); <see cref="WorkspaceRemote"/> answers with workspace.mode.</summary>
 public class UiMode
 {
     [JsonProperty("mode")] public string mode;  // ml | cad | code | messages; "" closes the open one
@@ -315,7 +315,7 @@ public class NotifyChannels
     [JsonProperty("channels")] public List<SlackChannel> channels = new List<SlackChannel>();
 }
 
-/// <summary>A reply Bit wrote but has NOT sent: show it as a Send / Cancel card. Send = POST /messages/drafts/{id}/send.</summary>
+/// <summary>A reply Albie wrote but has NOT sent: show it as a Send / Cancel card. Send = POST /messages/drafts/{id}/send.</summary>
 public class NotifyDraft
 {
     [JsonProperty("source")] public string source;             // slack | imessage
@@ -359,18 +359,17 @@ public class NotifyDigest
 {
     [JsonProperty("count")] public int count;
     [JsonProperty("mentions")] public int mentions;
-    [JsonProperty("line")] public string line;                // what Bit says (and the arrival card shows); "You have no new messages today." when count is 0
+    [JsonProperty("line")] public string line;                // what Albie says (and the arrival card shows); "You have no new messages today." when count is 0
     [JsonProperty("messages")] public List<NotifyMessage> messages = new List<NotifyMessage>();  // newest first, at most 4
 }
 
-// Desk extras (hub/desk, hub README "Desk"): Bit's focus timers, notes and movie screen, on top of any mode.
+// Desk extras (hub/desk, hub README "Desk"): Albie's focus timers and notes, on top of any mode.
 
 /// <summary>Which desk extras show: "open", "minimized" (a dot) or "closed". Always the whole set.</summary>
 public class UiWidgets
 {
     [JsonProperty("timer")] public string timer = "closed";   // the timers
     [JsonProperty("notes")] public string notes = "closed";
-    [JsonProperty("movie")] public string movie = "closed";
 }
 
 public class DeskTimer
@@ -401,26 +400,6 @@ public class NotesUpdated
 {
     [JsonProperty("notes")] public List<DeskNote> notes = new List<DeskNote>();  // newest first
     [JsonProperty("last_removed")] public DeskNote lastRemoved;                // what Undo brings back, else null
-}
-
-public class MovieInfo
-{
-    [JsonProperty("movie_id")] public string movieId;
-    [JsonProperty("title")] public string title;
-    [JsonProperty("year")] public int? year;
-    [JsonProperty("duration_s")] public float? durationS;
-    [JsonProperty("url")] public string url;                  // hub path: ForgeNet.Url(url); serves byte ranges
-    [JsonProperty("subtitles_url")] public string subtitlesUrl;
-}
-
-/// <summary>The movie screen. Seek the player only when <see cref="seekRev"/> changes; otherwise it keeps time.</summary>
-public class MovieState
-{
-    [JsonProperty("status")] public string status = "closed";  // closed | playing | paused
-    [JsonProperty("movie")] public MovieInfo movie;
-    [JsonProperty("position_s")] public float positionS;
-    [JsonProperty("volume")] public float volume = 0.8f;
-    [JsonProperty("seek_rev")] public int seekRev;
 }
 
 /// <summary>
@@ -454,7 +433,6 @@ public static class ForgeEvents
     public const string UiWidgetsType = "ui.widgets";
     public const string TimersUpdatedType = "timers.updated";
     public const string NotesUpdatedType = "notes.updated";
-    public const string MovieStateType = "movie.state";
 
     public static event Action<MlRunState> OnMlRunState;
     public static event Action<MlMetrics> OnMlMetrics;
@@ -479,7 +457,6 @@ public static class ForgeEvents
     public static event Action<UiWidgets> OnUiWidgets;
     public static event Action<TimersUpdated> OnTimersUpdated;
     public static event Action<NotesUpdated> OnNotesUpdated;
-    public static event Action<MovieState> OnMovieState;
 
     /// <summary>Raise the typed event for <paramref name="type"/>. Returns false for unknown types.</summary>
     internal static bool Raise(string type, JToken payload)
@@ -509,7 +486,6 @@ public static class ForgeEvents
             case UiWidgetsType: Invoke(OnUiWidgets, payload); return true;
             case TimersUpdatedType: Invoke(OnTimersUpdated, payload); return true;
             case NotesUpdatedType: Invoke(OnNotesUpdated, payload); return true;
-            case MovieStateType: Invoke(OnMovieState, payload); return true;
             default: return false;
         }
     }
