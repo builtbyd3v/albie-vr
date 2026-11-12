@@ -1,0 +1,22 @@
+[
+  {"name": "os_menu",
+   "description": "Open or close the Albie menu, where the user finds their tools, projects and artifacts. Without open it toggles.",
+   "parameters": {"type": "object", "properties": {
+     "open": {"type": "boolean", "description": "true opens the menu, false closes it"}}}},
+  {"name": "os_tab",
+   "description": "Show one tab of the Albie menu (opens the menu if it is closed): tools, projects or artifacts.",
+   "parameters": {"type": "object", "properties": {
+     "tab": {"type": "string", "enum": ["tools", "projects", "artifacts"]}},
+     "required": ["tab"]}},
+  {"name": "os_open",
+   "description": "Open something from the Albie menu by kind and id. Tool ids: cad, code, train, notebook, drive, messages, gestures. Project ids like proj_truck. System pages: agents, settings, build. Works at the desk and away from it. Returns an error if there is no such thing.",
+   "parameters": {"type": "object", "properties": {
+     "kind": {"type": "string", "enum": ["tool", "project", "artifact", "system"]},
+     "id": {"type": "string", "description": "the id of the tool, project, artifact or system page"}},
+     "required": ["kind", "id"]}},
+  {"name": "os_windows",
+   "description": "Manage the user's open windows. recenter brings every window back in front of the user, side by side. close_all closes them all.",
+   "parameters": {"type": "object", "properties": {
+     "action": {"type": "string", "enum": ["recenter", "close_all"]}},
+     "required": ["action"]}}
+]
