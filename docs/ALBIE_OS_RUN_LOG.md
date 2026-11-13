@@ -134,3 +134,88 @@ Play mode, Main, desktop rig, voice off (`Forge.ForceDesktop` and `Albie.VoiceOf
 - `os_open` has nothing to open yet (no tool, project or artifact registers an entry in this part).
 - Left controller menu button: coded, not tested (no headset, no controller in the desktop rig).
 - `Resources/OSShell.prefab` is the only prefab; no `README.md` or `THIRD_PARTY_NOTICES.md` yet.
+
+## Part menu-5.2: the menu and the look foundation
+
+Done in `unity/Assets/_Forge/OS/` (Unity 6000.6.7f1, the live editor). Every control is an instance of a Meta UI Set prefab, referenced from the package through `Resources/OSKit.asset`.
+
+### What was built
+- `Scripts/OSKit.cs` + `Resources/OSKit.asset`: references to the package's backplate, Primary / Secondary / Borderless / Destructive buttons (the `UnityUIButton` family), the TextTile (button form), the ButtonShelf toggle (tabs), the switch, the Large slider; the Albie theme; the font; 35 icons by friendly name from the 24 px Filled atlas; five sounds from the Interaction SDK samples (press = `BasicPoke_ButtonPress`, release, open = `Object_Reappear_01`, close = `UIRelease_01`, error = `Locomotion_Declined`); `unitMeters = 0.00065`. Nothing is copied except the theme.
+- `Themes/AlbieDark.asset`: a copy of `UIThemeQuest_Dark` (keeps the package's animators, materials and font), tuned in two places: `backplateColor` a touch cooler, `textPrimaryColor` fully opaque (the package's 90 % white read thin). Secondary text alpha 0.72. No per-tab accent: the one accent is the white Primary pill.
+- `Scripts/OSUi.cs`: `Icon`, `Body(panel)`, `Text`, `Button`, `Toggle`, `Slider`, `Row`, `Column`, `Section`, `Clear`, `Confirm` per the contract, plus `Tab`, `Tile`, `Select`, `Size`, `OutlineSprite`. Handlers go through `Button.onClick`; every control adds the press sound. `Scripts/OSBody.cs` is the window body root (scale 0.65 under a ForgePanel's Content, resizes with the panel, adds a `UIThemeManager` with the Albie theme and applies it once after controls are added). `Scripts/OSToggleSync.cs` keeps a UI Set toggle's lit look right (see decisions). `Scripts/OSTileView.cs` is one pooled tile. `Scripts/OSSounds.cs` plays the kit clips through one `AudioSource` on the shell (silent with no shell, kit or clip).
+- `Scripts/OSMenu.cs` + `Prefabs/OSMenu.prefab` (nested inside `Resources/OSShell.prefab`): the UI Set backplate (poke, ray, mouse as shipped, a `UIThemeManager` with the Albie theme), a tab bar (Tools, Projects, Artifacts as a toggle group, paging, Close X), a 4 x 2 tile grid from `OSRegistry.Fill`, the empty-state sentence, and the strip (Build something primary, Agents, Settings, Bring windows here, Close). The contents are built from the kit on the first open; tiles are pooled (two pools: plain and outline). It refreshes when the menu opens, the tab changes, and on `OSRegistry.Changed` and `OSShell.Windows.Changed`.
+- Placement and motion: world-locked where summoned (`menuDistance` from the eyes, `menuDropDegrees` below eye level, facing the eyes), grows from `SummonPoint` over 220 ms (scale 0.3 to 1, ease-out cubic, fade), fades out in 120 ms, open and close sounds. No `Update` in the menu.
+- `Scripts/OSTableButton.cs`: a UI Set backplate disc with an icon-only Primary button, lying flat on the desk frame at the dock's centre (local `(0, 0.012, min(0.09, depth/2))`, rotated like the dock), shown while `AtDesk && !Held && tableButton`, repositioned on `presence.frameChanged`, toggles the menu with `OSSummon.TableButton` and its own position.
+- `Editor/OSPrefabBuilder.cs`: builds theme, kit, menu prefab and the shell prefab (adds the menu, the table button, an `AudioSource`). `Editor/OSCheck.cs`: seven new checks. `Editor/OSMenuTest.cs` (`Forge/OS/Run Menu Test`, `OSMenuTest.Run()`, `LastResult`, `Measurements`; `RunAndStay()` / `Stop()` for looking around by hand): the Play test below. `OS/README.md` (the icon table only) and `OS/THIRD_PARTY_NOTICES.md`.
+
+### Checks (verbatim)
+Compile: `"errors": 0, "warnings": 0`; no warning or error from `_Forge/OS` in the console after the Play runs.
+
+`Forge.OS.Editor.OSCheck.Run()`:
+```
+PASS os check
+  ok   the OSShell prefab has the shell, the windows and the keys
+  ok   os.json parses and its four tools have handlers (4 tools)
+  ok   the tools answer an error, not an exception, with no shell
+  ok   the registry fills, finds, replaces and orders
+  ok   every tab has an empty-state sentence
+  ok   settings round-trip, clamp, and survive a damaged file (file 211 bytes)
+  ok   the kit asset loads and every UI Set reference resolves (9 prefabs, theme, font, 5 clips)
+  ok   every friendly icon name resolves to the Filled atlas, and the builder maps them all (35 icons)
+  ok   the Albie theme is derived from the UI Set dark theme
+  ok   the menu prefab and the shell's menu and table button exist
+  ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap)
+  ok   OSUi builds each control from the kit and a press runs its handler (4 buttons, icon button, switch, slider, tab, tile, text, row, column, section)
+  ok   sounds are silent and safe with no shell
+  ok   the voice rules still pass
+```
+`GesturePlayTest.Run()` (the menu and table button now live in Main): `[GesturePlayTest] 32 passed, 0 failed`.
+
+`OSMenuTest.Run()` (Main, desktop rig, voice off, throwaway sample entries registered for the run only): `[OSMenuTest] 57 passed, 0 failed`. Every press goes through the EventSystem: a raycast on the real canvases, then pointer enter, down, up and click on what was on top (the test fails if something else is on top). It covers: sit at the desk (`presence.forceSeated` + `DesktopRig.Current.ToggleSeat()`); the table button shows and a pointer press opens the menu (summon TableButton); distance, drop and field of view; tab presses; paging; a tile press runs its action and closes the menu; M opens it; the strip Close and the tab bar's close X close it; Agents with no page registered presses without throwing (one log line `[OS] The 'agents' page isn't available yet.`); the empty tab; then walking away (the table button goes), M, tabs, a tile and Close again away from the desk.
+
+Measurements (`OSMenuTest.Measurements`, first run; only the strip buttons and the table button changed by a few mm afterwards):
+```
+table button: plate 47 mm, button 34 mm   (grown to 55 / 40 mm after the first screenshot review)
+menu: 0.564 m wide, 0.311 m tall, 0.50 m from the eyes, 15.0 degrees below eye level, 58.9 degrees of horizontal view
+tile: 122 x 70 mm
+gap between tiles: 13.0 mm
+Button Build something: 121 x 31 mm
+Button Agents: 79 x 31 mm
+Button Settings: 84 x 31 mm
+Button Bring windows here: 138 x 31 mm
+Button Close: 73 x 31 mm
+Tab Tools: 98 x 42 mm
+```
+The close X and the paging buttons are 56 x 56 units = 36 mm.
+
+Screenshots (in `unity/Logs/os/`, ignored by git), each opened and graded against spec 6.3:
+- `00_table_button.png`: the white round button with a grid icon at the front-edge centre of the desk, inside the old dock's frame (expected until the dock is retired). Reads as a button; small from the seat because it is 55 mm.
+- `01_menu_desk_tools.png`, `02_menu_desk_projects.png` (a "New" section with an outline tile), `03_menu_desk_artifacts.png` (nine entries: page 1 of 2 with the page controls), `04_menu_desk_artifacts_page2.png` (one tile; a long title ends in an ellipsis), `05_menu_desk_empty.png` ("No artifacts yet. Tap Build something or ask Albie."), `06_menu_away.png` (Tools, away from the desk, seen from off-axis).
+- Grades: polish pass (Meta's backplate, tiles, pills and shelf tabs, one radius and type scale); hierarchy pass (the white Build something is the only primary, the lit tab and the grid read at a glance); legibility pass (labels 16, titles 18, status 14 units; white on dark about 10:1; the lit tab's and Primary's dark labels are bold because dark-on-white SDF text reads thin); touch targets pass (numbers above; hover and press come from the UI Set animators, which a still can't show); honest content pass (sample entries exist only in the test, shipped empty states say what to do, no brand names); comfort pass (58.9 degrees, nothing clipped). Integration with the older windows was not graded (this part leaves them alone).
+- Fixes the screenshots forced: tile and tab labels were invisible (the shelf toggle ships its main label off and a small italic one on; the tile's text boxes were too short and silently truncated); the strip's last two buttons overlapped; the lit tab stayed half-dark; the pet's greeting START pill sat over the menu (the test now ends the greeting quietly); the build icon (`concepts`) looked like a logo and became `add-circle`; selected-tab and Primary labels were thin.
+
+### Decisions (one line of why each)
+- **Font: keep the UI Set's LiberationSans SDF (the theme's font), not Inter.** Why: it is the font the UI Set's materials and animators were built and tested with, it has 250 glyphs (accents in names) where `ForgeLook/Inter SDF` is a static atlas of 115 glyphs, and using Inter would need fallback assets. The old ForgePanel headers stay Inter; a window's own text is LiberationSans.
+- **Icons: only the Filled 24 px atlas, one name table (`IconMap` in the builder, copied in `README.md`).** Why: one style, and `OSCheck` fails if a name stops resolving.
+- **The menu's contents are built from the kit on first open, not baked into the prefab.** Why: baking 30 nested instances with overrides is fragile; the prefab holds the backplate, theme and wiring, and the kit is the single source of the look.
+- **The tab bar uses the ButtonShelf toggle (icon over label), 150 x 64 units.** Why: it is the UI Set's tab-like toggle with a lit state.
+- **Toggles get `OSToggleSync`.** Why: the UI Set only moves a toggle's "Selected Layer" when the value changes while running; a toggle built on, set from code or re-enabled looked half lit. The component applies the state a frame after start and snaps it after the UI Set's 0.2 s transition.
+- **The outline ("new") tile is a Borderless-animated TextTile with a procedural rounded outline sprite** (a 64 px texture made once, 9-sliced). Why: the UI Set has no outline tile; the outline is not a Meta asset and uses no file.
+- **Section headings: a heading starts a new row, a page holds two rows and at most one heading, and a heading repeats at the top of a page its section carries onto.** Why: keeps the plate a fixed size.
+- **A tile press clears the EventSystem selection, and the menu clears it on close.** Why: a pressed UI Set control keeps its "selected" highlight otherwise.
+- **The strip's Agents, Settings and Build something close the menu only if their page is registered.** Why: with nothing registered the button should press, log one line, and leave the menu where it is. Bring windows here closes the menu after the windows move.
+- **The backplate's own poke-sound wrapper is switched off on the menu and the table button.** Why: every control plays the press sound itself; the wrapper would double it.
+- **The table button is a Primary (white) circle on a dark backplate disc.** Why: dark-on-dark vanished next to the dock.
+- **The menu plate is 868 x 478 units (0.564 x 0.311 m).** Why: four 188-unit tiles with 20-unit gaps; 58.9 degrees at 0.5 m is inside the 70 degrees limit.
+- **No Project Settings change, no tags** (all 21 `QDSUI*` tags already exist).
+
+### Changes outside `OS/`
+None. `git status` shows no `.unity` file modified; `Main.unity` untouched.
+
+### Not done / not working
+- Real hand poke and ray on the menu were not exercised (no headset): the backplate is the package's own, its poke surface's `BoundsClipper` was read in Play and matches the plate (868 x 478 units), and every press in the test is a mouse-style EventSystem press. Hover lift and press depress come from the UI Set animators and were not captured in stills.
+- The 220 ms grow-in and 120 ms fade-out were not captured mid-way; the end states are what the screenshots show.
+- Menu entries are empty until the Tools, Projects and Artifacts parts register theirs; the screenshots use test-only sample entries.
+- `OSTableButton` and the old dock both show until the dock is retired (next part).
+- On the real first arrival the pet's greeting holds the desk (`DockHeld`), so the table button stays hidden until START is pressed, as the contract says. The test ends the greeting itself.
+- `OSKit` caches its icon lookup per load; a rebuilt asset is picked up on the next Play or reload.
