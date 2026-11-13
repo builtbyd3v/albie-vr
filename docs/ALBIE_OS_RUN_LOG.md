@@ -302,3 +302,47 @@ No Project Settings, no scene, no `manifest.json`.
 - The first-arrival greeting did not come up in one of the runs of the test (the arrival checks are then skipped with a log line); it did in the verified run. Cause not found.
 - `OSCheck.Run()` marks the open scene as changed (an older check creates scene objects); running any Play test reloads it clean.
 - The open and close animations were not captured mid-way.
+
+## Part 5.4: Tools tab (tools-5.4)
+
+### What was done
+- Integrated the staged `OSToolsCatalog` (cad, code, train, notebook, messages, gestures tiles) and `OSNotebookWindow`. Both compiled first time against the real API; 0 errors, 0 new warnings.
+- `OSNotebookWindow`: added a fit step. There is no scrolling, so after each rebuild `LateUpdate` checks the page against the window and steps down the number of rows shown (milestones, attempts, versions, lessons) until it fits. Why: a long plan or long attempt text would otherwise run past the window.
+- New `Editor/OSToolsTest.cs` (`Forge/OS/Run Tools Test`, `Forge.OS.Editor.OSToolsTest.Run()`, result in `LastResult`): Main in Play, desktop rig, voice off. Opens the real menu, presses each Tools tile with a pointer through the EventSystem, at the desk and away, checks the result, then the notebook against proj_truck, Train with a brain truck, Bring windows here and Close all.
+- `Editor/OSMenuTest.cs`: the real Tools entries step aside while that test runs (it counts and presses its own sample tiles) and `OSToolsCatalog.Register` puts them back.
+
+### Check output (verbatim)
+```
+PASS [OSToolsTest] 94 passed, 0 failed
+PASS os check (16 ok lines)
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+```
+OSToolsTest, in order: the Tools tab lists cad;code;train;notebook;messages;gestures; each tile has title, kit icon, status, open flag and action; at the desk and away, a pointer press on each of the six tiles opens it (CAD, Code, Messages as mode groups with panels; Train opens the ML desk with 4 panels and, with no truck, no brain window and status `open · no truck yet`; Notebook and Gestures as tracked windows); notebook shows the plan, the new attempt under "Waiting for your verdict", the new version, the project name; Mark worked writes `outcome=worked by person` to the store and the window says "worked (you marked it)" with no reopen; Mark failed likewise; text stays inside the window with no overlap; Mark worked is 88 x 31 mm; with a brain truck Train opens the ML desk and the "brain" window and the tile says `open · brain ready` (desk and away); Bring windows here brings notebook, brain and gestures within 1.6 m; Close all closes the gesture display too and leaves no windows or mode; no error, exception or `[OS]` warning logged.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened:
+- `30_tools_tab_desk.png`: the Tools tab at the desk, six tiles (CAD, Code, Train "no truck yet", Notebook "RC truck", Messages, Gestures "open"), strip below; nothing clipped.
+- `43_tools_tab_away.png`: the same tab away with a truck: Train says "brain ready", Gestures "5 gestures".
+- `31_notebook_desk.png`, `32_notebook_marked.png`, `33_notebook_after_fail.png`: the notebook window with proj_truck data (plan v2, attempts, versions, lessons, the two verdict buttons) and after Mark worked / Mark failed.
+- `41_notebook_away.png`: the notebook away from the desk.
+- `34_gestures_desk.png`: the gesture display adopted as a window with Teach a gesture.
+- `35_brain_window.png`, `45_brain_window_away.png`: the controller brain trainer window.
+
+### Decisions (one line of why each)
+- **The test opens proj_truck from a scratch folder and fills it with `NotebookStore.SeedFixtures`.** Why: no notebook existed on this machine, and the test must never write into a real one; it is the real store and the real project id.
+- **The test lays the slalom out in `MockFloorPlan.LivingRoom()` through `ArtifactHost.Room`.** Why: the desktop rig's simulated living room has no clear 4.6 x 0.8 m strip (`no_free_floor` from every standing place and facing), so a truck can't spawn there otherwise.
+- **The test removes the `projects`, `artifacts` and `user` folders under persistentDataPath only if it found them missing.** Why: it created them (slalom layout, lessons) and must leave the machine as it found it.
+- **The gesture display is adopted by the window manager when the menu first asks whether Gestures is open, or when the tile is pressed.** Why: it is the cheap place to do it; the display is made by the gesture engine, not the OS.
+- **Tile order cad, code, train, notebook, messages, gestures (Drive appends).** Why: as the writer registered it; reorder in `OSRegistry` if wanted.
+
+### Not working or not done
+- With the ML desk open away from a desk, its large panels sit in front of the menu (the menu opens 0.5 m away, the panels reach nearer) and a pointer press on a tile hits the panel instead (`99_press_failed_notebook.png`). So with Train open, a second tool can't be opened from the menu until the mode is closed. The test opens Train last for that reason. A fix belongs in menu placement or mode layout (5.2/5.3), not here.
+- The controller brain view (ML module, `ControllerBrainView`) has layout flaws of its own at this size: the steer/throttle values wrap ("+0.2" over "0"), the controller file note is clipped by its card, the text is small, and it says "Mock lap fixture" whatever the truck does. It is the same view as the `MLPanels/ControllerBrain` prefab; not changed (not the OS's module).
+- The notebook window has a blank gap of about 40 units above "Versions" (layout estimates a taller attempts section than it renders). Not clipped, not overlapping; left.
+- Ray and poke on the tiles were not exercised (no headset); the EventSystem pointer press was.
+- `M` is dropped by the Input System when the editor window is unfocused; the test then opens the menu with `OSShell.OpenMenu` (it logs this). The M key itself is covered by OSMenuTest.
+- Free disk fell from 9.4 to 5.4 GB during this part, from files under `AppData\Local\Microsoft` (not Unity, not the repo); 5.8 GB at the end.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
