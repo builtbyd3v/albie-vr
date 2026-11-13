@@ -33,12 +33,21 @@ namespace Forge.OS.Editor
         public static void Tap(params Key[] keys)
         {
             if (!Application.isPlaying) return;
-            if (keyboard == null || !keyboard.added) keyboard = InputSystem.AddDevice<Keyboard>("OSTestKeyboard");
+            if (keyboard == null || !keyboard.added) keyboard = TestKeyboard();
             steps.Clear();
             startFrame = Time.frameCount;
             steps.Add(new Step { keys = keys, frame = 1 });
             steps.Add(new Step { keys = new Key[0], frame = 5 });
             if (!hooked) Hook();
+        }
+
+        // Devices added in Play mode outlive it, so each test run would pile up another keyboard until the Input System
+        // refuses to resolve its bindings ("Control count per binding cannot exceed 255"): reuse the one that is already there.
+        static Keyboard TestKeyboard()
+        {
+            foreach (InputDevice device in InputSystem.devices)
+                if (device is Keyboard existing && device.name.StartsWith("OSTestKeyboard", System.StringComparison.Ordinal)) return existing;
+            return InputSystem.AddDevice<Keyboard>("OSTestKeyboard");
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

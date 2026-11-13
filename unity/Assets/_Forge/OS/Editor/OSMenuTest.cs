@@ -228,6 +228,8 @@ namespace Forge.OS.Editor
             cleanup.Add(OSToolsCatalog.Register);
             OSProjects.Unregister();  // the real Projects list steps aside too, for the same reason
             cleanup.Add(OSProjects.Register);
+            OSArtifacts.Unregister();  // and the real Artifacts list
+            cleanup.Add(OSArtifacts.Register);
             string[] toolIds = { "cad", "code", "train", "notebook", "drive", "messages", "gestures" };
             string[] toolTitles = { "CAD", "Code", "Train", "Notebook", "Drive", "Messages", "Gestures" };
             string[] toolIcons = { "cube", "code", "train", "notebook", "drive", "messages", "gestures" };

@@ -411,3 +411,59 @@ Screenshots (`unity/Logs/os/`, ignored by git), each opened: `50_projects_tab_fr
 
 ### Changes outside `OS/`
 None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Part 5.6: Artifacts tab and movable artifact panels
+
+Integrated from `.os-run/staging/artifacts/` (`OSArtifacts.cs`, `OSArtifactWatcher.cs`). The writer's code compiled on the first try against the real `ArtifactHost`, `ArtifactLibrary`, `AlbieTools`, `PanelManipulator` and `VolumeManipulator` (0 errors, 0 warnings from `OS/`). Nothing under `Artifacts/` was changed: the panels and volumes are made movable from the OS side.
+
+### What was done
+- `OSArtifacts` registers the Artifacts source at BeforeSceneLoad: every artifact in `ArtifactLibrary.List()` (sorted by title), then a **New** section (outline tiles) with one tile per template plus Three-body (a bundled simulation: it opens, it is never created). Cached, rebuilt only when something changed.
+- A tap goes through the Albie tools (`artifact_open`, `artifact_close`, `artifact_create`), so placement, the first-time Allow sheet and `FollowsUser` are the same as by voice. A tap on the artifact that is open closes it. A New tile makes it (`artifact_create` with `open:false`, then `artifact_open`), keeps the open project open so the library links it (`links.project`, `links.thing`), and shows the real reason under the tile when it fails.
+- Status line: `open`, `for RC truck` (the project's name from the Projects tab), the last run (`passed`/`failed`/`stopped`), `on your floor` for room artifacts; New tiles say `on your floor` or `opens as a window`; while the Allow sheet waits the tile says `tap Allow on the sheet`.
+- `OSArtifactWatcher` (one per scene with a Workspace) notices the host opening, closing or rebuilding and adopts every `ForgePanel` and `ForgeVolume` under it: `PanelManipulator` / `VolumeManipulator` added and Init'd as the Workspace does, and a window `artifact:<id>:<n>` in the window manager whose close runs `artifact_close`. So the Allow sheet, panels and volumes can be moved (Straight / Face me and resize brackets appear), and Bring windows here and Close all reach them.
+- Added `OSArtifactsTest` (`Forge/OS/Run Artifacts Test`, `Forge.OS.Editor.OSArtifactsTest.Run()`, result in `LastResult`). It runs on a scratch root (`ArtifactLibrary.RootOverride`, `ArtifactApprovals.FileOverride`, notebook root), so this machine's own notebook and artifacts are never touched, and lays room artifacts out in `MockFloorPlan.LivingRoom()` through `ArtifactHost.Room` as `OSToolsTest` does.
+
+### Check output (verbatim)
+```
+[OSArtifactsTest] 68 passed, 0 failed
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+PASS os check (16 ok lines)
+[ArtifactChecks] 97 passed, 0 failed
+PASS run check
+PASS slalom check
+PASS hoop check
+PASS biology templates check
+PASS physics templates check
+PASS repo activity check
+PASS voice rules check
+PASS slalom brain check (Play mode, the brain truck on its colliders)   (25 ok lines, no FAIL)
+```
+Key lines of OSArtifactsTest: tapping New Heart makes and opens the heart (volume window, movable); the Heart tile closes and reopens it; New Solar system opens and closes from its tile; New What shipped? asks first (`tap Allow on the sheet`), the Allow pill pressed with a pointer opens it with a movable panel and volume; New Slalom with the truck project open asks first, then `BrainLoops.Active != null`, `links.thing == "truck"`, `links.project == "proj_truck"`, and the Slalom tile reads `open · for RC truck`; Bring windows here moves an artifact window from 6 m to under 2 m; Close all closes the open artifact and leaves no artifact window; opening an id that does not exist answers with the reason and opens nothing.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `60_artifacts_tab_new.png` (the tab fresh: a "New" heading and eight outline tiles, page 1 of 2), `66_artifacts_tab_page1.png` (four made artifacts first, each "for RC truck", the open slalom "open · for RC truck", then the New heading and its first four tiles), `67_artifacts_tab_page2.png` (page 2: the rest of the New tiles, ending with Three-body), `61_heart_open.png` (the heart volume on the desk with its labels and its panel), `63_allow_sheet.png` (the Allow sheet with Straight / Face me and the corner brackets), `64_repo_activity_open.png` (repo activity's panel), `65_slalom_open.png` (the slalom scoreboard panel: Time, Gates, Cones hit, Runs, Versions, Spacing slider, Run again; nothing clipped).
+
+### Decisions (one line of why each)
+- **No edit under `Artifacts/`.** Why: the adoption can be done from the OS side (the host parents every panel and volume under itself), so there is nothing to list for Satyabrata. His module's rebuild still resets a moved panel to its default place (a slalom input change destroys and recreates the panels); the window is adopted again and is movable again.
+- **New tile ids are `new_<template>`.** Why: the artifact id and the template id are the same string, so the New tile cannot reuse it. `os_open{kind:"artifact", id:"heart"}` works once a heart exists; a tap on an open artifact closes it.
+- **The status line keeps to 24 characters, taking the parts in order of importance (for project, open, last run, floor).** Why: the tile shows about 24 characters and "open · for RC truck · on your floor" clipped; a linked slalom now reads `open · for RC truck`.
+- **The repo activity New tile is titled "What shipped?"** Why: "What shipped this week?" is cut to "What shipped this..." by the tile. The panel itself keeps its own title.
+- **Every template made while a project is open is linked to it, not only the slalom.** Why: that is `ArtifactLibrary.FromTemplate`'s rule (spec 5.6 "an artifact made while a project is open links to that project"); the heart tile also says `for RC truck`.
+- **`OSArtifacts.Unregister()` added; `OSMenuTest` now unregisters the real Artifacts list for its run and puts it back.** Why: the test counts its own sample Artifacts tiles and the real list added more.
+- **`OSInput` reuses its virtual keyboard instead of adding one per run.** Why: Play-mode devices outlive Play mode; 32 "OSTestKeyboard" devices had piled up from the test runs and the Input System began logging "Control count per binding cannot exceed byte.MaxValue=255" during `OSToolsTest`. The 32 stale devices were removed from the open editor.
+- **The test brings the windows here before taking screenshots.** Why: where the host puts an artifact in the desktop rig's simulated room can lie inside a wall of that room, which cuts the panel off in the picture.
+
+### Not working or not done
+- Only the desktop pointer was exercised (the EventSystem press), not a headset ray or poke or a real hand drag; the manipulator is the same component Workspace panels use.
+- A panel the user has moved goes back to its default place if the artifact rebuilds (see above). Resizing an artifact panel smaller can clip its widgets, which are laid out in fixed millimetres (the artifact module's `ArtifactWidgets`); not changed.
+- Artifact panel pills (Allow, Run again, ...) are sized by the artifact module, not by the OS kit; the 22 mm rule was not enforced on them.
+- Away from a desk the volume manipulator is Init'd with the desk frame as the writer wrote it; if a volume can't be dragged below a table's height on the headset, pass `null` as the frame in `OSArtifacts.AdoptPanels`.
+- The Allow tap text comes from the artifact module.
+- `Main.unity` was left dirty in memory after the play tests once; discarded by re-opening it, never saved. Free disk was 3.1 to 6.9 GB during this part; nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
