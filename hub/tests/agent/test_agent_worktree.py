@@ -32,7 +32,7 @@ def edit(path: Path, old: str, new: str) -> None:
 
 
 def test_worktree_starts_from_uncommitted_edits(repo: Path) -> None:
-    edit(repo / "a.txt", "2\n", "two\n")  # Bit's edit, not committed
+    edit(repo / "a.txt", "2\n", "two\n")  # Albie's edit, not committed
     path, branch, base = runner.create_task_worktree(repo, "tweak", "abcdef12", "builder")
     assert (path / "a.txt").read_text().startswith("1\ntwo\n")
     assert base != git(repo, "rev-parse", "HEAD").strip()  # the stash-create snapshot, not HEAD
@@ -57,7 +57,7 @@ def test_finished_work_lands_uncommitted_and_the_worktree_goes(repo: Path) -> No
     note = runner.land_task_worktree(repo, path, branch, base)
     assert note == "My changes are in your checkout: 3 files."
     text = (repo / "a.txt").read_text()
-    assert "two\n" in text and "twenty\n" in text  # Bit's edit kept, the crew's added
+    assert "two\n" in text and "twenty\n" in text  # Albie's edit kept, the crew's added
     assert (repo / "new.txt").read_text() == "left uncommitted\n"
     assert (repo / "img.bin").read_bytes() == bytes(range(256))
     assert git(repo, "rev-parse", "HEAD") == head and git(repo, "branch", "--show-current") == current

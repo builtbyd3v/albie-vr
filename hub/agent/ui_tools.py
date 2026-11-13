@@ -1,4 +1,4 @@
-"""Bit's workspace tools: point at a panel. Registered from main.py; it only broadcasts on /ws (Unity's BitUiDirector
+"""Albie's workspace tools: point at a panel. Registered from main.py; it only broadcasts on /ws (Unity's AlbieUiDirector
 acts on it). Event: ui.highlight {panel, item_ids?, class_idx?}. ui_open_view (ui.mode {mode}, waits for Unity's
 workspace.mode) lives in agent/workspace.py.
 """

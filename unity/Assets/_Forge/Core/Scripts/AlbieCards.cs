@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Hub off: taps on Albie's pet.say card buttons (pet.card_action) handled on the device. A module registers the
-/// action_id prefix of the cards it shows (e.g. "nn:" for the Neural Net Lab's Apply card); GatorFixCard asks here
+/// action_id prefix of the cards it shows (e.g. "nn:" for the Neural Net Lab's Apply card); AlbieFixCard asks here
 /// before sending the tap to the hub. Hub live: the hub handles every tap, as before.
 /// </summary>
 public static class AlbieCards

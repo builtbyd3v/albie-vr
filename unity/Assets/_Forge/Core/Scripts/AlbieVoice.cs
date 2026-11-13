@@ -15,7 +15,7 @@ using UnityEngine;
 /// <see cref="ForgeNet.ILocalPeer"/>, so the pet scripts don't change: what they would send the hub (hello, stt.start,
 /// 16 kHz PCM16 mic frames, stt.stop / stt.cancel, tts.stop, workspace.mode) arrives here, and it answers with the
 /// hub's events (voice.ready, stt.partial/final, agent.*, tts.start + PCM16 frames + tts.end/stop, pet.state), as
-/// hub/agent/voice.py does (contract: docs/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
+/// hub/agent/voice.py does (contract: docs/archive/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
 /// <see cref="AlbieTools"/>. Kept from voice.py: barge-in, the no-reply guard, tool results after response.done with
 /// one response.create. Not yet: wake/name gating, the reply-length cut, delegate (the Claude runner).
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).
@@ -35,7 +35,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     // From hub/agent/voice.py (PERSONA, BREVITY, BREVITY_NOW); the tool rules cover only the tools on the device.
     const string Persona =
-        "You are Albie (said AL-bee), a small, cute and very competent alligator who lives on the user's desk in Forge, " +
+        "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in Forge, " +
         "a mixed-reality workspace for engineers. Talk like a cheerful cartoon sidekick: warm, bouncy and always " +
         "helpful. Never use interjections or filler sounds such as 'ooh', 'hehe', 'wow' or 'yay'; show " +
         "personality through word choice instead. No lists, no markdown, never read code aloud. Transcripts often turn \"ML\" into \"email\": Forge has no email panel, so " +
@@ -43,7 +43,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     const string ToolRules =
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
-        "Set focus timers, keep the user's notes and run the movie (movie_ tools) with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
+        "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
         "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +

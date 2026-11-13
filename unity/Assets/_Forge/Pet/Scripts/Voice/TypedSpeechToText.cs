@@ -9,7 +9,7 @@ using UnityEngine.UI;
 namespace Forge.Pet
 {
     /// <summary>
-    /// SANDBOX ONLY (PetSandbox / PetSandboxXR; GatorSetup adds it to the scene instance, never to the prefab).
+    /// SANDBOX ONLY (PetSandbox / PetSandboxXR; AlbieSetup adds it to the scene instance, never to the prefab).
     /// Keyboard-only STT mock for the simulator / editor without a mic.
     /// StartListening shows a bottom-of-screen TMP input field (built lazily in code) and focuses it.
     /// Every edit raises PartialTranscript; Enter (or StopListening) raises FinalTranscript and hides it.
@@ -20,7 +20,7 @@ namespace Forge.Pet
     public class TypedSpeechToText : MonoBehaviour, ISpeechToText
     {
         [SerializeField, Tooltip("Placeholder shown in the empty input field.")]
-        string placeholder = "Ask the gator... (Enter = send, Esc = cancel)";
+        string placeholder = "Ask Albie... (Enter = send, Esc = cancel)";
         [SerializeField, Tooltip("Font size of the input field text.")]
         float fontSize = 28f;
         [SerializeField, Tooltip("Overlay canvas sorting order.")]

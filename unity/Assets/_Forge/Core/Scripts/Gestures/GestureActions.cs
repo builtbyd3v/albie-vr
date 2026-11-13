@@ -23,9 +23,9 @@ public sealed class GestureActions
     // Reading, showing and timers: nothing here loses work or reaches anyone.
     static readonly HashSet<string> RunsDirectly = new HashSet<string>
     {
-        "ui_open_view", "timer_start", "timer_status", "notes_list", "notes_view", "movie_control", "movie_status",
+        "ui_open_view", "timer_start", "timer_status", "notes_list", "notes_view",
         "crew_status", "cad_view", "cad_list_parts", "cad_list_versions", "cad_get_params", "code_open_file", "code_list_files", "code_get_errors",
-        "messages_open", "messages_list_channels", "messages_read_channel", "ml_open", "ml_status", "nn_open", "nn_close", "nn_status", "screen_status",
+        "messages_open", "messages_list_channels", "messages_read_channel", "ml_open", "ml_status", "nn_open", "nn_close", "nn_status",
     };
 
     // Confirming a send is the user's own step: a gesture mustn't be able to do it.

@@ -2,7 +2,7 @@
 
     PYTHONPATH=cloud-py/stubs:cloud-py:hub uvicorn app:app --port 8080      (from the repo root)
 
-Only hub/cad and hub/ml are mounted (no Slack, agent, VS Code or voice). Every request carries
+Only hub/cad and hub/ml are mounted (no Slack, agent or voice). Every request carries
   x-albie-key     == env ALBIE_APP_KEY (401 otherwise)
   x-albie-device  the headset's own id (the app makes one and keeps it); each device gets its own CAD library and
                   version history, its own ML project copy and its own event log, so nobody overwrites anyone.

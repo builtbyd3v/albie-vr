@@ -72,8 +72,8 @@ def test_emitter_companion_follows_the_mode_but_not_an_empty_final() -> None:
     async def go() -> None:
         await emit(ev.stt_final("bit", ""))
         await emit(ev.stt_partial("bit", "hey"))
-        await emit(ev.stt_partial("bit", "hey bit"))
-        await emit(ev.stt_final("bit", "hey bit"))
+        await emit(ev.stt_partial("bit", "hey albie"))
+        await emit(ev.stt_final("bit", "hey albie"))
         await emit(ev.thinking("bit"))
         await emit(ev.stt_final("bit", "   "))
 
@@ -93,7 +93,7 @@ def test_emitter_without_companions_sends_only_the_event() -> None:
 
     target = _Target()
     emit = Emitter("bit", target=target, companion=False)
-    asyncio.run(emit(ev.stt_partial("bit", "hey bit")))
+    asyncio.run(emit(ev.stt_partial("bit", "hey albie")))
     asyncio.run(emit(ev.pet_state("bit", "listening")))
     assert [e.type for e in target.sent] == ["stt.partial", "pet.state"]
 
@@ -110,7 +110,7 @@ def test_a_voice_transcript_after_the_commit_keeps_him_thinking() -> None:
     async def go() -> None:
         await emit(ev.stt_partial("bit", "pause the"))
         await emit(ev.thinking("bit"))
-        await emit(ev.stt_final("bit", "Pause the movie.", voice=True))
+        await emit(ev.stt_final("bit", "Pause the timer.", voice=True))
 
     asyncio.run(go())
     assert [(e.type, e.payload.get("mode")) for e in target.sent if e.type == "pet.state"] == [

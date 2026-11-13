@@ -1,4 +1,4 @@
-"""Say a gator's name (agent/wake.py): parsing, the Grok wake turn, and wake turns over /ws."""
+"""Say an agent's name (agent/wake.py): parsing, the Grok wake turn, and wake turns over /ws."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def test_parse_finds_the_name_at_the_start_of_any_sentence(text: str, who: str |
     ("ok Al B, run it", "bit", "run it"),
     ("Hey Elbie", "bit", ""),
     ("thanks, Alby", "bit", "thanks"),
-    ("Hey Bit, what's in ws.py?", None, "Hey Bit, what's in ws.py?"),
+    ("Hey Bob, what's in ws.py?", None, "Hey Bob, what's in ws.py?"),
     ("a bit more", None, "a bit more"),
     ("Okay Tester, run the hub tests.", "tester", "run the hub tests."),
     ("Hey Scout", "scout", ""),
@@ -439,7 +439,7 @@ def test_text_path_wake_turn_routes_to_the_crew(client: TestClient, monkeypatch:
         def finish(self) -> str: return "Scout, where does greet live?"
 
     monkeypatch.setenv("VOICE_PROVIDER", "none")
-    monkeypatch.setattr("agent.wake.NAME_REQUIRED", True)  # name only: Bit sends nothing at all
+    monkeypatch.setattr("agent.wake.NAME_REQUIRED", True)  # name only: Albie sends nothing at all
     monkeypatch.setattr("agent.ws.make_stt", lambda repo=None: Canned())
     assert stt_mod  # imported for the monkeypatch target's module
     with client.websocket_connect("/ws") as ws:
@@ -457,7 +457,7 @@ def test_text_path_wake_turn_routes_to_the_crew(client: TestClient, monkeypatch:
 
 
 def test_ws_wake_turn_sends_no_pet_state_before_it_is_decided() -> None:
-    """Over ws.py the router's Emitter has no companions: a partial for a named gator is just stt.partial, and
+    """Over ws.py the router's Emitter has no companions: a partial for a named agent is just stt.partial, and
     pet.state listening appears only with the decided final."""
     from agent.bus import Emitter
 
@@ -493,16 +493,16 @@ def test_ws_wake_turn_sends_no_pet_state_before_it_is_decided() -> None:
     ("Hey Scout, where does greet live?", "scout"),
     ("Scout.", "scout"),
     ("can you check the diff, Reviewer?", "reviewer"),
-    ("builder pattern or factory?", None),  # a question for Bit that starts with a type name
-    ("Bit, ask the tester to run them", None),
+    ("builder pattern or factory?", None),  # a question for Albie that starts with a type name
+    ("Albie, ask the tester to run them", None),
     ("what's the static margin", None),
 ])
-def test_crew_target_in_a_bit_turn(text: str, who: str | None) -> None:
+def test_crew_target_in_a_albie_turn(text: str, who: str | None) -> None:
     assert Recorder().router().crew_target(text) == who
 
 
 def test_grok_wake_turn_routes_to_the_crew() -> None:
-    """Wake turn naming a crew gator over the Grok path: no response from Grok, the gator gets the task."""
+    """Wake turn naming a crew member over the Grok path: no response from Grok, Albie gets the task."""
     async def run() -> None:
         grok, sink = MockGrok(), Sink()
         s = _session(grok, sink)
@@ -525,9 +525,9 @@ def test_grok_wake_turn_routes_to_the_crew() -> None:
     asyncio.run(run())
 
 
-def test_grok_bit_turn_naming_the_crew_goes_to_the_crew() -> None:
-    """A normal (hands-free / follow-up) Bit turn that addresses a crew gator: Grok's reply is dropped, Bit gets an
-    empty final (back to idle) and the crew gator gets the task. The WakeListener is paused in these windows."""
+def test_grok_albie_turn_naming_the_crew_goes_to_the_crew() -> None:
+    """A normal (hands-free / follow-up) Albie turn that addresses a crew member: Grok's reply is dropped, Albie gets an
+    empty final (back to idle) and the crew member gets the task. The WakeListener is paused in these windows."""
     async def run() -> None:
         grok, sink = MockGrok(), Sink()
         s = _session(grok, sink)
@@ -569,14 +569,14 @@ def test_parse_mishearings(text, pet, rest):
 @pytest.mark.parametrize("text, pet, rest", [
     ("Albie, test her code", "bit", "test her code"),  # a split name mid-sentence is left alone
     ("fix her bike", None, "fix her bike"),  # no punctuation after the split name: not a name
-    ("Scott said hi", "scout", "said hi"),  # a one-word alias opening the sentence wakes, like "Bit said hi"
+    ("Scott said hi", "scout", "said hi"),  # a one-word alias opening the sentence wakes, like "Albie said hi"
 ])
 def test_parse_split_names_only_where_a_name_can_stand(text, pet, rest):
     assert parse(text) == (pet, rest)
 
 
-def test_free_speech_unnamed_hands_free_turn_goes_to_bit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Default (VOICE_NAME_REQUIRED unset): a hands-free segment with no name is a plain turn for Bit."""
+def test_free_speech_unnamed_hands_free_turn_goes_to_albie(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default (VOICE_NAME_REQUIRED unset): a hands-free segment with no name is a plain turn for Albie."""
     class Canned:
         def feed(self, pcm16: bytes) -> None: ...
         def partial(self) -> None: return None

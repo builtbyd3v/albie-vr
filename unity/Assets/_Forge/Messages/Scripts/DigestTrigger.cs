@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// The arrival digest request and shared panel animation / placement helpers. The hub's notify.digest lets Bit tell
+/// The arrival digest request and shared panel animation / placement helpers. The hub's notify.digest lets Albie tell
 /// the user about new messages; there is no separate floating mentions notice.
 /// The static helpers (<see cref="SpawnAtDesk"/>, <see cref="PopIn"/>, <see cref="FoldOut"/>) are shared with
 /// <see cref="DraftPresenter"/>, so the Send / Cancel card appears and leaves the same way.
@@ -12,7 +12,7 @@ public class DigestTrigger : MonoBehaviour
     const string DigestPath = "/messages/digest";
 
     /// <summary>
-    /// POST /messages/digest: the hub answers on /ws with notify.digest (+ a pet.say line Bit speaks) and marks everything
+    /// POST /messages/digest: the hub answers on /ws with notify.digest (+ a pet.say line Albie speaks) and marks everything
     /// seen. Called by the pet's ArrivalDirector once per sit; no-op (false) unless the hub is live.
     /// </summary>
     public static bool RequestDigest()
@@ -25,11 +25,11 @@ public class DigestTrigger : MonoBehaviour
     // ---- shared placement / animation helpers ---------------------------------------------------------------
 
     /// <summary>
-    /// Instantiate <paramref name="prefab"/> beside Bit: a holder parented to the desk frame at <paramref name="offset"/>
+    /// Instantiate <paramref name="prefab"/> beside Albie: a holder parented to the desk frame at <paramref name="offset"/>
     /// (m: right of the front edge midpoint, up, into the desk), turned to face the user. <paramref name="configure"/>
     /// runs on the instance while the holder is still inactive, so components can be set up before their OnEnable.
     /// Returns the (active) holder; destroy it to remove the whole thing. The holder carries a <see cref="MessagesDeskZone"/>
-    /// so the pet keeps its gators out from under floating cards.
+    /// so the pet keeps its agents out from under floating cards.
     /// </summary>
     public static GameObject SpawnAtDesk(DeskPresence presence, GameObject prefab, Vector3 offset, string holderName,
         Action<GameObject> configure = null)

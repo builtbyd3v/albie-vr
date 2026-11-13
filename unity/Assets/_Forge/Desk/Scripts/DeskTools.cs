@@ -5,7 +5,7 @@ using UnityEngine;
 
 /// <summary>
 /// Albie's desk tools with the hub off: the timer_ and notes_ tools of hub/desk/tools.py, run on the device's copy in
-/// <see cref="DeskApi"/>. Definitions: <c>Resources/AlbieTools/desk.json</c>. The movie tools: <see cref="MovieTools"/>.
+/// <see cref="DeskApi"/>. Definitions: <c>Resources/AlbieTools/desk.json</c>.
 /// </summary>
 public static class DeskTools
 {

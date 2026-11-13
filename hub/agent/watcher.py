@@ -1,10 +1,10 @@
-"""Proactive Bit: when something breaks under the user, Bit speaks first. Once, never over anyone, never acting.
+"""Proactive Albie: when something breaks under the user, Albie speaks first. Once, never over anyone, never acting.
 
-Callers hand events over directly (no bus listener, so no contract change):
-vscode/router.py on POST /vscode/event, and cad/service.py on cad.regen_failed and every good build (main.py).
+Callers hand events over directly (no bus listener, so no contract change): cad/service.py on cad.regen_failed
+and every good build, the ML overfit alert and Slack mentions (main.py, ml/router.py).
 
-Per event Bit moves to the panel (pet.state working + target_panel), says one line (pet.say bubble, and
-voice when a Grok session is live) and makes the broken line glow in VS Code. It never edits code: Grok gets the
+Per event Albie moves to the panel (pet.state working + target_panel) and says one line (pet.say bubble, and
+voice when a Grok session is live). It never edits code: Grok gets the
 file, line and error as hidden context with the line, so a "yes" turns into its normal delegate(mode=code) fix.
 
 Rules: one unprompted line per GAP_S; while waiting only the newest line per file (or terminal, CAD) is kept;
@@ -19,12 +19,10 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
-from vscode import tools as vscode_tools
 
 from . import events as ev
 from .bus import bus
@@ -34,15 +32,13 @@ log = logging.getLogger(__name__)
 
 PET_ID = "bit"
 GAP_S = 20.0
-GLOW_MS = 8000
-CTRL_C = 130
 ERROR_MAX = 300  # chars of the error Grok gets as context
 OFFERS_KEPT = 5  # Fix it buttons still on older cards work for the last few lines
 
 
 @dataclass(frozen=True)
 class Line:
-    slot: str  # what it is about (a file, the terminal); a new line for the same slot replaces the old one
+    slot: str  # what it is about (a file, the CAD design, a chat); a new line for the same slot replaces the old one
     key: str | None  # same slot + key as last time = already said; None = always say
     text: str
     path: str | None = None
@@ -77,7 +73,7 @@ def reply_context(said: str, ts: str) -> str:
 
 
 def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | None:
-    """What Bit says about one event, or None to stay quiet."""
+    """What Albie says about one event, or None to stay quiet."""
     if type_ == "ml.overfit_alert":  # one per run (the SDK alerts once; each demo replay alerts once)
         epoch = p.get("epoch")
         since = f" since epoch {epoch}" if epoch is not None else ""
@@ -110,45 +106,19 @@ def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | No
                     context=fix_context(text, where, error), task=fix_task(where, error))
 
     if type_ == "cad.built":
-        # Bit only says it once a broken rocket he spoke about builds again (Watcher.notify checks that)
+        # Albie only says it once a broken rocket he spoke about builds again (Watcher.notify checks that)
         return Line("cad", "fixed", "Fixed it. The rocket builds again.") if p.get("source") == "script" else None
 
-    if type_ != "vscode.event":
-        return None
-    if p["kind"] == "command_finished":
-        code = p.get("exit_code")
-        if code in (None, 0, CTRL_C):
-            return None
-        text = f"That command crashed with exit code {code}. Want me to look at it?"
-        where = f"the terminal command {p.get('command') or 'the user ran'}"
-        return Line("terminal", None, text, context=fix_context(text, where, f"exit code {code}"),
-                    task=fix_task(where, f"it exited with code {code}; find out why"))
-
-    file = p.get("file") or ""
-    if cad_script and Path(cad_script).as_posix().endswith("/" + file):
-        return None  # a broken rocket.py also fails the regen, which points at the line itself
-    name = Path(file).name
-    count = p.get("count") or 0
-    if count == 0:
-        return Line(file, "fixed", f"Nice, {name} is clean again.")
-    n = p.get("line")
-    more = f", plus {count - 1} more" if count > 1 else ""
-    text = f"Line {n} in {name} has an error{more}." if n else f"{name} has an error{more}."
-    text = f"{text} Want me to look?"
-    message = p.get("message") or ""
-    where = f"line {n} of {file}" if n else file
-    error = message[:ERROR_MAX] or "an error"
-    return Line(file, f"{n}:{message}", text, file, n, message[:80],
-                context=fix_context(text, where, error), task=fix_task(where, error))
+    return None
 
 
 class Watcher:
     def __init__(self, *, broadcast: Callable[[Event], Awaitable[None]] = bus.broadcast,
-                 highlight: Callable[..., Any] = vscode_tools.highlight, gap_s: float = GAP_S) -> None:
+                 gap_s: float = GAP_S) -> None:
         self.cad_script: str | None = None
         # ponytail: duck-typed, only Grok has say(); agent/ws.py calls add() and drop()
         self._voices: dict[Any, asyncio.Task[None] | None] = {}  # voice -> its queued say()
-        self._broadcast, self._highlight, self._gap_s = broadcast, highlight, gap_s
+        self._broadcast, self._gap_s = broadcast, gap_s
         self._said: dict[str, str | None] = {}  # slot -> key last spoken
         self._pending: dict[str, Line] = {}  # slot -> newest unspoken line, oldest slot first
         self._next_ok = 0.0
@@ -166,7 +136,7 @@ class Watcher:
             task.cancel()
 
     def notify(self, type_: str, payload: BaseModel | dict[str, Any]) -> None:
-        """Hand over an event (from a running event loop). Returns at once; Bit speaks in the background."""
+        """Hand over an event (from a running event loop). Returns at once; Albie speaks in the background."""
         body = payload.model_dump() if isinstance(payload, BaseModel) else payload
         line = line_for(type_, body, self.cad_script)
         if line is None:
@@ -175,7 +145,7 @@ class Watcher:
             self._pending.pop("cad", None)  # nothing said about a break (or it was queued only): stay quiet
             return
         if line.key is not None and self._said.get(line.slot) == line.key:
-            self._pending.pop(line.slot, None)  # back to what Bit last said: the queued change is stale
+            self._pending.pop(line.slot, None)  # back to what Albie last said: the queued change is stale
             return
         self._pending.pop(line.slot, None)  # re-insert at the end: newest line for this slot wins
         self._pending[line.slot] = line
@@ -217,11 +187,6 @@ class Watcher:
             await self._speak(line)
 
     async def _speak(self, line: Line) -> None:
-        if line.path and line.line:
-            try:
-                await asyncio.to_thread(self._highlight, line.path, line.line, None, line.note, GLOW_MS)
-            except Exception as exc:  # noqa: BLE001 - VS Code closed: Bit still speaks
-                log.info("no glow in VS Code: %s", exc)
         await self._broadcast(ev.pet_state(PET_ID, "working", target_panel=line.panel))
         await self._broadcast(ev.pet_say(PET_ID, line.text, self._card(line)))
         for voice, queued in list(self._voices.items()):

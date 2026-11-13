@@ -232,7 +232,7 @@ Delight rankings are opinion. Days are rough estimates. Apps named are prior art
 | # | Gesture | How it works | Why | Risk | Days |
 |---|---|---|---|---|---|
 | 1 | **Palm out: Albie comes to you** | Open pose, palm facing out, held 0.5 s | Hello Dot's pet summon, hand-only [S] | Stay clear of the palm-towards-face system pose | 0.5 |
-| 2 | **Poke or pet Albie** | Poke proximity on the gator, `GatorHandPoke` exists [Repo] | Pinch and touch have self-haptic feel [S] | Low | 0.5 |
+| 2 | **Poke or pet Albie** | Poke proximity on Albie, `AlbieHandPoke` exists [Repo] | Pinch and touch have self-haptic feel [S] | Low | 0.5 |
 | 3 | **Flat palm: Albie hops on** | Flat palm, still for 1 s | Instantly reads as a pet | Tracking at low speed, carrying logic | 1 |
 | 4 | **Tap the desk: UI pops up** | Section 5 | Your idea, and physical | Accuracy | 2 |
 | 5 | **Point, pinch, flick: window comes to you** | Earlier doc's state machine | Alyx's gravity gloves are the proof [S] | Filter lag at 30 Hz | 2 |

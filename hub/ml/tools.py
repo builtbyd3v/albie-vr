@@ -1,7 +1,7 @@
 """Albie's ML tools (voice model + Claude runner), registered through agent/tools.py like the desk tools.
 
 The demo: "Albie, open the ML project I've been working on" (ml_open: the ML desk unfolds with the last run),
-"what can I do better?" (ml_improve: Claude reads the run and writes a change; the diff opens in VS Code and
+"what can I do better?" (ml_improve: Claude reads the run and writes a change; the card shows it and
 Albie says what he'd change), "yes" (ml_apply: the change goes in, training starts, the curves stream live and
 Albie says the new score when it's done). ml_undo puts the code back.
 
@@ -90,7 +90,7 @@ def titles(plan: dict) -> list[str]:
 
 def spoken(plan: dict) -> str:
     """What Albie says about a proposal, about 20 words (the brevity rule): the diagnosis, the first change and
-    the question. The full list is on the card and the diff is in VS Code. Never raises: Albie always answers."""
+    the question. The full list and the diff are on the card. Never raises: Albie always answers."""
     try:
         changes = titles(plan)
         changes = [c[0].lower() + c[1:] if not any(ch.isupper() for ch in c.split()[0][1:]) else c for c in changes]  # keep "AdamW", "LR"
@@ -103,7 +103,7 @@ def spoken(plan: dict) -> str:
         return f"{_sentences(str(plan.get('diagnosis') or ''), 1)} {what} Apply it and retrain?".strip()
     except Exception:  # noqa: BLE001 - an odd proposal still gets a spoken line
         log.exception("spoken ML line")
-        return "I have a change ready; it's on the card and in VS Code. Apply it and retrain?"
+        return "I have a change ready; it's on the card. Apply it and retrain?"
 
 
 def card(plan: dict, n: int) -> ev.Card:
@@ -200,7 +200,7 @@ class MLTools:
         out: dict[str, Any] = {"project": svc.repo.name, "status": svc.project.get("status"),
                                "summary": svc.project.get("summary")}
         if out["status"] == "needs_approval":
-            out["note"] = "Setup wrote a small patch so training streams live; the user accepts it in VS Code."
+            out["note"] = "Setup wrote a small patch so training streams live; the user accepts it on the Training panel."
         elif out["status"] not in ("ready", "failed"):
             out["note"] = "Still setting up; the desk opens by itself when it's ready."
         elif out["status"] == "failed":
@@ -258,10 +258,6 @@ class MLTools:
             log.exception("ml improve failed")
             await self.say(f"I couldn't work out a change: {e}")
             return
-        try:
-            await asyncio.to_thread(self._open_diff, plan)
-        except Exception:  # noqa: BLE001 - no VS Code: the spoken summary still goes out
-            log.info("no diff window for the improvement", exc_info=True)
         self.offer += 1
         await self.say(spoken(plan), card(plan, self.offer))
         # Lab 2026-10-25 (2 of 2 runs): "go for it" after this offer ran ml_train, not the change. Same note as the NN lab.
@@ -287,17 +283,6 @@ class MLTools:
             return False
         await self.say(f"Applied. Training {out['epochs']} epochs now; the curves are live.")
         return True
-
-    def _open_diff(self, plan: dict) -> None:
-        import shutil
-        import subprocess
-
-        code = shutil.which("code")
-        if code is None:
-            return
-        out = improve._dir(self.svc)
-        for rel in plan["files"]:
-            subprocess.Popen([code, "--diff", str(self.svc.repo / rel), str(out / rel)])
 
     async def apply(self) -> dict[str, Any]:
         svc = self.svc

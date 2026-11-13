@@ -17,7 +17,7 @@ public sealed class GesturePerch
     const float NoSpeechSeconds = 15f;
 
     readonly GestureEngine engine;
-    GatorController gator;
+    AlbieController albie;
     PushToTalk talk;
     GestureHand hand;
     Transform anchor;
@@ -28,19 +28,19 @@ public sealed class GesturePerch
 
     public GesturePerch(GestureEngine engine) => this.engine = engine;
 
-    GatorController Gator()
+    AlbieController Albie()
     {
-        if (gator != null) return gator;
-        var crew = Object.FindAnyObjectByType<GatorCrew>();
-        if (crew != null && crew.Lead != null) gator = crew.Lead;
-        if (gator == null) gator = Object.FindAnyObjectByType<GatorController>();
-        return gator;
+        if (albie != null) return albie;
+        var crew = Object.FindAnyObjectByType<AlbieCrew>();
+        if (crew != null && crew.Lead != null) albie = crew.Lead;
+        if (albie == null) albie = Object.FindAnyObjectByType<AlbieController>();
+        return albie;
     }
 
     public string Call(GestureHand fromHand)
     {
         if (Active) return null;
-        GatorController g = Gator();
+        AlbieController g = Albie();
         if (g == null) return "No Albie here";
 
         if (anchor == null) anchor = new GameObject("AlbiePalm").transform;
@@ -65,7 +65,7 @@ public sealed class GesturePerch
 
     public string Come()
     {
-        GatorController g = Gator();
+        AlbieController g = Albie();
         if (g == null) return "No Albie here";
         g.ReleaseStation();
         if (Active) Leave(g.ComeToUser);  // he has to land first: the walk needs his agent back
@@ -116,8 +116,8 @@ public sealed class GesturePerch
         if (!landed || !keepListening || now < listenAt) return;
         if (talk == null) talk = Object.FindAnyObjectByType<PushToTalk>();
         if (talk == null || talk.SessionActive) return;
-        GatorState state = gator.State;
-        if (state == GatorState.Thinking || state == GatorState.Answering || state == GatorState.Working) return;
+        AlbieState state = albie.State;
+        if (state == AlbieState.Thinking || state == AlbieState.Answering || state == AlbieState.Working) return;
         if (!talk.CanListenHandsFree || !talk.BeginHandsFree(NoSpeechSeconds))
         {
             listenAt = now + 2f;
@@ -143,10 +143,10 @@ public sealed class GesturePerch
             talk.SessionEnded -= OnSessionEnded;
             if (talk.HandsFree) talk.CancelSession();
         }
-        if (gator != null)
+        if (albie != null)
         {
-            gator.PerchArrived -= OnArrived;
-            gator.LeavePerch(thenDo);
+            albie.PerchArrived -= OnArrived;
+            albie.LeavePerch(thenDo);
         }
     }
 }

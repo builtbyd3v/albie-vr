@@ -7,7 +7,7 @@ namespace Forge.Pet
 {
     /// <summary>
     /// The first-arrival greeting: a translucent card with the digest line ("You have 3 new messages, 1 mentions you.")
-    /// floating beside Bit, and a START pill (one of Hudson's dock controls, <see cref="DockRing"/>) on a frosted bar, low over
+    /// floating beside Albie, and a START pill (one of Hudson's dock controls, <see cref="DockRing"/>) on a frosted bar, low over
     /// the desk straight in front of the user. Both are
     /// built into PetRuntime.prefab by the editor (Forge > Pet > Build All, PetRuntimeSetup / ArrivalSetup), saved
     /// inactive, and driven by <see cref="ArrivalDirector"/>: <see cref="Show"/> places them in the desk frame and pops

@@ -48,7 +48,7 @@ public sealed class IsdkHandSource : IHandSource
         sample.highConfidence = source.IsHighConfidence;
     }
 
-    // ponytail: rescan (allocates) every 2 s while a hand is missing, as GatorHandPoke does, instead of hooking the rig's setup.
+    // ponytail: rescan (allocates) every 2 s while a hand is missing, as AlbieHandPoke does, instead of hooking the rig's setup.
     void Scan()
     {
         nextScan = Time.time + RescanSeconds;

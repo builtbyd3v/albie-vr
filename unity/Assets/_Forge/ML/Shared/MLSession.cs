@@ -342,14 +342,14 @@ namespace Forge.ML
         }
         public void ConfirmProjectType(string archetype) =>
             ForgeNet.Post("/ml/project/type", new { archetype }, null, e => { Notice = "Couldn't set the type: " + HubDetail(e); Changed?.Invoke(); });
-        // The proposed patch in the laptop's VS Code (the CODE screen), or a summary when VS Code isn't there.
+        // What the proposed patch changes, before the user accepts it.
         public void ShowPatch() =>
             ForgeNet.Post("/ml/project/diff", null, text =>
             {
-                bool opened = false; int files = 0;
-                try { var o = Newtonsoft.Json.Linq.JObject.Parse(text); opened = o.Value<bool>("opened"); files = (o["files"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0; }
+                int files = 0;
+                try { var o = Newtonsoft.Json.Linq.JObject.Parse(text); files = (o["files"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0; }
                 catch (Exception) { }
-                Notice = opened ? "The patch is open in the code editor on the laptop (the CODE screen)." : $"No code editor on the laptop: the patch adds forge calls to {files} file(s).";
+                Notice = $"The patch adds forge calls to {files} file(s).";
                 Changed?.Invoke();
             }, e => { Notice = "Couldn't open the patch: " + HubDetail(e); Changed?.Invoke(); });
         // The user's confirmation step (PROJECT_CONTEXT 12): only Accept writes the patch into the repo.

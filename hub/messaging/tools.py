@@ -1,4 +1,4 @@
-"""Bit's messaging tools (voice model + Claude runner), registered through agent/tools.py like the CAD tools.
+"""Albie's messaging tools (voice model + Claude runner), registered through agent/tools.py like the CAD tools.
 
 Reading: messages_read_latest (the inbox, newest first), messages_list_channels (every conversation with its unread
 count), messages_read_channel (the last n in one conversation). Showing: messages_open puts a conversation on the

@@ -1,4 +1,4 @@
-"""Bit's crew (agent/crew.py): roster from Unity, parallel member turns, Bit's crew tools, crew runner options."""
+"""Albie's crew (agent/crew.py): roster from Unity, parallel member turns, Albie's crew tools, crew runner options."""
 
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def test_crew_tools_are_lead_only() -> None:
     assert "mcp__forge__assign_task" not in tools.mcp_names(lead=False)
 
 
-def test_crew_tool_does_not_walk_bit(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_crew_tool_does_not_walk_albie(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[Event] = []
 
     async def broadcast(e: Event) -> None:
@@ -116,7 +116,7 @@ def test_spawn_without_headset_is_an_error(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 # ------------------------------------------------------------------ over the socket (FAKE_AGENT)
-def test_crew_members_work_in_parallel_with_bit(client: TestClient) -> None:
+def test_crew_members_work_in_parallel_with_albie(client: TestClient) -> None:
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
         ws.send_json({"type": "crew.roster", "payload": {"members": [
@@ -126,7 +126,7 @@ def test_crew_members_work_in_parallel_with_bit(client: TestClient) -> None:
         ws.send_json({"type": "agent.ask", "payload": {"pet_id": "bit", "text": "what does greet do?", "mode": "qa"}})
         want = {("tester", "agent.task_complete"),  # tester defaults to code
                 ("scout", "agent.answer_done"),  # read-only: "fix ..." is still answered as qa
-                ("bit", "agent.answer_done")}  # Bit's own turn isn't cancelled by the crew's
+                ("bit", "agent.answer_done")}  # Albie's own turn isn't cancelled by the crew's
         msgs: list[dict[str, Any]] = []
         while want and len(msgs) < 80:
             msgs.append(ws.receive_json())
@@ -135,7 +135,7 @@ def test_crew_members_work_in_parallel_with_bit(client: TestClient) -> None:
     assert not want
 
 
-def test_ask_to_unknown_pet_is_bits(client: TestClient) -> None:
+def test_ask_to_unknown_pet_is_albie(client: TestClient) -> None:
     """A pet_id that isn't on the crew keeps the old behaviour (the socket's turn)."""
     with client.websocket_connect("/ws") as ws:
         _hello(ws)
@@ -191,13 +191,13 @@ def test_crew_options_follow_the_kit(tmp_path: Path) -> None:
     assert "Bash(git commit:*)" in scribe.allowed_tools and "Bash" not in scribe.allowed_tools
     assert "Bash(git worktree:*)" in scribe.disallowed_tools
 
-    bit = runner._options(_project(tmp_path), "qa", "bit")
-    assert "mcp__forge__assign_task" in bit.allowed_tools and "crew of helper gators" in bit.system_prompt
+    albie = runner._options(_project(tmp_path), "qa", "bit")
+    assert "mcp__forge__assign_task" in albie.allowed_tools and "crew of helper agents" in albie.system_prompt
 
 
-def test_crew_runners_get_only_their_kit_and_vscode_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Allowlist: never cad_* (except the Designer), never messages_*, never the crew tools; Bit keeps everything."""
-    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # registry copy: vscode_* and the crew tools are in it
+def test_crew_runners_get_only_their_kit_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allowlist: never cad_* (except the Designer), never messages_*, never the crew tools; Albie keeps everything."""
+    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # registry copy: the crew tools are in it
 
     async def noop(name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {}
@@ -210,15 +210,15 @@ def test_crew_runners_get_only_their_kit_and_vscode_tools(tmp_path: Path, monkey
         return {t.removeprefix("mcp__forge__") for t in opts.allowed_tools if t.startswith("mcp__forge__")}
 
     reviewer = forge(runner._options(_project(tmp_path), "qa", "reviewer", TYPES["reviewer"]))
-    assert reviewer and all(n.startswith("vscode_") for n in reviewer)
+    assert reviewer == set()  # no kit module: no hub tools
     builder = forge(runner._options(_project(tmp_path), "code", "builder", TYPES["builder"]))
     assert builder == reviewer
     designer = forge(runner._options(_project(tmp_path), "qa", "designer", TYPES["designer"]))
-    assert {"cad_get_params", "cad_set_params"} <= designer and all(n.startswith(("vscode_", "cad_")) for n in designer)
+    assert {"cad_get_params", "cad_set_params"} <= designer and all(n.startswith("cad_") for n in designer)
     assert {n for n in designer if not n.startswith("cad_")} == reviewer  # other suites may register more cad_* tools
-    bit = forge(runner._options(_project(tmp_path), "qa", "bit"))
-    assert {"cad_set_params", "messages_send", "spawn_agent", "assign_task", "vscode_highlight"} <= bit
-    assert runner.crew_forge_allow(TYPES["tester"]) == ("vscode_",) and runner.crew_forge_allow(TYPES["designer"]) == ("vscode_", "cad_")
+    albie = forge(runner._options(_project(tmp_path), "qa", "bit"))
+    assert {"cad_set_params", "messages_send", "spawn_agent", "assign_task"} <= albie
+    assert runner.crew_forge_allow(TYPES["tester"]) == () and runner.crew_forge_allow(TYPES["designer"]) == ("cad_",)
     # the in-process MCP server offers the same filtered set
     server_tools = {t.name for t in tools._mcp_tools("builder", lead=False, allow=runner.crew_forge_allow(TYPES["builder"]))}
     assert server_tools == builder
@@ -238,8 +238,8 @@ def test_create_task_worktree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert runner.create_task_worktree(tmp_path / "not-a-repo-" , "x", "1", "tester") is None
 
 
-def test_sending_a_crew_gator_home_never_cancels_bit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Unity's Dismiss: agent.cancel {pet_id: crew} then a roster without it. Bit's own turn keeps going."""
+def test_sending_a_crew_albie_home_never_cancels_albie(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unity's Dismiss: agent.cancel {pet_id: crew} then a roster without it. Albie's own turn keeps going."""
     monkeypatch.setenv("FAKE_AGENT_DELAY", "0.15")
     with client.websocket_connect("/ws") as ws:
         _hello(ws)

@@ -86,7 +86,7 @@ public class CadViewer : MonoBehaviour
     public float stageDistance = 0.6f;
     [Tooltip("...and this far below them (m).")]
     public float stageDrop = 0.1f;
-    [Tooltip("The model is scaled to fit this box (m: width, height, depth). CAD mode's VS Code screen is 0.8 m in " +
+    [Tooltip("The model is scaled to fit this box (m: width, height, depth). CAD mode's main screen is 0.8 m in " +
              "front of the eyes, so the box stays in front of it.")]
     public Vector3 stageSize = new Vector3(0.6f, 0.6f, 0.36f);
     [Tooltip("On the stage the model is turned this far (deg) so you see a corner (a Run design faces you square on)...")]
@@ -435,7 +435,7 @@ public class CadViewer : MonoBehaviour
         annotations.Build(current, info, exploder, holder, assembled);
         player.Bind(holder, current, info, assembled);
         ShowParam();  // a row still pointed at lights the new version's parts
-        if (session != null) session.ReportShown(info, shownGeneration);  // last: Bit's queued buttons act on this model
+        if (session != null) session.ReportShown(info, shownGeneration);  // last: Albie's queued buttons act on this model
     }
 
     void Update()
@@ -673,7 +673,7 @@ public class CadViewer : MonoBehaviour
         {
             float tan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
             float fit = Mathf.Max(stageSize.y, stageSize.x / Mathf.Max(cam.aspect, 0.1f)) * 0.55f / tan;  // 10% margin
-            // But no further than keeps the box in front of CAD mode's VS Code screen (0.8 m), which would hide it.
+            // But no further than keeps the box in front of CAD mode's main screen (0.8 m), which would hide it.
             distance = Mathf.Min(Mathf.Max(distance, fit + stageSize.z * 0.5f), StageMaxDistance);
         }
         if (trueSize)

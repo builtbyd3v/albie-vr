@@ -1,7 +1,7 @@
-"""Say a gator's name and it listens: routing for Unity's always-on, VAD-gated speech (WakeListener).
+"""Say an agent's name and it listens: routing for Unity's always-on, VAD-gated speech (WakeListener).
 
 Unity streams each speech segment it hears as a normal turn marked ``stt.start {wake: true}``. The transcript is
-held back (no stt.*, no pet.state for room chatter) until we know who it is for; the gator's ``pet.state listening``
+held back (no stt.*, no pet.state for room chatter) until we know who it is for; Albie's ``pet.state listening``
 goes out only when a segment turns out to be a request for it:
 
     "Hey Albie, what's in ws.py?"   -> Albie answers (voice: Grok responds to the turn; else agent.ask)
@@ -36,7 +36,7 @@ from .crew import TYPES, crew
 
 log = logging.getLogger(__name__)
 
-# Dev, 2026-10-24: name only. At the desk Albie sits in front of the VS Code screen, so looking at the screen read as
+# Dev, 2026-10-24: name only. At the desk Albie sits in front of the code screen, so looking at the screen read as
 # looking at him (live 19:29-19:33: angle 5-17 degrees either way) and side talk was answered. VOICE_FACING=1 brings
 # "looking at him counts as his name" back.
 FACING_COUNTS = os.getenv("VOICE_FACING", "0") == "1"
@@ -44,17 +44,6 @@ FACING_COUNTS = os.getenv("VOICE_FACING", "0") == "1"
 # Albie (agent/ws.py), answered at commit with no wait for the transcript; "Tester, ..." still goes to the crew.
 # VOICE_NAME_REQUIRED=1 brings back name only.
 NAME_REQUIRED = os.getenv("VOICE_NAME_REQUIRED", "0") == "1"
-# main.py: True while the movie plays. Its soundtrack reaches the headset mic, so free speech would answer the film:
-# while it plays an unnamed turn counts only if it is a desk request ("pause it", "how long is left on my timer?";
-# voice.py addressed). Film lines ("I am Iron Man", "I need a suit, now") carry none of these words.
-name_needed: Callable[[], bool] = lambda: False
-DESK_REQUEST = re.compile(
-    r"\b(?:pause|stop|close|resume|unpause|play|volume|louder|quieter|softer|skip|rewind|mute|unmute|jump|go back|"
-    r"save|mark|spot|timer|minutes?|notes?|to-?do|list|cross|check (?:off|it)|open|show|pull up|bring up|set|add|"
-    r"switch|turn (?:it|that|the movie|the volume|them)|what'?s|what is|how (?:much|long|is|are|many)|how'?s|can you|"
-    r"could you|albie|rocket|drone|quadcopter|gearbox|robot|humanoid|design|model|training|train|lab|neuron|code|"
-    r"messages?|slack|text|undo|reset|fly|launch|demo|explode|expand|hand me|highlight)\b", re.I)
-
 GREETINGS = {"hey", "hi", "hello", "ok", "okay", "yo", "oi", "oh", "um", "uh", "so", "yes", "yeah", "yep", "alright",
              "well", "and", "please"}  # "Yes, Albie. Find..." (live 19:54) was dropped with only the first set
 # Common mis-hearings, per pet id ("bit" = the lead, spoken name Albie). Keep these unambiguous English-wise.
@@ -169,9 +158,9 @@ class WakeRouter:
         self.facing, self.gated = facing, gated
 
     def crew_target(self, text: str) -> str | None:
-        """The crew gator a non-wake turn (push-to-talk, hands-free, Bit's follow-up window) is really for, if any.
+        """The crew member a non-wake turn (push-to-talk, hands-free, Albie's follow-up window) is really for, if any.
         Stricter than a wake turn: the name must be greeted ("Hey Tester ...") or set off ("Tester, ..."), so a
-        question to Bit that merely starts with a type name ("builder pattern?") stays Bit's."""
+        question to Albie that merely starts with a type name ("builder pattern?") stays Albie's."""
         pid, _ = parse(text, self.lead)
         if pid is None or pid == self.lead:
             return None
@@ -192,7 +181,7 @@ class WakeRouter:
 
     async def partial(self, text: str) -> None:
         pid, _ = self._who(text, self.target)
-        if pid is not None:  # addressed: now the gator may show what it's hearing
+        if pid is not None:  # addressed: now Albie may show what it's hearing
             await self._emit_for(pid)(ev.stt_partial(pid, text))
 
     async def final(self, text: str, flags: tuple[str | None, bool, bool] | None = None) -> Decision:
@@ -222,7 +211,7 @@ class WakeRouter:
             await self._emit_for(pid)(ev.pet_state(pid, "listening"))
             await self._emit_for(pid)(ev.stt_final(pid, text, voice=True))
             return Decision(pid, rest, True)
-        # A crew gator (hatched on demand).
+        # A crew member (hatched on demand).
         if not rest:
             self._spawn(self._summon(pid))
         else:
@@ -237,7 +226,7 @@ class WakeRouter:
             if "error" in out:
                 await self._emit_for(pid)(ev.error(pid, str(out["error"])))
                 return
-            await asyncio.sleep(0.3)  # let the new gator's bridge attach before it's told to listen
+            await asyncio.sleep(0.3)  # let the new agent's bridge attach before it's told to listen
         await self._send_owner(ev.wake_listen(pid))
 
     async def _assign(self, pid: str, task: str) -> None:

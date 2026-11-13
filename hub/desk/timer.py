@@ -1,8 +1,8 @@
 """Focus timers: a few at a time, each with a name, owned by the hub.
 
-Bit starts one ("set a 25 minute timer for the standup"); Unity shows them as pills above the screens (minimized: one
+Albie starts one ("set a 25 minute timer for the standup"); Unity shows them as pills above the screens (minimized: one
 dot showing the one that ends soonest) and counts each down on its own from remaining_s; the hub rings each at its
-end (timers.updated with it ringing, and Bit says so). A timer rings until it's stopped. Not saved to disk: a hub
+end (timers.updated with it ringing, and Albie says so). A timer rings until it's stopped. Not saved to disk: a hub
 restart forgets them.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ Ring = Callable[[TimerState], Awaitable[None]]
 
 
 def human(seconds: float) -> str:
-    """'1 hour 30 minutes', '25 minutes', '45 seconds': for Bit to say."""
+    """'1 hour 30 minutes', '25 minutes', '45 seconds': for Albie to say."""
     s = max(0, round(seconds))
     if s < 60:
         return f"{s} second{'' if s == 1 else 's'}"
@@ -36,7 +36,7 @@ def human(seconds: float) -> str:
 
 
 def ring_line(state: TimerState) -> str:
-    """What Bit says when a timer rings."""
+    """What Albie says when a timer rings."""
     if state.label.lower() == "focus":
         return f"Time's up! That's {human(state.duration_s)} of focus."
     return f"Time's up! Your {state.label} timer is done."

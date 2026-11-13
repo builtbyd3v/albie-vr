@@ -23,7 +23,7 @@ HUB = Path(__file__).resolve().parents[1]
 PARTS = HUB / "cad" / "parts"
 
 # Each state's changes apply on top of the one before. The first design is the one the sandbox opens. The label is
-# what the hub would call the version (cad.model_updated.label): Bit's request in the user's words, or a preset.
+# what the hub would call the version (cad.model_updated.label): Albie's request in the user's words, or a preset.
 STATES = {
     # CAD_PLAN section 10: green, "smaller fins" red, "add a fourth fin" amber, "20% longer" green.
     "rocket": [("baseline", {}, "Defaults"),

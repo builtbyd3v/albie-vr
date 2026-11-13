@@ -866,8 +866,7 @@ public class Workspace : MonoBehaviour
             id = "ml", label = "ML", color = ForgeTheme.ML,
             items =
             {
-                new WorkspaceItem("screen-main", "Code", WorkspaceSlot.Main),
-                new WorkspaceItem("ml-training", "Training", WorkspaceSlot.Above),
+                new WorkspaceItem("ml-training", "Training", WorkspaceSlot.Main),
                 // Panels, like the ML prefabs (ML/Resources/MLPanels, all ForgePanel variants); ids per section 7.
                 new WorkspaceItem("ml-datastack", "Dataset", WorkspaceSlot.FarLeft),
                 new WorkspaceItem("ml-model3d", "Model", WorkspaceSlot.Left),
@@ -885,7 +884,7 @@ public class Workspace : MonoBehaviour
                 new WorkspaceItem("cad-timeline", "Versions", WorkspaceSlot.Left),
             },
         },
-        // The landing mode: just the editor. The pet opens it on START, after the arrival greeting.
+        // The landing mode: just the headset's code panel (Code/CodeMode). The pet opens it on START, after the arrival greeting.
         new WorkspaceMode
         {
             id = "code", label = "CODE", color = ForgeTheme.Code,

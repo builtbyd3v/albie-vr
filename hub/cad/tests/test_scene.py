@@ -431,7 +431,7 @@ def test_flight_when_the_charge_fires_before_apogee(tmp_path):
     assert f["deploy_time_s"] == f["time_to_apogee_s"] and "before apogee" in f["assumptions"][-1]
 
 
-# Over REST, the WebSocket and Bit's tools
+# Over REST, the WebSocket and Albie's tools
 
 @pytest.fixture(scope="module")
 def hub(tmp_path_factory):
@@ -464,7 +464,7 @@ def test_api_serves_the_new_fields(hub):
     def call(tool, **args):
         return hub.portal.call(call_tool, tool, args, cad, bus)
 
-    brief = call("cad_get_params")["analysis"]   # Bit gets the numbers, not the coordinates
+    brief = call("cad_get_params")["analysis"]   # Albie gets the numbers, not the coordinates
     assert "explode" not in brief and "markers" not in brief and "spin_parts" not in brief["demo"]
     assert brief["dimensions"][0] == {"id": "length", "label": "Length", "value_mm": 390.0}
     assert brief["mass_breakdown"] == analysis["mass_breakdown"]
@@ -640,7 +640,7 @@ def test_versions_have_labels_and_their_main_metric(hub):
         assert next_of(ws, "cad.model_updated")["label"] == "Fin count 3 → 4"
         hub.portal.call(call_tool, "cad_set_params", {"changes": SMALL_FINS, "request": "Make the fins smaller"},
                         cad, bus)
-        assert next_of(ws, "cad.model_updated")["label"] == "Make the fins smaller"   # Bit's words
+        assert next_of(ws, "cad.model_updated")["label"] == "Make the fins smaller"   # Albie's words
     assert hub.post("/cad/preset", json={"name": "cone NOSE"}).status_code == 200
     assert hub.post("/cad/params", json={"fin_root": 50, "fin_tip": 30, "fin_span": 50}).status_code == 200
     assert hub.post("/cad/reset").status_code == 200

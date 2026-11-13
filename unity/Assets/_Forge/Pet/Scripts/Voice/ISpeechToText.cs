@@ -2,7 +2,7 @@ using System;
 
 namespace Forge.Pet
 {
-    /// <summary>Speech-to-text provider (see docs/PET_AGENT_CONTRACT.md "Speech-to-text").</summary>
+    /// <summary>Speech-to-text provider (see docs/archive/PET_AGENT_CONTRACT.md "Speech-to-text").</summary>
     public interface ISpeechToText
     {
         bool IsListening { get; }

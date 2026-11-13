@@ -5,8 +5,8 @@ VOICE_PROVIDER (env):
 * ``grok``  Grok Voice over raw websockets (``wss://api.x.ai/v1/realtime``), key ``XAI_API_KEY``.
 * ``fake``  canned reply from a bundled PCM file, no key, no network (Unity testing).
 
-Grok handles conversation itself. Quick actions (open a view, the CAD design and its demo, Slack drafts with files,
-VS Code highlight/open) are direct tools from
+Grok handles conversation itself. Quick actions (open a view, the CAD design and its demo, Slack drafts with files)
+are direct tools from
 agent/tools.py (incl. the crew tools: spawn_agent, assign_task, ... from agent/crew.py). ``delegate`` sends anything about the repo, runs or a code change to the Claude runner
 (the "brain"), whose answer is then spoken verbatim with ``force_message``. Push-to-talk is a manual turn:
 
@@ -14,7 +14,7 @@ agent/tools.py (incl. the crew tools: spawn_agent, assign_task, ... from agent/c
     Unity binary PCM16  -> feed()         (16 kHz mono, forwarded as input_audio_buffer.append)
     Unity stt.stop      -> commit_turn()  (input_audio_buffer.commit + response.create)
 
-Grok -> our events (docs/PET_AGENT_CONTRACT.md, Addendum B):
+Grok -> our events (docs/archive/PET_AGENT_CONTRACT.md, Addendum B):
 
     ...input_audio_transcription.updated/.delta   -> stt.partial (cumulative)
     ...input_audio_transcription.completed        -> stt.final {voice: true}
@@ -27,10 +27,10 @@ Grok -> our events (docs/PET_AGENT_CONTRACT.md, Addendum B):
 Context without a reply: ``note(text)`` adds a one-line system message (the workspace view the user opened,
 the Slack message in focus; ws.py and messaging call it through agent/speech.py). ``workspace_mode`` (set by ws.py
 from ``workspace.mode``) gates Albie's crew tools: they answer with an error unless the CODE view is open, since
-the crew's gators live on that screen. None (the client never said) leaves them available.
+the crew live on that screen. None (the client never said) leaves them available.
 
 Wake turns (``begin_turn(wake=True)``, Unity's always-on WakeListener, see agent/wake.py): no barge-in, no stt.*
-and no response until ``wake_router`` has read the transcript; it answers only if a gator was named (or the user
+and no response until ``wake_router`` has read the transcript; it answers only if an agent was named (or the user
 faced Albie and agent/addressed.py's word rules don't rule it out), otherwise the committed item is deleted so room
 chatter never reaches the conversation. A gated turn (``begin_turn(require_name=True)``: a look-to-talk / follow-up
 reply) takes the same route and needs the name; when dropped it still ends with an empty stt.final, since Unity's
@@ -83,7 +83,7 @@ FAKE_TRANSCRIPT = "Hey Albie, are you there?"
 FAKE_ANSWER = "Hi! I'm Albie. I'm right here on your desk, ready to help."
 
 PERSONA = (
-    "You are Albie (said AL-bee), a small, cute and very competent alligator who lives on the user's desk in Forge, "
+    "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in Forge, "
     "a mixed-reality workspace for engineers. Talk like a cheerful cartoon sidekick: warm, bouncy and always "
     "helpful. Never use interjections or filler sounds such as 'ooh', 'hehe', 'wow' or 'yay'; show "
     "personality through word choice instead. No lists, no markdown, never read code aloud; say file and "
@@ -104,7 +104,7 @@ BREVITY_NOW = (" If the user asked you to do something (open, play, pause, close
                "the tool for it in this reply first; never say it is done without the tool call. Then confirm in one "
                "short sentence, under 10 words. A question: at most 20 words; an in-depth question: the key point "
                "then 'Want the details?'. Reading a tool result: say only the one or two numbers that answer the "
-               "user, never a list of values.")  # live 03:34, 03:38, 03:43: "Pause the movie" got a reply and no tool
+               "user, never a list of values.")  # live 03:34, 03:38, 03:43: a request got a reply and no tool
 # Grok ignores max_output_tokens / max_response_output_tokens (probed 2026-10-24: 100 s answers either way), so the
 # hub cuts a reply after this much of its audio. Unity plays it 1.2x faster (pitch), and audio arrives in chunks
 # (a cut at 12 s landed at 13.4 s), so 10 s here is ~8.5-9.5 s heard. 0 = no cut (default since 2026-10-25: Dev
@@ -121,7 +121,7 @@ DELEGATE_RULES = (
     " Your delegate tool is for anything needing real analysis of the user's code, repository, files or project, "
     "and for any request to write, fix or change code or to create a new file (except ML training: the ml tools "
     "handle that, never delegate it); use mode code "
-    "for those, and the brain edits the files open in VS Code right where the user sees them. Never guess those "
+    "for those, and the brain edits the project's files. Never guess those "
     "details yourself. Give it a self-contained task that includes what the user asked and any context from the "
     "conversation. After calling it, say only a tiny 'on it' line: the answer is spoken for you when it's "
     "ready. Answer everything else yourself. When a system note says what broke and you just offered to fix it or "
@@ -130,7 +130,7 @@ DELEGATE_RULES = (
 )
 TOOL_RULES = (
     " Use your other tools yourself for quick actions: call them instead of guessing, then say in one short line what "
-    "you did. You run the whole workspace. ui_open_view opens a view at the desk (cad is 3D modeling, code is VS Code, "
+    "you did. You run the whole workspace. ui_open_view opens a view at the desk (cad is 3D modeling, code is the code panel, "
     "ml, messages is the Slack messenger); messages_open opens one conversation in it (a Slack channel, someone's "
     "DM, or an iMessage chat). The CAD tools open the CAD view themselves: cad_open_part opens a design "
     "(rocket, quadcopter, gearbox), cad_set_params and cad_apply_preset change it, cad_view expands it big in front of "
@@ -138,11 +138,8 @@ TOOL_RULES = (
     "quadcopter hovers, the gearbox turns), and cad_undo or cad_restore_version go back. When one request asks for "
     "several things, do every one, one tool after another, in the order asked. If a tool returns an error or a "
     "view_error, say it plainly. "
-    "Open, highlight or check code in VS Code yourself: to open or show a file that exists, call vscode_open_file "
-    "(vscode_get_context first if they say 'this' or 'my code'), to point at lines call vscode_highlight. Never use "
-    "the crew (spawn_agent, assign_task) to open, show, create or edit a file: the crew works on its own branch, "
-    "which the user can't see in VS Code. Use the crew only when the user names a crew member or asks for help in "
-    "parallel. "
+    "Never use the crew (spawn_agent, assign_task) to open, show, create or edit a file: the crew works on its own "
+    "branch. Use the crew only when the user names a crew member or asks for help in parallel. "
     "ML (machine learning) requests always go to your ml tools, never to delegate: opening the ML project or 'the "
     "ML stuff' is ml_open (not ui_open_view), pulling up or importing a repo from GitHub is ml_github, 'how is my model doing' or the last score is ml_status, 'what can I do "
     "better' or 'improve it' is ml_improve, a yes or 'apply it' after an ml_improve suggestion is ml_apply, 'undo "
@@ -153,19 +150,19 @@ TOOL_RULES = (
     "'why is it bad', 'fix it' or 'improve it' there is nn_improve, and a yes after it is nn_apply. Opening the "
     "neural net (lab, playground, 'neural net training') is nn_open, never ui_open_view; going back to the ML "
     "project or the training dashboard from it is nn_close. "
-    "Set the focus timer, keep the user's notes (one notes_add call per item: 'add X and Y' is two calls), and play "
-    "the movie on the big screen with your desk tools. "
+    "Set the focus timer and keep the user's notes (one notes_add call per item: 'add X and Y' is two calls) with "
+    "your desk tools. "
     "Slack and iMessage replies go out under the user's own account and are never sent directly: messages_send only "
     "writes a draft that pops up for them to confirm, and its attach option puts the open design's files on a Slack "
     "draft (STEP model, STL, drawing PDF, parts list; never delegate that). messages_edit_draft rewords the open draft "
     "and keeps its files. Say what you wrote and ask them to tap Send or say 'send it'; messages_confirm is for "
     "their yes or no."
 )
-IGNORED_NOTE = ("The user's last message was not said to you (background audio, a film, or talk to someone else). "
+IGNORED_NOTE = ("The user's last message was not said to you (background audio, or talk to someone else). "
                 "Ignore it completely: never act on it, answer it or mention it.")
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
 VIEW_NOTES = {
-    "code": "The user switched to the CODE view (VS Code on the main screen); crew tools are available now.",
+    "code": "The user switched to the CODE view (the code panel on the main screen); crew tools are available now.",
     "cad": "The user switched to the CAD view (the open design on the desk); crew tools are off until they open CODE.",
     "ml": "The user switched to the ML view (training data and runs); crew tools are off until they open CODE.",
     "messages": "The user switched to the MESSAGES view (their Slack inbox); crew tools are off until they open CODE.",
@@ -316,7 +313,7 @@ class _Base:
         self._partial = text
         self._named = self._named or has_name(text, last=False)  # a growing partial's last word isn't a vocative yet
         if self._wake:
-            await self.wake_router.partial(text)  # captions only once a gator is named
+            await self.wake_router.partial(text)  # captions only once an agent is named
             return
         if self._require_name and not self._named:
             return  # maybe side conversation: no captions until he's named
@@ -343,10 +340,6 @@ class _Base:
     async def addressed(self, text: str, facing: bool = False) -> bool:
         """WakeRouter.judge: was this unnamed sentence said to Albie? His last line (and how long ago) is the context."""
         age = time.monotonic() - self.last_reply_t if self.last_reply_t else None
-        if wake_mod.name_needed() and time.monotonic() - getattr(self, "_held_t", 0.0) < HOLD_S + 3:
-            return True  # the rest of a half-thought he is holding
-        if wake_mod.name_needed():  # the movie is on: a desk request is for him; otherwise ask whether it was the film
-            return bool(wake_mod.DESK_REQUEST.search(text)) or await addressed.said_to_albie(text, self.last_reply or None)
         return await addressed.judge(text, self.last_reply or None, age, facing=facing)
 
     def _spoke(self, text: str) -> None:
@@ -612,8 +605,8 @@ class GrokVoiceSession(_Base):
 
     async def _forget(self, item: str) -> None:
         """Drop a turn that was not for Albie. Grok answers item.delete of a user audio item with "Item not found" and
-        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known), and in the lab Albie then
-        acted on the film's "I need a suit". So he is also told, in a system note, to ignore it."""
+        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known). So he is also told, in a
+        system note, to ignore it."""
         await self._send({"type": "conversation.item.delete", "item_id": item})
         await self._send(_note_item(IGNORED_NOTE))
 
@@ -819,7 +812,7 @@ class GrokVoiceSession(_Base):
         self._response_requested = True
         if self._dropping:
             # A reply Grok started on its own is still being cancelled: a create now is rejected ("active response")
-            # and the turn got no answer at all (lab 07:34, "Close everything" while the movie played). After its done.
+            # and the turn got no answer at all (lab 07:34, "Close everything"). After its done.
             self._create_after_drop = addressed
             return
         self._expected += 1
@@ -837,7 +830,7 @@ class GrokVoiceSession(_Base):
         except (json.JSONDecodeError, TypeError, ValueError):
             args = {}
         await self._emit(ev.tool_call(self.pet_id, call_id, name, args))
-        log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to (VS Code vs crew)
+        log.info("tool: %s %s", name, json.dumps(args)[:200])  # which tool a request was routed to
         if name in UNDOABLE_TOOLS:
             self.last_change = (name, time.monotonic())
         if name in ("ml_apply", "ml_train"):
@@ -852,7 +845,7 @@ class GrokVoiceSession(_Base):
         elif tools.is_lead_only(name) and self.workspace_mode is not None and self.workspace_mode != "code":
             result = CREW_OFF_CODE_SCREEN  # the crew lives on the CODE screen; Unity told us another view is open
         elif tools.has(name):
-            # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s, VS Code under 5 s).
+            # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s).
             result = await tools.call(name, args, self.pet_id)
         else:
             result = {"error": f"unknown tool {name!r}"}
@@ -911,8 +904,8 @@ class GrokVoiceSession(_Base):
         crew_pid = (self.wake_router.crew_target(final)
                     if not self._wake and self.wake_router is not None else None)
         if crew_pid is not None:
-            # "Tester, run the hub tests" in one of Bit's own turns (hands-free, follow-up window, push-to-talk; the
-            # WakeListener is paused then): the crew gator gets it, Bit says nothing and goes back to idle.
+            # "Tester, run the hub tests" in one of Albie's own turns (hands-free, follow-up window, push-to-talk; the
+            # WakeListener is paused then): the crew member gets it, Albie says nothing and goes back to idle.
             self._drop_reply = True
             await super()._final("")
             await self.wake_router.final(final)
@@ -940,8 +933,7 @@ class GrokVoiceSession(_Base):
         # audio, and guessed wrong both times in the lab ("I'm Albie, not MegaGrok"), so it is dropped.
         drop = stop or (self._require_name and named == "no") or (text is not None and not final and not self._wake)
         held = None
-        if not drop and (not self._wake or wake_mod.name_needed()) and not wake_mod.NAME_REQUIRED:
-            # (movie on: wake turns are judged, and a half-thought is still held, lab 07:0x "Close the ... movie.")
+        if not drop and not self._wake and not wake_mod.NAME_REQUIRED:
             # Counted from when Unity finished playing it: Grok streams a 13 s offer in ~1 s, so "Yeah." after it was
             # 14 s "old" and held as filler (live 2026-10-25 11:06).
             end = max(self.last_reply_t, self._played_t, min(time.monotonic(), self._play_until))
@@ -965,7 +957,7 @@ class GrokVoiceSession(_Base):
         wake = self._wake
         gated = self._gated or (wake and bool(self.wake_router.gated))  # read before the router resets it in final()
         facing = wake and bool(self.wake_router.facing)  # read before the router resets it in final()
-        if stop and (not wake or named != "no" or facing or wake_mod.name_needed()):  # movie on: a bare "stop" still works
+        if stop and (not wake or named != "no" or facing):
             # A wake / gated turn never barges in by itself (side talk must not cut Albie off): only "Albie, stop"
             # or "stop" while looking at him does. A plain "stop" to a teammate leaves him talking. A stop also ends
             # the code task he is running (live 22:30: "Albie, stop" and the runner kept editing).
@@ -1088,8 +1080,8 @@ class FakeVoiceSession(_Base):
 
     async def _forget(self, item: str) -> None:
         """Drop a turn that was not for Albie. Grok answers item.delete of a user audio item with "Item not found" and
-        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known), and in the lab Albie then
-        acted on the film's "I need a suit". So he is also told, in a system note, to ignore it."""
+        keeps it (probed 2026-10-25: a deleted "my secret word is pineapple" was still known). So he is also told, in a
+        system note, to ignore it."""
         await self._send({"type": "conversation.item.delete", "item_id": item})
         await self._send(_note_item(IGNORED_NOTE))
 

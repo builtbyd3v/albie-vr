@@ -40,7 +40,7 @@ demo", "PyTorch MNIST" = `https://github.com/pytorch/examples/tree/main/mnist`; 
   symlinks checked out as plain files (and any link out of the checkout refused), and at least one `.py` file. Then the
   normal cold-open setup runs on it: pre-scan, classify, the Claude-written `.forge/adapter.py`, `forge.check` (this
   runs the repo's code, in its own Python: its `.venv` if it has one), and the patch waits for Accept / Skip on the
-  Training panel (or in VS Code with "Show patch"). Train then runs the repo's own `train_cmd` in the clone. A folder
+  Training panel ("Show patch" lists the diff). Train then runs the repo's own `train_cmd` in the clone. A folder
   imported before is reused with its `.forge/`; delete it for a fresh copy.
 Set optional `GITHUB_TOKEN` in the hub environment to raise GitHub API rate limits for public repository reads.
 
@@ -69,7 +69,7 @@ Voice tools in `tools.py` (registered in `main.py`), with the logic in `improve.
 | Say | Tool | What happens |
 |---|---|---|
 | "Albie, open the ML stuff I've been working on" | `ml_open` | Opens the last project (or one by name: `ml-examples/*`, `~/Desktop/ml-examples/*`, `FORGE_ML_PROJECTS`). The `ml.layout` carries `"open": true`, so the headset unfolds the ML desk (the user must be at the desk). Albie says the last run's score. |
-| "What can I do better?" | `ml_improve` | Reads the last run (train/val gap, overfit alert, weakest classes, seconds per epoch). Claude writes a change into `.forge/improve/` within a 2-minute run budget, the diff opens in VS Code, and Albie says what he'd change about 40 s later. The repo isn't touched yet. |
+| "What can I do better?" | `ml_improve` | Reads the last run (train/val gap, overfit alert, weakest classes, seconds per epoch). Claude writes a change into `.forge/improve/` within a 2-minute run budget, the diff goes on the card, and Albie says what he'd change about 40 s later. The repo isn't touched yet. |
 | "Yes" | `ml_apply` | Copies the change in (keeps `<file>.orig`, refuses a file edited since), adds its flags to `train_cmd`, starts training. The curves stream live, and Albie says "went up from 60.6% to 79.0%" when it's done. |
 | "Undo that" | `ml_undo` | Restores the code and `train_cmd`, and moves the runs trained with the change to `.forge/runs-undone/`, so the next rehearsal starts from the original score. |
 | "Train it again" | `ml_train` | Same as the Train button, and the new score is spoken when it finishes. |

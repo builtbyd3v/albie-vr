@@ -43,9 +43,8 @@ git -c user.name="Albie sandbox" -c user.email="sandbox@forge.local" commit -q \
 
 cat <<MSG
 Albie's sandbox is ready: $dest
-Point the hub at it: add these to hub/.env, then restart the hub (it reopens VS Code on the sandbox).
+Point the hub at it: add these to hub/.env, then restart the hub.
   DEFAULT_PROJECT=sandbox
   FORGE_CAD_SCRIPT=$dest/cad/rocket.py
   FORGE_ML_REPO=$dest/ml
-  VSCODE_FOLDER=$dest
 MSG

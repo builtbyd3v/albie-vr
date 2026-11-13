@@ -1,4 +1,4 @@
-"""Bit opens and closes the workspace views (docs/PET_AGENT_CONTRACT.md, Addendum H).
+"""Albie opens and closes the workspace views (docs/archive/PET_AGENT_CONTRACT.md, Addendum H).
 
 Only Unity knows whether a view can open (the user has to be at the desk), so opening is a round trip:
 
@@ -6,7 +6,7 @@ Only Unity knows whether a view can open (the user has to be at the desk), so op
     client -> hub    workspace.mode {mode, reason?}      what is open now; reason = why it isn't what was asked
 
 ``workspace.open(mode)`` publishes ``ui.mode`` and waits up to ``ACK_S`` for a ``workspace.mode`` that names the mode
-asked for (or carries a reason), so Bit's tool result says what really happened. Unity already sends
+asked for (or carries a reason), so Albie's tool result says what really happened. Unity already sends
 ``workspace.mode`` on every view change (ArrivalDirector), so a client without the reason field still confirms a
 successful open; it only times out on a refusal. ws.py feeds every ``workspace.mode`` here through ``report``; main.py
 sets ``publish`` to the EventBus. One state for the hub: the last view any Unity client reported.
@@ -33,7 +33,7 @@ VIEWS = ("cad", "code", "ml", "messages")
 ALIASES = {
     "": "", "none": "", "close": "", "closed": "", "off": "",
     "cad": "cad", "3d": "cad", "modeling": "cad", "modelling": "cad", "design": "cad", "designs": "cad",
-    "code": "code", "vscode": "code", "vs code": "code", "editor": "code", "screen": "code", "screens": "code",
+    "code": "code", "editor": "code", "screen": "code", "screens": "code",
     "ml": "ml", "training": "ml",
     "messages": "messages", "msg": "messages", "slack": "messages", "messenger": "messages", "inbox": "messages",
 }
@@ -116,11 +116,11 @@ class Workspace:
 
 workspace = Workspace()
 
-# Bit's view tool (agent/tools.py registers it). CAD and messaging tools open their own view through `ensure`.
+# Albie's view tool (agent/tools.py registers it). CAD and messaging tools open their own view through `ensure`.
 TOOLS: list[dict[str, Any]] = [
     {"name": "ui_open_view",
      "description": "Open one of the workspace views at the user's desk; one view shows at a time. cad = 3D modeling "
-                    "(the CAD design on the desk, its drawing, panel and versions), code = VS Code, ml = machine "
+                    "(the CAD design on the desk, its drawing, panel and versions), code = the code panel, ml = machine "
                     "learning (training data and runs), messages = the Slack messenger; none closes the open view. "
                     "CAD and Slack tools open their view themselves, so call this only when the user asks for a view. "
                     "The Neural Net Lab is not a view here: nn_open shows it and nn_close goes back to the ML project. "

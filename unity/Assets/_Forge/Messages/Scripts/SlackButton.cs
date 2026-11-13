@@ -18,7 +18,7 @@ public class SlackButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         public bool bold, boldOn;
     }
 
-    /// <summary>Horizon-style pill: dim white, near-white with dark text when on (Ask Bit, Cancel, Load earlier).</summary>
+    /// <summary>Horizon-style pill: dim white, near-white with dark text when on (Ask Albie, Cancel, Load earlier).</summary>
     public static readonly Look Pill = new Look
     {
         rest = ForgeTheme.PillOff, hover = ForgeTheme.PillOffHover, on = ForgeTheme.PillOn, onHover = Color.white,

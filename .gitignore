@@ -56,7 +56,7 @@ venv/
 .env
 *.egg-info/
 
-# Node (screen-bridge)
+# Node
 node_modules/
 
 # OS

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Meta's default (cleartext off) plus one exception: the hub over USB (adb reverse), so the movie VideoPlayer can stream http://localhost:8000. -->
+<!-- Meta's default (cleartext off) plus one exception: the hub over USB (adb reverse), so ForgeNet's REST calls can reach http://localhost:8000. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false"></base-config>
     <domain-config cleartextTrafficPermitted="true">

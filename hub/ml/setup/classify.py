@@ -52,7 +52,7 @@ SCHEMA = {
 
 
 class SetupError(RuntimeError):
-    """Setup can't continue; the message is shown to the user (and Bit)."""
+    """Setup can't continue; the message is shown to the user (and Albie)."""
 
 
 def files_block(files: dict[str, str]) -> str:

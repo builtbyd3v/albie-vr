@@ -1,4 +1,4 @@
-"""The design library over REST and Bit's tools: list, switch, presets, per-design history, new files live,
+"""The design library over REST and Albie's tools: list, switch, presets, per-design history, new files live,
 and a restart that comes back to the same design. Tests run in order on one hub."""
 import shutil
 

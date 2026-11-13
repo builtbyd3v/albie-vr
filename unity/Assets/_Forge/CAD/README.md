@@ -2,7 +2,7 @@
 
 The open design on the desk (rocket, quadcopter, gearbox, humanoid robot, or any part script in the hub's library), its design
 panel and its engineering drawing. Inspect brings the model up big in front of you, where you can take it apart.
-Hub side: `hub/cad/`; plan: `docs/CAD_PLAN.md`.
+Hub side: `hub/cad/`; plan: `docs/archive/CAD_PLAN.md`.
 
 ## Prefabs (slot these into the CAD mode on `Workspace`)
 
@@ -10,7 +10,7 @@ Hub side: `hub/cad/`; plan: `docs/CAD_PLAN.md`.
 |---|---|---|
 | `cad-viewer` (DeskCenter, Volume) | `Prefabs/CadViewer.prefab` | ForgeVolume variant + `CadViewer`. Size 0.26 x 0.5 x 0.26 m, slow turntable. Its label shows the open design's title. |
 | `cad-params` (Right, Panel) | `Prefabs/CadParamsPanel.prefab` | ForgePanel variant + `CadParamsPanel`, which builds its UI at runtime under `Content`. 0.48 x 0.6 m (Workspace doesn't resize custom prefabs); resizable (min 0.42 x 0.52). |
-| `cad-drawing` (Main, Panel) | `Prefabs/CadDrawingPanel.prefab` | ForgePanel variant: the version's engineering drawing, on the middle screen behind the model (in place of VS Code in CAD mode). 0.8 x 0.66 m. |
+| `cad-drawing` (Main, Panel) | `Prefabs/CadDrawingPanel.prefab` | ForgePanel variant: the version's engineering drawing, on the middle screen behind the model. 0.8 x 0.66 m. |
 | `cad-timeline` (Left, Panel) | `Prefabs/CadVersionsPanel.prefab` | ForgePanel variant + `CadVersionsPanel`: the design's versions (the History tab's body). 0.48 x 0.6 m. |
 
 All of them find or create one shared `CadSession`, so they work wherever they're spawned.
@@ -91,11 +91,11 @@ layout tweak is a number change. The prefab's older UI (`CadUI`, if present) is 
 - Fits the first version of each design with headroom and keeps that scale, so "20% longer" looks longer. Opening
   another design fits it afresh (no glow or ghost across designs).
 - `cad.view`: explode and focus (everything else dims).
-- `cad.action` (Bit pressing a button, docs/PET_AGENT_CONTRACT.md Addendum H): `expand`, `demo`, `reassemble` and `tab`
+- `cad.action` (Albie pressing a button, docs/archive/PET_AGENT_CONTRACT.md Addendum H): `expand`, `demo`, `reassemble` and `tab`
   wait in `CadSession` until the viewer shows the version they name (`CadSession.ReportShown`), so "make it longer, now
   fly it" flies the new rocket; `markers` / `dimensions` apply at once.
 - Everything below follows `HANDOFF_UI2/cad/CAD_UX_SPEC.md` (sections 3 to 5, 7, 9) and the hub's round 4 data
-  (`docs/CAD_PLAN.md` section 5). All of it is made at runtime under the viewer's `CadOverlay` child (no prefab change),
+  (`docs/archive/CAD_PLAN.md` section 5). All of it is made at runtime under the viewer's `CadOverlay` child (no prefab change),
   works on the desk and on the stage, and falls back to the old behaviour for versions without the new keys.
 
 ### Explode (`CadExploder`)
@@ -175,7 +175,7 @@ panel can use either and both stay in sync:
   (position and turn critically damped, omega 9, along an arc rising 0.14 m; scale omega 10 with a gentle 8% pop).
   Turned 30° to show a corner, its front (the part's -Y: the drawing's front view) toward you (a Run design faces you
   square on); tipped back 25°, 40° if it's flat, 0° if it's tall.
-  It's fitted to a 0.6 x 0.6 x 0.36 m box, which keeps it in front of CAD mode's VS Code screen (0.8 m away). A flat
+  It's fitted to a 0.6 x 0.6 x 0.36 m box, which keeps it in front of CAD mode's main screen (0.8 m away). A flat
   screen (desktop mode, sandbox) sees less than a headset, so there the stage steps back until the box fits in view.
   A ring of light fades in under it with a chip of its scale ("1.4× real size"; `SetTrueSize` shows it 1 : 1);
   dimensions come on and a lid turns 38% glass. All of these are fields on `CadViewer` (Inspect section).
@@ -258,7 +258,7 @@ an in-memory default here (no asset), so this doesn't touch Project Settings.
   `PointableCanvasModule` turns on **exclusive mode** when added in the Editor (its `Reset()`) and disables other
   input modules at Start; set `ExclusiveMode = false`, as the sandbox does.
 - CAD mode in `Workspace.DefaultModes`: `cad-drawing` (Main), `cad-viewer` (desk), `cad-params` (right), `cad-timeline`
-  "Versions" (left), all four slotted by `MainSceneBuilder`. VS Code isn't in CAD mode (SCR and ML modes still have it).
+  "Versions" (left), all four slotted by `MainSceneBuilder`.
 - Player builds: glTFast's shader graph (`Shader Graphs/glTF-pbrMetallicRoughness`) must be in the build, or the
   model renders magenta. Add it to Always Included Shaders, or record the variants (play the sandbox, then
   Project Settings > Graphics > Shader Preloading > save to asset) and add that to Preloaded Shaders. See glTFast's

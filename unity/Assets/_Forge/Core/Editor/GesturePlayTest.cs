@@ -253,28 +253,28 @@ public static class GesturePlayTest
         if (display != null && !display.gameObject.activeSelf) engine.Actions.ShowDisplay(true);
 
         // Albie in the palm.
-        GatorController gator = null;
-        var crew = UnityEngine.Object.FindAnyObjectByType<GatorCrew>();
-        if (crew != null) gator = crew.Lead;
-        if (gator == null) gator = UnityEngine.Object.FindAnyObjectByType<GatorController>();
-        Check(gator != null, "Albie is in the scene");
-        if (gator != null)
+        AlbieController albie = null;
+        var crew = UnityEngine.Object.FindAnyObjectByType<AlbieCrew>();
+        if (crew != null) albie = crew.Lead;
+        if (albie == null) albie = UnityEngine.Object.FindAnyObjectByType<AlbieController>();
+        Check(albie != null, "Albie is in the scene");
+        if (albie != null)
         {
-            while (gator.Stationed && EditorApplication.timeSinceStartup - startedAt < GiveUpSeconds * 0.5)
+            while (albie.Stationed && EditorApplication.timeSinceStartup - startedAt < GiveUpSeconds * 0.5)
             {
-                gator.ReleaseStation();
+                albie.ReleaseStation();
                 yield return 0.2f;
             }
-            Vector3 gatorScale = gator.transform.localScale;
+            Vector3 albieScale = albie.transform.localScale;
 
             // Gator_Model.fbx is gitignored (the mesh comes from a paid pack), so a fresh checkout has no body to size.
             // A stand-in 40 cm long, the same kind of renderer, lets the fit and the screenshots still mean something.
-            if (gator.GetComponentsInChildren<SkinnedMeshRenderer>().Length == 0)
+            if (albie.GetComponentsInChildren<SkinnedMeshRenderer>().Length == 0)
             {
                 Debug.Log("[GesturePlayTest] no Gator_Model in this checkout: using a stand-in body.");
                 var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 var standIn = new GameObject("StandInBody").AddComponent<SkinnedMeshRenderer>();
-                standIn.transform.SetParent(gator.transform, false);
+                standIn.transform.SetParent(albie.transform, false);
                 standIn.transform.localPosition = new Vector3(0f, 0.06f, 0f);
                 standIn.transform.localScale = new Vector3(0.14f, 0.12f, 0.4f);
                 standIn.sharedMesh = cube.GetComponent<MeshFilter>().sharedMesh;
@@ -284,25 +284,25 @@ public static class GesturePlayTest
             }
             sim.SetShape(HandShape.Open, true);
             yield return 2.2f;
-            Check(gator.Perched, "palm up calls Albie");
-            Check(Vector3.Distance(gator.transform.position, hand.Palm) < 0.08f, $"he's on the palm ({Vector3.Distance(gator.transform.position, hand.Palm):F2} m off)");
-            Check(gator.transform.localScale.x <= gatorScale.x, "he fits");
-            var body = gator.GetComponentsInChildren<SkinnedMeshRenderer>();
+            Check(albie.Perched, "palm up calls Albie");
+            Check(Vector3.Distance(albie.transform.position, hand.Palm) < 0.08f, $"he's on the palm ({Vector3.Distance(albie.transform.position, hand.Palm):F2} m off)");
+            Check(albie.transform.localScale.x <= albieScale.x, "he fits");
+            var body = albie.GetComponentsInChildren<SkinnedMeshRenderer>();
             Bounds size = body.Length > 0 ? body[0].bounds : new Bounds();
             foreach (var r in body) size.Encapsulate(r.bounds);
-            Debug.Log($"[GesturePlayTest] Albie on the palm: scale {gator.transform.localScale.x:F3} (was {gatorScale.x:F3}), {body.Length} body meshes, size {size.size}, at {gator.transform.position}, palm {hand.Palm}, state {gator.State}");
+            Debug.Log($"[GesturePlayTest] Albie on the palm: scale {albie.transform.localScale.x:F3} (was {albieScale.x:F3}), {body.Length} body meshes, size {size.size}, at {albie.transform.position}, palm {hand.Palm}, state {albie.State}");
             Check(body.Length > 0 && Mathf.Max(size.size.x, size.size.z) > 0.05f && Mathf.Max(size.size.x, size.size.z) < 0.3f, $"he's palm-sized ({size.size})");
             Shot("4_albie_in_hand");
 
             sim.Flick(new Vector3(0.1f, 0.03f, 0f), 0.6f);
             yield return 0.3f;
-            Check(Vector3.Distance(gator.transform.position, hand.Palm) < 0.08f, "he stays on the palm as it moves");
+            Check(Vector3.Distance(albie.transform.position, hand.Palm) < 0.08f, "he stays on the palm as it moves");
             yield return 2f;
 
             sim.SetShape(HandShape.Fist);
             yield return 2f;
-            Check(!gator.Perched, "closing your fist sends him off");
-            Check(Vector3.Distance(gator.transform.localScale, gatorScale) < 0.001f, "he's back to his own size");
+            Check(!albie.Perched, "closing your fist sends him off");
+            Check(Vector3.Distance(albie.transform.localScale, albieScale) < 0.001f, "he's back to his own size");
             Shot("5_albie_gone");
             sim.SetShape(HandShape.Relaxed);
             yield return 0.5f;
@@ -310,10 +310,10 @@ public static class GesturePlayTest
             // The other way down: turning the hand over.
             sim.SetShape(HandShape.Open, true);
             yield return 2.2f;
-            Check(gator.Perched, "palm up calls him again");
+            Check(albie.Perched, "palm up calls him again");
             sim.SetShape(HandShape.Open);
             yield return 1.2f;
-            Check(!gator.Perched, "turning your hand over sends him off too");
+            Check(!albie.Perched, "turning your hand over sends him off too");
             yield return 1f;
         }
 

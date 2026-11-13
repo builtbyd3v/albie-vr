@@ -1,6 +1,6 @@
 """WebSocket message models for the pet <-> agent contract.
 
-Source of truth: docs/PET_AGENT_CONTRACT.md. Every frame is
+Source of truth: docs/archive/PET_AGENT_CONTRACT.md. Every frame is
 ``{"type": "...", "payload": {...}}``; binary frames are raw PCM16 audio.
 
 Hub -> client events come in two flavours:
@@ -62,12 +62,12 @@ class AgentCancel(_Payload):
 
 
 class SttStart(_Payload):
-    pet_id: str | None = None  # wake turns: the gator a wake.listen opened (no name needed then)
+    pet_id: str | None = None  # wake turns: Albie a wake.listen opened (no name needed then)
     sample_rate: int = 16000
     encoding: Literal["pcm16"] = "pcm16"
-    require_name: bool = False  # proposed: look-to-talk turn opened while the user wasn't facing Bit
-    wake: bool = False  # proposed: always-on VAD segment; only answered if it names a gator (agent/wake.py)
-    facing: bool = False  # proposed: wake turn whose speaker faced Bit at onset; answered by Bit with no name
+    require_name: bool = False  # proposed: look-to-talk turn opened while the user wasn't facing Albie
+    wake: bool = False  # proposed: always-on VAD segment; only answered if it names an agent (agent/wake.py)
+    facing: bool = False  # proposed: wake turn whose speaker faced Albie at onset; answered by Albie with no name
 
 
 class SttStop(_Payload):
@@ -87,7 +87,7 @@ class CrewEntry(_Payload):
     agent_type: str
 
 
-class CrewRoster(_Payload):  # client -> hub: every crew gator that exists in Unity (on change and on reconnect)
+class CrewRoster(_Payload):  # client -> hub: every crew member that exists in Unity (on change and on reconnect)
     members: list[CrewEntry] = Field(default_factory=list)
 
 
@@ -102,7 +102,7 @@ class PetCardAction(_Payload):  # client -> hub, proposed: a button on a pet.say
     action_id: str
 
 
-class MessagesFocus(_Payload):  # client -> hub: "Reply with Bit" on a message card (handled by hub/messaging)
+class MessagesFocus(_Payload):  # client -> hub: "Reply with Albie" on a message card (handled by hub/messaging)
     pet_id: str | None = None
     channel: str
     ts: str
@@ -252,19 +252,19 @@ VOICE_MESSAGES: dict[str, type[_Payload]] = {
     "tts.stop": TtsStop,
 }
 
-class CrewSpawn(_Payload):  # hub -> clients: hatch this crew gator (Bit's spawn_agent tool)
+class CrewSpawn(_Payload):  # hub -> clients: hatch this crew member (Albie's spawn_agent tool)
     agent_type: str
 
 
-class CrewDismiss(_Payload):  # hub -> clients: send this crew gator home
+class CrewDismiss(_Payload):  # hub -> clients: send this crew member home
     pet_id: str
 
 
-class WakeListen(_Payload):  # hub -> owner socket: "Hey <name>" alone; that gator listens for the next segment
+class WakeListen(_Payload):  # hub -> owner socket: "Hey <name>" alone; that Albie listens for the next segment
     pet_id: str
 
 
-# Sent to the Unity socket that heard it (bus.send), no companion: Unity switches the gator to Listening itself.
+# Sent to the Unity socket that heard it (bus.send), no companion: Unity switches Albie to Listening itself.
 WAKE_MESSAGES: dict[str, type[_Payload]] = {
     "wake.listen": WakeListen,
 }

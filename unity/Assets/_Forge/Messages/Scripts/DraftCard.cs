@@ -4,11 +4,11 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// "Send this?" card (DraftCard.prefab, a ForgePanel variant, panel id <c>messages-draft</c>). Shows a reply Bit wrote
+/// "Send this?" card (DraftCard.prefab, a ForgePanel variant, panel id <c>messages-draft</c>). Shows a reply Albie wrote
 /// but has NOT sent (notify.draft, PROJECT_CONTEXT 7 / 8.8): who it goes to, what it answers, the exact text, and
 /// Send / Cancel. Send -> POST /messages/drafts/{id}/send (the hub posts it under the user's own name);
 /// Cancel -> POST /messages/drafts/{id}/cancel. The card closes itself on notify.sent / notify.draft_cancelled for
-/// its draft, so saying "send it" to Bit (the messages_confirm tool) or a newer draft (reason superseded) dismisses it
+/// its draft, so saying "send it" to Albie (the messages_confirm tool) or a newer draft (reason superseded) dismisses it
 /// too. Spawned and placed by <see cref="DraftPresenter"/> only while the Slack panel is closed (open, the draft goes to
 /// its composer instead). Buttons are uGUI Buttons (SlackButton pills), so mouse (DesktopRig) and Interaction SDK
 /// ray/poke (wired on the ForgePanel prefab) both work. Look: the module's translucent slate card inside the graphite frame.

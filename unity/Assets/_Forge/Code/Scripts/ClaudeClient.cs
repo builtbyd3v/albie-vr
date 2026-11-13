@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 
 /// <summary>
-/// Claude from the headset, through the albie-cloud proxy (cloud/api/claude.ts), so the Anthropic key never ships in
+/// Claude from the headset, through the agent-cloud proxy (cloud/api/claude.ts), so the Anthropic key never ships in
 /// the APK. The body is a Messages API request; the proxy allows only its listed models and caps max_tokens. The app
 /// key is the one the voice token server uses (PlayerPrefs Albie.AppKey, else Resources/AlbieAppKey.txt).
 /// Call from the main thread; the awaits resume there.
