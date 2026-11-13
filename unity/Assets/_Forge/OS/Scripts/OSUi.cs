@@ -22,6 +22,9 @@ namespace Forge.OS
         public const float MinGap = 19f;
         public const float ButtonHeight = 48f, ButtonMinWidth = 133f, BodyText = 16f, SmallText = 14f, TitleText = 22f;
 
+        /// <summary>The name a tab's title is given, so the UI Set's label animation (which finds it as "Label") no longer drives it.</summary>
+        public const string TabTitleName = "Title";
+
         static readonly UnityAction PressAction = OSSounds.Press;
         static Sprite outlineSprite;
 
@@ -157,8 +160,8 @@ namespace Forge.OS
                     title.textWrappingMode = TextWrappingModes.NoWrap;
                     title.overflowMode = TextOverflowModes.Overflow;
                     title.alignment = TextAlignmentOptions.Center;
-                    var c = title.color;
-                    title.color = new Color(c.r, c.g, c.b, 1f);  // the lit tab's dark label should be solid
+                    title.gameObject.name = TabTitleName;  // OSToggleSync colours it (solid, dark when lit); the animation would leave it 10% clear
+                    title.gameObject.tag = "QDSUISharedThemeColor";  // and the theme manager leaves this colour alone (it would paint it white)
                     ((RectTransform)title.transform).sizeDelta = new Vector2(width - 16f, 22f);
                 }
                 var sub = elements.Find("Label (1)");

@@ -19,7 +19,7 @@ namespace Forge.OS
         GameObject root;
         Button button;
         DeskPresence presence;
-        bool shown, built, reported;
+        bool shown, built, buildFailed, reported;
 
         /// <summary>The pressable button, or null before it is first shown (for checks).</summary>
         public Button Button => button;
@@ -33,6 +33,8 @@ namespace Forge.OS
         void OnEnable()
         {
             if (shell == null) shell = GetComponent<OSShell>();
+            buildFailed = false;
+            reported = false;
             Hook(true);
         }
 
@@ -77,12 +79,27 @@ namespace Forge.OS
             root.transform.localScale = Vector3.one;
         }
 
+        // A failed build is remembered (until the component is enabled again) so the missing kit isn't looked up every frame.
         bool Build()
         {
             if (built) return root != null;
+            if (buildFailed) return false;
+            if (!TryBuild())
+            {
+                buildFailed = true;
+                if (root != null) Destroy(root);
+                root = null;
+                button = null;
+                return false;
+            }
+            built = true;
+            return true;
+        }
+
+        bool TryBuild()
+        {
             OSKit kit = OSKit.Current;
             if (kit == null || kit.backplate == null || kit.secondaryButton == null) return false;
-            built = true;
 
             root = Instantiate(kit.backplate);
             root.name = "OSTableButton";

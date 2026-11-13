@@ -63,6 +63,25 @@ namespace Forge.OS
             canvas.additionalShaderChannels |= AdditionalCanvasShaderChannels.TexCoord1 | AdditionalCanvasShaderChannels.Normal | AdditionalCanvasShaderChannels.Tangent;
         }
 
+        /// <summary>The draw order of a system surface (the menu): above every scene renderer and panel, which all sit at 0.</summary>
+        public const int SystemSortingOrder = 100;
+
+        /// <summary>
+        /// Draws every canvas under <paramref name="root"/> (itself included) after scene content. Transparent things are
+        /// drawn in sorting order first, then render queue, then distance, and a canvas doesn't write depth, so a transparent
+        /// model with a later queue or a nearer centre than the menu would otherwise be painted over it even where it lies
+        /// behind it. Real nearer solids still hide it (the depth test is untouched).
+        /// </summary>
+        public static void RaiseAboveScene(GameObject root)
+        {
+            if (root == null) return;
+            foreach (Canvas canvas in root.GetComponentsInChildren<Canvas>(true))
+            {
+                if (!canvas.isRootCanvas) canvas.overrideSorting = true;
+                canvas.sortingOrder = SystemSortingOrder;
+            }
+        }
+
         /// <summary>Points a theme manager at one theme (its fields are private).</summary>
         public static void SetThemes(UIThemeManager manager, UITheme theme)
         {

@@ -55,7 +55,7 @@ namespace Forge.OS
         }
 
         OSShell shell;
-        bool built, announcedMissingKit;
+        bool built, announcedMissingKit, syncingTabs;
         Coroutine motion;
 
         readonly List<OSEntry> entries = new List<OSEntry>();
@@ -110,6 +110,7 @@ namespace Forge.OS
             if (motion != null) StopCoroutine(motion);
             motion = null;
             if (visual != null) visual.SetActive(false);
+            RestoreContent();
         }
 
         // ---------------------------------------------------------------- shell events
@@ -142,14 +143,25 @@ namespace Forge.OS
             Pose(out to, out rotation);
             LastCenter = to;
             LastRotation = rotation;
+            HideCoveringContent(shell.Head != null ? shell.Head.position : Vector3.zero, to, rotation, SizeMeters);
             Vector3 from = shell.SummonPoint ?? to;
             transform.SetPositionAndRotation(from, rotation);
             transform.localScale = Vector3.one * StartScale;
             group.alpha = 0f;
             group.interactable = true;
             group.blocksRaycasts = true;
-            visual.SetActive(true);  // before Refresh: the tab toggles' animators need to be running
-            Refresh();
+            // The tab bar's toggles come alive here and their group may switch one on by itself: that is not the user's
+            // choice, so the shell's tab (set by voice or a key before the menu was ever built) must survive it.
+            syncingTabs = true;
+            try
+            {
+                visual.SetActive(true);  // before Refresh: the tab toggles' animators need to be running
+                Refresh();
+            }
+            finally
+            {
+                syncingTabs = false;
+            }
             OSSounds.Open();
             motion = StartCoroutine(Animate(from, to, OpenSeconds, true));
         }
@@ -174,7 +186,11 @@ namespace Forge.OS
                 yield return null;
             }
             Step(from, to, 1f, opening);
-            if (!opening) visual.SetActive(false);
+            if (!opening)
+            {
+                visual.SetActive(false);
+                RestoreContent();
+            }
             motion = null;
         }
 
@@ -221,43 +237,107 @@ namespace Forge.OS
             float nearest = OSSettings.MinDistance;
             float bestDistance = settings.menuDistance, bestCost = float.MaxValue;
             Vector3 bestDirection = Direction(flat, 0f, settings.menuDropDegrees);
-            int fewestBlocked = int.MaxValue;
-            for (int tilt = 0; tilt <= MaxTiltSteps; tilt++)
+            // First a place clear of panels, volumes and the model solids under them. A model's solids can stand nearer than the
+            // menu may come (Train's slabs); then the place clear of panels and volumes alone is taken, and the open menu hides
+            // the solids that are left in front of it (see HideCoveringContent).
+            for (int pass = 0; pass < 2 && bestCost == float.MaxValue; pass++)
             {
-                float drop = Mathf.Min(settings.menuDropDegrees + tilt * ProbeTiltDegrees, MaxDropDegrees);
-                for (int k = 0; k <= 2 * MaxProbeSteps; k++)
+                bool meshes = pass == 0;
+                int fewestBlocked = int.MaxValue;
+                for (int tilt = 0; tilt <= MaxTiltSteps; tilt++)
                 {
-                    float yaw = ((k + 1) / 2) * ProbeYawDegrees * (k % 2 == 1 ? 1f : -1f);
-                    float turning = TurnCost * (Mathf.Abs(yaw) + (drop - settings.menuDropDegrees));
-                    if (turning >= bestCost) continue;
-                    Vector3 direction = Direction(flat, yaw, drop);
-                    Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
-                    for (float d = settings.menuDistance; d >= nearest - 0.001f; d -= DistanceStep)
+                    float drop = Mathf.Min(settings.menuDropDegrees + tilt * ProbeTiltDegrees, MaxDropDegrees);
+                    for (int k = 0; k <= 2 * MaxProbeSteps; k++)
                     {
-                        float cost = turning + (settings.menuDistance - d) * 100f;
-                        int blocked = BlockedCore(eye, eye + direction * d, facing, size);
-                        if (blocked == 0)
+                        float yaw = ((k + 1) / 2) * ProbeYawDegrees * (k % 2 == 1 ? 1f : -1f);
+                        float turning = TurnCost * (Mathf.Abs(yaw) + (drop - settings.menuDropDegrees));
+                        if (turning >= bestCost) continue;
+                        Vector3 direction = Direction(flat, yaw, drop);
+                        Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
+                        for (float d = settings.menuDistance; d >= nearest - 0.001f; d -= DistanceStep)
                         {
-                            if (cost < bestCost)
+                            float cost = turning + (settings.menuDistance - d) * 100f;
+                            int blocked = BlockedCore(eye, eye + direction * d, facing, size, meshes);
+                            if (blocked == 0)
                             {
-                                bestCost = cost;
+                                if (cost < bestCost)
+                                {
+                                    bestCost = cost;
+                                    bestDirection = direction;
+                                    bestDistance = d;
+                                    fewestBlocked = 0;
+                                }
+                                break;  // nearer only costs more
+                            }
+                            if (bestCost == float.MaxValue && blocked < fewestBlocked)
+                            {
+                                fewestBlocked = blocked;  // nothing clear yet: remember the place with the least in front of it
                                 bestDirection = direction;
                                 bestDistance = d;
-                                fewestBlocked = 0;
                             }
-                            break;  // nearer only costs more
-                        }
-                        if (bestCost == float.MaxValue && blocked < fewestBlocked)
-                        {
-                            fewestBlocked = blocked;  // nothing clear yet: remember the place with the least in front of it
-                            bestDirection = direction;
-                            bestDistance = d;
                         }
                     }
                 }
             }
             position = eye + bestDirection * bestDistance;
             rotation = Quaternion.LookRotation(bestDirection, Vector3.up);
+        }
+
+        // ---------------------------------------------------------------- content in front of the plate
+
+        // The model renderers the open menu switched off, so it can be restored when the menu goes.
+        readonly List<Renderer> hiddenContent = new List<Renderer>();
+
+        /// <summary>How many scene renderers the open menu has switched off because they stand in front of its plate (for checks).</summary>
+        public int HiddenContentCount => hiddenContent.Count;
+
+        // The menu is the system surface and nothing may draw over it. Placement already looks for a place with no panel or
+        // model in front; when there is none (a model's solids stand nearer than the menu may come, as Train's slabs can),
+        // whatever of them is still between the eyes and the plate is switched off while the menu is open and put back when
+        // it closes. A solid really in front would otherwise hide tiles however the menu is sorted.
+        void HideCoveringContent(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size)
+        {
+            RestoreContent();
+            Vector3 right = rotation * Vector3.right, up = rotation * Vector3.up;
+            for (int v = 0; v < contentRoots.Count; v++)
+            {
+                if (contentRoots[v] == null) continue;
+                contentRoots[v].GetComponentsInChildren(false, rendererScratch);
+                for (int i = 0; i < rendererScratch.Count; i++)
+                {
+                    Renderer r = rendererScratch[i];
+                    if (r == null || !r.enabled || r.forceRenderingOff || !CoversPlate(r.bounds, eye, center, right, up, size)) continue;
+                    r.forceRenderingOff = true;  // not `enabled`: a module may switch that back on every frame (Train's slabs do)
+                    hiddenContent.Add(r);
+                }
+                rendererScratch.Clear();
+            }
+            if (hiddenContent.Count > 0) Debug.Log("[OS] The menu hides " + hiddenContent.Count + " model part(s) in front of it while it is open.");
+        }
+
+        void RestoreContent()
+        {
+            for (int i = 0; i < hiddenContent.Count; i++)
+                if (hiddenContent[i] != null) hiddenContent[i].forceRenderingOff = false;
+            hiddenContent.Clear();
+        }
+
+        // Whether this box stands between the eyes and any of a grid of points across the plate.
+        static bool CoversPlate(Bounds box, Vector3 eye, Vector3 center, Vector3 right, Vector3 up, Vector2 size)
+        {
+            for (int ix = 0; ix < ProbeColumns; ix++)
+            {
+                float u = (ix / (ProbeColumns - 1f) - 0.5f) * size.x;
+                for (int iy = 0; iy < ProbeRows; iy++)
+                {
+                    float v = (iy / (ProbeRows - 1f) - 0.5f) * size.y;
+                    Vector3 toPoint = center + right * u + up * v - eye;
+                    float length = toPoint.magnitude;
+                    if (length < 1e-4f) continue;
+                    if (box.IntersectRay(new Ray(eye, toPoint / length), out float distance) && distance <= length) return true;
+                }
+            }
+            return false;
         }
 
         // The way the menu faces: the flat forward turned `yaw` degrees to the right and tilted `drop` degrees down.
@@ -272,25 +352,70 @@ namespace Forge.OS
         /// How many of a grid of points across a menu plate (centre <paramref name="center"/>, facing <paramref name="rotation"/>,
         /// <paramref name="size"/> in metres) have a panel in front of them or too close behind them as seen from
         /// <paramref name="eye"/>: 0 means a pointer reaches the whole plate. Panels are every <see cref="ForgePanel"/> (windows,
-        /// a mode's panels, artifact panels) that is showing and takes pointer hits. For placing the menu and for the play test.
+        /// a mode's panels, artifact panels) that is showing and takes pointer hits, or a model's solids (the meshes under a
+        /// panel or volume; with <paramref name="meshes"/> false only the panel planes and volume boxes count, because the open
+        /// menu switches the solids that remain in front of it off). For placing the menu and for the play test.
         /// </summary>
-        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size)
+        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes = true)
         {
             CollectVolumes();
-            return BlockedCore(eye, center, rotation, size);
+            return BlockedCore(eye, center, rotation, size, meshes);
         }
 
         static readonly List<ForgeVolume> volumes = new List<ForgeVolume>();
+        // Everything with meshes that could stand in front of the plate: each volume and each panel (a panel can carry a 3D
+        // stage whose solids reach well out of its plane, as Train's layer slabs do) with the world box its renderers cover.
+        // Canvas graphics are not renderers, so a panel's own face isn't in here: the panel test handles that.
+        static readonly List<Transform> contentRoots = new List<Transform>();
+        static readonly List<Bounds> contentBounds = new List<Bounds>();
+        static readonly List<Renderer> rendererScratch = new List<Renderer>();
 
-        // The 3D volumes (a mode's models, an artifact) are in the way too: a solid in front of the plate hides it.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            volumes.Clear();
+            contentRoots.Clear();
+            contentBounds.Clear();
+            rendererScratch.Clear();
+        }
+
+        // The 3D volumes (a mode's models, an artifact) and panels' 3D stages are in the way too: a solid in front of the plate
+        // hides it.
         static void CollectVolumes()
         {
             volumes.Clear();
+            contentRoots.Clear();
+            contentBounds.Clear();
             foreach (ForgeVolume volume in UnityEngine.Object.FindObjectsByType<ForgeVolume>())
-                if (volume != null && volume.gameObject.activeInHierarchy) volumes.Add(volume);
+            {
+                if (volume == null || !volume.gameObject.activeInHierarchy) continue;
+                volumes.Add(volume);
+                AddContent(volume.transform);
+            }
+            var panels = ForgePanel.All;
+            for (int i = 0; i < panels.Count; i++)
+                if (panels[i] != null && panels[i].gameObject.activeInHierarchy) AddContent(panels[i].transform);
         }
 
-        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size)
+        static void AddContent(Transform root)
+        {
+            root.GetComponentsInChildren(false, rendererScratch);
+            bool any = false;
+            Bounds box = default;
+            for (int i = 0; i < rendererScratch.Count; i++)
+            {
+                Renderer r = rendererScratch[i];
+                if (r == null || !r.enabled) continue;
+                if (!any) { box = r.bounds; any = true; }
+                else box.Encapsulate(r.bounds);
+            }
+            rendererScratch.Clear();
+            if (!any) return;
+            contentRoots.Add(root);
+            contentBounds.Add(box);
+        }
+
+        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes)
         {
             int blocked = 0;
             Vector3 right = rotation * Vector3.right, up = rotation * Vector3.up;
@@ -309,10 +434,20 @@ namespace Forge.OS
                     bool covered = false;
                     for (int i = 0; i < panels.Count && !covered; i++) covered = PanelCovers(panels[i], eye, ray, length);
                     for (int i = 0; i < volumes.Count && !covered; i++) covered = VolumeCovers(volumes[i], eye, ray, length);
+                    for (int i = 0; meshes && i < contentBounds.Count && !covered; i++) covered = RayMeetsBounds(contentBounds[i], eye, ray, length);
                     if (covered) blocked++;
                 }
             }
             return blocked;
+        }
+
+        // Whether the ray from the eye meets a world box (grown by the margin) no further than `length`. A box with no size
+        // (a volume with nothing to draw) never does; a box the eye is inside does.
+        static bool RayMeetsBounds(Bounds box, Vector3 eye, Vector3 ray, float length)
+        {
+            if (box.size == Vector3.zero) return false;
+            box.Expand(2f * ClearMarginMeters);
+            return box.IntersectRay(new Ray(eye, ray), out float distance) && distance <= length;
         }
 
         // Whether the ray from the eye meets the volume's box (its base on the origin, `size` metres, in the volume's own
@@ -395,6 +530,7 @@ namespace Forge.OS
             var rounded = plate.GetComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>();
             if (rounded != null) rounded.borderRadius = new Vector4(36f, 36f, 36f, 36f);
             OSBody.EnsureCanvas(canvasRoot.GetComponent<Canvas>());
+            OSBody.RaiseAboveScene(canvasRoot.gameObject);
             // The menu plays its own press sound for every control, so the plate's poke sound would double it.
             var wrapper = GetComponentInChildren<PointableCanvasUnityEventWrapper>(true);
             if (wrapper != null) wrapper.enabled = false;
@@ -408,7 +544,9 @@ namespace Forge.OS
             for (int i = 0; i < 3; i++)
             {
                 OSTab tab = (OSTab)i;
-                tabs[i] = OSUi.Tab(plate, labels[i], icons[i], group2, () => { if (shell != null) shell.SetTab(tab); }, TabWidth, TabHeight);
+                // The shell's tab is the truth. The toggle group lights its first toggle when the bar comes alive, and that must
+                // not be taken for the user choosing Tools (see Show).
+                tabs[i] = OSUi.Tab(plate, labels[i], icons[i], group2, () => { if (shell != null && !syncingTabs) shell.SetTab(tab); }, TabWidth, TabHeight);
                 PlaceTopLeft(tabs[i].transform, Pad + i * (TabWidth + Gap), Pad);
             }
 

@@ -505,7 +505,58 @@ namespace Forge.OS.Editor
             Check(notebook && project && artifactOpen,
                 $"three things are open at once (notebook window {notebook}, project window {project}, artifact {artifactOpen}; {shell.Windows.Count} OS windows)");
             Check(!shell.MenuOpen, "the menu closed itself after the last tile");
+            yield return 0.9f;  // the adopted panel glides clear, if it had to
+            Check(ArtifactPanelsClear(out string overlapping), "no panel of the artifact overlaps another window or a panel of the open mode, seen from the eyes" + (overlapping != null ? " (" + overlapping + ")" : ""));
             Shot("three_open");
+        }
+
+        // Every panel under the open artifact's host, against every other showing ForgePanel that is not the artifact's own
+        // (OS windows, the open mode's panels, other artifacts'): none may overlap it in the view from the eyes. The same
+        // yaw and pitch rectangles as OSWindowsTest.
+        static bool ArtifactPanelsClear(out string first)
+        {
+            first = null;
+            var host = Forge.Artifacts.ArtifactHost.Current;
+            Transform head = OSShell.FindHead();
+            if (host == null || head == null) return true;
+            var own = host.GetComponentsInChildren<ForgePanel>(false);
+            foreach (ForgePanel mine in own)
+            {
+                if (mine == null || !mine.gameObject.activeInHierarchy) continue;
+                Rect a = Angular(mine, head);
+                foreach (ForgePanel other in ForgePanel.All)
+                {
+                    if (other == null || other == mine || !other.gameObject.activeInHierarchy || other.transform.IsChildOf(host.transform)) continue;
+                    var group = other.GetComponent<CanvasGroup>();
+                    if (group != null && group.alpha < 0.05f) continue;
+                    if (a.Overlaps(Angular(other, head)))
+                    {
+                        first = mine.name + " x " + other.name;
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        static Rect Angular(ForgePanel panel, Transform head)
+        {
+            var rect = (RectTransform)panel.transform;
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            Vector3 flat = head.forward;
+            flat.y = 0f;
+            flat.Normalize();
+            float minYaw = 999f, maxYaw = -999f, minPitch = 999f, maxPitch = -999f;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 o = corners[i] - head.position;
+                float yaw = Vector3.SignedAngle(flat, new Vector3(o.x, 0f, o.z), Vector3.up);
+                float pitch = Mathf.Atan2(o.y, new Vector2(o.x, o.z).magnitude) * Mathf.Rad2Deg;
+                minYaw = Mathf.Min(minYaw, yaw); maxYaw = Mathf.Max(maxYaw, yaw);
+                minPitch = Mathf.Min(minPitch, pitch); maxPitch = Mathf.Max(maxPitch, pitch);
+            }
+            return Rect.MinMaxRect(minYaw, minPitch, maxYaw, maxPitch);
         }
 
         // 3a. Stand, walk away: Away. Every window is still there, at the same world position.
@@ -672,6 +723,7 @@ namespace Forge.OS.Editor
             for (int i = 0; i < slots.Count; i++) nearest = Mathf.Min(nearest, Vector3.Distance(slots[i].center, head.position));
             Check(slots.Count >= 3, $"Train has its panels open ({slots.Count}, the nearest centre is {nearest:F2} m from the eyes)");
             Shot("train_open_away");
+            int panelRenderersBefore = CountPanelRenderers();
 
             // The menu again. Every press is checked by the pointer path: the first thing under the pointer must be the tile.
             foreach (float w in EnsureMenuOpen()) yield return w;
@@ -680,7 +732,10 @@ namespace Forge.OS.Editor
             float menuDistance = Vector3.Distance(menu.LastCenter, head.position);
             Check(menuDistance <= OSSettings.MaxDistance + 0.02f, $"the menu is within comfortable reach ({menuDistance:F2} m)");
             // The pointer press below only proves the first hit is a tile; this proves nothing is in front of any part of the plate.
-            int blockedNow = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters);
+            int blockedNow = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters, meshes: false);
+            int meshesNow = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters);
+            Debug.Log($"[OSPlayTest] info {meshesNow} of 28 plate points have a model's solids in front of them; the open menu switched off {menu.HiddenContentCount} model part(s)");
+            Check(meshesNow == 0 || menu.HiddenContentCount > 0, $"solids in front of the plate ({meshesNow} points) are switched off while the menu is open ({menu.HiddenContentCount} parts)");
             Vector3 flat = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
             Vector3 defaultDirection = Quaternion.AngleAxis(OSSettings.Current.menuDropDegrees, new Vector3(flat.z, 0f, -flat.x)) * flat;
             int blockedDefault = OSMenu.Blocked(head.position, head.position + defaultDirection * OSSettings.Current.menuDistance,
@@ -692,11 +747,23 @@ namespace Forge.OS.Editor
             rig.LookAt(menu.LastCenter);  // the user looks at the menu that just opened
             yield return 0.4f;
             Shot("menu_over_train");
+            // Nothing in the scene may be drawn over the menu: compare each tile's pixels with every scene renderer hidden.
+            TileCover cover = MeasureTileCover();
+            Check(cover.tiles > 0 && cover.covered == 0,
+                $"nothing is drawn over the menu: {cover.covered} of {cover.tiles} tiles are covered by scene content (worst: {cover.worstName}, {cover.worst * 100f:F1}% of its pixels differ)");
+            if (cover.covered > 0) DescribeRenderersOverMenu();
+            // The measure has to be able to see it: with the menu drawn at order 0 (the old way) the same measure, as information.
+            SetMenuSorting(0);
+            TileCover control = MeasureTileCover();
+            SetMenuSorting(OSBody.SystemSortingOrder);
+            Debug.Log($"[OSPlayTest] info control: with the menu at sorting order 0, {control.covered} of {control.tiles} tiles are covered (worst {control.worstName}, {control.worst * 100f:F1}%)");
 
             foreach (float w in PressTile(OSTab.Tools, e => e.id == "notebook", "the Notebook tool, over the open Train mode")) yield return w;
             if (pressedEntry == null) RecoverOpen("tool", "notebook");
             foreach (float w in Until(() => shell.Windows.IsOpen("notebook"), 4f)) yield return w;
             Check(shell.Windows.IsOpen("notebook"), "a second tool opened from the menu while Train was open (Notebook)");
+            Check(menu.HiddenContentCount == 0, "the model parts the menu hid are back when it closes (" + menu.HiddenContentCount + " still hidden)");
+            Check(CountPanelRenderers() >= panelRenderersBefore, $"every renderer of the panels is enabled again after the menu closed ({CountPanelRenderers()} now, {panelRenderersBefore} before)");
             Check(OSModes.IsOpen("ml"), "Train is still open beside it");
             yield return 0.8f;
             Shot("train_still_open");
@@ -704,6 +771,136 @@ namespace Forge.OS.Editor
             if (notebookWindow != null && notebookWindow.Root != null) rig.LookAt(CenterOf(notebookWindow));  // the user looks at what opened
             yield return 0.4f;
             Shot("notebook_opened");
+        }
+
+        // For a failure: the scene renderers whose bounds are on screen over the menu plate, nearest first, with what decides how
+        // they are drawn (the menu is at menuDistance from the eyes).
+        static void DescribeRenderersOverMenu()
+        {
+            Camera cam = Forge.Pet.PetUser.HeadCamera;
+            if (cam == null || menu == null) return;
+            Vector3 eye = cam.transform.position;
+            float menuDistance = Vector3.Distance(eye, menu.LastCenter);
+            var corners = new Vector3[8];
+            var list = new List<(float d, string text)>();
+            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
+            {
+                if (r == null || !r.enabled || r.transform.IsChildOf(menu.transform) || !r.isVisible) continue;
+                Bounds b = r.bounds;
+                float nearest = Mathf.Sqrt(b.SqrDistance(eye));
+                Vector3 vp = cam.WorldToViewportPoint(b.center);
+                if (vp.z <= 0f || vp.x < 0.1f || vp.x > 0.9f || vp.y < 0.1f || vp.y > 0.9f) continue;
+                Material m = r.sharedMaterial;
+                string path = r.name;
+                for (Transform t = r.transform.parent; t != null && path.Length < 120; t = t.parent) path = t.name + "/" + path;
+                list.Add((nearest, $"{path}: nearest {nearest:F2} m (centre {Vector3.Distance(eye, b.center):F2} m, size {b.size.x:F2}x{b.size.y:F2}x{b.size.z:F2}), menu at {menuDistance:F2} m, queue {(m != null ? m.renderQueue : -1)}, shader {(m != null ? m.shader.name : "none")}, sortingOrder {r.sortingOrder}"));
+            }
+            list.Sort((x, y) => x.d.CompareTo(y.d));
+            for (int i = 0; i < list.Count && i < 12; i++) Debug.Log("[OSPlayTest] info over the menu: " + list[i].text);
+        }
+
+        // Enabled, not force-hidden renderers (meshes) under the showing panels: a mode's 3D stage is among them.
+        static int CountPanelRenderers()
+        {
+            int n = 0;
+            foreach (ForgePanel panel in ForgePanel.All)
+            {
+                if (panel == null || !panel.gameObject.activeInHierarchy) continue;
+                foreach (Renderer r in panel.GetComponentsInChildren<Renderer>(false)) if (r != null && r.enabled && !r.forceRenderingOff) n++;
+            }
+            return n;
+        }
+
+        static void SetMenuSorting(int order)
+        {
+            foreach (Canvas canvas in menu.GetComponentsInChildren<Canvas>(true))
+            {
+                if (!canvas.isRootCanvas) canvas.overrideSorting = true;
+                canvas.sortingOrder = order;
+            }
+        }
+
+        struct TileCover
+        {
+            public int tiles, covered;
+            public float worst;
+            public string worstName;
+        }
+
+        // Renders the head camera twice in the same frame, once as is and once with every scene Renderer (meshes, labels,
+        // particles) switched off, and compares the middle of each showing tile. The menu is made of canvas graphics, which are
+        // not Renderers, so they are in both pictures; a tile whose pixels change when the scene goes is a tile the scene was
+        // drawn over (or, if the scene was only behind the plate, showing through it: the tolerance covers a little of that).
+        static TileCover MeasureTileCover()
+        {
+            var result = new TileCover();
+            Camera cam = Forge.Pet.PetUser.HeadCamera;
+            if (cam == null || menu == null || menu.ActiveTiles.Count == 0) return result;
+            const int W = 1280, H = 800;
+            Texture2D with = OSShot.Capture(W, H);
+            if (with == null) return result;
+            var hidden = new List<Renderer>();
+            Texture2D without = null;
+            try
+            {
+                foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
+                {
+                    if (r == null || !r.enabled || r.transform.IsChildOf(menu.transform)) continue;
+                    r.enabled = false;
+                    hidden.Add(r);
+                }
+                without = OSShot.Capture(W, H);
+            }
+            finally
+            {
+                foreach (Renderer r in hidden) if (r != null) r.enabled = true;
+            }
+            if (without == null) { UnityEngine.Object.DestroyImmediate(with); return result; }
+            Color32[] a = with.GetPixels32(), b = without.GetPixels32();
+            UnityEngine.Object.DestroyImmediate(with);
+            UnityEngine.Object.DestroyImmediate(without);
+
+            var corners = new Vector3[4];
+            IReadOnlyList<OSTileView> tiles = menu.ActiveTiles;
+            for (int t = 0; t < tiles.Count; t++)
+            {
+                if (tiles[t] == null || !tiles[t].gameObject.activeInHierarchy) continue;
+                tiles[t].rect.GetWorldCorners(corners);
+                float minX = 1f, maxX = 0f, minY = 1f, maxY = 0f;
+                bool visible = true;
+                for (int i = 0; i < 4; i++)
+                {
+                    Vector3 v = cam.WorldToViewportPoint(corners[i]);
+                    if (v.z <= 0f) visible = false;
+                    minX = Mathf.Min(minX, v.x); maxX = Mathf.Max(maxX, v.x);
+                    minY = Mathf.Min(minY, v.y); maxY = Mathf.Max(maxY, v.y);
+                }
+                if (!visible) continue;
+                float shrinkX = (maxX - minX) * 0.2f, shrinkY = (maxY - minY) * 0.2f;  // the middle of the tile, not its rounded edge
+                int x0 = Mathf.Clamp(Mathf.RoundToInt((minX + shrinkX) * W), 0, W - 1), x1 = Mathf.Clamp(Mathf.RoundToInt((maxX - shrinkX) * W), 0, W - 1);
+                int y0 = Mathf.Clamp(Mathf.RoundToInt((minY + shrinkY) * H), 0, H - 1), y1 = Mathf.Clamp(Mathf.RoundToInt((maxY - shrinkY) * H), 0, H - 1);
+                int count = 0, different = 0;
+                for (int y = y0; y <= y1; y++)
+                {
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        Color32 p = a[y * W + x], q = b[y * W + x];
+                        int d = Mathf.Max(Mathf.Abs(p.r - q.r), Mathf.Max(Mathf.Abs(p.g - q.g), Mathf.Abs(p.b - q.b)));
+                        count++;
+                        if (d > 24) different++;
+                    }
+                }
+                if (count == 0) continue;
+                result.tiles++;
+                float fraction = different / (float)count;
+                if (fraction > 0.03f) result.covered++;
+                if (fraction >= result.worst)
+                {
+                    result.worst = fraction;
+                    result.worstName = tiles[t].entry != null ? tiles[t].entry.title : tiles[t].name;
+                }
+            }
+            return result;
         }
 
         // 9. Close all: nothing is left.

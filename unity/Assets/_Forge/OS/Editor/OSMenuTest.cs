@@ -325,10 +325,21 @@ namespace Forge.OS.Editor
 
             string why;
             Check(!shell.MenuOpen, "the menu starts closed");
+            // A tab chosen before the menu was ever built (a voice os_tab) is the tab the first build shows, not Tools.
+            shell.SetTab(OSTab.Projects);
             Check(Press(table.Button.gameObject, out why), "a pointer reaches the table button: " + why);
             yield return 0.8f;
             Check(shell.MenuOpen && shell.LastSummon == OSSummon.TableButton, "pressing the table button opens the menu (summon " + shell.LastSummon + ")");
             Check(menu.Visible, "the menu is visible");
+            var firstTabs = FindDeep(menu.transform, "Tab Projects")?.GetComponent<Toggle>();
+            var toolsTab = FindDeep(menu.transform, "Tab Tools")?.GetComponent<Toggle>();
+            Check(shell.Tab == OSTab.Projects, "a tab set before the menu was first built survives the build (shell tab " + shell.Tab + ")");
+            Check(firstTabs != null && firstTabs.isOn && toolsTab != null && !toolsTab.isOn, "the first build lights the shell's tab (Projects), not Tools");
+            shell.SetTab(OSTab.Tools);
+            yield return 0.4f;
+            Check(toolsTab != null && toolsTab.isOn && firstTabs != null && !firstTabs.isOn, "setting the tab back to Tools lights Tools");
+            yield return 0.5f;  // the lit tab's animation settles
+            SelectedTabContrast(toolsTab);
 
             // Where it landed and how big it is.
             Transform head = shell.Head;
@@ -471,6 +482,77 @@ namespace Forge.OS.Editor
             Check(!shell.MenuOpen, "away: Close closes the menu");
             yield return 0.3f;
         }
+
+        // The lit tab is a light plate: its label and icon must be dark enough to read on it (WCAG contrast at least 4.5:1,
+        // for text; the icon is held to the same).
+        static void SelectedTabContrast(Toggle tab)
+        {
+            if (tab == null) { Check(false, "the selected tab exists to measure"); return; }
+            Transform elements = FindDeep(tab.transform, "Elements");
+            var label = elements != null ? elements.Find(OSUi.TabTitleName)?.GetComponent<TMPro.TMP_Text>() : null;
+            var icon = elements != null ? elements.Find("Icon")?.GetComponent<Image>() : null;
+            var fill = tab.transform.Find("Content/Background")?.GetComponent<Image>();
+            if (label == null || icon == null || fill == null) { Check(false, "the selected tab has a label, an icon and a fill"); return; }
+            Color plate = new Color(0.14f, 0.14f, 0.15f, 1f);  // what the lit fill sits on
+            Color ground = Over(fill.color, plate);
+            float labelContrast = Contrast(Over(label.color, ground), ground);
+            float iconContrast = Contrast(Over(icon.color, ground), ground);
+            Measure($"selected tab: fill {Hex(ground)}, label {Hex(Over(label.color, ground))} ({labelContrast:F1}:1), icon {Hex(Over(icon.color, ground))} ({iconContrast:F1}:1)");
+            Check(labelContrast >= 4.5f, "the selected tab's label reads on its light fill (contrast " + labelContrast.ToString("F1") + ":1, at least 4.5)");
+            Check(iconContrast >= 4.5f, "the selected tab's icon reads on its light fill (contrast " + iconContrast.ToString("F1") + ":1, at least 4.5)");
+
+            // And as drawn: thin dark strokes on a light plate never reach the text colour, so the darkest pixel of the label
+            // in the head camera's picture has to be dark enough too (the colours above passed while the label still looked pale).
+            Camera cam = PetUser.HeadCamera;
+            Texture2D picture = cam != null ? OSShot.Capture(1280, 800) : null;
+            if (picture == null) { Debug.Log("[OSMenuTest] skip drawn label contrast: no camera or no graphics"); return; }
+            var corners = new Vector3[4];
+            label.rectTransform.GetWorldCorners(corners);
+            float minX = 1f, maxX = 0f, minY = 1f, maxY = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 v = cam.WorldToViewportPoint(corners[i]);
+                minX = Mathf.Min(minX, v.x); maxX = Mathf.Max(maxX, v.x);
+                minY = Mathf.Min(minY, v.y); maxY = Mathf.Max(maxY, v.y);
+            }
+            // Only the label's text, not the whole box: its preferred width centred in the box.
+            float textFraction = Mathf.Clamp01(label.preferredWidth / Mathf.Max(1f, label.rectTransform.rect.width));
+            float midX = (minX + maxX) * 0.5f, halfX = (maxX - minX) * 0.5f * textFraction;
+            Color32[] pixels = picture.GetPixels32();
+            UnityEngine.Object.DestroyImmediate(picture);
+            float darkest = 1f, lightest = 0f;
+            for (int y = Mathf.RoundToInt(minY * 800f); y <= Mathf.RoundToInt(maxY * 800f); y++)
+                for (int x = Mathf.RoundToInt((midX - halfX) * 1280f); x <= Mathf.RoundToInt((midX + halfX) * 1280f); x++)
+                {
+                    if (x < 0 || x >= 1280 || y < 0 || y >= 800) continue;
+                    Color32 p = pixels[y * 1280 + x];
+                    float l = Luminance(new Color(p.r / 255f, p.g / 255f, p.b / 255f));
+                    darkest = Mathf.Min(darkest, l);
+                    lightest = Mathf.Max(lightest, l);
+                }
+            float drawn = (lightest + 0.05f) / (darkest + 0.05f);
+            Measure($"selected tab label as drawn: darkest pixel luminance {darkest:F3}, fill {lightest:F3}, contrast {drawn:F1}:1");
+            Check(drawn >= 5.5f, "the selected tab's label, as drawn, is dark on the light fill (contrast of its darkest pixel " + drawn.ToString("F1") + ":1, at least 5.5; it was 5.0 with the pale label)");
+        }
+
+        static Color Over(Color top, Color under) => new Color(
+            top.r * top.a + under.r * (1f - top.a), top.g * top.a + under.g * (1f - top.a), top.b * top.a + under.b * (1f - top.a), 1f);
+
+        static float Luminance(Color c)
+        {
+            float R = Linear(c.r), G = Linear(c.g), B = Linear(c.b);
+            return 0.2126f * R + 0.7152f * G + 0.0722f * B;
+        }
+
+        static float Linear(float v) => v <= 0.03928f ? v / 12.92f : Mathf.Pow((v + 0.055f) / 1.055f, 2.4f);
+
+        static float Contrast(Color a, Color b)
+        {
+            float la = Luminance(a), lb = Luminance(b);
+            return (Mathf.Max(la, lb) + 0.05f) / (Mathf.Min(la, lb) + 0.05f);
+        }
+
+        static string Hex(Color c) => "#" + ColorUtility.ToHtmlStringRGB(c);
 
         static GameObject FindNextButton(OSMenu menu)
         {

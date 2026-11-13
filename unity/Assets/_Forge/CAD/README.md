@@ -143,7 +143,7 @@ layout tweak is a number change. The prefab's older UI (`CadUI`, if present) is 
   in the CAD hue, the rest white, each with a chip ("CG 246 mm", "In 3,000 rpm"); a bracket between the rocket's CG
   and CP collars in the margin's colour, and on the stage the margin chip ("1.57 cal · static margin"). A hovering
   design shows its prop discs.
-- Dimensions (`analysis.dimensions`, key **Shift+M**, the new panel's Measure; on by themselves on the stage): extension
+- Dimensions (`analysis.dimensions`, key **M**, or **Shift+M** while the Albie OS key handler is active (`OSKeys.Active`; a plain M is then the OS menu); the new panel's Measure; on by themselves on the stage): extension
   lines, the line with open arrowheads, a value chip ("390 mm" over "Length").
 - `HighlightParam(name)`: the parameter's parts (`params[].parts`) get an orange outline and its dimension
   (`params[].dimension`) is drawn. Needs those two fields from the hub (not in the mocks yet: then it does nothing).
@@ -233,7 +233,7 @@ On the desk, dragging still turns the whole model (Core's `VolumeManipulator`). 
 Open `CADSandbox.unity` and press Play (hub off = mocks; start the hub for live). Mouse works on the panels and, in
 Inspect, on the parts. Keys (Game view must have focus): P next design, 1-4 stored versions, Left/Right step,
 E explode, U undo, R reset, F the demo (Fly / Hover / Run; again to stop), X a failed build (mock: the banner),
-I expand, Shift+M measure, N markers.
+I expand, M measure (Shift+M while the Albie OS is running), N markers.
 (I, M and N are CadViewer's own keys, so they work in desktop mode too.)
 
 Rebuild everything with **Forge > CAD > Build CAD Prefabs and Sandbox** (prefabs, materials, mock set, sandbox), only

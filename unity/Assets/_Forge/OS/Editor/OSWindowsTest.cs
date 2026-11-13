@@ -476,6 +476,15 @@ namespace Forge.OS.Editor
             Check(mlFront, "ML's panels are in front of the user");
             Shot("14_ml_away");
 
+            // ---- opening another mode when no free frame can be made leaves the open mode exactly as it was
+            Workspace.FreeFramePose realPose = workspace.FreeFrame;
+            workspace.FreeFrame = (out Vector3 position, out Quaternion rotation) => { position = default; rotation = default; return false; };
+            workspace.Open("cad");
+            yield return 3f;
+            workspace.FreeFrame = realPose;
+            Check(workspace.ActiveMode == "ml" && workspace.InFreeFrame, "Open with no free frame to make leaves the old mode active in its frame (" + workspace.ActiveMode + ")");
+            Check(ModePanels(workspace).Length == ml.Length, "and its panels are not folded away (" + ModePanels(workspace).Length + " of " + ml.Length + ")");
+
             // ---- the voice tool path (hub off): ui_open_view works away from a desk
             JObject result = AlbieTools.Call("ui_open_view", new JObject { ["view"] = "messages" });
             Check(result != null && result["error"] == null && workspace.ActiveMode == "messages", "ui_open_view messages returns ok away from the desk and opens it (" + result + ")");

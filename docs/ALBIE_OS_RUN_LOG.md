@@ -517,3 +517,49 @@ Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `01_t
 
 ### Changes outside `OS/`
 None. No Project Settings, scene or `manifest.json`.
+
+## Part fixes-p0: what P0's review and tests found
+
+Eight fixes, each with a check that sees it. Free disk on C: 6.15 GB at the start, 5.8 GB at the end; nothing disk-heavy was run.
+
+1. **`OSTableButton`**: a failed build (kit or its prefabs missing, or the backplate without its `CanvasRoot`/`UIBackplate`) is remembered in `buildFailed` and not retried every frame (reset in `OnEnable`); `Build` is now `TryBuild` plus the bookkeeping, so on a failure path the half-made root is destroyed and `built` is never set.
+2. **`Workspace.Open`** (in `Core/`): the new free frame is made first; if the OS can't give one, `Open` returns with the old mode untouched (not folded, still `ActiveMode`). `start` (the switch delay) is still taken before anything folds. Check: `OSWindowsTest` makes `FreeFrame` fail, calls `Open("cad")` over open ML and sees `ml` still active in its free frame with 4 of 4 panels.
+3. **CAD measure key**: `OSKeys.Active` (public static, set in `OnEnable`, cleared in `OnDisable`, reset at `SubsystemRegistration`). `CadViewer` takes M alone for measure unless `OSKeys.Active`, then Shift+M. The CAD README (two lines), the `CadViewer` header comment and the `CadSandboxKeys` comment say exactly that.
+4. **Tab at first build**: the cause was the toggle group lighting its first toggle (Tools) when the tab bar came alive, which the tab handler took for the user choosing Tools. `OSMenu` now ignores tab callbacks while it shows itself (`syncingTabs`), so the shell's tab is the truth. `OSMenuTest`: `SetTab(Projects)` before the menu was ever built, press the table button, the Projects toggle is on and Tools is off, then back to Tools.
+5. **Menu covered by 3D content (Train)**. Cause, found with a list of renderers over the plate (`info over the menu` lines): two things. (a) The dataset card stack was transparent and drawn after the menu although it lies behind it (a canvas writes no depth, so a transparent thing sorted later paints over it): the menu's canvases now have sorting order 100 (`OSBody.RaiseAboveScene`). (b) Train's layer slabs are really nearer than the menu: they are a 3D stage inside the Model panel (`WorkspaceFreeFrame/Model3D(Clone)/Content/Model stage/Tower`, 0.19 to 0.32 m from the eyes, the menu at 0.36 m, the nearest it may come), not a `ForgeVolume`, so placement never saw them. Fix: placement now counts the meshes under every volume and every panel (their world box); when no place is clear of them it takes the place clear of panels and volumes as before (second pass), and the open menu switches off (`Renderer.forceRenderingOff`, restored when it closes) the mesh parts still in front of the plate. Not `Renderer.enabled`: Train re-enables its slabs every frame (first try, seen failing). `OSPlayTest` step 3d: renders the head camera twice in one frame, normal and with every scene renderer off, and compares the middle of each tile; fails if a tile differs (`nothing is drawn over the menu: 0 of 6 tiles are covered`), and asserts the hidden parts are back after the menu closes. `unity/Logs/os/11_menu_over_train.png` was looked at: all six tiles are whole, the slabs are gone while the menu is open.
+6. **Statics**: `OSMenu` (volumes, and the new content lists) and `OSArtifacts` (`line.Length = 0`) reset at `SubsystemRegistration`.
+7. **Artifact panel over the Code window**: the artifact host puts its panels at an offset from itself without knowing the open mode's slots; the OS adopted them where they stood. `OSWindows.ClearOf(window, ownRoot)` (called from `OSArtifacts.AdoptPanels` for each newly adopted panel) measures from the eyes against windows, the mode's laid-out slots and volumes, ignoring the artifact's own panels and model, and glides the panel to the nearest free place if it overlaps. `OSPlayTest` 2b asserts it with the yaw/pitch rectangles `OSWindowsTest` uses (artifact panels against every other showing panel). With the call taken out the assertion fails with `Panel Human heart x CodePanel(Clone)` (run and seen), with it it passes; `06_three_open.png` shows the heart panel gone from behind the Code window.
+8. **Selected tab label**: three causes, found in the UI Set. The label's colour is animated by the toggle's animator (to 0.15 grey but with the text 10% transparent), the theme manager repaints every untagged text white on `ApplyCurrentTheme`, and TMP draws thin dark strokes on a light plate at partial coverage. Fix in the kit, not the menu: `OSUi.Tab` renames the title (`OSUi.TabTitleName`, so the animation no longer finds it) and tags it `QDSUISharedThemeColor` (the theme manager leaves it alone), and `OSToggleSync` sets its colour from the theme: `textPrimaryInvertedColor` when lit, `textPrimaryColor` when not, solid. Checks in `OSMenuTest`: label 12.4:1 and icon 12.8:1 by colour (needs 4.5), and the darkest drawn pixel of the label in a head-camera picture against the fill (was 5.0:1 with the pale label, now 6.0 to 8.1:1; the check needs 5.5).
+
+### Check output (verbatim)
+```
+PASS os check   (24 ok lines, the planner one "skipped: OSPlanner is not built yet")
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 59 passed, 0 failed (1 skipped)
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+```
+There are no CAD checks (nothing under `Forge/CAD` but the builders). `unity recompile`: 0 errors, 0 warnings.
+
+### Decisions (one line of why each)
+- **Hide, not fade, the model parts in front of the open menu.** Why: Forge's shaders have no common alpha, and `forceRenderingOff` is one flag that nothing else touches; they come back when the menu closes.
+- **Placement counts meshes first, panels alone second.** Why: counting meshes alone left no clear place (the finding of part 6.1) and broke the panel-clear guarantee on the first try (5 of 28 points behind a panel); two passes keep it.
+- **Sorting order 100 on the menu canvases stays although the hide is what fixes Train.** Why: it fixes the transparent cards that lie behind the menu.
+- **The drawn-label contrast limit is 5.5:1, the colour one 4.5:1.** Why: the drawn value moves between 6 and 8 with sub-pixel position; the pale label measured 5.0.
+- **`OSMenu.Blocked` has a `meshes` parameter (default true).** Why: the play test's "no panel in front" must not count the solids the menu switches off.
+
+### Not working or not done
+- The real M key was dropped in one run in about ten (OSPlayTest 3c once, OSMenuTest once, each passed on the next run); the cause was not found (a key press that lands in the same input update as its release is one guess), the same press passes on the next run.
+- Primary button labels ("Build something") are dark on white and still look thin; the tab title was the one asked for.
+- `OSWindowsTest` counted 50 checks in P0, 52 to 60 now (the count varies with the run); no check was removed.
+
+### Changes outside `OS/`
+- `Core/Scripts/Workspace.cs`, `Open()`: the new free frame is made before anything folds; on failure it returns with the old mode untouched (fix 2).
+- `CAD/Scripts/CadViewer.cs`: measure is M, or Shift+M while `OSKeys.Active` (fix 3); `CAD/Scripts/CadSandboxKeys.cs` (comment) and `CAD/README.md` (two lines) say so.
+No Project Settings, scene or `manifest.json`.

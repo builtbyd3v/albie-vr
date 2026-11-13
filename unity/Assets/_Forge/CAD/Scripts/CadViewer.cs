@@ -17,7 +17,7 @@ using UnityEngine.InputSystem;
 /// From the version's analysis (CAD_PLAN section 5, round 4; HANDOFF_UI2/cad/CAD_UX_SPEC.md), desk and stage alike:
 /// - Explode (<see cref="CadExploder"/>): parts spring out along the design's own vectors, staggered, and one chip per
 ///   kind of part comes up beside the model on a leader (<see cref="CadAnnotations"/>).
-/// - Markers (CG, CP, thrust, input, output...; on by default, key N) and dimension callouts (Measure, key Shift+M; a plain M is the Albie menu).
+/// - Markers (CG, CP, thrust, input, output...; on by default, key N) and dimension callouts (Measure, key M; with the Albie OS running (OSKeys.Active) a plain M is its menu, so measure is Shift+M).
 /// - The demo (<see cref="CadDemoPlayer"/>): Fly, Hover or Run.
 /// - A parameter's parts and dimension on the model while a panel points at it (<see cref="HighlightParam"/>).
 /// Panels drive these through <see cref="CadSession"/> (SetView, SetInspecting, RequestDemo, SetMeasuring,
@@ -444,7 +444,8 @@ public class CadViewer : MonoBehaviour
         if (keys != null && session != null)
         {
             if (keys.iKey.wasPressedThisFrame) session.SetInspecting(!session.Inspecting);
-            if (keys.mKey.wasPressedThisFrame && keys.shiftKey.isPressed) session.SetMeasuring(!session.Measuring);
+            // M measures; with the Albie OS running a plain M is its menu, so then it takes Shift+M.
+            if (keys.mKey.wasPressedThisFrame && (!Forge.OS.OSKeys.Active || keys.shiftKey.isPressed)) session.SetMeasuring(!session.Measuring);
             if (keys.nKey.wasPressedThisFrame) session.SetMarkersShown(!session.MarkersShown);
         }
 

@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 /// CADSandbox shortcuts: P next design, 1-4 jump to a stored version of it (mock mode), Left/Right step,
 /// E explode, U undo, R reset, F the design's demo (Fly / Hover / Run; again to stop it), X a failed build (mock mode:
 /// the panel's red banner, from the mock's cad.regen_failed).
-/// (I inspect, Shift+M measure and N markers are CadViewer's own keys, so they work in desktop mode too.)
+/// (I inspect, M measure (Shift+M while the Albie OS key handler is active, since a plain M is its menu) and N markers are CadViewer's own keys, so they work in desktop mode too.)
 /// </summary>
 public class CadSandboxKeys : MonoBehaviour
 {

@@ -67,6 +67,7 @@ namespace Forge.OS
             notices.Clear();
             panelScratch.Clear();
             volumeScratch.Clear();
+            line.Length = 0;
             source = null;
             registered = false;
             dirty = true;
@@ -563,7 +564,8 @@ namespace Forge.OS
                 if (handles == null) handles = panel.gameObject.AddComponent<PanelManipulator>();
                 handles.Init(head, frame);
                 GameObject root = panel.gameObject;
-                windows.Adopt(NextWindowId(artifactId), panel.Title, root, () => CloseFromWindow(host, root));
+                OSWindow adopted = windows.Adopt(NextWindowId(artifactId), panel.Title, root, () => CloseFromWindow(host, root));
+                if (adopted != null) windows.ClearOf(adopted, host.transform);  // the host put it down without knowing what else stands there
             }
             panelScratch.Clear();
 

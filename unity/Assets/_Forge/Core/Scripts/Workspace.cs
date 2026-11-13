@@ -260,11 +260,13 @@ public class Workspace : MonoBehaviour
 
         // Switching modes: the old one folds into its ring while this one unfolds out of its own, a beat behind.
         float start = openItems.Count > 0 ? ForgeTheme.SwitchDelay : 0f;
+        // At a desk the mode lives in the desk frame, as ever; away (the OS) it gets a frame in front of the user. The new
+        // frame is made first: if the OS can't give one, the old mode stays exactly as it was (not folded, still active).
+        Transform newFrame = null;
+        if (!presence.AtDesk && !NewFreeFrame(out newFrame)) return;
         FoldAll();
-        // At a desk the mode lives in the desk frame, as ever; away (the OS) it gets a frame in front of the user.
         Discard(freeFrame);
-        freeFrame = null;
-        if (!presence.AtDesk && !NewFreeFrame(out freeFrame)) return;
+        freeFrame = newFrame;
         foreach (var item in mode.items) openItems.Add(Spawn(item, mode));
         Vector3 eye = ClampEye(ActiveEye());
         LayOut(eye);

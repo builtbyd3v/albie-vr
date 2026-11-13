@@ -646,6 +646,30 @@ namespace Forge.OS
         }
 
         readonly List<Cover> covers = new List<Cover>();
+        Transform ignoreRoot;  // while set, panels and volumes under it don't count as in the way (see ClearOf)
+
+        /// <summary>
+        /// A panel that something else placed (an artifact host puts its panels where it likes, before the OS adopts them) is
+        /// moved to the nearest free place if, seen from the eyes, it covers another window, a panel of the open mode or a
+        /// volume. Things under <paramref name="ownRoot"/> (the artifact's own panels and model) don't count: they were laid
+        /// out together. True when it moved.
+        /// </summary>
+        public bool ClearOf(OSWindow window, Transform ownRoot)
+        {
+            Transform head = OSShell.FindHead();
+            if (window == null || window.IsGroup || window.Panel == null || window.Root == null || head == null || !window.gameObject.activeInHierarchy) return false;
+            Vector3 eye = head.position;
+            Vector3 forward = FlatForward(head);
+            ignoreRoot = ownRoot;
+            List<Cover> others = CollectCovers(window, eye, forward);
+            ignoreRoot = null;
+            Cover mine = CoverOf(window.Motion != null ? window.TargetCenter : CenterOf(window), WidthOf(window), HeightOf(window), eye, forward);
+            if (IsClear(mine, others)) return false;
+            pending.Clear();
+            if (!FindSpot(window, head, out Vector3 center, out Quaternion rotation)) return false;
+            Glide(window, center, rotation, 0f);
+            return true;
+        }
 
         List<Cover> CollectCovers(OSWindow moving, Vector3 eye, Vector3 forward)
         {
@@ -655,6 +679,7 @@ namespace Forge.OS
             {
                 ForgePanel panel = all[i];
                 if (panel == null || (moving.Panel != null && panel == moving.Panel) || pending.Contains(panel)) continue;
+                if (ignoreRoot != null && panel.transform.IsChildOf(ignoreRoot)) continue;
                 if (workspace != null && workspace.IsOpenItem(panel.gameObject)) continue;  // its laid-out slot is used instead
                 var rect = (RectTransform)panel.transform;
                 Vector2 size = panel.SizeMeters;
@@ -669,6 +694,7 @@ namespace Forge.OS
             {
                 ForgeVolume volume = volumes[i];
                 if (volume == null || !volume.gameObject.activeInHierarchy || (moving.Volume != null && volume == moving.Volume)) continue;
+                if (ignoreRoot != null && volume.transform.IsChildOf(ignoreRoot)) continue;
                 if (workspace != null && workspace.IsOpenItem(volume.gameObject)) continue;
                 Vector3 box = Vector3.Scale(volume.size, volume.transform.lossyScale);
                 covers.Add(CoverOf(volume.transform.position + Vector3.up * (box.y * 0.5f), box.x, box.y, eye, forward));
