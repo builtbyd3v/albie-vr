@@ -346,3 +346,12 @@ Screenshots (`unity/Logs/os/`, ignored by git), each opened:
 
 ### Changes outside `OS/`
 None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Orchestrator note: disk stop and restart (2026-11-12 night to 2026-11-13)
+
+- **Stopped.** The Projects part (5.5) checked the disk before starting and found 4.92 GB, then 4.48 GB, so it stopped without changing anything, as the 5 GB rule says. The parts after it (Artifacts, the P0 play test, the rules review) did not run. Free space reached 3.5 GB a few minutes later.
+- **Cause.** Not this repo: `unity/Library` stayed at 13.05 GB and `unity/Temp` plus `unity/Logs` are 0.03 GB. The Windows page file is 29 GB allocated with under 3 GB in use (commit 54 of 60.6 GB with about 30 other `claude` processes running), and the Outlook cache (`.ost`, 4.9 GB) was being written during the run. Free space has swung between 3.5 and 9.5 GB all day without the repo changing.
+- **Restart.** Hudson said to continue (2026-11-13); free space was 5.76 GB at that point. Decision: for the rest of P0 a part stops only if free space is under 3 GB on two checks two minutes apart, and between 3 and 5 GB it works but does nothing disk-heavy (no player build, no reimport). Why: the figure swings by several GB from other programs, so a single reading under 5 GB stopped a part that would have used almost no disk. The APK build at the end still needs real headroom and will not start under 5 GB.
+- **Added to the P0 play-test part:** fix the menu being unreachable behind a mode's panels away from a desk (found in 5.4), with a play-test step for it.
