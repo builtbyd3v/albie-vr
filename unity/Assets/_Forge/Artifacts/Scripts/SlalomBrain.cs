@@ -54,6 +54,8 @@ namespace Forge.Artifacts
         public bool KeyHints = true;
         string Hint(string text) => KeyHints ? text : "";
         public int CompletedLaps => Thing != null ? Thing.Recorder.Set.CompletedLaps : 0;
+        /// <summary>The completed-lap count that ends the recording started by <see cref="Record"/> (0 when one lap at a time, as <see cref="RecordLap"/>). The Drive window reads it for "recording lap 1 of 2".</summary>
+        public int LapTarget => lapTarget;
         public BehaviourCloner[] Cloners => cloners;
         public Autopilot Autopilot => autopilot;
         /// <summary>Every Autopilot run's result, in order ("candidate 1 crashed", "candidate 2 completed").</summary>
@@ -197,7 +199,7 @@ namespace Forge.Artifacts
             script = null;
             ManualInputs.Clear();
             Park();
-            Status = $"lap {outcome} in {lap.Seconds:0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
+            Status = $"lap {outcome} in {(lap != null ? lap.Seconds : 0f):0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
                      Hint(CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
             if (lapTarget <= 0) return;
             string said = Status;

@@ -642,6 +642,33 @@ namespace Forge.OS
         public void Refresh()
         {
             if (!built || shell == null) return;
+            // A tile's status line can change the lists while they are being laid out (the Gestures line hands the gesture display
+            // to the window manager the first time it is seen, which tells the registry). Run it again after this pass, not inside it.
+            if (refreshing)
+            {
+                refreshAgain = true;
+                return;
+            }
+            refreshing = true;
+            try
+            {
+                do
+                {
+                    refreshAgain = false;
+                    RefreshOnce();
+                }
+                while (refreshAgain);
+            }
+            finally
+            {
+                refreshing = false;
+            }
+        }
+
+        bool refreshing, refreshAgain;
+
+        void RefreshOnce()
+        {
             OSTab tab = shell.Tab;
             for (int i = 0; i < tabs.Length; i++) OSUi.Select(tabs[i], i == (int)tab);
 

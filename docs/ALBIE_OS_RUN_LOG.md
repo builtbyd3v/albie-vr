@@ -563,3 +563,59 @@ There are no CAD checks (nothing under `Forge/CAD` but the builders). `unity rec
 - `Core/Scripts/Workspace.cs`, `Open()`: the new free frame is made before anything folds; on failure it returns with the old mode untouched (fix 2).
 - `CAD/Scripts/CadViewer.cs`: measure is M, or Shift+M while `OSKeys.Active` (fix 3); `CAD/Scripts/CadSandboxKeys.cs` (comment) and `CAD/README.md` (two lines) say so.
 No Project Settings, scene or `manifest.json`.
+
+## Part drive-5.8: the hand transmitter
+
+Free disk on C: 5.81 GB at the start, 5.79 GB at the end (above the 5 GB line; no player build, no Reimport All). One integrator lane, no staged files.
+
+### What was done
+- `OSDrivePad` (new): a 169 mm square pad with a knob built from the UI Set's rounded box (the material of a stock button plate) and the kit's chevrons. It handles `IPointerDown/IDrag/IPointerUp/IEndDrag` (so the mouse through the EventSystem, and the Interaction SDK's ray and poke through the same canvas events). While held it writes `stick.x` and `stick.y` every frame; it writes zero once on release, on disable and (through `Release`) on Stop; the knob springs back in about 0.12 s on unscaled time. No allocation per frame.
+- `OSDriveWindow` (new): says which Thing it drives (the brain truck on the slalom, another running truck, or "No truck to drive yet. Open the RC truck project and tap Course."), the pad, a Stop button 195 x 49 mm (a stock UI Set button inside a scaling holder), and the state line (`Recording lap 1 of 2`, `Idle`, `Idle · 2 laps recorded`, `Training the brain`, `Autopilot driving`). `Stop()` releases the pad, clears the manual channels, aborts a lap being recorded (`StopRecording`) or stops the Autopilot (`StopAutopilot`), found through `IBrainLoop.ToolState()["mode"]`. The Drive tile registers from `OSDriveWindow.RegisterTool`, called last by `OSToolsCatalog.Register`, so it follows Gestures; its status is `no truck yet`, `truck ready`, `recording a lap`, `brain training`, `autopilot driving`. The truck project's Drive action (unchanged code) now finds the tool: it opens Drive and starts a two-lap recording when the brain is idle.
+- `OSDriveTest` (new, `Forge/OS/Run Drive Test`, `OSDriveTest.LastResult`, `OSDriveTest.Level`): scratch root, MockFloorPlan room, proj_truck, Course (with the Allow step), the Drive tile and the project's Drive action pressed with real pointer events; then the truck is driven only through synthetic `PointerEventData` sent to the pad's handlers (the screen position of a point on the pad, from the same raycast the mouse uses). Checks: knob up moves the truck forward, left and right turn it, release writes zero and the truck stops, the knob springs back, Stop with the knob still held, Stop on a recording and on the Autopilot; then the full flow with a pursuit controller in the test that turns the next gate into pad positions.
+- `OSCheck`'s tabs check now requires Drive (the window exists); `OSMenuTest` steps the real Drive tile aside with the other real tools.
+
+### Level reached: FULL
+Two laps of the slalom were completed by driving the pad (pursuit controller through `PointerEventData`), Train ran on those laps, and the Autopilot completed the slalom on a scored run (`Drove: candidate 1` in the last run; `candidate 2` in the run before, after a first candidate timed out; never the pretrained fallback). No fallback level was used.
+
+### Check output (verbatim)
+```
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS os check   (the tabs line: "the tabs hold the seven tools, the four starter projects and every artifact template")
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 95 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 59 passed, 0 failed (1 skipped)
+PASS slalom brain check (Play mode, the brain truck on its colliders)      (Forge/Artifacts/Check Brain Loop (Play), every ok line)
+PASS room slalom check (mock truck, Editor)
+PASS autopilot check
+PASS behaviour cloning check
+PASS slalom check
+PASS voice rules check
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements of the Drive test (the last run): `pad 169 x 169 mm, Stop 195 x 49 mm`; `knob up for 1 s: moved 0.38 m forward, speed 0.49 m/s`; `after the release the speed fell from 0.49 to 0.05 m/s in 2.1 s`; `the knob took 0.14 s to spring back`; `knob up-left for 0.8 s: heading changed -26 degrees`; `knob up-right for 1.0 s: heading changed 65 degrees`; `pad laps: 2 completed, state Idle`; `slalom run records: 2, the last was completed`; `training: trained 3 candidates in 530 frames (2082 ms compute); in rehearsal the best finished 9 of 9 starts`; `autopilot: drove candidate 1; attempts candidate 1 completed; last run completed`.
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `70_tools_seven_tiles.png` (the menu on the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures, Drive, seven tiles, Drive says "no truck yet"), `72_drive_idle_truck.png` (the Drive window with the truck at the start: "Drives: the truck (the brain truck on the slalom)", knob in the middle, red Stop, "Idle"), `73_drive_driving.png` (the knob pushed up and left, "Recording lap 1 of 2"), `74_drive_truck_moved.png` (the orange truck 1 m down the slalom among the cones and gate outlines after the pad run). Also written, not all opened: `71_drive_no_truck.png`, `75_drive_after_stop.png`, `76_autopilot_done.png`.
+
+### Decisions (one line of why each)
+- **The pad writes `stick.y` times `SlalomBrain.KeySpeed * Drag / MaxAccel` (0.267) on the brain truck, full range on another truck.** Why: `SlalomBrain.Keys` scales a Touch stick and W the same way ("hand laps train like keyboard laps"); a full 1.0 would be 2 m/s, too fast to weave 1 m gates.
+- **The pad reads the pointer with the camera of the raycast module (`ScreenPointToLocalPointInRectangle`), not `ManualInputs` or a custom raycast.** Why: it is what uGUI sliders do, and the Interaction SDK's pointer module sets that camera and the position for a ray and a poke.
+- **Opening the Drive tool starts no recording; the truck project's Drive action does.** Why: the existing `OSProjectWindow.DoDrive` already starts the two-lap recording when the brain is idle; the tool itself stays a window.
+- **No "record" button in the Drive window.** Why: the spec lists title, Thing, pad, Stop and state line; a recording starts from the project's Drive action or by voice.
+- **Stop is the stock button scaled up in a holder, not a bigger box.** Why: the UI Set button draws its plate at 48 units whatever its box, and its animator owns the button's own scale (setting either left a 31 mm pill).
+- **`flexibleHeight = 0` on the Drive window's rows and Stop holder.** Why: the UI Set button reports flexible height and the column handed all spare height to the Stop row (it measured 160 mm).
+- **The test switches the simulated room's `*_EffectMesh` colliders off while the truck drives and restores them.** Why: the mock living room's strip of floor lies inside the desktop rig room's wall and storage colliders, so the truck crashed at the start (`touching WALL_FACE_EffectMesh, STORAGE_EffectMesh`); the slalom's own cones stay. On a headset the real room's colliders and the real floor are the course's room.
+- **`OSMenu.Refresh` runs again after a pass instead of inside one.** Why: the Gestures tile's status line hands the gesture display to the window manager the first time it is seen, which fires `OSRegistry.Changed` and refreshed the menu from inside its own pass: 9 entries in `ActiveTiles` (the last two twice). The tiles on screen were right; the list the tests and any code read was not.
+- **Wrist-roll steering (`hand.roll`) is not built.** Why: it was optional and the pad is the transmitter.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset): the pad is driven by the EventSystem pointer path only, the same one the other OS tests use. The Interaction SDK's pointer module sets the event camera and position the pad reads, but whether a poke feels right (the finger must stay in the surface while dragging) needs the headset.
+- The Autopilot in the Drive test drives a different candidate from run to run (candidate 1 or 2); a candidate that times out falls to the next, as the brain loop is designed to.
+- The pad has no dead zone of its own: the truck's `truck_manual` file already has one (0.05 on throttle, 0.1 on steer).
+
+### Changes outside `OS/`
+- `Artifacts/Scripts/SlalomBrain.cs`: new `public int LapTarget => lapTarget;` (the Drive window reads it for "lap n of m").
+- `Artifacts/Scripts/SlalomBrain.cs`, `EndLap`: the status line no longer reads `lap.Seconds` when `Thing.EndLap` returns no lap. Why: stopping a lap in which nothing was recorded (Stop pressed right after the recording starts, before the pad moves the truck) threw a NullReferenceException (`LapRecorder.EndLap` returns null when no frame was kept); found by the Drive test.
+No Project Settings, scene or `manifest.json`.

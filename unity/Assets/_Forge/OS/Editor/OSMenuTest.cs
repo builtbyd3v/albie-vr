@@ -224,7 +224,7 @@ namespace Forge.OS.Editor
         static void RegisterSamples()
         {
             // The real Tools entries step aside for the run (the test counts and presses its own sample tiles) and come back after.
-            foreach (string real in new[] { "cad", "code", "train", "notebook", "messages", "gestures" }) OSRegistry.UnregisterTool(real);
+            foreach (string real in new[] { "cad", "code", "train", "notebook", "messages", "gestures", "drive" }) OSRegistry.UnregisterTool(real);
             cleanup.Add(OSToolsCatalog.Register);
             OSProjects.Unregister();  // the real Projects list steps aside too, for the same reason
             cleanup.Add(OSProjects.Register);
