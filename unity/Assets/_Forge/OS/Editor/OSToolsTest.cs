@@ -219,7 +219,7 @@ namespace Forge.OS.Editor
 
         // ---------------------------------------------------------------- real pointer input
 
-        static bool Press(GameObject target, out string why)
+        internal static bool Press(GameObject target, out string why)
         {
             why = null;
             Camera cam = PetUser.HeadCamera;
@@ -253,7 +253,7 @@ namespace Forge.OS.Editor
             return true;
         }
 
-        static Transform FindDeep(Transform root, string name)
+        internal static Transform FindDeep(Transform root, string name)
         {
             if (root == null) return null;
             if (root.name == name) return root;
@@ -265,9 +265,9 @@ namespace Forge.OS.Editor
             return null;
         }
 
-        static Vector3 CenterOf(Transform t) => t is RectTransform r ? r.TransformPoint(r.rect.center) : t.position;
+        internal static Vector3 CenterOf(Transform t) => t is RectTransform r ? r.TransformPoint(r.rect.center) : t.position;
 
-        static float Mm(float units, Transform t) => units * Mathf.Abs(t.lossyScale.x) * 1000f;
+        internal static float Mm(float units, Transform t) => units * Mathf.Abs(t.lossyScale.x) * 1000f;
 
         // ---------------------------------------------------------------- the script
 
@@ -303,7 +303,7 @@ namespace Forge.OS.Editor
         }
 
         // Every text of a window lies inside its panel, none of them overlap, and none is empty or placeholder.
-        static string LayoutProblem(OSWindow window)
+        internal static string LayoutProblem(OSWindow window)
         {
             var panelRect = (RectTransform)window.Panel.transform;
             var texts = window.GetComponentsInChildren<TMP_Text>(false);
@@ -348,7 +348,7 @@ namespace Forge.OS.Editor
 
         static string Short(string s) => s.Length <= 40 ? s : s.Substring(0, 40);
 
-        static string AllText(OSWindow window)
+        internal static string AllText(OSWindow window)
         {
             var texts = window.GetComponentsInChildren<TMP_Text>(true);
             var parts = new List<string>();

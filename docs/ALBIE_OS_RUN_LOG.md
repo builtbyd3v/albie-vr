@@ -355,3 +355,59 @@ None. No Project Settings, scene or `manifest.json`.
 - **Cause.** Not this repo: `unity/Library` stayed at 13.05 GB and `unity/Temp` plus `unity/Logs` are 0.03 GB. The Windows page file is 29 GB allocated with under 3 GB in use (commit 54 of 60.6 GB with about 30 other `claude` processes running), and the Outlook cache (`.ost`, 4.9 GB) was being written during the run. Free space has swung between 3.5 and 9.5 GB all day without the repo changing.
 - **Restart.** Hudson said to continue (2026-11-13); free space was 5.76 GB at that point. Decision: for the rest of P0 a part stops only if free space is under 3 GB on two checks two minutes apart, and between 3 and 5 GB it works but does nothing disk-heavy (no player build, no reimport). Why: the figure swings by several GB from other programs, so a single reading under 5 GB stopped a part that would have used almost no disk. The APK build at the end still needs real headroom and will not start under 5 GB.
 - **Added to the P0 play-test part:** fix the menu being unreachable behind a mode's panels away from a desk (found in 5.4), with a play-test step for it.
+
+---
+
+## Part 5.5: Projects tab and the Project window
+
+Integrated from `.os-run/staging/projects/` (`OSProjects.cs`, `OSProjectWindow.cs`). The writer's code compiled on the first try against the real `OSUi`, `OSWindows`, `NotebookStore`, `ArtifactHost` and `BrainLoops` (0 errors, 0 warnings from `OS/`). The writer's HOOKS.md asked for no edit outside `OS/`, so none was made.
+
+### What was done
+- `OSProjects` registers the Projects source at BeforeSceneLoad: four starters (RC truck, Quadcopter, Rocket, Image classifier) plus every other folder under `<notebook root>/projects/`. The list and each status line are cached (re-read on a notebook or registry change, or after 4 s, never per frame). Status lines are real: `v<version>` plus `<artifact> passed|failed|stopped` from the newest run record of an artifact linked to the project, else the last judged attempt, else "not started".
+- `OSProjectWindow` (window id `project`, 0.74 x 0.66 m): Plan card (goal, test, up to 4 milestones as [x]/[ ]), Versions (newest 3 with each version's outcome), Artifacts (linked, with the last run), Continue (Course, Drive, Train, Autopilot, Code, Send, Notebook in one row; other projects get what fits them), a live brain line for the truck, and a status line that shows each action's real result or error in plain words.
+- Truck Course: makes the project the open notebook first (so `links.thing == "truck"` survives `FromTemplate`), then `artifact_create{template:"slalom"}` or `artifact_open` through `AlbieTools.Call`, the same path as voice. The first press on a machine with nothing approved says "The slalom asks first. ... Tap Allow on the card in front of you."; after Allow it opens the slalom with the brain truck.
+- Starters: Quadcopter and Rocket open CAD and then the design from the stored mocks (`CadSession.OpenPart`); Image classifier opens Train and says "Needs Albie's cloud to load the dataset. Not available offline." (Load dataset is off until `ForgeCloud.Serves("/ml/")`). A bad id leaves the previous project open and throws nothing.
+- Added `OSProjectsTest` (`Forge/OS/Run Projects Test`, `Forge.OS.Editor.OSProjectsTest.Run()`, result in `LastResult`). It runs on a scratch root (notebook root, `ArtifactLibrary.RootOverride`, `ArtifactApprovals.FileOverride`), so it simulates a fresh install with no projects folder and never touches the machine's own notebook or artifacts; it deletes the scratch folder after.
+
+### Check output (verbatim)
+```
+[OSProjectsTest] 87 passed, 0 failed
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+```
+`OSCheck.Run()` still `PASS os check` (16 ok lines). Key lines of OSProjectsTest:
+```
+fresh: proj_truck=not started (open) | proj_quadcopter=not started | proj_rocket=not started | proj_classifier=not started |
+course, first press: The slalom asks first. Uses your room's layout. Reads your Thing's position and speed. Tap Allow on the card in front of you.
+course, second press: The slalom is open. The brain truck is at the start. This room is tight, so I made a shorter course: 5 gates, 1.0 m apart.
+ok   Course gives a slalom with the brain truck (BrainLoops.Active != null)
+ok   the open manifest has links.thing == "truck" (truck)
+ok   the open manifest links to proj_truck (proj_truck)
+with data: proj_truck=v1 · slalom passed (open) | proj_quadcopter=not started | ... | proj_demo_folder=not started |
+ok   Image classifier shows the honest offline line (Needs Albie's cloud to load the dataset. Not available offline.)
+ok   quadcopter: CAD opened on the quadcopter design (quadcopter)
+ok   rocket: CAD opened on the rocket design (rocket)
+ok   a bad id leaves the previous project open (proj_rocket)
+```
+Screenshots (`unity/Logs/os/`, ignored by git), each opened: `50_projects_tab_fresh.png` and `54_projects_tab.png` (the Projects tab: four starters with true status lines, then a folder tile "Demo folder"); `51_truck_window_fresh.png`, `52_truck_window_course.png`, `53_truck_window_run.png`, `58_truck_window_full.png` (the truck Project window fresh, after Course, with a run, and with a full plan, 4 versions and a run: nothing clipped or overlapping); `55_generic_window.png`, `56_classifier_window.png`, `57_quadcopter_window.png` (a folder project, the classifier with its offline line, the quadcopter with CAD open beside it).
+
+### Decisions (one line of why each)
+- **Icon names from the kit's table, not the writer's guesses** (`quadcopter`, `classifier`, `projects` for folders). Why: `drone`, `image` and `folder` are not kit icons.
+- **Notebook button in the same row, Secondary style.** Why: Borderless on a second row read as a label, not a button.
+- **Text sizes 22 / 20 / 18 units, lists capped at 4 milestones, 3 versions, 3 artifacts, window height 0.66 m.** Why: the fullest case (long plan, many versions, a run) fits with room left; bigger text is easier to read from the desk.
+- **Send stays off with the reason shown.** Why: nothing on the device can send the model (the only offline send writes a text draft to the demo chat); the window says so instead of faking it.
+- **The test opens the menu, then sets the tab.** Why: `OSShell.SetTab` before the menu's first build is overwritten with Tools by the menu's tab bar build (see below).
+- **`OSProjects.Unregister()` added; `OSMenuTest` now unregisters the real Projects list for its run and puts it back.** Why: the test counts its own five sample Projects tiles and the real list added four more.
+- **`OSToolsTest` helpers `Press`, `FindDeep`, `CenterOf`, `Mm`, `LayoutProblem`, `AllText` made `internal`.** Why: `OSProjectsTest` reuses them instead of copying them.
+
+### Not working or not done
+- `OSShell.SetTab(x)` called before the menu has ever been built is lost: the first build of the tab bar selects Tools. Affects a voice `os_tab` on a session that never opened the menu. Not fixed here (menu code belongs to the menu part); the test works around it.
+- After the slalom is closed the brain truck stays (`BrainLoops.Active` is still set); that is the artifact module's behaviour. The window then reads "Course: not open · brain truck ready".
+- Drive: disabled with "Coming with the Drive pad." until the Drive part registers a `drive` tool. When it does, the Drive button opens it and starts a 2-lap brain recording if the brain is idle (remove that in `OSProjectWindow.DoDrive` if the Drive window owns recording).
+- Train for the truck calls `brain_train` and Autopilot calls `autopilot_on/off`; both were only exercised with no laps recorded ("Train first."), not through a full train. Ray and poke were not exercised (no headset); the EventSystem pointer press was.
+- The permission ask text comes from the artifact module and says "Thing" ("Reads your Thing's position and speed."); not changed here.
+- Free disk was 4.2 to 3.1 GB during this part (page file); nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
