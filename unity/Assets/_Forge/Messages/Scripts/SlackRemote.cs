@@ -58,7 +58,7 @@ public class SlackRemote : MonoBehaviour
         var panel = SlackPanel.ForChannel(channel);
         if (panel != null) panel.Open(channel);
         else if (ws == null) reason = "no_workspace";
-        else if (ws.presence == null || !ws.presence.AtDesk) reason = "not_at_desk";
+        else if (!ws.CanOpen) reason = "not_at_desk";
         else
         {
             SlackPanel.PendingChannel = channel;  // the panel opens it as it comes up
