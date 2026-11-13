@@ -97,11 +97,16 @@ namespace Forge.OS
                 return;
             }
             Current = this;
+            OSModes.Attach(this);
         }
 
         void OnDisable()
         {
-            if (Current == this) Current = null;
+            if (Current == this)
+            {
+                Current = null;
+                OSModes.Detach(this);
+            }
         }
 
         public void OpenMenu(OSSummon from = OSSummon.Code, Vector3? summonPoint = null)

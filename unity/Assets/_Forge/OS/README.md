@@ -45,3 +45,9 @@ Every OS screen uses one icon set only: the Meta UI Set's 24 px Filled atlas (`P
 | `artifacts` | `category-all` | Artifacts tab |
 
 To change a glyph, edit its row in `IconMap`, run Build OS Prefabs, and update this table.
+
+## Windows and modes (part 5.3)
+
+- `OSWindows.Open(id, title, size, build)` makes a free panel window (close button in the header, gestures, 200 ms open and close). `Adopt` tracks an existing object. `BringHere()` lays out the open mode and every window around the user again. `CloseAll()` closes everything.
+- `OSModes.Open("cad" | "ml" | "code" | "messages")` opens a Workspace mode at a desk or away from one; the open mode is one group entry (`OSWindows.GroupId`). The OS gives `Workspace` its hooks in `OSShell.OnEnable` (`FreeFrame`, `KeepOpenAway`, `DockRetired`).
+- Test: `Forge/OS/Run Windows Test` (Play in Main; screenshots in `Logs/os/`, result in `OSWindowsTest.LastResult`).

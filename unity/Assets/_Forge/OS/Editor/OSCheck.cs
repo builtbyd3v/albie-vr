@@ -49,6 +49,8 @@ namespace Forge.OS.Editor
             ok &= Check(sb, "OSUi builds each control from the kit and a press runs its handler", UiControls);
             ok &= Check(sb, "sounds are silent and safe with no shell", SoundsWithoutShell);
             ok &= Check(sb, "the voice rules still pass", VoiceRules);
+            ok &= Check(sb, "the workspace hook is inert until the OS sets it, and the OS names resolve", WorkspaceHook);
+            ok &= Check(sb, "OSModes is quiet with no scene and the OS window pieces are in place", ModesAndWindows);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
 
@@ -101,6 +103,59 @@ namespace Forge.OS.Editor
             foreach (string name in OSTools.Names)
                 if (!AlbieTools.Has(name)) return name + " is defined but has no handler";
             note = defined.Count + " tools";
+            return null;
+        }
+
+        // The Workspace hook the OS uses: with nothing set it behaves as it always did (a mode needs a desk), and it opens
+        // away from one only when the OS supplies a free frame. No Play mode: Workspace has no edit-mode callbacks.
+        static string WorkspaceHook(out string note)
+        {
+            note = null;
+            // In a preview scene, so the open scene isn't marked as changed.
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+            var go = new GameObject("OSCheck workspace");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+            try
+            {
+                var ws = go.AddComponent<Workspace>();
+                if (ws.KeepOpenAway || ws.DockRetired || ws.FreeFrame != null || ws.InFreeFrame) return "a new Workspace has an OS hook set";
+                if (ws.CanOpen) return "a Workspace with no presence says it can open";
+                ws.presence = go.AddComponent<DeskPresence>();
+                if (ws.CanOpen) return "away from a desk, with no OS free frame, the Workspace says it can open";
+                ws.FreeFrame = (out Vector3 position, out Quaternion rotation) => { position = Vector3.zero; rotation = Quaternion.identity; return true; };
+                if (!ws.CanOpen) return "with an OS free frame the Workspace still can't open away from a desk";
+                ws.FreeFrame = null;
+                if (ws.CanOpen) return "dropping the free frame didn't put the desk rule back";
+                var slots = new List<Workspace.ItemSlot>();
+                ws.GetSlots(slots);
+                if (slots.Count != 0 || ws.IsOpenItem(go)) return "a Workspace with no mode open reports open items";
+                var gesture = go.AddComponent<GestureWindow>();
+                if (gesture.StaysAway) return "a GestureWindow stays away by default";
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(scene);
+            }
+            return null;
+        }
+
+        static string ModesAndWindows(out string note)
+        {
+            note = null;
+            if (OSShell.Current != null) { note = "skipped: a shell is running"; return null; }
+            string[] expected = { "cad", "ml", "code", "messages" };
+            if (OSModes.ModeIds.Length != expected.Length) return "OSModes lists " + OSModes.ModeIds.Length + " modes";
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (OSModes.ModeIds[i] != expected[i]) return "mode " + i + " is " + OSModes.ModeIds[i];
+                if (string.IsNullOrEmpty(OSModes.Title(expected[i]))) return "no title for " + expected[i];
+                if (OSModes.IsOpen(expected[i])) return expected[i] + " reports open with no scene";
+                if (OSModes.Open(expected[i])) return "OSModes.Open(" + expected[i] + ") worked with no workspace";
+                if (OSWindows.GroupId(expected[i]) != "mode:" + expected[i]) return "the group id of " + expected[i] + " is unexpected";
+            }
+            OSModes.Close();  // no workspace: nothing to do, no exception
+            if (OSModes.Open("") || OSModes.Open(null)) return "OSModes.Open opened an empty id";
             return null;
         }
 

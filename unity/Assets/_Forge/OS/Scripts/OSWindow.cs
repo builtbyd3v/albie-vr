@@ -27,6 +27,12 @@ namespace Forge.OS
 
         public event Action Closed;
 
+        /// <summary>The motion (open, close, bring here) the window manager is running on it, if any.</summary>
+        internal Coroutine Motion { get; set; }
+
+        /// <summary>Where a running glide is taking the window's centre (valid while <see cref="Motion"/> is set), so the next window keeps clear of it.</summary>
+        internal Vector3 TargetCenter { get; set; }
+
         internal void Init(OSWindows manager, string id, string title, ForgePanel panel, ForgeVolume volume, bool group, bool ownsObject, Action close)
         {
             owner = manager;
@@ -45,9 +51,9 @@ namespace Forge.OS
             if (finished) return;
             if (owned)
             {
-                Finish();  // gone from the lists now; Destroy only takes effect at the end of the frame
-                gameObject.SetActive(false);
-                Destroy(gameObject);
+                Finish();  // gone from the lists now; the window shrinks and fades away, then is destroyed
+                if (owner != null) owner.Dismiss(this);
+                else Destroy(gameObject);
                 return;
             }
             try
@@ -60,6 +66,14 @@ namespace Forge.OS
             }
             Finish();
             // The adopted thing may still be alive (its owner closes it its own way); just stop tracking it.
+            Destroy(IsGroup ? gameObject : (UnityEngine.Object)this);
+        }
+
+        /// <summary>Stops tracking an adopted entry without running its close action (the mode it stood for is already gone or replaced).</summary>
+        internal void Detach()
+        {
+            if (finished) return;
+            Finish();
             Destroy(IsGroup ? gameObject : (UnityEngine.Object)this);
         }
 

@@ -219,3 +219,86 @@ None. `git status` shows no `.unity` file modified; `Main.unity` untouched.
 - `OSTableButton` and the old dock both show until the dock is retired (next part).
 - On the real first arrival the pet's greeting holds the desk (`DockHeld`), so the table button stays hidden until START is pressed, as the contract says. The test ends the greeting itself.
 - `OSKit` caches its icon lookup per load; a rebuilt asset is picked up on the next Play or reload.
+
+## Part windows-5.3: window manager, modes with and without a desk, the dock retired
+
+### What was built
+- **`OSWindows` / `OSWindow` (placement replaced, API kept).** A window is a free root `ForgePanel` with a `PanelManipulator` (`Init(head, desk frame)`), a `GestureWindow` (so the flick in, the flick out and the minimise dot work) and a UI Set close button (48 units = 31 mm) at the right end of its header; the panel's own Face me / Straight pills and the title make room for it. Opening animates scale 0.92 to 1 and fade over 200 ms (`Busy` until it lands); closing shrinks and fades over 180 ms, then destroys. `Adopt` is as before, and a group entry (no object) tracks the open Workspace mode.
+- **Placement is in angles seen from the eyes.** Each candidate place is a yaw (3 degree steps out to 110) on one of four rows (0.8 m at a desk / 0.95 m away, a little below eye level; the same row raised 0.42 m; and both again 0.25 m further out, at a 15 degree cost). The window takes the free place nearest to straight ahead. "Free" means clear (with a 2.5 degree gap) of every other `ForgePanel` and `ForgeVolume` in the scene, of the open mode's laid-out slots (`Workspace.GetSlots`, so a mode that is still unfolding counts where it will be), of windows that are still gliding (their landing place), and of the room's walls (`RoomFit`, in a yaw-only frame at the user's head; a place the walls would move is only used if none is clear of them, and only if it is still clear after the move). At a desk the window's bottom stays above the desk top. If the view is full the window goes straight ahead on the second ring rather than not at all.
+- **Nothing moves by itself.** Walking away or up to a desk moves no window. When a Workspace mode opens where windows already are, only the windows its panels would cover move aside (`ClearModeSlots`).
+- **`BringHere()`** lays the open mode out again around the user (`Workspace.Reanchor`), then takes a free place for each window in the order they were opened, each gliding there over 550 ms (`ForgeTween.SpringDamped`), staggered 50 ms. The menu's Bring windows here button and the `os_windows recenter` tool already called it; `CloseAll()` closes windows, runs the adopted ones' close actions and closes the open mode (`os_windows close_all`).
+- **`Workspace` hook** (`Core/Scripts/Workspace.cs`, nothing changes until the OS sets it): `FreeFrame` (a delegate giving the pose of a virtual desk frame), `KeepOpenAway`, `DockRetired`, `CanOpen`, `InFreeFrame`, `Reanchor()`, `GetSlots()`, `IsOpenItem()`. Inside `Workspace`, the frame, its width and depth and the eye now come from an "active frame": the desk's, as ever, unless the open mode is in a virtual one. Away from a desk `Open` makes a frame in front of the user whose eye relation is a seated user's (eyes 0.5 m above and 0.5 m behind its front edge), so `LayOut` and `ClampEye` run unchanged. On Away with `KeepOpenAway` the open mode is moved onto a pinned copy of the desk frame (same pose, so nothing moves) instead of folding, so it doesn't jump if the desk frame later goes to another table. `LayoutEye`, `TopEdge` and `BesidePose` (used by the desk extras) return desk-frame values even when the mode is in a virtual frame.
+- **`OSModes`** (`Open`, `IsOpen`, `Close`, `Title`, `ModeIds`) plus `Attach` / `Detach`, called from `OSShell.OnEnable` / `OnDisable`: they set the hook, and apply `OSSettings.flatLayout` to `Workspace.SetLayout` now and on every settings change. The open mode is one group entry in `OSWindows` (id `mode:<id>`), kept in step with `Workspace.modeChanged`, so a mode opened by the menu, a voice tool, the pet or another module shows up and replaces the old entry.
+- **Dock retired.** With the OS the dock never shows (`DockRetired`); hold and release still run (`DockHeld`), so the table button stays hidden through the greeting and appears on release. The whistle and the crew egg fall back to their desk corners (seen in `21_arrival_after_start.png`); no error from `AlbieMrukAdapter`.
+- **`OSCheck`** gained two edit-mode checks (the Workspace hook is inert until set, in a preview scene; `OSModes` is quiet with no scene) and **`OSWindowsTest`** (`Forge/OS/Run Windows Test`, Play in Main) was added.
+
+### Checks (verbatim)
+`Forge.OS.Editor.OSCheck.Run()`:
+```
+PASS os check
+  ok   the OSShell prefab has the shell, the windows and the keys
+  ok   os.json parses and its four tools have handlers (4 tools)
+  ok   the tools answer an error, not an exception, with no shell
+  ok   the registry fills, finds, replaces and orders
+  ok   every tab has an empty-state sentence
+  ok   settings round-trip, clamp, and survive a damaged file (file 211 bytes)
+  ok   the kit asset loads and every UI Set reference resolves (9 prefabs, theme, font, 5 clips)
+  ok   every friendly icon name resolves to the Filled atlas, and the builder maps them all (35 icons)
+  ok   the Albie theme is derived from the UI Set dark theme
+  ok   the menu prefab and the shell's menu and table button exist
+  ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap)
+  ok   OSUi builds each control from the kit and a press runs its handler (4 buttons, icon button, switch, slider, tab, tile, text, row, column, section)
+  ok   sounds are silent and safe with no shell
+  ok   the voice rules still pass
+  ok   the workspace hook is inert until the OS sets it, and the OS names resolve
+  ok   OSModes is quiet with no scene and the OS window pieces are in place
+```
+`OSWindowsTest.Run()` (Main, desktop rig, voice off): `[OSWindowsTest] 58 passed, 0 failed`. In order: the OS hooked the workspace and the dock isn't showing; the first arrival (the greeting holds the desk, the table button and the dock stay hidden, START opens the code view and releases the desk, the table button then shows, the open code view is a window group); at the desk (`forceSeated` + `ToggleSeat`) two OS windows and CAD open at once, three entries in the list, handles set and not Busy, free root objects, no overlap measured by the corners of each panel seen from the eyes; the close button (31 x 31 mm) is pressed through the EventSystem and closes its window; a flick away minimises a window into a dot; forced Away: all three are still there and active, at the same world positions (0.000 m), the dot stays, no dock and no table button; the dot's window comes back when opened; Bring here: every window and CAD panel within 1.3 m and within 100 degrees of where the user faces, window 1 moved 4.5 m, nothing overlaps; `OSModes.Open("ml")` away: ML replaces CAD as the mode and as the group entry, its panels are around the user and not at the old desk; `ui_open_view` returns ok for messages and cad away from the desk (no `not_at_desk`); `os_windows recenter` and `close_all` return ok; the flat layout setting reaches the workspace and back; Close all leaves no windows, no mode and no panels; at the desk again a mode opens in the desk frame; no error or exception was logged during the run.
+```
+at the desk: window 1 0.80 m / 86 deg, window 2 0.90 m / 48 deg from the eyes
+close button: 31 x 31 mm
+after Bring here: farthest 1.04 m, widest 87 deg from where the user faces (mode panels: 3)
+the room is known at the user's place (walls are fitted against): True
+ML away: 4 panels, farthest 0.80 m from the head
+```
+Existing checks, unchanged expectations: `[GestureSelfTest] 104 passed, 0 failed`; `[GesturePlayTest] 32 passed, 0 failed`; `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.`
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened:
+- `20_arrival_greeting.png`, `21_arrival_after_start.png`: the first arrival at the desk. After START the code view is open, the small round table button sits at the front-edge centre, the whistle (orange puck) is on the right and the crew egg on the left; nothing overlaps and there is no dock.
+- `10_desk_three.png`: CAD's drawing, versions and parameters panels around the desk, the rocket on the desk; the two OS windows are out of this narrow desk view, to the sides.
+- `11_close_button.png`: a window with the TEST badge, title, the close X at the right end of its header, a text and a Primary button.
+- `12_away_same_place.png`: from 2 m away, CAD still open at the desk with the same panels, and the two windows (one a minimised dot) where they were.
+- `13_after_bring_here.png`: after Bring here, CAD's panels and a window around the user, none overlapping.
+- `14_ml_away.png`: away from the desk, ML's training, dataset and results panels in front of the user, not at the old desk.
+
+### Decisions (one line of why each)
+- **Workspace modes stay Workspace modes (contract decisions 1 to 3).** Why: eleven call sites depend on `ActiveMode`; the OS only gives the workspace a way to open in a virtual frame.
+- **The workspace creates and owns the virtual frame; the OS only supplies its pose (`FreeFrame` delegate).** Why: the workspace parents and animates the items, so it must also create, replace and later destroy the frame (2.5 s after a close, so folding items finish).
+- **At a desk nothing changes: the mode lives on the desk's own frame.** Why: desk behaviour stays exactly as it was; the virtual frame exists only away from a desk or after leaving one.
+- **Away with `KeepOpenAway` the mode moves onto a pinned copy of the desk frame instead of staying on the desk frame.** Why: the desk frame is rewritten when the user later uses another table, which would have moved the items.
+- **The group entry follows `Workspace.modeChanged`, and a replaced entry is detached, not closed.** Why: any opener works, and closing the old entry would close the new mode.
+- **Windows keep out of the walls by `RoomFit`, but a place clear of the walls is preferred to one the walls move.** Why: fitting each candidate moved several windows onto the same spot.
+- **Yaw widths use the horizontal distance.** Why: a window high above the eyes covers more yaw than its slant distance says; a first version let two windows touch.
+- **A mode that opens over windows moves only the windows it covers.** Why: the done list wants none overlapping whichever opens first, and unrelated windows shouldn't move.
+- **`GestureWindow.StaysAway`, also true for every window while `KeepOpenAway`.** Why: its dot was dropped on Away, which left an OS window hidden for ever.
+- **`Workspace.CanOpen` replaces the desk check in `WorkspaceRemote`, `CodeTools.OpenView` and `SlackRemote.Show`.** Why: the same rule everywhere; without the OS it is exactly `AtDesk`.
+- **The test measures overlap by each panel's corners seen from the eyes.** Why: it is what a user sees, and independent of the placement code's own estimate.
+
+### Changes outside `OS/`
+- `Core/Scripts/Workspace.cs`: the OS hook above (properties, `Reanchor`, `GetSlots`, `IsOpenItem`, the active frame, Away keeps the mode when asked, dock retired). Desk behaviour is unchanged when the hook is not set (`GesturePlayTest` and `Validate Main` pass with the same expectations).
+- `Core/Scripts/WorkspaceRemote.cs`, `Code/Scripts/CodeTools.cs`, `Messages/Scripts/SlackRemote.cs`: the `AtDesk` guard became `Workspace.CanOpen` (one line each).
+- `Core/Scripts/Gestures/GestureWindow.cs`: `StaysAway` (6 lines).
+No Project Settings, no scene, no `manifest.json`.
+
+### Other users of the desk frame (looked at, what was left)
+- Fixed: `WorkspaceExtras` (desk-frame values from `LayoutEye`, `TopEdge`, `BesidePose` now convert when the mode is in a virtual frame); `WorkspaceRemote`, `CodeTools`, `SlackRemote` (guards).
+- Left, desk-only on purpose: the desk extras (timers, notes: hidden away, as before); `DigestTrigger` and `DraftPresenter` (spawn on the desk); `ArrivalDirector.OpenAfterDock` (arrival is a desk event); `ArrivalGreeting`, `DesktopRig.ToggleSeat`, `AlbieMrukAdapter` (desk nav mesh; the dock keep-out never applies with the dock retired).
+- Left, not checked: the pet walking to a mode's panel (`AlbieController` work target via `TryGetItemTransform`) when the mode is in a virtual frame away from a desk; a minimised dot of a Workspace panel stays parented to the desk frame when the mode is pinned.
+- Not affected: `CodeMode`, `CadViewer`, `MessagesLayout`, `MentionsPanel` (they use mode items or `modeChanged` only).
+
+### Not done / not working
+- With a wide mode open (CAD) a third panel goes beside it, at the edge of view (86 degrees from straight ahead for one window at the seat in the test). The raised row is blocked by the mode's tall side panels. Bring here and the next open pick the nearest free place again.
+- The Interaction SDK ray and poke on the window close button and handles were not exercised (no headset); the mouse-style EventSystem press was.
+- The first-arrival greeting did not come up in one of the runs of the test (the arrival checks are then skipped with a log line); it did in the verified run. Cause not found.
+- `OSCheck.Run()` marks the open scene as changed (an older check creates scene objects); running any Play test reloads it clean.
+- The open and close animations were not captured mid-way.
