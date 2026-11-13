@@ -45,6 +45,12 @@ namespace Forge.OS
         public string StatusLine => statusLine;
 
         /// <summary>
+        /// Puts a line in the status area without running anything (Build something uses it to offer the first step, for
+        /// example "Next step: tap Course to make the course for the truck."). It stays until another action sets the line.
+        /// </summary>
+        public void Suggest(string line) => SetStatus(line);
+
+        /// <summary>
         /// Opens the Project window on <paramref name="projectId"/>, or brings the open one forward and points it at this
         /// project. Null when the scene has no shell (a sandbox). The caller makes the project the open notebook first
         /// (<see cref="OSProjects.OpenProject"/> does).

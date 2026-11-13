@@ -333,10 +333,10 @@ namespace Forge.OS.Editor
             new Step("3c menu with M, bring windows here", StepBringHere),
             new Step("3d menu over an open mode, away from a desk", StepMenuOverMode),
             // 4 watch turn      (OSWatch part)
-            // 5 build something (OSPlanner / OSBuildFlow part)
             // 6 truck project   (Course, Drive pad laps, Train, Autopilot)
             // 7 agents          (spawn, bring home, send out)
             // 8 settings        (corner button off, it is gone)
+            new Step("5 build something", StepBuild),
             new Step("9 close all", StepCloseAll),
         };
 
@@ -901,6 +901,59 @@ namespace Forge.OS.Editor
                 }
             }
             return result;
+        }
+
+        // 5. Build something: menu strip, RC truck, two answers, Start; the truck project opens with the new plan saved. On a scratch
+        // notebook, so this machine's own projects are never written; the full walk (Cancel, Change, voice) is OSPlannerTest.
+        static IEnumerator<float> StepBuild()
+        {
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            string root = Path.Combine(tempRoot ?? Application.temporaryCachePath, "notebook");
+            Directory.CreateDirectory(root);
+            Forge.Notebook.NotebookStore.Open(Forge.Notebook.NotebookStore.DefaultProject, root);
+            Forge.OS.OSBuildFlow.VoiceLiveOverride = false;
+            shell.Windows.CloseAll();
+            yield return 0.5f;
+            shell.OpenMenu(OSSummon.Key);
+            yield return 0.9f;
+            Check(shell.MenuOpen, "the menu opened for Build something");
+            if (menu != null) rig.LookAt(menu.LastCenter);
+            yield return 0.4f;
+            PressButton("Build something", menu);
+            yield return 1.0f;
+            if (!shell.Windows.IsOpen("build"))
+            {
+                Check(false, "the Build something button opened the card (recovering with OpenSystem)");
+                shell.OpenSystem("build");
+                yield return 0.8f;
+            }
+            OSWindow card = shell.Windows.Find("build");
+            Check(card != null && Forge.OS.OSBuildFlow.Current != null, "the Build something card is open on its first question");
+            if (card != null)
+            {
+                foreach (string label in new[] { "RC truck", "Small and quick", "Slalom around my couch" })
+                {
+                    PressButton(label, card);
+                    yield return 0.7f;
+                }
+                Check(Forge.OS.OSBuildFlow.Current != null && Forge.OS.OSBuildFlow.Current.Planner.Done, "two answers after RC truck lead to the plan card");
+                PressButton("Start", card);
+                yield return 1.2f;
+            }
+            Forge.Notebook.NotebookStore.Flush();
+            Check(Forge.Notebook.NotebookStore.IsOpen && Forge.Notebook.NotebookStore.ProjectId == "proj_truck", "Start opened proj_truck in the notebook");
+            OSWindow project = shell.Windows.Find("project");
+            Check(project != null && project.GetComponent<OSProjectWindow>().ProjectId == "proj_truck", "the Project window is open on proj_truck");
+            Check(Forge.OS.OSBuildFlow.LastPlanVersion >= 1 && Forge.Notebook.NotebookStore.CurrentPlan != null, "the new plan is saved (version " + Forge.OS.OSBuildFlow.LastPlanVersion + ")");
+            Check(File.Exists(Path.Combine(root, "projects", "proj_truck", "plans", "plan_v0001.json")), "plan_v0001.json is on disk in the scratch notebook");
+            Check(!shell.Windows.IsOpen("build"), "the card is gone after Start");
+            Shot("build_started");
+
+            shell.Windows.CloseAll();
+            Forge.Notebook.NotebookStore.Flush();
+            Forge.Notebook.NotebookStore.Open(Forge.Notebook.NotebookStore.DefaultProject);  // the app's own notebook again
+            Forge.OS.OSProjects.Refresh();
+            try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (IOException) { }
         }
 
         // 9. Close all: nothing is left.

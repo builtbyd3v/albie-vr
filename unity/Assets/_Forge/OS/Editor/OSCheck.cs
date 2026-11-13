@@ -39,6 +39,7 @@ namespace Forge.OS.Editor
             bool ok = true;
             ok &= Check(sb, "the OSShell prefab has the shell, the windows and the keys", ShellPrefab);
             ok &= Check(sb, "os.json parses and its four tools have handlers", ToolDefinitions);
+            ok &= Check(sb, "os_build.json defines os_answer and it has a handler", BuildToolDefinition);
             ok &= Check(sb, "the tools answer an error, not an exception, with no shell", ToolsWithoutShell);
             ok &= Check(sb, "the registry fills, finds, replaces and orders", Registry);
             ok &= Check(sb, "every tab has an empty-state sentence", EmptyTexts);
@@ -88,6 +89,29 @@ ok &= Check(sb, "the planner tree ends in a plan within three questions", Planne
             if (prefab.GetComponent<OSKeys>() == null) return "no OSKeys on it";
 if (prefab.GetComponent<OSTableButton>() == null) return "no OSTableButton on it";
 if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under it";
+            return null;
+        }
+
+        static string BuildToolDefinition(out string note)
+        {
+            note = null;
+            var asset = Resources.Load<TextAsset>("AlbieTools/os_build");
+            if (asset == null) return "Resources/AlbieTools/os_build.json is missing";
+            var defined = new List<string>();
+            foreach (JObject def in JArray.Parse(asset.text))
+            {
+                string name = (string)def["name"];
+                defined.Add(name);
+                if (string.IsNullOrEmpty((string)def["description"])) return name + " has no description";
+                if ((string)def["parameters"]?["type"] != "object") return name + " has no parameters schema";
+            }
+            foreach (string name in Forge.OS.OSBuildTools.Names)
+                if (!defined.Contains(name)) return "os_build.json doesn't define " + name;
+            if (defined.Count != Forge.OS.OSBuildTools.Names.Length) return "os_build.json defines " + defined.Count + " tools, the code has " + Forge.OS.OSBuildTools.Names.Length;
+            if (!AlbieTools.Has(Forge.OS.OSBuildTools.Names[0])) Forge.OS.OSBuildTools.Register();
+            foreach (string name in Forge.OS.OSBuildTools.Names)
+                if (!AlbieTools.Has(name)) return name + " is defined but has no handler";
+            note = "os_answer";
             return null;
         }
 
@@ -723,19 +747,10 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
         static string PlannerTree(out string note)
         {
             note = null;
-            Type planner = Type.GetType("Forge.OS.OSPlanner, Assembly-CSharp");
-            if (planner == null)
-            {
-                note = "skipped: OSPlanner is not built yet";
-                return null;
-            }
-            // ADAPT when OSPlanner lands. Walk every path depth first:
-            //   node = the first question; depth = 1
-            //   foreach answer of node (2 to 4 of them): next = node.Answer(answer)
-            //     if next is a plan: Check goal, test, parts (>= 1) and milestones (>= 1) are non-empty strings; continue
-            //     else: depth + 1 must be <= 3, then recurse
-            // Return the first violation as a sentence naming the path ("truck > fast > plan has no test").
-            note = "OSPlanner exists but the tree walk is not written yet";
+            List<string> problems = Forge.OS.OSPlanner.Validate();
+            if (problems.Count > 0)
+                return problems[0] + (problems.Count > 1 ? " (and " + (problems.Count - 1) + " more)" : "");
+            note = Forge.OS.OSPlanner.PathCount() + " paths";
             return null;
         }
     }

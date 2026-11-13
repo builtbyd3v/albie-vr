@@ -619,3 +619,53 @@ Screenshots (`unity/Logs/os/`, each opened and looked at): `70_tools_seven_tiles
 - `Artifacts/Scripts/SlalomBrain.cs`: new `public int LapTarget => lapTarget;` (the Drive window reads it for "lap n of m").
 - `Artifacts/Scripts/SlalomBrain.cs`, `EndLap`: the status line no longer reads `lap.Seconds` when `Thing.EndLap` returns no lap. Why: stopping a lap in which nothing was recorded (Stop pressed right after the recording starts, before the pad moves the truck) threw a NullReferenceException (`LapRecorder.EndLap` returns null when no frame was kept); found by the Drive test.
 No Project Settings, scene or `manifest.json`.
+
+## planner-5.9: Build something (OSPlanner, OSBuildFlow, os_answer)
+
+Integrated the staged `planner` part. It compiled on the first try (0 errors, 0 warnings); the logic then ran live for the first time through the new play test.
+
+### What was done
+- Copied `OSPlanner.cs` (pure question tree, 45 paths), `OSBuildFlow.cs` (the card flow, registers the `"build"` system page), `OSBuildTools.cs` and `Resources/AlbieTools/os_build.json` (the `os_answer` voice tool) into `unity/Assets/_Forge/OS/`.
+- Applied the three staged hooks (see "Changes outside OS/": none; the three below are edits to other OS files): `OSProjectWindow.Suggest(string)`, the real `OSCheck.PlannerTree` walk (replaces the stub), and an `OSCheck` line for `os_build.json`.
+- New `Editor/OSPlannerTest.cs` (menu `Forge/OS/Run Planner Test`, `LastResult`, 91 checks) and a new step "5 build something" in `OSPlayTest` (8 checks).
+- Layout fixes after looking at the screenshots: the stock button reports flexible height, so the card spread its buttons over the whole panel; every answer button and row now has `flexibleHeight = 0` (same cause and fix as the Drive window). Card size 0.66 x 0.64 m became 0.66 x 0.56 m, answer width 460 became 520 units.
+
+### Check output (verbatim)
+```
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os check   (ok   the planner tree ends in a plan within three questions (45 paths); ok   os_build.json defines os_answer and it has a handler (os_answer))
+OSPlanner.Validate(): 0 problems, 45 paths
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 95 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS autopilot check
+PASS voice rules check
+PASS slalom check
+PASS notebook check
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements: `question 1: smallest button Face me 30.0 mm tall, narrowest 31.2 mm wide` (the answers are 31 mm tall; "Face me" is the window's own button); `Albie: Wandering parked 1.22 m from the user, four seconds after opening Build something Wandering at 0.84 m, moved 0.40 m` (the test parks Albie to the side with `StationAt` first, so the walk is real).
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `60_build_q1.png` (five answers, Cancel, nothing clipped), `60_build_q2.png` (the truck size question, three compact answers), `61_build_plan.png` (the plan card: goal, parts, test, four milestones, Start, Change, Cancel and "Nothing is saved until you tap Start."), `62_build_started.png` (the Project window on the truck: Plan v1, goal, test, four unchecked milestones, "Next step: tap Course to make the course for the truck."), `63_build_voice_row.png` (voice forced live: "Something else" row and the "You can say an answer, or tap it." hint), `64_build_plan_free_words.png` (the plan card with the user's own words in the goal), `65_build_plan_model.png` (the longest parts line, one line, fits).
+
+### What the test proves
+Menu strip button -> RC truck -> Small and quick -> Slalom around my couch -> plan card (nothing on disk) -> Change (back to question 1, nothing kept) -> again -> Start: `proj_truck` open, Project window on it showing Plan v1, `plan_v0001.json` on disk with schema `albie.plan/1`, three answers, four parts or more, four milestones, a postmortem entry holding the answers. Cancel from a question, from the plan card and with the window's X each leave the scratch root byte-identical (file list with lengths). A drone makes `proj_my_drone`, a second `proj_my_drone_2`, both listed on the Projects tab. With the voice forced live: the "Something else" row on question 2, spoken answers (`Choose`, `os_answer`), a refused answer names the choices, free words reach the plan, "start" starts `proj_my_rocket`. Voice off: no row.
+
+### Decisions (one line of why each)
+- **Kept the writer's tree, three questions per path, five answers on the first.** Why: it matches spec 5.9 and `Validate()` passes every path.
+- **The voice tool lives in its own `os_build.json`, not `os.json`.** Why: `OSCheck.ToolDefinitions` pins `os.json` at exactly the four menu tools.
+- **`StartBuild` adds `parts` and `answers` to the plan record and writes the same file again.** Why: `RevisePlan` has no parts argument and keeps old parts; the second write keeps its order behind the first (queued writes), and `LoadFolder` only reads `schema` and `version`.
+- **The OSPlayTest step runs on a scratch notebook, the rest of that test still uses the real one.** Why: Start writes a plan and this machine's own notebook must never be written by a test.
+- **The brand-name check matches whole words.** Why: "Question 1 of 3" contains "Quest".
+
+### Not working or not done
+- The mic is not opened by the flow after Albie asks a question (push to talk as usual), and with the hub live and no on-device voice nothing is spoken and `os_answer` is not offered. Both are as the writer documented; the voice path was exercised with `VoiceLiveOverride = true` (`ForgeNet.Send` goes nowhere with no hub), so Albie actually speaking the question was not heard.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses as in the other OS tests.
+- The Albie walk check proves he moved closer from a parked spot at the desk; on a headset with the user standing in the room the path is the lead gator's `ComeToUser` and needs a real run.
+
+### Changes outside `OS/`
+None. Edits to other OS files: `Scripts/OSProjectWindow.cs` gets `public void Suggest(string line) => SetStatus(line);`; `Editor/OSCheck.cs` gets the `PlannerTree` walk and `BuildToolDefinition`; `Editor/OSPlayTest.cs` gets step 5. No Project Settings, scene or `manifest.json`.
