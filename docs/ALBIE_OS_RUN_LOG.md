@@ -467,3 +467,53 @@ Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `60_a
 
 ### Changes outside `OS/`
 None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Part 6.1: OSPlayTest, OSCheck additions, and the menu in front of every panel
+
+Integrated from `.os-run/staging/playtest/` (`OSPlayTest.cs`, the `OSCheck.additions.md` snippets). The writer's code compiled on the first try (0 errors); two `CS0618` warnings (`FindObjectsSortMode`) were fixed. The writer's HOOKS.md asked for no edit outside `OS/`, so none was made. The `.md` was not copied into `Assets/`.
+
+### What was done
+- **OSCheck:** the eight new checks (kit complete, every entry has id/title/kit icon/open action, unique ids and titles, status lines never throw and read like the UI, the tabs hold the tools/projects/artifact templates, `os_open`'s description names every tool, the table button is a finger-sized target, the planner tree) and two more lines in the shell-prefab check were pasted into `OSCheck.cs`. `drive` is only required once `OSDriveWindow` exists (spec 5.8 is its own part); until then the check says "Drive is not built yet".
+- **OSPlayTest** (`Forge/OS/Run Play Test`): steps 1, 2a, 2b, 3a, 3b (corner button: reports skipped, not failed), 3c, the new 3d, and 9. Every press is a pointer press: the control is projected to the screen, the EventSystem is asked what is under that point, the test fails with the path of what it hit if that is not the control, and then pointer enter/down/up/click/exit are sent. It never calls `onClick` or an OS method for a user action; where a press fails it records the failure and calls the API only so later steps have something to work on.
+- **The menu in front of every panel (found in 5.4):** `OSMenu.Pose` now looks for a place where nothing is in front of any of 28 points on the plate (windows, a mode's panels and volumes, with a margin of 5 cm behind the menu). It tries the settings' place first, then nearer (down to 0.35 m, 2 cm steps), then turning (10 degree steps, up to 30) and tilting down (10 degree steps, up to 40 more), cheapest first (nearer costs 1 per cm, turning 2 per degree). With no clear place it takes the one with the least in front of it. `OSMenu.Blocked(...)` is public so the play test can assert it. Step 3d opens Train away from a desk (its panels reach 0.46 m from the eyes), opens the menu, asserts 0 of 28 plate points are behind a panel, and presses the Notebook tile.
+- `OSMenu.LastRotation` added (the menu's facing at its last opening) for the assertion.
+
+### Check output (verbatim)
+```
+PASS os check   (26 lines: every check ok; the planner check says "skipped: OSPlanner is not built yet", the tabs check says "Drive is not built yet")
+[OSPlayTest] 54 passed, 0 failed (1 skipped)       -> False|PASS os play test: 54 passed, 0 failed (1 skipped)
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+Key lines of the play test: `[OSPlayTest] info at the default place (0.50 m, straight ahead) 24 of 28 plate points would be behind a panel; the menu sits at 0.36 m with 0 behind one` (the bug and the fix in one line); `ok   a second tool opened from the menu while Train was open (Notebook)`; `ok   no panel is in front of any part of the menu (0 of 28 plate points are behind one)`; `skip corner button: skipped: corner button not built yet`.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `01_table_button.png` (the table button on the desk, the code mode behind), `02_menu_opened.png` (the menu opened by pressing it: tabs, six Tools tiles, the strip), `03` to `05` (each tab), `06_three_open.png` (notebook, project and heart open at once), `07_away_windows_stay.png` (the user 2 m from the desk, the windows still around it), `08_menu_away.png` (the menu opened with M away from the desk), `09_brought_here.png` (after Bring windows here: code, heart panel and Hands in front), `10_train_open_away.png` (Train open away, four panels around the user), `11_menu_over_train.png` (the menu in front of the Train panels, tabs, tiles and strip readable), `12_train_still_open.png`, `13_notebook_opened.png` (the Notebook that the menu opened; half of it is hidden by a wall of the desktop rig's small simulated room, the window itself is complete), `14_closed_all.png` (the desk with nothing left).
+
+### Decisions (one line of why each)
+- **"In view" after Bring windows here is measured in the horizontal plane against the 110 degrees the window manager fans to (limit 112), not 80 degrees in 3D.** Why: the writer's 80 degrees was a guess; `OSWindows` fans to 110 degrees on purpose when the rows in front are full (5 big windows), and the picture shows the main ones in front. Hudson may want fewer degrees: `MaxYaw` in `OSWindows`.
+- **The menu comes nearer before it turns, down to 0.35 m.** Why: turning and tilting put it out of view (an earlier try landed 65 degrees below the view and the user would see nothing); nearer keeps it in the middle of the view. 0.35 m is `OSSettings.MinDistance`, so a user who set a larger distance sees no change when nothing is in the way.
+- **Only panels and volumes block the menu, not loose 3D content.** Why: counting every mesh under a panel (the ML model slabs float in front of their panel) left no clear place within reach, so the menu landed out of view with 2 points still blocked.
+- **Old pictures are cleared by a manifest (`play_test_shots.txt`), not by pattern.** Why: the writer deleted every `NN_*.png`, which also deleted the 5.x tests' pictures (including `99_press_failed_notebook.png`) on the first run. Those pictures were not kept; the tests that made them write them again when run, and 99 is replaced by `11_menu_over_train.png`.
+- **The 3a picture looks back at the desk and the 9 picture looks at the empty desk.** Why: with the user facing away the picture was a blank wall and proved nothing.
+
+### Not working or not done
+- **3D content that floats in front of its panel (the ML model slabs and the dataset's card stack) still draws over parts of the menu on Train.** The menu is in front of every panel plane and a pointer press reaches its tiles; the picture shows the slabs over the CAD and Code tiles. A fix needs either the ML module to keep that content behind the menu or the menu to draw over 3D content; left for Hudson to judge on the headset.
+- The menu at 0.35 m is about 77 degrees wide, a little over the rubric's 70. It only goes that near when a panel is in the way.
+- Corner button (3b) is a skip; steps 4 to 8 are not written (their parts are not built).
+- Ray and poke were not exercised (no headset); the EventSystem pointer press was.
+- `Main.unity` was dirty in memory after some Play runs; it was re-opened (never saved) each time. Free disk was 6.85 to 6.87 GB through this part; nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.

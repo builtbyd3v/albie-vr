@@ -51,3 +51,8 @@ To change a glyph, edit its row in `IconMap`, run Build OS Prefabs, and update t
 - `OSWindows.Open(id, title, size, build)` makes a free panel window (close button in the header, gestures, 200 ms open and close). `Adopt` tracks an existing object. `BringHere()` lays out the open mode and every window around the user again. `CloseAll()` closes everything.
 - `OSModes.Open("cad" | "ml" | "code" | "messages")` opens a Workspace mode at a desk or away from one; the open mode is one group entry (`OSWindows.GroupId`). The OS gives `Workspace` its hooks in `OSShell.OnEnable` (`FreeFrame`, `KeepOpenAway`, `DockRetired`).
 - Test: `Forge/OS/Run Windows Test` (Play in Main; screenshots in `Logs/os/`, result in `OSWindowsTest.LastResult`).
+
+## Menu placement and the P0 play test (part 6.1)
+
+- The menu is the system surface: `OSMenu.Pose` puts it where the settings say (`menuDistance`, `menuDropDegrees`) unless a window, a mode's panel or a volume is in front of any part of the plate. Then it comes nearer (down to `OSSettings.MinDistance`), and if that is not enough it turns aside or tilts down, to the cheapest place with nothing in front of it. `OSMenu.Blocked(eye, centre, rotation, size)` counts the plate points that have something in front of them (0 is clear); the play test uses it.
+- `Forge/OS/Run Play Test` (`Forge.OS.Editor.OSPlayTest`): Main on the desktop rig with voice off, walked through as a user would (a pointer press on the control, never `onClick.Invoke`). Result in `OSPlayTest.LastResult`, pictures in `Logs/os/NN_name.png` (the last run's list is in `play_test_shots.txt`, so a run only clears its own). `Forge/OS/Check OS` also checks every tab entry, status line, kit icon, the table button size and the `os_open` description.

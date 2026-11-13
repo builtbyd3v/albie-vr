@@ -33,6 +33,14 @@ namespace Forge.OS
         // ---- motion
         const float OpenSeconds = 0.22f, CloseSeconds = 0.12f, StartScale = 0.3f;
 
+        // ---- placement: how the menu keeps clear of panels (see Pose)
+        const float DistanceStep = 0.02f, ProbeYawDegrees = 10f, ProbeTiltDegrees = 10f, MaxDropDegrees = 70f;
+        // The menu keeps this far in front of a panel's plane (m) and counts a panel's rectangle this much bigger (canvas units).
+        const float ClearMarginMeters = 0.05f, ClearMarginUnits = 20f;
+        // Cost of a place, in "degrees": turning or tilting costs TurnCost a degree, coming nearer costs one per centimetre.
+        const float TurnCost = 2f;
+        const int MaxProbeSteps = 3, MaxTiltSteps = 4, ProbeColumns = 7, ProbeRows = 4;
+
         [SerializeField] GameObject visual;
         [SerializeField] RectTransform canvasRoot, plate;
         [SerializeField] CanvasGroup group;
@@ -63,6 +71,8 @@ namespace Forge.OS
 
         /// <summary>Where the menu last opened (for checks and tests).</summary>
         public Vector3 LastCenter { get; private set; }
+        /// <summary>The way the menu faced when it last opened.</summary>
+        public Quaternion LastRotation { get; private set; } = Quaternion.identity;
         /// <summary>The plate's size in metres at the OS unit.</summary>
         public Vector2 SizeMeters => new Vector2(PlateWidth, PlateHeight) * (OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f);
         public bool Visible => visual != null && visual.activeSelf;
@@ -131,6 +141,7 @@ namespace Forge.OS
             Vector3 to; Quaternion rotation;
             Pose(out to, out rotation);
             LastCenter = to;
+            LastRotation = rotation;
             Vector3 from = shell.SummonPoint ?? to;
             transform.SetPositionAndRotation(from, rotation);
             transform.localScale = Vector3.one * StartScale;
@@ -186,7 +197,11 @@ namespace Forge.OS
 
         /// <summary>
         /// Where the menu sits: <c>menuDistance</c> from the eyes, <c>menuDropDegrees</c> below eye level, straight ahead of
-        /// where the head faces now, turned to face the eyes. World-locked: nothing moves it afterwards.
+        /// where the head faces now, turned to face the eyes. World-locked: nothing moves it afterwards. The menu is the
+        /// system surface, so it is always in front of every window and mode panel: when a panel stands in the way at that
+        /// distance, the menu comes nearer (down to the nearest comfortable reach, in steps) and, if that is not enough,
+        /// turns a little to the side, to the nearest place where nothing is in front of it. With no clear place it takes the
+        /// one with the least in front of it.
         /// </summary>
         void Pose(out Vector3 position, out Quaternion rotation)
         {
@@ -196,10 +211,159 @@ namespace Forge.OS
             Vector3 flat = head != null ? head.forward : Vector3.forward;
             flat.y = 0f;
             flat = flat.sqrMagnitude < 1e-4f ? Vector3.forward : flat.normalized;
-            Vector3 right = new Vector3(flat.z, 0f, -flat.x);
-            Vector3 direction = Quaternion.AngleAxis(settings.menuDropDegrees, right) * flat;
-            position = eye + direction * settings.menuDistance;
-            rotation = Quaternion.LookRotation(direction, Vector3.up);
+            Vector2 size = SizeMeters;
+            CollectVolumes();
+
+            // Every place worth trying has a cost: coming nearer than the setting costs one per centimetre (down to the
+            // nearest reach the settings allow), turning aside or tilting further down costs TurnCost per degree, so nearer
+            // is preferred to turning. The cheapest place with nothing in front of any part of the plate wins; the settings'
+            // own place costs nothing and is tried first, so with nothing in the way the menu sits where it is set.
+            float nearest = OSSettings.MinDistance;
+            float bestDistance = settings.menuDistance, bestCost = float.MaxValue;
+            Vector3 bestDirection = Direction(flat, 0f, settings.menuDropDegrees);
+            int fewestBlocked = int.MaxValue;
+            for (int tilt = 0; tilt <= MaxTiltSteps; tilt++)
+            {
+                float drop = Mathf.Min(settings.menuDropDegrees + tilt * ProbeTiltDegrees, MaxDropDegrees);
+                for (int k = 0; k <= 2 * MaxProbeSteps; k++)
+                {
+                    float yaw = ((k + 1) / 2) * ProbeYawDegrees * (k % 2 == 1 ? 1f : -1f);
+                    float turning = TurnCost * (Mathf.Abs(yaw) + (drop - settings.menuDropDegrees));
+                    if (turning >= bestCost) continue;
+                    Vector3 direction = Direction(flat, yaw, drop);
+                    Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
+                    for (float d = settings.menuDistance; d >= nearest - 0.001f; d -= DistanceStep)
+                    {
+                        float cost = turning + (settings.menuDistance - d) * 100f;
+                        int blocked = BlockedCore(eye, eye + direction * d, facing, size);
+                        if (blocked == 0)
+                        {
+                            if (cost < bestCost)
+                            {
+                                bestCost = cost;
+                                bestDirection = direction;
+                                bestDistance = d;
+                                fewestBlocked = 0;
+                            }
+                            break;  // nearer only costs more
+                        }
+                        if (bestCost == float.MaxValue && blocked < fewestBlocked)
+                        {
+                            fewestBlocked = blocked;  // nothing clear yet: remember the place with the least in front of it
+                            bestDirection = direction;
+                            bestDistance = d;
+                        }
+                    }
+                }
+            }
+            position = eye + bestDirection * bestDistance;
+            rotation = Quaternion.LookRotation(bestDirection, Vector3.up);
+        }
+
+        // The way the menu faces: the flat forward turned `yaw` degrees to the right and tilted `drop` degrees down.
+        static Vector3 Direction(Vector3 flat, float yaw, float drop)
+        {
+            Vector3 turned = Quaternion.AngleAxis(yaw, Vector3.up) * flat;
+            Vector3 right = new Vector3(turned.z, 0f, -turned.x);
+            return Quaternion.AngleAxis(drop, right) * turned;
+        }
+
+        /// <summary>
+        /// How many of a grid of points across a menu plate (centre <paramref name="center"/>, facing <paramref name="rotation"/>,
+        /// <paramref name="size"/> in metres) have a panel in front of them or too close behind them as seen from
+        /// <paramref name="eye"/>: 0 means a pointer reaches the whole plate. Panels are every <see cref="ForgePanel"/> (windows,
+        /// a mode's panels, artifact panels) that is showing and takes pointer hits. For placing the menu and for the play test.
+        /// </summary>
+        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size)
+        {
+            CollectVolumes();
+            return BlockedCore(eye, center, rotation, size);
+        }
+
+        static readonly List<ForgeVolume> volumes = new List<ForgeVolume>();
+
+        // The 3D volumes (a mode's models, an artifact) are in the way too: a solid in front of the plate hides it.
+        static void CollectVolumes()
+        {
+            volumes.Clear();
+            foreach (ForgeVolume volume in UnityEngine.Object.FindObjectsByType<ForgeVolume>())
+                if (volume != null && volume.gameObject.activeInHierarchy) volumes.Add(volume);
+        }
+
+        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size)
+        {
+            int blocked = 0;
+            Vector3 right = rotation * Vector3.right, up = rotation * Vector3.up;
+            var panels = ForgePanel.All;
+            for (int ix = 0; ix < ProbeColumns; ix++)
+            {
+                float u = (ix / (ProbeColumns - 1f) - 0.5f) * size.x * 0.96f;
+                for (int iy = 0; iy < ProbeRows; iy++)
+                {
+                    float v = (iy / (ProbeRows - 1f) - 0.5f) * size.y * 0.96f;
+                    Vector3 point = center + right * u + up * v;
+                    Vector3 toPoint = point - eye;
+                    float length = toPoint.magnitude;
+                    if (length < 1e-4f) continue;
+                    Vector3 ray = toPoint / length;
+                    bool covered = false;
+                    for (int i = 0; i < panels.Count && !covered; i++) covered = PanelCovers(panels[i], eye, ray, length);
+                    for (int i = 0; i < volumes.Count && !covered; i++) covered = VolumeCovers(volumes[i], eye, ray, length);
+                    if (covered) blocked++;
+                }
+            }
+            return blocked;
+        }
+
+        // Whether the ray from the eye meets the volume's box (its base on the origin, `size` metres, in the volume's own
+        // axes) no further than the menu point plus the margin. A box the eye is inside counts as in the way.
+        static bool VolumeCovers(ForgeVolume volume, Vector3 eye, Vector3 ray, float length)
+        {
+            if (volume == null) return false;
+            Transform t = volume.transform;
+            Vector3 origin = t.InverseTransformPoint(eye);
+            Vector3 direction = t.InverseTransformPoint(eye + ray) - origin;  // local, not normalised: one unit along it is one metre in the world
+            Vector3 half = volume.size * 0.5f + Vector3.one * ClearMarginMeters;
+            Vector3 centre = new Vector3(0f, volume.size.y * 0.5f, 0f);
+            float enter = float.NegativeInfinity, exit = float.PositiveInfinity;
+            for (int axis = 0; axis < 3; axis++)
+            {
+                float o = origin[axis] - centre[axis], d = direction[axis];
+                if (Mathf.Abs(d) < 1e-6f)
+                {
+                    if (Mathf.Abs(o) > half[axis]) return false;
+                    continue;
+                }
+                float a = (-half[axis] - o) / d, b = (half[axis] - o) / d;
+                if (a > b) { float swap = a; a = b; b = swap; }
+                enter = Mathf.Max(enter, a);
+                exit = Mathf.Min(exit, b);
+                if (enter > exit) return false;
+            }
+            return exit > 0f && enter <= length;
+        }
+
+        // Whether the ray from the eye along `ray` meets this panel's rectangle no further than `length` (the menu point)
+        // plus a small margin, so the menu is clear of the panel by more than a hair.
+        static bool PanelCovers(ForgePanel panel, Vector3 eye, Vector3 ray, float length)
+        {
+            if (panel == null || !panel.gameObject.activeInHierarchy) return false;
+            var rect = panel.transform as RectTransform;
+            if (rect == null) return false;
+            var group = panel.GetComponent<CanvasGroup>();
+            if (group != null && (group.alpha < 0.05f || !group.blocksRaycasts)) return false;  // gone or on its way out
+            Vector3 normal = rect.forward;
+            float along = Vector3.Dot(normal, ray);
+            if (Mathf.Abs(along) < 0.02f) return false;
+            float t = Vector3.Dot(normal, rect.position - eye) / along;
+            if (t <= 0f || t > length + ClearMarginMeters) return false;  // behind the eye, or well behind the menu point
+            Vector3 local = rect.InverseTransformPoint(eye + ray * t);
+            Rect area = rect.rect;
+            area.xMin -= ClearMarginUnits;
+            area.xMax += ClearMarginUnits;
+            area.yMin -= ClearMarginUnits;
+            area.yMax += ClearMarginUnits;
+            return area.Contains(new Vector2(local.x, local.y));
         }
 
         // ---------------------------------------------------------------- building

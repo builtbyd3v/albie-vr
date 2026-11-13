@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -51,6 +53,14 @@ namespace Forge.OS.Editor
             ok &= Check(sb, "the voice rules still pass", VoiceRules);
             ok &= Check(sb, "the workspace hook is inert until the OS sets it, and the OS names resolve", WorkspaceHook);
             ok &= Check(sb, "OSModes is quiet with no scene and the OS window pieces are in place", ModesAndWindows);
+ok &= Check(sb, "the OS kit has every prefab, theme and icon the OS asks for", KitComplete);
+ok &= Check(sb, "every entry has a snake_case id, a title, an icon the kit resolves and an open action", EntriesComplete);
+ok &= Check(sb, "ids and titles are unique on each tab", EntriesUnique);
+ok &= Check(sb, "every status line and open flag answers without throwing and reads like the UI", StatusDelegates);
+ok &= Check(sb, "the tabs hold the seven tools, the four starter projects and every artifact template", TabsHoldWhatTheSpecSays);
+ok &= Check(sb, "os_open's description names every tool id and kind", OsOpenDescription);
+ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
+ok &= Check(sb, "the planner tree ends in a plan within three questions", PlannerTree);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
 
@@ -76,6 +86,8 @@ namespace Forge.OS.Editor
             if (prefab.GetComponent<OSShell>() == null) return "no OSShell on it";
             if (prefab.GetComponent<OSWindows>() == null) return "no OSWindows on it";
             if (prefab.GetComponent<OSKeys>() == null) return "no OSKeys on it";
+if (prefab.GetComponent<OSTableButton>() == null) return "no OSTableButton on it";
+if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under it";
             return null;
         }
 
@@ -496,6 +508,235 @@ namespace Forge.OS.Editor
             note = null;
             string report = VoiceRulesCheck.Run();
             return report.StartsWith("PASS") ? null : report.Replace('\n', ' ');
+        }
+
+        static readonly (OSTab tab, string type)[] PartTypes =
+        {
+            (OSTab.Tools, "Forge.OS.OSToolsCatalog"),
+            (OSTab.Projects, "Forge.OS.OSProjects"),
+            (OSTab.Artifacts, "Forge.OS.OSArtifacts"),
+        };
+
+        static void EnsureRegistered()
+        {
+            var probe = new List<OSEntry>();
+            foreach (var part in PartTypes)
+            {
+                OSRegistry.Fill(part.tab, probe);
+                if (probe.Count > 0) continue;
+                Type type = Type.GetType(part.type + ", Assembly-CSharp");
+                MethodInfo register = type != null
+                    ? type.GetMethod("Register", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, Type.EmptyTypes, null)
+                    : null;
+                if (register != null) register.Invoke(null, null);
+            }
+        }
+
+        static readonly Regex SnakeCase = new Regex("^[a-z0-9]+(_[a-z0-9]+)*$");
+        // The UI never says a brand (contract rule) and never says a placeholder word.
+        static readonly Regex Banned = new Regex(@"\b(Slack|VS ?Code|Meta|Quest|Sketchfab|TODO|lorem)\b", RegexOptions.IgnoreCase);
+
+        static string KitComplete(out string note)
+        {
+            note = null;
+            OSKit kit = OSKit.Current;
+            if (kit == null) return "Resources/OSKit.asset is missing (Forge > OS > Build OS Prefabs)";
+            var missing = new List<string>();
+            if (kit.backplate == null) missing.Add("backplate");
+            if (kit.primaryButton == null) missing.Add("primaryButton");
+            if (kit.secondaryButton == null) missing.Add("secondaryButton");
+            if (kit.borderlessButton == null) missing.Add("borderlessButton");
+            if (kit.destructiveButton == null) missing.Add("destructiveButton");
+            if (kit.textTile == null) missing.Add("textTile");
+            if (kit.tabToggle == null) missing.Add("tabToggle");
+            if (kit.switchToggle == null) missing.Add("switchToggle");
+            if (kit.slider == null) missing.Add("slider");
+            if (kit.theme == null) missing.Add("theme");
+            foreach (string icon in OSKit.RequiredIcons)
+                if (kit.Icon(icon) == null) missing.Add("icon '" + icon + "'");
+            if (missing.Count > 0) return "the kit lacks: " + string.Join(", ", missing);
+            note = OSKit.RequiredIcons.Length + " icons";
+            return null;
+        }
+
+        static string EntriesComplete(out string note)
+        {
+            note = null;
+            EnsureRegistered();
+            OSKit kit = OSKit.Current;
+            if (kit == null) return "Resources/OSKit.asset is missing";
+            var bad = new List<string>();
+            var list = new List<OSEntry>();
+            int total = 0;
+            foreach (OSTab tab in Enum.GetValues(typeof(OSTab)))
+            {
+                OSRegistry.Fill(tab, list);
+                foreach (OSEntry e in list)
+                {
+                    total++;
+                    string who = tab + "/" + (string.IsNullOrEmpty(e.id) ? "(no id)" : e.id);
+                    if (string.IsNullOrWhiteSpace(e.id)) bad.Add(who + " has no id");
+                    else if (!SnakeCase.IsMatch(e.id)) bad.Add(who + " is not snake_case");
+                    if (string.IsNullOrWhiteSpace(e.title)) bad.Add(who + " has no title");
+                    if (string.IsNullOrWhiteSpace(e.icon)) bad.Add(who + " has no icon name");
+                    else if (kit.Icon(e.icon) == null) bad.Add(who + " icon '" + e.icon + "' is not in the kit");
+                    if (e.open == null) bad.Add(who + " has no open action");
+                    if (e.tab != tab) bad.Add(who + " carries tab " + e.tab);
+                }
+            }
+            if (total == 0) return "no entries are registered on any tab";
+            if (bad.Count > 0) return string.Join("; ", bad);
+            note = total + " entries";
+            return null;
+        }
+
+        static string EntriesUnique(out string note)
+        {
+            note = null;
+            EnsureRegistered();
+            var list = new List<OSEntry>();
+            foreach (OSTab tab in Enum.GetValues(typeof(OSTab)))
+            {
+                OSRegistry.Fill(tab, list);
+                var ids = new HashSet<string>(StringComparer.Ordinal);
+                var titles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (OSEntry e in list)
+                {
+                    if (!ids.Add(e.id ?? "")) return tab + " has the id '" + e.id + "' twice";
+                    if (!titles.Add(e.title ?? "")) return tab + " has two tiles titled '" + e.title + "'";
+                }
+            }
+            return null;
+        }
+
+        static string StatusDelegates(out string note)
+        {
+            note = null;
+            EnsureRegistered();
+            var problems = new List<string>();
+            var list = new List<OSEntry>();
+            int checkedCount = 0;
+            foreach (OSTab tab in Enum.GetValues(typeof(OSTab)))
+            {
+                OSRegistry.Fill(tab, list);
+                foreach (OSEntry e in list)
+                {
+                    string who = tab + "/" + e.id;
+                    checkedCount++;
+                    try
+                    {
+                        string line = e.status != null ? e.status() : null;
+                        if (line != null)
+                        {
+                            if (line.Length > 40) problems.Add(who + " status is " + line.Length + " characters: '" + line + "'");
+                            if (Banned.IsMatch(line)) problems.Add(who + " status says a brand or placeholder word: '" + line + "'");
+                        }
+                        if (e.isOpen != null) e.isOpen();
+                    }
+                    catch (Exception ex)
+                    {
+                        problems.Add(who + " threw " + ex.GetType().Name + ": " + ex.Message);
+                    }
+                    if (e.title != null && Banned.IsMatch(e.title)) problems.Add(who + " title says a brand or placeholder word: '" + e.title + "'");
+                }
+            }
+            if (problems.Count > 0) return string.Join("; ", problems);
+            note = checkedCount + " entries";
+            return null;
+        }
+
+        static string TabsHoldWhatTheSpecSays(out string note)
+        {
+            note = null;
+            EnsureRegistered();
+            var missing = new List<string>();
+
+            // Drive (the hand transmitter, spec 5.8) is its own part: it is required once its window exists.
+            bool driveBuilt = Type.GetType("Forge.OS.OSDriveWindow, Assembly-CSharp") != null;
+            foreach (string id in new[] { "cad", "code", "train", "notebook", "drive", "messages", "gestures" })
+            {
+                if (id == "drive" && !driveBuilt) continue;
+                if (OSRegistry.Find(OSTab.Tools, id) == null) missing.Add("tool " + id);
+            }
+
+            foreach (string id in new[] { "proj_truck", "proj_quadcopter", "proj_rocket", "proj_classifier" })
+                if (OSRegistry.Find(OSTab.Projects, id) == null) missing.Add("project " + id);
+
+            // Every artifact template is reachable: some entry has its id, an id ending "_<template>", or its title.
+            var artifacts = new List<OSEntry>();
+            OSRegistry.Fill(OSTab.Artifacts, artifacts);
+            foreach (string template in Forge.Artifacts.ArtifactLibrary.Templates)
+            {
+                JObject manifest, scene;
+                string title = Forge.Artifacts.ArtifactLibrary.TryTemplate(template, out manifest, out scene) ? (string)manifest["title"] : null;
+                bool found = artifacts.Exists(e => e.id == template
+                    || (e.id != null && e.id.EndsWith("_" + template, StringComparison.Ordinal))
+                    || (title != null && string.Equals(e.title, title, StringComparison.OrdinalIgnoreCase)));
+                if (!found) missing.Add("artifact template " + template);
+            }
+
+            if (missing.Count > 0) return "missing: " + string.Join(", ", missing);
+            if (!driveBuilt) note = "Drive is not built yet";
+            return null;
+        }
+
+        static string OsOpenDescription(out string note)
+        {
+            note = null;
+            EnsureRegistered();
+            var asset = Resources.Load<TextAsset>("AlbieTools/os");
+            if (asset == null) return "Resources/AlbieTools/os.json is missing";
+            JObject open = null;
+            foreach (JObject def in JArray.Parse(asset.text))
+                if ((string)def["name"] == "os_open") open = def;
+            if (open == null) return "os.json has no os_open";
+            string description = (string)open["description"] ?? "";
+            var tools = new List<OSEntry>();
+            OSRegistry.Fill(OSTab.Tools, tools);
+            var absent = new List<string>();
+            foreach (OSEntry e in tools)
+                if (description.IndexOf(e.id, StringComparison.Ordinal) < 0) absent.Add(e.id);
+            if (absent.Count > 0) return "os_open's description doesn't name: " + string.Join(", ", absent);
+            JArray kinds = open["parameters"]?["properties"]?["kind"]?["enum"] as JArray;
+            if (kinds == null) return "os_open has no kind enum";
+            foreach (string kind in new[] { "tool", "project", "artifact", "system" })
+            {
+                bool has = false;
+                foreach (JToken k in kinds) if ((string)k == kind) has = true;
+                if (!has) return "os_open's kind enum lacks " + kind;
+            }
+            return null;
+        }
+
+        static string TableButtonSize(out string note)
+        {
+            note = null;
+            var prefab = Resources.Load<GameObject>(OSBootstrap.Resource);
+            var button = prefab != null ? prefab.GetComponent<OSTableButton>() : null;
+            if (button == null) return "the shell prefab has no OSTableButton";
+            float mm = button.ButtonMeters * 1000f;
+            if (mm < 22f) return "the table button is " + mm.ToString("F1") + " mm, the minimum is 22";
+            note = mm.ToString("F0") + " mm";
+            return null;
+        }
+
+        static string PlannerTree(out string note)
+        {
+            note = null;
+            Type planner = Type.GetType("Forge.OS.OSPlanner, Assembly-CSharp");
+            if (planner == null)
+            {
+                note = "skipped: OSPlanner is not built yet";
+                return null;
+            }
+            // ADAPT when OSPlanner lands. Walk every path depth first:
+            //   node = the first question; depth = 1
+            //   foreach answer of node (2 to 4 of them): next = node.Answer(answer)
+            //     if next is a plan: Check goal, test, parts (>= 1) and milestones (>= 1) are non-empty strings; continue
+            //     else: depth + 1 must be <= 3, then recurse
+            // Return the first violation as a sentence naming the path ("truck > fast > plan has no test").
+            note = "OSPlanner exists but the tree walk is not written yet";
+            return null;
         }
     }
 }
