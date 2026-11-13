@@ -72,5 +72,23 @@ public sealed class AllocationCounter : IDisposable
         }
     }
 
+    /// <summary>
+    /// The fewest bytes <paramref name="work"/> allocated in up to <paramref name="tries"/> runs, stopping at the first
+    /// run that allocates nothing. The counter counts every thread, so an Editor thread allocating mid-run can fail a
+    /// clean check by chance (ThingRuntimeCheck once read 137 KB in 200 steps, then 0 bytes on 3 reruns). Code that
+    /// really allocates does it on every run, so it still fails. <paramref name="setup"/> runs before each try, outside
+    /// the count, to put the work back where it starts.
+    /// </summary>
+    public static long FewestBytes(int tries, Action setup, Action work)
+    {
+        long fewest = long.MaxValue;
+        for (int i = 0; i < tries && fewest > 0; i++)
+        {
+            setup?.Invoke();
+            fewest = Math.Min(fewest, BytesDuring(work));
+        }
+        return fewest;
+    }
+
     public void Dispose() => recorder.Dispose();
 }
