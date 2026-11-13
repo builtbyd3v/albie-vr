@@ -14,6 +14,11 @@ using Unity.Profiling;
 /// allocates for two short windows in a row, and throws if that doesn't happen within a second. A check that starts
 /// background work (the notebook writes its files on a worker thread) should let it finish before measuring
 /// (<c>NotebookFiles.Flush()</c>).
+///
+/// Even after a quiet start, another Editor thread allocates about 1–3 KB now and then (an idle spin with no work
+/// picks it up), so a long measurement can catch it by chance. It can't be filtered: this counter ignores
+/// <c>ProfilerRecorderOptions.CollectOnlyOnCurrentThread</c>, and the GC.Alloc marker reports time, not bytes (both
+/// checked in batch mode, Unity 6000.6). Keep measured windows short and use <see cref="FewestBytes"/>.
 /// </summary>
 public sealed class AllocationCounter : IDisposable
 {
@@ -70,6 +75,24 @@ public sealed class AllocationCounter : IDisposable
             work();
             return counter.Now - before;
         }
+    }
+
+    /// <summary>
+    /// The fewest bytes <paramref name="work"/> allocated in up to <paramref name="tries"/> runs, stopping at the first
+    /// run that allocates nothing. The counter counts every thread, so an Editor thread allocating mid-run can fail a
+    /// clean check by chance (ThingRuntimeCheck once read 137 KB in 200 steps, then 0 bytes on 3 reruns). Code that
+    /// really allocates does it on every run, so it still fails. <paramref name="setup"/> runs before each try, outside
+    /// the count, to put the work back where it starts (null when the work picks up where the last try ended).
+    /// </summary>
+    public static long FewestBytes(int tries, Action setup, Action work)
+    {
+        long fewest = long.MaxValue;
+        for (int i = 0; i < tries && fewest > 0; i++)
+        {
+            setup?.Invoke();
+            fewest = Math.Min(fewest, BytesDuring(work));
+        }
+        return fewest;
     }
 
     public void Dispose() => recorder.Dispose();
