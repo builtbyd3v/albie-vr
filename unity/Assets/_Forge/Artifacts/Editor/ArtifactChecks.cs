@@ -44,6 +44,7 @@ public static class ArtifactChecks
         Approvals();
         Looks();
         Physics();
+        Placement();
         foreach (var f in failures) Debug.LogError("[ArtifactChecks] FAIL " + f);
         Debug.Log($"[ArtifactChecks] {passed} passed, {failures.Count} failed");
     }
@@ -53,6 +54,46 @@ public static class ArtifactChecks
     {
         Run();
         EditorApplication.Exit(failures.Count == 0 ? 0 : 1);
+    }
+
+    // In the app, the host comes to the user, and it steps aside for a panel that's already there (the Hands panel).
+    static void Placement()
+    {
+        var prefab = Resources.Load<ArtifactHost>(ArtifactBootstrap.Resource);
+        Check(prefab != null, "Resources/ArtifactHost exists, so the app's Main gets a host");
+        if (prefab == null) return;
+        var camGo = new GameObject("check camera") { tag = "MainCamera" };
+        camGo.AddComponent<Camera>();
+        camGo.transform.position = new Vector3(0f, 1.6f, 0f);
+        var host = UnityEngine.Object.Instantiate(prefab);
+        ForgePanel other = null;
+        try
+        {
+            host.ComeToUser();
+            var straight = host.transform.position;
+            Check(Vector3.Distance(straight, new Vector3(-0.2f, 1.1f, 0.8f)) < 0.01f && Vector3.Angle(host.transform.forward, Vector3.forward) < 0.1f,
+                $"with nothing in the way the host comes 0.8 m ahead at desk height, got {straight:F2}");
+
+            // A panel already where the host's own panel would open.
+            other = UnityEngine.Object.Instantiate(host.panelPrefab);
+            other.transform.position = straight + host.transform.rotation * host.panelOffset;
+            host.ComeToUser();
+            var ownPanel = host.transform.TransformPoint(host.panelOffset);
+            float gap = Vector2.Distance(new Vector2(ownPanel.x, ownPanel.z), new Vector2(other.transform.position.x, other.transform.position.z));
+            float reach = Vector2.Distance(new Vector2(host.transform.position.x, host.transform.position.z), Vector2.zero);
+            Check(gap >= ArtifactHost.PanelClearance && Mathf.Abs(reach - Vector2.Distance(new Vector2(straight.x, straight.z), Vector2.zero)) < 0.01f,
+                $"with a panel in the way the host turns aside, as far from the user as before: gap {gap:F2} m, reach {reach:F2} m");
+
+            // The host's own panels never count as in the way.
+            other.transform.SetParent(host.transform, true);
+            host.ComeToUser();
+            Check(Vector3.Distance(host.transform.position, straight) < 0.01f, "the host's own panels never push it aside");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(host.gameObject);
+            UnityEngine.Object.DestroyImmediate(camGo);
+        }
     }
 
     static void Fixtures()
