@@ -37,6 +37,10 @@ namespace Forge.Artifacts
         public ControllerThing Thing { get; private set; }
         public ArtifactThing Scored { get; private set; }
         public Mode State { get; private set; }
+        /// <summary>Out of the way while the host shows something else, or nothing: unseen and parked, but still the
+        /// brain loop, so the tools say "open the slalom first" rather than lose the truck. Back when a truck course is built.</summary>
+        public bool Hidden { get; private set; }
+        Renderer[] shell;
         public string Status { get; private set; } = "brain truck: open a slalom (2), then L to drive a lap by hand (WASD)";
         /// <summary>Who completed the last Autopilot run: "candidate 1", "the pretrained fallback" or "nothing".</summary>
         public string Drove { get; private set; }
@@ -112,10 +116,13 @@ namespace Forge.Artifacts
             go.SetActive(true);
             if (brain.manual != null) brain.Thing.Host.Attach(brain.manual);
             host.Thing = brain.Scored;
+            brain.shell = go.GetComponentsInChildren<Renderer>();
             brain.KeyHints = keyHints;
             if (!keyHints) brain.Status = "brain truck at the start: ready for a lap driven by hand";
             brain.PlaceAtStart();
             brain.Park();
+            host.Shown += brain.OnHostShown;
+            host.Closed += brain.OnHostClosed;
             return brain;
         }
 
@@ -125,7 +132,34 @@ namespace Forge.Artifacts
         void OnDestroy()
         {
             ManualInputs.Clear();
-            if (host != null && ReferenceEquals(host.Thing, Scored)) host.Thing = null;
+            if (host == null) return;
+            host.Shown -= OnHostShown;
+            host.Closed -= OnHostClosed;
+            if (ReferenceEquals(host.Thing, Scored)) host.Thing = null;
+        }
+
+        // The host built a scene: a truck course gets the truck at its start, as the host's Thing. Anything else keeps
+        // the truck hidden, so it isn't scored as that scene's Thing and isn't left standing beside it.
+        void OnHostShown(ArtifactHost h)
+        {
+            bool truckCourse = h.Run != null && (string)h.OpenManifest?["links"]?["thing"] == "truck";
+            if (!truckCourse) { OnHostClosed(h); return; }
+            h.Thing = Scored;
+            Hide(false);
+            if (State == Mode.Idle) PlaceAtStart();
+        }
+
+        void OnHostClosed(ArtifactHost h)
+        {
+            if (ReferenceEquals(h.Thing, Scored)) h.Thing = null;
+            Hide(true);
+        }
+
+        void Hide(bool hidden)
+        {
+            Hidden = hidden;
+            if (shell != null) foreach (var r in shell) r.enabled = !hidden;
+            if (hidden) Park();
         }
 
         // ---- Laps -----------------------------------------------------------------------------------------------

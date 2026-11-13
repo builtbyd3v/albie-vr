@@ -221,11 +221,16 @@ public static class ThingRuntimeCheck
         if (fallback == null) return "FAIL no pretrained fallback in Resources/Controllers";
         string error = w.Thing.Attach(fallback.text);
         if (error != null) return "FAIL " + error;
-        Place(w, 0f, 0f, 0f);
-        for (int i = 0; i < 20; i++) Tick(w); // warm up
         var watch = new System.Diagnostics.Stopwatch();
         int steps = 0;
-        long bytes = AllocationCounter.BytesDuring(() =>
+        // Two tries: a stray allocation on another Editor thread can land in one by chance (AllocationCounter.FewestBytes).
+        long bytes = AllocationCounter.FewestBytes(2, () =>
+        {
+            Place(w, 0f, 0f, 0f);
+            for (int i = 0; i < 20; i++) Tick(w); // warm up
+            watch.Reset();
+            steps = 0;
+        }, () =>
         {
             watch.Start();
             for (; steps < 200 && !w.Body.Crashed; steps++) Tick(w);

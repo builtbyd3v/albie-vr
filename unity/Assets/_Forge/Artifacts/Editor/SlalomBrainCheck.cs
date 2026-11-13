@@ -335,6 +335,26 @@ public static class SlalomBrainCheck
             $"on: {(string)on["mode"] ?? (string)on["error"]} ({(string)on["autopilot"]}), off: {(string)off["mode"] ?? (string)off["error"]}, " +
             $"run {recorded}, controller {file?.Name} ({file?.Kind}); off again: {(string)again["error"]}");
 
+        // Another artifact opens: the truck gets out of the way (unseen, parked, not the host's Thing) but stays the brain
+        // loop. The slalom again: it's back at the start, as the Thing.
+        sandbox.host.Open("three_body");
+        yield return null;
+        bool seen = false;
+        foreach (var r in brain.GetComponentsInChildren<Renderer>()) seen |= r.enabled;
+        bool hiddenAway = brain.Hidden, releasedAway = !ReferenceEquals(sandbox.host.Thing, brain.Scored);
+        bool away = hiddenAway && !seen && releasedAway && ReferenceEquals(BrainLoops.Active, brain);
+        string whileAway = (string)AlbieTools.Call("brain_record", new JObject { ["start"] = true, ["laps"] = 1 })["error"];
+        string reopened = Open(sandbox);
+        yield return null;
+        seen = false;
+        foreach (var r in brain.GetComponentsInChildren<Renderer>()) seen |= r.enabled;
+        float fromStart = Vector3.Distance(brain.transform.position, sandbox.host.SceneOrigin.position);
+        bool back = reopened == null && !brain.Hidden && seen && ReferenceEquals(sandbox.host.Thing, brain.Scored) && fromStart < 0.05f;
+        Expect(away && back && whileAway != null,
+            "another artifact hides and parks the truck, and the slalom brings it back to the start",
+            $"three_body: hidden {hiddenAway}, released {releasedAway}, still the brain loop; brain_record said \"{whileAway}\"; " +
+            $"slalom again: {reopened ?? "open"}, hidden {brain.Hidden}, {fromStart:F2} m from the start");
+
         // With no brain truck running, the tools answer from the brain panel's preview (not open in this sandbox).
         brain.enabled = false;
         var preview = AlbieTools.Call("brain_status", new JObject());

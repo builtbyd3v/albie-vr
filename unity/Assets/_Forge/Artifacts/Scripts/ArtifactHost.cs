@@ -78,10 +78,15 @@ namespace Forge.Artifacts
         /// <see cref="SceneOrigin"/> and <see cref="OpenManifest"/> are the new scene's.</summary>
         public event System.Action<ArtifactHost> Shown;
 
+        /// <summary>The scene came down: a close, an open of something else (before its permissions sheet), or a relayout
+        /// (<see cref="Shown"/> follows). <see cref="Run"/> is gone.</summary>
+        public event System.Action<ArtifactHost> Closed;
+
         /// <summary>
         /// Stands the host in front of the camera at desk height, turned to face the same way: 0.8 m ahead, 0.2 m left
         /// (its panel opens 0.5 m to the right) and 0.5 m below the eyes, as the sandbox's table is. Level, whatever the
-        /// head's pitch. Does nothing with no main camera.
+        /// head's pitch. If another panel (the Hands panel, a desk window) already sits where the host or its panel would
+        /// go, it turns to either side, up to 80 degrees, for a clear spot. Does nothing with no main camera.
         /// </summary>
         public void ComeToUser()
         {
@@ -91,9 +96,44 @@ namespace Forge.Artifacts
             var ahead = Vector3.ProjectOnPlane(eye.forward, Vector3.up);
             if (ahead.sqrMagnitude < 1e-4f) ahead = Vector3.ProjectOnPlane(eye.up, Vector3.up);  // looking straight down
             ahead.Normalize();
-            var right = Vector3.Cross(Vector3.up, ahead);
-            transform.SetPositionAndRotation(eye.position + ahead * 0.8f - right * 0.2f + Vector3.down * 0.5f,
-                Quaternion.LookRotation(ahead, Vector3.up));
+            // Once per open, never per frame.
+            var others = FindObjectsByType<ForgePanel>(FindObjectsSortMode.None);
+            for (int i = 0; i < ComeToUserYaws.Length; i++)
+            {
+                var dir = Quaternion.AngleAxis(ComeToUserYaws[i], Vector3.up) * ahead;
+                var right = Vector3.Cross(Vector3.up, dir);
+                var at = eye.position + dir * 0.8f - right * 0.2f + Vector3.down * 0.5f;
+                var facing = Quaternion.LookRotation(dir, Vector3.up);
+                if (i == ComeToUserYaws.Length - 1 || ClearOfPanels(at, facing, others))
+                {
+                    transform.SetPositionAndRotation(at, facing);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>How far, on the floor plan, the host and its panel keep from any other panel's centre.</summary>
+        public const float PanelClearance = 0.5f;
+        // Straight ahead first, then a little to either side, then further. The last entry is the fallback with nowhere clear.
+        static readonly float[] ComeToUserYaws = { 0f, 40f, -40f, 80f, -80f, 0f };
+
+        bool ClearOfPanels(Vector3 at, Quaternion facing, ForgePanel[] others)
+        {
+            var panelAt = at + facing * panelOffset;
+            foreach (var other in others)
+            {
+                if (other == null || !other.gameObject.activeInHierarchy || other.transform.IsChildOf(transform)) continue;
+                var centre = other.transform.position;
+                if (FlatDistance(centre, panelAt) < PanelClearance || FlatDistance(centre, at) < PanelClearance) return false;
+            }
+            return true;
+        }
+
+        static float FlatDistance(Vector3 a, Vector3 b)
+        {
+            a.y = 0f;
+            b.y = 0f;
+            return Vector3.Distance(a, b);
         }
 
         void OnEnable() => Current = this;
@@ -175,6 +215,7 @@ namespace Forge.Artifacts
 
         void Teardown()
         {
+            if (build != null) Closed?.Invoke(this);
             relayoutAt = -1f;
             if (build != null) build.Inputs.Changed -= OnInputChanged;
             if (reveal != null) StopCoroutine(reveal);

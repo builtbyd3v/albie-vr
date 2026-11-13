@@ -130,22 +130,29 @@ public static class MLTemplateCheck
         int frames = 1;
         double worst = 0;
         var frame = new System.Diagnostics.Stopwatch();
-        long bytes = BytesAllocated(() =>
+        bool Frame()
         {
-            while (true)
-            {
-                frame.Restart();
-                bool done = t.Step(FrameBudgetMs);
-                worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
-                frames++;
-                if (done) break;
-            }
+            frame.Restart();
+            bool done = t.Step(FrameBudgetMs);
+            worst = Math.Max(worst, frame.Elapsed.TotalMilliseconds);
+            frames++;
+            return done;
+        }
+        // The counter counts every thread, and another Editor thread allocates about 3 KB now and then (an idle loop
+        // with no training catches it too), so a whole 150 ms training run sometimes failed by chance. Every training
+        // frame runs the same code, so a window of two epochs (a frame or two, about 5 ms) shows any per-step
+        // allocation; the fewest bytes of up to three windows is what training allocates.
+        long bytes = AllocationCounter.FewestBytes(3, null, () =>
+        {
+            int until = t.Classifier.Epoch + 2;
+            while (t.Classifier.Epoch < until && !Frame()) { }
         });
-        if (bytes > 0) return $"training allocated {bytes} bytes";
+        while (!Frame()) { }
+        if (bytes > 0) return $"training allocated {bytes} bytes in two epochs";
         if (worst > FrameBudgetMs + 2.5) return $"a frame took {worst:0.0} ms (budget {FrameBudgetMs} ms)";
         if (t.Classifier.Epoch != t.Classifier.Settings.Epochs) return "stopped at epoch " + t.Classifier.Epoch;
         template = t;
-        note = $"{t.Classifier.Settings.Epochs} epochs in {frames} frames, {t.Classifier.ComputeSeconds * 1000:0} ms compute, worst frame {worst:0.0} ms, 0 bytes";
+        note = $"{t.Classifier.Settings.Epochs} epochs in {frames} frames, {t.Classifier.ComputeSeconds * 1000:0} ms compute, worst frame {worst:0.0} ms, 0 bytes in two epochs";
         return null;
     }
 
