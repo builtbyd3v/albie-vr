@@ -85,8 +85,11 @@ namespace Forge.Artifacts
         /// <summary>
         /// Stands the host in front of the camera at desk height, turned to face the same way: 0.8 m ahead, 0.2 m left
         /// (its panel opens 0.5 m to the right) and 0.5 m below the eyes, as the sandbox's table is. Level, whatever the
-        /// head's pitch. If another panel (the Hands panel, a desk window) already sits where the host or its panel would
-        /// go, it turns to either side, up to 80 degrees, for a clear spot. Does nothing with no main camera.
+        /// head's pitch. With a room (<see cref="Room"/>, else MRUK's current one), the biggest table in front whose top
+        /// is at a working height (0.3 to 1 m below the eyes: a desk when standing, the coffee table when sitting) gets
+        /// the host on its top, inside its edge; and a spot inside a wall is skipped. If another panel (the Hands panel,
+        /// a desk window) already sits where the host or its panel would go, it turns to either side, up to 80 degrees,
+        /// then tries the same closer in. With nowhere clear it stands straight ahead. Does nothing with no main camera.
         /// </summary>
         public void ComeToUser()
         {
@@ -98,28 +101,108 @@ namespace Forge.Artifacts
             ahead.Normalize();
             // Once per open, never per frame.
             var others = FindObjectsByType<ForgePanel>(FindObjectsSortMode.None);
-            for (int i = 0; i < ComeToUserYaws.Length; i++)
+            var plan = Room ?? MrukFloorPlan.Current();
+            bool table = false;
+            Vector3 tableCentre = default, tableSize = default;
+            float tableYaw = 0f, top = 0f;
+            if (plan != null && plan.TryFind("TABLE", out tableCentre, out tableYaw, out tableSize))
             {
-                var dir = Quaternion.AngleAxis(ComeToUserYaws[i], Vector3.up) * ahead;
-                var right = Vector3.Cross(Vector3.up, dir);
-                var at = eye.position + dir * 0.8f - right * 0.2f + Vector3.down * 0.5f;
-                var facing = Quaternion.LookRotation(dir, Vector3.up);
-                if (i == ComeToUserYaws.Length - 1 || ClearOfPanels(at, facing, others))
-                {
-                    transform.SetPositionAndRotation(at, facing);
-                    return;
-                }
+                top = tableCentre.y + tableSize.y * 0.5f;
+                // Any table the person sees over and can reach down to: a desk or dining table when standing, those
+                // and the coffee table when sitting. Lower than that and the host floats clear above it anyway.
+                table = top < eye.position.y - 0.2f && top > eye.position.y - 1.0f;
             }
+            var toTable = Quaternion.Euler(0f, -tableYaw, 0f);  // world to the table's frame: its long side along +z
+            bool walls = plan != null && plan.HasFloor;
+            var room = walls ? plan.FloorBounds : default;
+            float panelSide = Mathf.Abs(panelOffset.x);
+            bool haveFirst = false, haveSecond = false;
+            Vector3 firstAt = default, secondAt = default, secondOffset = default;
+            Quaternion firstFacing = default, secondFacing = default;
+            for (int pass = 0; pass < ComeToUserReach.Length; pass++)
+                for (int i = 0; i < ComeToUserYaws.Length; i++)
+                {
+                    var dir = Quaternion.AngleAxis(ComeToUserYaws[i], Vector3.up) * ahead;
+                    var right = Vector3.Cross(Vector3.up, dir);
+                    var facing = Quaternion.LookRotation(dir, Vector3.up);
+                    // The panel opens to the right, the host a little left of centre to make room; if that side is
+                    // blocked (a wall, another panel) the panel takes the left and the host moves right.
+                    for (int s = 0; s < 2; s++)
+                    {
+                        float side = s == 0 ? 1f : -1f;
+                        var offset = panelOffset;
+                        offset.x = side * panelSide;
+                        var at = eye.position + dir * ComeToUserReach[pass] - right * (side * 0.2f) + Vector3.down * 0.5f;
+                        if (!haveFirst)
+                        {
+                            firstAt = at;
+                            firstFacing = facing;
+                            haveFirst = true;
+                        }
+                        bool onTable = table && OnTable(ref at, tableCentre, toTable, tableSize, top);
+                        var panelAt = at + facing * offset;
+                        if (walls && !onTable && !InsideRoom(room, at)) continue;
+                        if (!ClearOfPanels(at, panelAt, others)) continue;
+                        if (walls && !InsideRoom(room, panelAt))
+                        {
+                            // The host fits but its panel is too near a wall: keep the first such spot in case nothing better turns up.
+                            if (!haveSecond)
+                            {
+                                secondAt = at;
+                                secondFacing = facing;
+                                secondOffset = offset;
+                                haveSecond = true;
+                            }
+                            continue;
+                        }
+                        panelOffset = offset;
+                        transform.SetPositionAndRotation(at, facing);
+                        return;
+                    }
+                }
+            if (haveSecond)
+            {
+                panelOffset = secondOffset;
+                transform.SetPositionAndRotation(secondAt, secondFacing);
+                return;
+            }
+            panelOffset.x = panelSide;
+            transform.SetPositionAndRotation(firstAt, firstFacing);
         }
 
         /// <summary>How far, on the floor plan, the host and its panel keep from any other panel's centre.</summary>
         public const float PanelClearance = 0.5f;
-        // Straight ahead first, then a little to either side, then further. The last entry is the fallback with nowhere clear.
-        static readonly float[] ComeToUserYaws = { 0f, 40f, -40f, 80f, -80f, 0f };
+        /// <summary>How far inside a table's edge the host stays when it sits on one.</summary>
+        public const float TableMargin = 0.12f;
+        /// <summary>How far outside a table's edge a spot can be and still be pulled onto the table.</summary>
+        public const float TableSnap = 0.4f;
+        /// <summary>How far from the room's walls the host keeps.</summary>
+        public const float WallMargin = 0.3f;
+        // Straight ahead first, then a little to either side, then further; the whole fan again closer in.
+        static readonly float[] ComeToUserYaws = { 0f, 40f, -40f, 80f, -80f };
+        static readonly float[] ComeToUserReach = { 0.8f, 0.55f };
 
-        bool ClearOfPanels(Vector3 at, Quaternion facing, ForgePanel[] others)
+        // Moves a spot onto the table's top when it's on the table, or within TableSnap of its edge; else leaves it alone.
+        static bool OnTable(ref Vector3 at, Vector3 centre, Quaternion toTable, Vector3 size, float top)
         {
-            var panelAt = at + facing * panelOffset;
+            var local = toTable * (at - centre);
+            float halfShort = size.z * 0.5f - TableMargin;  // across, local x
+            float halfLong = size.x * 0.5f - TableMargin;   // along, local z
+            if (halfShort <= 0f || halfLong <= 0f) return false;
+            if (Mathf.Abs(local.x) - halfShort > TableSnap || Mathf.Abs(local.z) - halfLong > TableSnap) return false;
+            local.x = Mathf.Clamp(local.x, -halfShort, halfShort);
+            local.z = Mathf.Clamp(local.z, -halfLong, halfLong);
+            local.y = 0f;
+            var p = centre + Quaternion.Inverse(toTable) * local;
+            at = new Vector3(p.x, top, p.z);
+            return true;
+        }
+
+        static bool InsideRoom(Bounds room, Vector3 at) =>
+            at.x > room.min.x + WallMargin && at.x < room.max.x - WallMargin && at.z > room.min.z + WallMargin && at.z < room.max.z - WallMargin;
+
+        bool ClearOfPanels(Vector3 at, Vector3 panelAt, ForgePanel[] others)
+        {
             foreach (var other in others)
             {
                 if (other == null || !other.gameObject.activeInHierarchy || other.transform.IsChildOf(transform)) continue;

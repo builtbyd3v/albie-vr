@@ -44,6 +44,7 @@ What the Editor can say about Quest performance, measured Nov 13 in `ArtifactsSa
 5. A room nobody has tested: a different room scan than the dev room. The slalom either fits or is refused with a reason.
 
 **Nov 14, feature freeze.** Fixes only from here: what the Nov 13 pass found, in the order above.
+- *Done Nov 14, no headset:* the host lands on a real table when one is in front (the biggest `TABLE` the person sees over, from MRUK), pulled inside its edge, and keeps itself and its panel 0.3 m off the room's walls, swapping the panel to the left when the right is blocked. Verified in `Main` on MRUK's LivingRoom02: standing at the dining table the heart stands on its top; seated it still does; 0.5 m from a wall it turns aside instead of standing in it; in the open nothing changes. `Check Artifacts` 107/107. The headset pass should include one open at a desk and one near a wall.
 
 **Nov 15 to 16.** Help Person 1 with the hands-only passes and the video. `ArtifactShot` (Editor) gives clean stills of any artifact for the Devpost gallery.
 
