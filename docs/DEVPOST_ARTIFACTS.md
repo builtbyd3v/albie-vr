@@ -4,7 +4,7 @@
 
 ## One paragraph
 
-Albie doesn't only talk about things: it makes them. Ask for a slalom and it lays a cone course on your real floor, in the space your room actually has, and refuses with a reason when the room is too small. Drive the truck round twice and say "learn it", and Albie trains a small on-device policy from your two laps, writes the attempt into its lab notebook, and the truck drives the course by itself. Ask what shipped this week and your repo's real commits stand up as a small city on your desk. Ask about the heart and a cutaway heart beats on the table at 72 a minute with every chamber and valve labelled, and Albie traces the blood through it. Every one of these is a data-driven artifact: a manifest, a scene file and at most one model, validated before anything is built, kept in a versioned library, and recorded in the notebook so Albie remembers what worked.
+Albie doesn't only talk about things: it makes them. Ask for a slalom and it lays a cone course on your real floor, in the space your room actually has, and refuses with a reason when the room is too small. Drive the truck round twice and say "learn it", and Albie trains a small on-device policy from your two laps, writes the attempt into its lab notebook, and the truck drives the course by itself. Ask what shipped this week and your repo's real commits stand up as a small city on your desk. Ask about the heart and a cutaway heart beats on your own table at 72 a minute with every chamber and valve labelled, and Albie traces the blood through it. Every one of these is a data-driven artifact: a manifest, a scene file and at most one model, validated before anything is built, kept in a versioned library, and recorded in the notebook so Albie remembers what worked.
 
 ## What to list as features
 
@@ -14,6 +14,7 @@ Albie doesn't only talk about things: it makes them. Ask for a slalom and it lay
 - **Biology you can walk round.** Cell, heart, brain, plant cell, eye and DNA, each with measured labels and a guided tour (follow a protein, trace the blood, tour the lobes, follow the sunlight, follow the light, spin the helix).
 - **Physics you can break.** Two double pendulums started 0.01° apart that split after five seconds; the Sun and four rocky planets under real gravity, with a slider for the Sun's mass that throws the planets out.
 - **A lab notebook.** Attempts, failures and lessons, read back at the start of a session; v1 versus v2 comparisons; anchors saved in the room.
+- **It lands on your table.** An artifact reads the same room scan as the courses: if there's a desk or dining table in front of you (the coffee table when you're sitting), the heart or the pendulum stands on its top, pulled in from the edge, with its panel above; it keeps itself and its panel 30 cm off the walls, swapping the panel to the other side when one is blocked; and Albie tells you where it went ("It's on the table in front of you", "It's to your right"). With no table it floats at desk height in front of you.
 - **Hands first.** Every panel is a Forge panel and works with Interaction SDK ray and poke; the truck can be driven by hand gestures. Artifacts step aside for each other so no panel covers another.
 - **Permission before data.** An artifact that needs a connector or the room asks once, in a sheet, and nothing is built until you allow it.
 
@@ -39,6 +40,7 @@ Unity 6 (URP), Meta XR SDK 207 with the Mixed Reality Utility Kit and Interactio
 | File | What it shows |
 |---|---|
 | `stills/heart.png` | Heart cutaway, 13 labels, panel with Trace the blood |
+| `stills/heart_on_table.png` | The same heart where the app actually puts it: standing on the dining table of a scanned room (MRUK's living room in the Editor), its panel above, after Albie said "It's on the table in front of you" |
 | `stills/cell.png` | Animal cell with the wedge removed |
 | `stills/brain.png` | Brain, left side, lobes labelled |
 | `stills/plant_cell.png` | Plant cell tipped open |
@@ -50,7 +52,7 @@ Unity 6 (URP), Meta XR SDK 207 with the Mixed Reality Utility Kit and Interactio
 | `stills/slalom.png` | A 5-gate slalom laid around the furniture of a mock living room, the truck at the start, the finish box, the scoreboard by the wall (Albie said: "This room is tight, so I made a shorter course") |
 | `stills/hoop_course.png` | Four hoops in a line in the same room, the ideal line through them |
 
-The two course stills are from the slalom sandbox with a mock room (grey boxes for the couch and shelves), not passthrough. Real headset footage (passthrough, hands) must replace all of these for the video; the rules want real footage. The stills are for the gallery only.
+The two course stills are from the slalom sandbox with a mock room (grey boxes for the couch and shelves), and the table still is from `Main` in Play mode with an MRUK room prefab loaded (the user stood at the dining table; the Pet's arrival sign was hidden for the shot), not passthrough. Real headset footage (passthrough, hands) must replace all of these for the video; the rules want real footage. The stills are for the gallery only.
 
 **To retake them:** open `Assets/_Forge/Artifacts/ArtifactsSandbox.unity`, enter Play, make the artifact (the sandbox keys: `h` heart, `c` cell, `b` brain, `p` plant cell, `v` eye, `n` DNA, `k` double pendulum, `o` solar system, `7` repo activity, `2` slalom), then from the `unity` CLI:
 
