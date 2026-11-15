@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Forge.Artifacts;
 using UnityEngine;
@@ -5,17 +6,31 @@ using UnityEngine;
 /// <summary>
 /// Test helper: renders the open artifact (its volume, models and panels) to a PNG with a temporary camera, because the
 /// Game view is black in XR. Call it in Play mode, for example from <c>unity command eval</c>:
-/// <c>ArtifactShot.Take("/tmp/three_body.png")</c>. <paramref name="yaw"/> turns the view about the artifact.
+/// <c>ArtifactShot.Take("/tmp/three_body.png")</c>. <paramref name="yaw"/> turns the view about the artifact. A room
+/// scene (the slalom, the hoops) stands on the floor outside the host: pass <paramref name="room"/> to frame what the
+/// scene put in the room (gates, scoreboard, the truck when it's the host's Thing) as well.
 /// </summary>
 public static class ArtifactShot
 {
-    public static string Take(string path, float yaw = 0f, float pitch = 12f, int width = 1600, int height = 1000, float zoom = 1f)
+    public static string Take(string path, float yaw = 0f, float pitch = 12f, int width = 1600, int height = 1000, float zoom = 1f, bool room = false)
     {
         var host = ArtifactHost.Current;
         if (host == null) return "no ArtifactHost";
-        var renderers = host.GetComponentsInChildren<Renderer>(false);
-        var canvases = host.GetComponentsInChildren<RectTransform>(false);
-        if (renderers.Length == 0 && canvases.Length == 0) return "nothing open";
+        var roots = new List<GameObject> { host.gameObject };
+        if (room)
+        {
+            foreach (var spawned in host.Spawned)
+                if (spawned != null && !spawned.transform.IsChildOf(host.transform)) roots.Add(spawned);
+            if (host.Thing is Component thing && thing != null) roots.Add(thing.gameObject);
+        }
+        var renderers = new List<Renderer>();
+        var canvases = new List<Canvas>();
+        foreach (var root in roots)
+        {
+            renderers.AddRange(root.GetComponentsInChildren<Renderer>(false));
+            canvases.AddRange(root.GetComponentsInChildren<Canvas>(false));
+        }
+        if (renderers.Count == 0 && canvases.Count == 0) return "nothing open";
         var bounds = new Bounds(host.transform.position, Vector3.zero);
         bool any = false;
         foreach (var r in renderers)
@@ -25,7 +40,7 @@ public static class ArtifactShot
             any = true;
         }
         var corners = new Vector3[4];
-        foreach (var c in host.GetComponentsInChildren<Canvas>(false))
+        foreach (var c in canvases)
         {
             ((RectTransform)c.transform).GetWorldCorners(corners);
             foreach (var p in corners)
@@ -79,6 +94,6 @@ public static class ArtifactShot
         {
             Object.DestroyImmediate(go);
         }
-        return $"{path} ({host.OpenTitle}, {renderers.Length} renderers, bounds {bounds.size})";
+        return $"{path} ({host.OpenTitle}, {renderers.Count} renderers, bounds {bounds.size})";
     }
 }

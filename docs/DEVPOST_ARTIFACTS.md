@@ -47,8 +47,10 @@ Unity 6 (URP), Meta XR SDK 207 with the Mixed Reality Utility Kit and Interactio
 | `stills/double_pendulum.png` | Two pendulums on one pivot, dial behind |
 | `stills/solar_system.png` | Sun and four planets with their orbits |
 | `stills/repo_activity.png` | This repo's commits as a city |
+| `stills/slalom.png` | A 5-gate slalom laid around the furniture of a mock living room, the truck at the start, the finish box, the scoreboard by the wall (Albie said: "This room is tight, so I made a shorter course") |
+| `stills/hoop_course.png` | Four hoops in a line in the same room, the ideal line through them |
 
-The slalom and the hoop course have no still: they're laid on the floor, outside what `ArtifactShot` frames, so they need headset footage. Real headset footage (passthrough, hands) must replace these for the video; the rules want real footage. The stills are for the gallery only.
+The two course stills are from the slalom sandbox with a mock room (grey boxes for the couch and shelves), not passthrough. Real headset footage (passthrough, hands) must replace all of these for the video; the rules want real footage. The stills are for the gallery only.
 
 **To retake them:** open `Assets/_Forge/Artifacts/ArtifactsSandbox.unity`, enter Play, make the artifact (the sandbox keys: `h` heart, `c` cell, `b` brain, `p` plant cell, `v` eye, `n` DNA, `k` double pendulum, `o` solar system, `7` repo activity, `2` slalom), then from the `unity` CLI:
 
@@ -57,3 +59,9 @@ unity command eval 'return ArtifactShot.Take("/absolute/path/heart.png", 0f, 10f
 ```
 
 Yaw 0 is the user's view: model on the left, panel on the right. Point the sandbox camera at the host first, or the shot looks at the panel's back.
+
+For the courses, open `SlalomSandbox.unity` instead, enter Play (it starts in the first mock room, which is big enough; `n` cycles the mock rooms), press `2` (slalom) or `7` (hoops), then pass `room: true` so the shot frames the course on the floor and the truck as well as the host:
+
+```
+unity command eval 'return ArtifactShot.Take("/absolute/path/slalom.png", 35f, 30f, 1600, 1000, 1.35f, true);'
+```

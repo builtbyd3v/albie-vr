@@ -81,6 +81,7 @@ public static class ArtifactChecks
             var straight = host.transform.position;
             Check(Vector3.Distance(straight, new Vector3(-0.2f, 1.1f, 0.8f)) < 0.01f && Vector3.Angle(host.transform.forward, Vector3.forward) < 0.1f,
                 $"with nothing in the way the host comes 0.8 m ahead at desk height, got {straight:F2}");
+            Check(host.PlacementNote == null, $"straight ahead in the air there's nothing to say about where it is, got '{host.PlacementNote}'");
 
             // A panel already where the host's own panel would open.
             other = UnityEngine.Object.Instantiate(host.panelPrefab);
@@ -91,6 +92,8 @@ public static class ArtifactChecks
             float reach = Vector2.Distance(new Vector2(host.transform.position.x, host.transform.position.z), Vector2.zero);
             Check(gap >= ArtifactHost.PanelClearance && Mathf.Abs(reach - Vector2.Distance(new Vector2(straight.x, straight.z), Vector2.zero)) < 0.01f,
                 $"with a panel in the way the host turns aside, as far from the user as before: gap {gap:F2} m, reach {reach:F2} m");
+            string aside = host.transform.position.x > 0f ? "It's to your right." : "It's to your left.";
+            Check(host.PlacementNote == aside, $"turned aside, Albie is told which side: expected '{aside}', got '{host.PlacementNote}'");
 
             // The host's own panels never count as in the way.
             other.transform.SetParent(host.transform, true);
@@ -104,6 +107,7 @@ public static class ArtifactChecks
             Check(Mathf.Abs(onDesk.y - 0.74f) < 0.001f && Mathf.Abs(onDesk.x) <= 0.7f - ArtifactHost.TableMargin + 0.001f
                   && onDesk.z >= 0.9f - 0.35f + ArtifactHost.TableMargin - 0.001f && onDesk.z <= 0.9f + 0.35f - ArtifactHost.TableMargin + 0.001f,
                 $"a desk in front puts the host on its top, inside its edge: got {onDesk:F2}");
+            Check(host.PlacementNote == "It's on the table in front of you.", $"on the desk, Albie is told so: got '{host.PlacementNote}'");
 
             // A narrow table to the right, its edge just past the host's spot: the host is pulled onto it, not left in the air beside it.
             host.Room = new MockFloorPlan("check side table", new Vector2(6f, 6f)).Add("TABLE", new Vector2(0.5f, 0.9f), new Vector3(1.6f, 0.74f, 0.5f));

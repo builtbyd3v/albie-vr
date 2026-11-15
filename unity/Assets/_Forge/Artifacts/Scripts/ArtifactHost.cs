@@ -50,6 +50,11 @@ namespace Forge.Artifacts
         public string LayoutMessage { get; private set; }
         /// <summary>What Albie should say about the open artifact's data (sample data, a saved copy, rows cut), or null.</summary>
         public string DataMessage { get; private set; }
+        /// <summary>Where <see cref="ComeToUser"/> put the host, for Albie to say ("It's on the table to your right."), or null
+        /// when it stands straight ahead in the air as always and there's nothing to point out.</summary>
+        public string PlacementNote { get; private set; }
+        /// <summary>Everything the open scene put in the world outside the host: its panel and any room course on the floor.</summary>
+        public IReadOnlyList<GameObject> Spawned => spawned;
         /// <summary>The open artifact's data tables (C-12 section 7). Empty when it reads none.</summary>
         public IReadOnlyDictionary<string, ArtifactTable> Tables => build != null ? build.Tables : new Dictionary<string, ArtifactTable>();
         /// <summary>True while the first-open permissions sheet is waiting for a tap.</summary>
@@ -93,6 +98,7 @@ namespace Forge.Artifacts
         /// </summary>
         public void ComeToUser()
         {
+            PlacementNote = null;
             var cam = Camera.main;
             if (cam == null) return;
             var eye = cam.transform;
@@ -116,7 +122,8 @@ namespace Forge.Artifacts
             bool walls = plan != null && plan.HasFloor;
             var room = walls ? plan.FloorBounds : default;
             float panelSide = Mathf.Abs(panelOffset.x);
-            bool haveFirst = false, haveSecond = false;
+            bool haveFirst = false, haveSecond = false, secondOnTable = false;
+            float secondYaw = 0f;
             Vector3 firstAt = default, secondAt = default, secondOffset = default;
             Quaternion firstFacing = default, secondFacing = default;
             for (int pass = 0; pass < ComeToUserReach.Length; pass++)
@@ -151,23 +158,33 @@ namespace Forge.Artifacts
                                 secondAt = at;
                                 secondFacing = facing;
                                 secondOffset = offset;
+                                secondOnTable = onTable;
+                                secondYaw = ComeToUserYaws[i];
                                 haveSecond = true;
                             }
                             continue;
                         }
-                        panelOffset = offset;
-                        transform.SetPositionAndRotation(at, facing);
+                        Settle(at, facing, offset, onTable, ComeToUserYaws[i]);
                         return;
                     }
                 }
             if (haveSecond)
             {
-                panelOffset = secondOffset;
-                transform.SetPositionAndRotation(secondAt, secondFacing);
+                Settle(secondAt, secondFacing, secondOffset, secondOnTable, secondYaw);
                 return;
             }
-            panelOffset.x = panelSide;
-            transform.SetPositionAndRotation(firstAt, firstFacing);
+            var straight = panelOffset;
+            straight.x = panelSide;
+            Settle(firstAt, firstFacing, straight, false, 0f);
+        }
+
+        // Takes the spot ComeToUser picked and writes down where it is for Albie: on a table, or off to a side, or nothing.
+        void Settle(Vector3 at, Quaternion facing, Vector3 offset, bool onTable, float yaw)
+        {
+            panelOffset = offset;
+            transform.SetPositionAndRotation(at, facing);
+            string where = yaw > 0f ? "to your right" : yaw < 0f ? "to your left" : "in front of you";
+            PlacementNote = onTable ? "It's on the table " + where + "." : yaw != 0f ? "It's " + where + "." : null;
         }
 
         /// <summary>How far, on the floor plan, the host and its panel keep from any other panel's centre.</summary>
