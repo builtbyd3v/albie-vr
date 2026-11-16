@@ -1,6 +1,8 @@
 # Redeploys the CAD + ML cloud (cloud-py/deploy.sh) to Dev's Hugging Face Space builtbyd3v/albie-cloud.
 # Runs on a push to main that touches what deploy.sh ships, or from Actions > Deploy HF Space > Run workflow.
 # The Space then rebuilds for about 10 min. Billing stays on Dev's HF credits ($0.03/h while awake).
+# The last step waits for that rebuild and fails when the Space is paused or broken (a green deploy used to hide a
+# Space that had been paused since Nov 9).
 name: Deploy HF Space
 on:
   push:
@@ -18,6 +20,7 @@ concurrency: deploy-space
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,3 +32,31 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           ALBIE_APP_KEY: ${{ secrets.ALBIE_APP_KEY }}
           HF_OWNER: builtbyd3v
+      # The public runtime API needs no token. RUNNING passes; BUILDING / APP_STARTING are polled for up to 15 min.
+      - name: Check the Space runs
+        env:
+          SPACE: builtbyd3v/albie-cloud
+        run: |
+          api="https://huggingface.co/api/spaces/$SPACE/runtime"
+          sleep 60  # the upload's rebuild takes a moment to replace the old build's RUNNING
+          stage=UNKNOWN
+          for _ in $(seq 1 45); do  # 45 x 20 s = 15 min
+            answer=$(curl -s --max-time 20 "$api" || true)
+            stage=$(jq -r '.stage // "UNKNOWN"' <<<"$answer" 2>/dev/null || echo UNKNOWN)
+            stage=${stage:-UNKNOWN}
+            why=$(jq -r '.errorMessage // ""' <<<"$answer" 2>/dev/null || true)
+            echo "$(date -u +%H:%M:%S) stage $stage"
+            case "$stage" in
+              RUNNING) echo "The Space runs: https://huggingface.co/spaces/$SPACE"; exit 0 ;;
+              SLEEPING) echo "::notice::The Space is built and asleep; the first request wakes it."; exit 0 ;;
+              PAUSED|STOPPED)
+                echo "::error::The Space is $stage ($why). CAD, flight sim and ML training on the headset are down until the owner restarts it at https://huggingface.co/spaces/$SPACE/settings"
+                exit 1 ;;
+              *ERROR|NO_APP_FILE|DELETING)
+                echo "::error::The Space failed with $stage ($why). Logs: https://huggingface.co/spaces/$SPACE?logs=build"
+                exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::The Space did not reach RUNNING in 15 min (last stage $stage): https://huggingface.co/spaces/$SPACE"
+          exit 1
