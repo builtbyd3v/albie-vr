@@ -43,7 +43,7 @@ namespace Forge.Artifacts
         static readonly Regex SceneFile = new Regex(@"^[a-z0-9_-]+\.json$");
         static readonly Regex HashRule = new Regex("^[0-9a-fA-F]{64}$");
         static readonly Regex ColorRule = new Regex("^#[0-9a-fA-F]{6}$");
-        static readonly HashSet<string> FreeText = new HashSet<string> { "text", "title", "label" };
+        static readonly HashSet<string> FreeText = new HashSet<string> { "text", "title", "label", "alt_label", "after_run" };
 
         // Common slips, so the agent gets a fix and not just a refusal. These read as "did you mean ...?".
         static readonly Dictionary<string, string> KindHints = new Dictionary<string, string>
@@ -802,8 +802,13 @@ namespace Forge.Artifacts
                     if (Str(node, "kind") == "panel" && node["widgets"] is JArray widgets)
                         for (int w = 0; w < widgets.Count; w++)
                         {
-                            string button = Str(widgets[w], "type") == "button" ? Str(widgets[w], "id") : null;
-                            if (button != null && buttons.Add(button)) buttonPaths[button] = $"{path}.widgets[{w}]";
+                            if (Str(widgets[w], "type") != "button") continue;
+                            // With alt_id the button is one toggle that fires id, then alt_id, in turn: both are inputs.
+                            foreach (var key in ButtonIds)
+                            {
+                                string button = Str(widgets[w], key);
+                                if (button != null && buttons.Add(button)) buttonPaths[button] = $"{path}.widgets[{w}]";
+                            }
                         }
                 }
                 int zones = 0;
@@ -877,6 +882,8 @@ namespace Forge.Artifacts
                         NumberField(n, "height", path);
                         ColorField(n, "color", path);
                         BoolField(n, "billboard", path);
+                        if (!StringField(n, "align", path) && Str(n, "align") is string align && align != "left" && align != "right")
+                            Add("bad_value", path + ".align", $"unknown align \"{align}\"", "left or right puts the node's position at that edge of the text; leave it out to centre it", new[] { "left", "right" });
                         break;
                     case "panel": Panel(n, path); break;
                     case "sim": Sim(n, path); break;
@@ -1031,6 +1038,12 @@ namespace Forge.Artifacts
                     if (!ListField(widget, "columns", at) && widget["columns"] is JArray columns)
                         foreach (var column in columns)
                             if (column.Type != JTokenType.String || !metrics.Contains((string)column)) Add("unknown_ref", at + ".columns", $"no metric {Describe(column)}");
+                    StringField(widget, "label", at);
+                    StringField(widget, "alt_label", at);
+                    StringField(widget, "after_run", at);
+                    BoolField(widget, "primary", at);
+                    if (type == "button" && !StringField(widget, "alt_id", at) && Str(widget, "alt_id") != null && Str(widget, "alt_label") == null)
+                        Add("bad_value", at + ".alt_label", "a toggle button with alt_id needs alt_label, the label it shows for its second press", "like {\"type\": \"button\", \"id\": \"play\", \"label\": \"Start\", \"alt_id\": \"pause\", \"alt_label\": \"Pause\"}");
                     if (type == "button" && Str(widget, "id") == null) Add("bad_value", at, "a button needs an id", "like {\"type\": \"button\", \"id\": \"start\", \"label\": \"Start\"}; an on_input rule names that id");
                     if (type == "slider")
                     {
@@ -1128,6 +1141,7 @@ namespace Forge.Artifacts
             }
 
             static readonly string[] Verbs = { "set", "run", "timeline", "sim" };
+            static readonly string[] ButtonIds = { "id", "alt_id" };
 
             // What the host runs (ArtifactHost.Do): one verb per action, and only what it builds.
             void Action(JObject action, string at)

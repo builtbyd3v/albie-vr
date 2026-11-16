@@ -108,7 +108,7 @@ namespace Forge.Artifacts
             public static readonly Dictionary<string, string[]> NodeOwn = new Dictionary<string, string[]>
             {
                 { "primitive", new[] { "shape", "size", "color", "collider", "glow" } },
-                { "text", new[] { "text", "height", "color", "billboard" } },
+                { "text", new[] { "text", "height", "color", "billboard", "align" } },
                 { "array", new[] { "source", "template", "map" } },
                 { "zone", new[] { "size" } },
                 { "gltf", new[] { "asset" } },
@@ -148,9 +148,9 @@ namespace Forge.Artifacts
                 { "stat", new[] { "type", "metric", "label", "unit", "decimals" } },
                 { "runs", new[] { "type", "columns", "limit" } },
                 { "versions", new[] { "type" } },
-                { "button", new[] { "type", "id", "label" } },
+                { "button", new[] { "type", "id", "label", "alt_id", "alt_label", "primary" } },
                 { "slider", new[] { "type", "input" } },
-                { "note", new[] { "type", "text" } },
+                { "note", new[] { "type", "text", "after_run" } },
             };
 
             public static readonly Dictionary<string, string[]> Rule = new Dictionary<string, string[]>
