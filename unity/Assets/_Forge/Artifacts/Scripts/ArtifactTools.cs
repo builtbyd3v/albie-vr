@@ -638,6 +638,9 @@ namespace Forge.Artifacts
             }
             if (host.DataMessage != null)
                 result["say"] = result["say"] != null ? (string)result["say"] + " " + host.DataMessage : host.DataMessage;
+            // Where it went when the host came to the user (on the desk, off to a side), so Albie can point the person at it.
+            if (host.PlacementNote != null)
+                result["say"] = result["say"] != null ? (string)result["say"] + " " + host.PlacementNote : host.PlacementNote;
             return result;
         }
     }

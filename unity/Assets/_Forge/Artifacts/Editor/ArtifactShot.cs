@@ -10,7 +10,8 @@ using Object = UnityEngine.Object;
 /// Test helper: renders the open artifact (its volume, its content root, models and panels) to a PNG with a temporary
 /// camera, because the Game view is black in XR. Call it in Play mode, for example from <c>unity command eval</c>:
 /// <c>ArtifactShot.Take("/tmp/three_body.png")</c>. <paramref name="yaw"/> turns the view about the artifact.
-/// A room scene's content is detached from the host, so renderers come from <see cref="ArtifactHost.ContentRoot"/> too.
+/// A room scene's content is detached from the host, so renderers come from <see cref="ArtifactHost.ContentRoot"/> too;
+/// pass <paramref name="room"/> to frame what the scene put in the room (gates, scoreboard, the truck when it's the Thing) as well.
 /// Nothing open gives "not shown: (why)" instead of an empty picture.
 /// <para><see cref="OpenAndTake"/> opens an artifact (approving its first-open sheet against a temporary approvals file,
 /// never the user's) and takes the picture once it is shown and grown in; poll <see cref="LastResult"/> for the line.
@@ -28,7 +29,7 @@ public static class ArtifactShot
     static ArtifactHost watched;
     static Action<ArtifactHost> onShown;
 
-    public static string Take(string path, float yaw = 0f, float pitch = 12f, int width = 1600, int height = 1000, float zoom = 1f)
+    public static string Take(string path, float yaw = 0f, float pitch = 12f, int width = 1600, int height = 1000, float zoom = 1f, bool room = false)
     {
         var host = ArtifactHost.Current;
         if (host == null) return "no ArtifactHost";
@@ -41,6 +42,12 @@ public static class ArtifactShot
         var seen = new HashSet<Object>();
         Collect(host.transform, renderers, canvases, seen);
         if (host.ContentRoot != null) Collect(host.ContentRoot, renderers, canvases, seen);
+        if (room)  // a floor course stands outside the host: frame what it put in the room, and the truck when it's the Thing
+        {
+            foreach (var spawned in host.Spawned)
+                if (spawned != null && !spawned.transform.IsChildOf(host.transform)) Collect(spawned.transform, renderers, canvases, seen);
+            if (host.Thing is Component thing && thing != null) Collect(thing.transform, renderers, canvases, seen);
+        }
         if (renderers.Count == 0 && canvases.Count == 0) return "not shown: the open scene has no visible renderer";
 
         var bounds = new Bounds(host.transform.position, Vector3.zero);
