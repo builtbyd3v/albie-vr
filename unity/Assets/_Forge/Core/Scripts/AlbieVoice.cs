@@ -23,6 +23,8 @@ using UnityEngine;
 /// A new session gets the last few lines in its instructions, so a reconnect keeps the thread. Cold start: a turn's
 /// mic frames wait in the outbox while the session connects, then go out in order after session.update, so the first
 /// words aren't lost (the follow-up / wake pre-roll is in there too).
+/// Headset off / app paused: <see cref="AppLifecycle"/> calls <see cref="Suspend"/> (session closed, nothing sent) and
+/// <see cref="Resume"/> (the next turn reconnects lazily).
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).
 /// Installs itself; off in a build with no voice token server (<see cref="AlbieVoiceToken"/>).
 /// </summary>
@@ -94,6 +96,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     readonly List<string> history = new List<string>();
     string instructions = Instructions;  // this session's: Instructions + the recent lines it started with
     int outRate = 48000;
+    bool away;  // Suspend..Resume: nothing goes to Grok and no session opens
+    int epoch;  // bumped by Suspend: a Connect that started before it gives up instead of opening a session
 
     // The turn and the reply in progress.
     int turnSeq, fed;
@@ -152,6 +156,41 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             idle.Dispose();
         }
     }
+
+    /// <summary>Headset off / app paused: end the turn and the reply, close the session (it bills per open minute and
+    /// its socket doesn't survive a suspend) and send nothing until <see cref="Resume"/>. The history stays, so the
+    /// next session keeps the thread.</summary>
+    public void Suspend()
+    {
+        if (away) return;
+        away = true;
+        epoch++;
+        if (turnOpen || committed) Final("");
+        turnOpen = committed = false;
+        turnSeq++;  // that turn's NoReplyGuard and slow tool results drop out
+        bool streaming = audioStarted;
+        StopSpeech("pause");
+        // A finished reply's tail can still be playing from the speaker's buffer: quiet it too.
+        if (!streaming) ForgeNet.Inject("tts.stop", new JObject { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["reason"] = "pause" });
+        pendingSay = null;
+        outbox.Clear();
+        if (petMode != "idle")
+        {
+            petMode = "idle";
+            ForgeNet.Inject("pet.state", new JObject { ["pet_id"] = PetId, ["mode"] = "idle" });
+        }
+        if (ws != null)
+        {
+            var open = ws;
+            ws = null;
+            open.Abort();
+            open.Dispose();
+        }
+        Debug.Log("[AlbieVoice] suspended: voice session closed (the next turn reconnects).");
+    }
+
+    /// <summary>Back from <see cref="Suspend"/>. Connects nothing: the next turn opens the session.</summary>
+    public void Resume() => away = false;
 
     // ---------------------------------------------------------------- from Unity (ForgeNet.Send / SendBinary)
 
@@ -451,6 +490,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     void Send(JObject message)
     {
+        if (away) return;
         outbox.Enqueue(message.ToString(Formatting.None));
         if (!pumping) _ = Pump();
     }
@@ -490,12 +530,19 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     async Task<bool> Connect()
     {
         ClientWebSocket socket = null;
+        int started = epoch;
         try
         {
             string token = await AlbieVoiceToken.Fetch();
+            if (started != epoch) return false;  // the headset came off meanwhile
             socket = new ClientWebSocket();
             socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
             await socket.ConnectAsync(new Uri(Url), life.Token);
+            if (started != epoch)
+            {
+                socket.Dispose();
+                return false;
+            }
             instructions = history.Count == 0 ? Instructions
                 : Instructions + " Earlier in this conversation, before a short pause: " + string.Join(" ", history);
             await Raw(socket, SessionUpdate().ToString(Formatting.None));
@@ -508,7 +555,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         catch (Exception e)
         {
             socket?.Dispose();
-            if (life.IsCancellationRequested) return false;
+            if (life.IsCancellationRequested || started != epoch) return false;
             Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message}");
             if (turnOpen || committed) Final("");
             Emit("agent.error", new JObject { ["message"] = "Voice error: can't reach the voice service" }, "idle");

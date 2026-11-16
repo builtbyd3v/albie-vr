@@ -253,6 +253,14 @@ namespace Forge.Pet
             else { hub.RequireName = false; hub.StopMonitoring(); }
         }
 
+        /// <summary>Headset off / back on (AppLifecycle): close the follow-up window and let go of the mic, asking nothing.</summary>
+        public void Halt()
+        {
+            _startAt = _retryAt = -1f;
+            _attending = _following = _speaking = false;
+            StopMonitor();
+        }
+
         void OnSessionEnded(bool answered)
         {
             if (!_following) return;
