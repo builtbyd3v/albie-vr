@@ -74,6 +74,7 @@ namespace Forge.OS
         {
             Current = null;
             VoiceLiveOverride = null;
+            OpenedForTests = null;
             LastProjectId = null;
             LastPlanVersion = 0;
             LastStep = "";
@@ -240,22 +241,32 @@ namespace Forge.OS
 
             string previous = NotebookStore.IsOpen ? NotebookStore.ProjectId : null;
             string id = plan.IsTruck ? NotebookStore.DefaultProject : NewProjectId(plan);
+            // Whether the project's folder is already there, so a failed Start removes only what this Start made.
+            string folder = ProjectFolder(id);
+            bool existed = Directory.Exists(folder);
             if (!OSProjects.EnsureOpen(id, out error))
             {
+                Discard(id, previous, folder, existed);
                 notice = error;
                 dirty = true;
                 return false;
             }
+            OpenedForTests?.Invoke(folder);
 
             int version;
             try
             {
                 version = NotebookStore.RevisePlan(plan.reason, plan.goal, plan.test, Milestones(plan));
             }
-            catch (ArgumentException e)
+            catch (Exception e)
             {
-                error = OSProjects.Plain(e.Message);
-                if (previous != null && previous != id) OSProjects.EnsureOpen(previous, out string _);
+                if (e is ArgumentException) error = OSProjects.Plain(e.Message);
+                else
+                {
+                    Debug.LogException(e);
+                    error = "The plan couldn't be saved.";
+                }
+                Discard(id, previous, folder, existed);
                 notice = error;
                 dirty = true;
                 return false;
@@ -273,6 +284,30 @@ namespace Forge.OS
             if (view != null) view.Suggest(plan.firstStep);
             Speak("Tell the user the plan is saved and the project is open. " + plan.firstStep);
             return true;
+        }
+
+        /// <summary>For checks: called with the project's folder right after the project was opened and before the plan is written (a check makes the folder here to see a failed Start remove it).</summary>
+        public static Action<string> OpenedForTests;
+
+        static string ProjectFolder(string id) => Path.Combine(NotebookStore.Root ?? NotebookStore.DefaultRoot, "projects", id);
+
+        // A Start that failed keeps nothing: the notebook goes back to the project that was open, and a project folder this Start
+        // created (it was not there before) is removed. A folder that was already there is never touched.
+        static void Discard(string id, string previous, string folder, bool existed)
+        {
+            if (previous != null && previous != id) OSProjects.EnsureOpen(previous, out string _);
+            if (existed) return;
+            try
+            {
+                NotebookStore.Flush();
+                if (Directory.Exists(folder)) Directory.Delete(folder, true);
+                // Still the open project (the one this Start was for): read the now-empty folder back, so nothing stale is in memory.
+                if (previous == null || previous == id) OSProjects.EnsureOpen(previous ?? NotebookStore.DefaultProject, out string _);
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Debug.Log("[OS] Couldn't remove the folder of the project that was not started: " + e.Message);
+            }
         }
 
         // ---------------------------------------------------------------- spoken answers

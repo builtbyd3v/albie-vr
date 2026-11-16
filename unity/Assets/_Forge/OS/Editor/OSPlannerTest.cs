@@ -528,6 +528,49 @@ namespace Forge.OS.Editor
             Check(!windows.IsOpen("build") && OSBuildFlow.Current == null && OSBuildFlow.LastStep == "cancelled", "closing the window with its X ends the flow as cancelled");
             Check(Listing() == before, "closing with the X leaves no file behind");
 
+            // ---- G0. a Start that fails keeps nothing: no folder, no file, the project that was open is open again
+            {
+                OSBuildFlow.Open();
+                yield return 0.8f;
+                foreach (string label in new[] { "Drone", "Hover steadily", "Hover for one minute" })
+                {
+                    step = Tap(shell, label);
+                    while (step.MoveNext()) yield return step.Current;
+                }
+                OSBuildFlow flow = OSBuildFlow.Current;
+                OSPlanner.Plan failing = flow != null ? flow.Planner.Result : null;
+                Check(failing != null, "the drone plan card is up");
+                if (failing != null)
+                {
+                    string keepReason = failing.reason;
+                    string newFolder = Path.Combine(ProjectsFolder, "proj_" + failing.projectBase);
+                    failing.reason = "";  // RevisePlan refuses a plan with no reason
+                    string error;
+                    bool started = flow.StartBuild(out error);
+                    Check(!started && !string.IsNullOrEmpty(error), "Start with a plan the notebook refuses returns false with a sentence: " + error);
+                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "...and nothing was kept: no folder, no file, the truck project is open again (" + NotebookStore.ProjectId + ")");
+                    Check(OSBuildFlow.Current == flow && windows.IsOpen("build"), "...and the card is still open, so the user can go on");
+                    // The notebook made the folder before the plan failed: Start takes down what it made.
+                    OSBuildFlow.OpenedForTests = f => { Directory.CreateDirectory(f); File.WriteAllText(Path.Combine(f, "stray.txt"), "x"); };
+                    started = flow.StartBuild(out error);
+                    OSBuildFlow.OpenedForTests = null;
+                    Check(!started, "Start fails again with the folder made first");
+                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "...the folder this Start made is removed and the truck project is open again");
+                    // A folder that was already there is not this Start's to remove.
+                    failing.kind = OSPlanner.Kind.Truck;
+                    string truckFolder = Path.Combine(ProjectsFolder, "proj_truck");
+                    Check(Directory.Exists(truckFolder), "the truck project's folder exists from before");
+                    started = flow.StartBuild(out error);
+                    Check(!started && Directory.Exists(truckFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "a failed Start on a project that was there keeps its folder and files exactly");
+                    failing.kind = OSPlanner.Kind.Drone;
+                    failing.reason = keepReason;
+                }
+                step = Tap(shell, "Cancel");
+                while (step.MoveNext()) yield return step.Current;
+                yield return 0.5f;
+                Check(!windows.IsOpen("build") && Listing() == before, "Cancel after the failed Starts leaves the scratch root as it was");
+            }
+
             // ---- G. a new project id, then another
             string[][] droneAnswers = { new[] { "Drone", "Hover steadily", "Hover for one minute" } };
             for (int round = 0; round < 2; round++)
