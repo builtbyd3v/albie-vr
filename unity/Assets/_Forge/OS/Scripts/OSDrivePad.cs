@@ -13,7 +13,10 @@ namespace Forge.OS
     /// positive) every frame, the same two channels a Touch thumbstick feeds (see <c>SlalomBrain.Keys</c>), so recording and
     /// the Autopilot need no change. Nothing zeroes <see cref="ManualInputs"/> by itself, so the pad writes zero, once, when
     /// the pointer lets go, when the pad is switched off or destroyed, and when Stop is pressed (<see cref="Release"/>), and
-    /// the knob springs back to the middle in about <see cref="SpringSeconds"/>. Built from the UI Set's rounded box and the
+    /// the knob springs back to the middle in about <see cref="SpringSeconds"/>. A pointer that is lost without an up event (a
+    /// poke or ray that goes away, a pointer module that stops) is noticed: while the pad is held it keeps the pressing pointer's
+    /// event data and lets go by itself once that no longer says the pad is pressed (the pointer's press was cleared or moved to
+    /// another object) or once the pad's canvas is no longer shown. Built from the UI Set's rounded box and the
     /// kit's chevrons (<see cref="Create"/>). It does nothing per frame beyond a few float writes.
     /// </summary>
     public sealed class OSDrivePad : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler, IEndDragHandler
@@ -35,6 +38,9 @@ namespace Forge.OS
         Vector2 shown;             // where the knob is drawn, the same scale; springs back after a release
         bool held, dirty;          // dirty: the last write to the channels was not zero
         int pointer = int.MinValue;
+        PointerEventData pressing;  // the event data of the pointer that pressed: its pointerPress says whether it still presses us
+        Canvas canvas;              // the pad's own canvas (and its root), for "is the pad still shown"
+        int pressFrame = -1;        // the frame of the press: the module sets pointerPress just after our handler returns
         Color idleColor = new Color(1f, 1f, 1f, 0.82f), heldColor = Color.white;
 
         /// <summary>The pad's pointer position, -1 to 1 on each axis (x right, y up). Zero when nobody holds it.</summary>
@@ -147,6 +153,9 @@ namespace Forge.OS
             if (eventData.button != PointerEventData.InputButton.Left) return;
             if (held) return;  // one pointer at a time: a second finger or a hand's ray doesn't take the knob
             pointer = eventData.pointerId;
+            pressing = eventData;
+            canvas = GetComponentInParent<Canvas>();
+            pressFrame = Time.frameCount;
             held = true;
             Follow(eventData);
             Write(value);
@@ -213,6 +222,7 @@ namespace Forge.OS
         {
             held = false;
             pointer = int.MinValue;
+            pressing = null;
             value = Vector2.zero;
             if (dirty) Write(Vector2.zero);
             if (knobImage != null) knobImage.color = idleColor;
@@ -222,6 +232,12 @@ namespace Forge.OS
         {
             if (held)
             {
+                // A press whose pointer went away without an up (nothing else would ever zero the channels): let go.
+                if (Time.frameCount != pressFrame && !StillPressed())
+                {
+                    Release();
+                    return;
+                }
                 Write(value);  // every frame while held, so a lap's own sources and EndLap's Clear never leave the truck without input
                 return;
             }
@@ -229,6 +245,15 @@ namespace Forge.OS
             // Springs back to the middle in SpringSeconds, whatever the time scale (a test may run Play mode faster).
             shown = Vector2.MoveTowards(shown, Vector2.zero, Time.unscaledDeltaTime / SpringSeconds);
             PlaceKnob();
+        }
+
+        // True while the pointer that pressed still presses this pad and the pad is on screen. No allocations: a few reads.
+        bool StillPressed()
+        {
+            PointerEventData p = pressing;
+            if (p == null || p.pointerPress != gameObject) return false;  // cleared by the module on release or cancel, or given to another object
+            Canvas c = canvas;
+            return c == null || (c.isActiveAndEnabled && c.rootCanvas.isActiveAndEnabled);
         }
 
         void OnDisable()

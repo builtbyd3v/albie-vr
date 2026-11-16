@@ -636,6 +636,34 @@ namespace Forge.OS.Editor
             Check(right > 8f, "knob right: the truck turns right (" + right.ToString("F0") + " degrees)");
             Check(Chan("stick.x") == 0f && Chan("stick.y") == 0f, "after both turns the channels are at zero");
 
+            // ---- a pointer that is lost with no up event (a poke or ray that goes away, a module that stops): the pad lets go by itself
+            Check(PadPress(new Vector2(0f, 0.8f)), "a press for the lost pointer test reaches the pad: " + padWhy);
+            yield return 0.25f;
+            Check(pad.Held && Chan("stick.y") > 0.2f, "held: the pad writes the throttle (" + Chan("stick.y").ToString("F2") + ")");
+            ped.pointerPress = null;  // what a cancelled or dropped pointer leaves behind: its press is gone, and the pad was never told
+            ped.eligibleForClick = false;
+            yield return 0.25f;
+            Check(!pad.Held && Chan("stick.x") == 0f && Chan("stick.y") == 0f, "the press is gone with no up event: the pad let go and wrote zero (held " + pad.Held + ", " + Chan("stick.y").ToString("F2") + ")");
+            PadUp();  // the test's own bookkeeping; the pad ignores an up it isn't holding for
+            yield return 0.15f;
+            Check(PadPress(new Vector2(0f, 0.8f)), "a second press for the lost pointer test reaches the pad: " + padWhy);
+            yield return 0.25f;
+            Canvas padCanvas = pad.GetComponentInParent<Canvas>();
+            Check(pad.Held && padCanvas != null, "held again, and the pad has a canvas");
+            padCanvas.enabled = false;  // the pad's canvas is hidden while a pointer still presses it
+            yield return 0.25f;
+            padCanvas.enabled = true;
+            Check(!pad.Held && Chan("stick.x") == 0f && Chan("stick.y") == 0f, "the pad's canvas was hidden under a held pointer: the pad let go and wrote zero (held " + pad.Held + ")");
+            PadUp();
+            yield return 0.15f;
+            Check(PadPress(new Vector2(0f, 0.8f)), "a press after the guard fired still works: " + padWhy);
+            yield return 0.25f;
+            Check(pad.Held && Chan("stick.y") > 0.2f, "and the pad holds normally (the guard does not fire on a healthy press)");
+            yield return 0.6f;
+            Check(pad.Held, "still held after a longer hold");
+            PadUp();
+            Check(!pad.Held && Chan("stick.y") == 0f, "a normal up still lets go at once");
+
             // ---- the picture while driving: knob off centre, the truck has moved
             if (brain.State != SlalomBrain.Mode.Lap) { brain.StopRecording(); brain.Record(2, false); yield return 0.3f; }
             LookAtPad(pad);
