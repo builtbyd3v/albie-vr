@@ -1237,3 +1237,89 @@ Checks (run after the merge and the OS edits; each line is the check's own outpu
 
 Changes outside OS/: none (the merge brought main's changes in; no file outside OS/ was edited by hand).
 Free disk: 30 GB at start and end. Editor: out of Play mode, Main open and not dirty, 0 compile errors.
+
+## final-checks-apk: every check, the APK, the docs (2026-11-16)
+
+Branch feat/albie-os, origin/main already merged. Free disk on C: 30.1 GB at start, 19.8 GB after the first build, 18.5 GB at the end (the Android player build grows Library). One Unity 6000.6.7f1 editor, driven with `unity command eval`.
+
+### Docs
+- `OS/README.md`: the staged writer's README, checked against the code and corrected. One thing was untrue and is fixed: it said the Watch turn setting does nothing, but `OSWatch.LateUpdate` reads `OSSettings.watchTurn` and hides the button when it is off (line 255). The "Known limits" bullet is removed and the summons and settings tables say so. Also fixed: Check Test Environment needs no Play mode (the README said only Check OS did not). Checked true against the code: menu grid 4 by 2, tab bar, strip buttons, the seven tools, the four starters, the Settings pages and ranges (slider 0.35 to 0.7 and 0 to 30, clamp 0.35 to 0.8 and 0 to 35), window open 0.2 s and close 0.18 s, the `OSWatch` and `OSCornerButton` fields and defaults, the four voice tools and `os_answer`, the M key and left menu button, the menu items under Forge/OS, the icon table. The other long claims (the Known limits about Agents, Drive and the brain truck, the test environment text) were spot-checked against the code comments, not line by line.
+- `OS/THIRD_PARTY_NOTICES.md`: the UI Set notice already named https://developers.meta.com/horizon/licenses/oculussdk/ (kept). Added a table of every non-code file the branch added (git diff 3bb20ef..HEAD --diff-filter=A: png, wav, mat, asset, prefab, json under unity/Assets): OSKit.asset, AlbieDark.asset, OSMenu.prefab, OSShell.prefab, os.json, os_build.json and the four Messages PNGs. The branch added no wav, mat, font or texture files. The four Messages icons (caret, lock, send, sparkle, 128 px white PNG) replace SVGs of the same names that main's Messages module had; they were made during the look pass (commit 5e819a0). This run's log never recorded the tool that rasterised them, so the notice says that plainly, and says they are not from a third-party pack.
+- Commit 3bfb24e.
+
+### Check results (all run after the merge, one at a time, results verbatim)
+Compile: `unity recompile` after the edits below: status completed, 0 errors, 0 warnings reported by the tool; the console then held 50 compile warnings, 0 of them from files under Assets/_Forge/OS (they are in Core, Pet, ML, Artifacts, Desk, Messages: main's and earlier modules').
+
+Gestures
+- GestureSelfTest.RunMenu: `[GestureSelfTest] 104 passed, 0 failed`
+- GesturePlayTest: `[GesturePlayTest] 32 passed, 0 failed`
+
+Artifacts
+- ArtifactChecks.Run (Forge/Check Artifacts): `[ArtifactChecks] 110 passed, 0 failed` (the baseline was 97: main's merge added checks)
+- Check Runs: `PASS run check`
+- Check Biology Templates: `PASS biology templates check`
+- Check glTF and Timelines: `PASS glTF and timeline check`
+- Check Hoops: `PASS hoop check`
+- Check Repo Activity: `PASS repo activity check`
+- Check Repo Connector: `PASS repo connector check`
+- Check Physics Templates: `PASS physics templates check`
+- Check Slalom: `PASS slalom check`
+- Check Voice Rules: `PASS voice rules check`
+- Check Brain Loop (Play): `PASS slalom brain check (Play mode, the brain truck on its colliders)`, 19 ok lines, 0 FAIL (6/6 rooms: scripted laps and Autopilot)
+
+Controllers
+- Check Autopilot: `PASS autopilot check`
+- Check Behaviour Cloning: `PASS behaviour cloning check`
+- Check Runner: `PASS controller runner check`
+- Check Five In A Row: `PASS five in a row check (mock truck, Editor): live training worked 5 times in a row (4 on the first candidate)`
+- Check Hot Reload: `PASS hot reload check`
+- Check ML Template: `PASS ML template check`
+- Check Room Slalom: `PASS room slalom check (mock truck, Editor)`
+- Check Thing Runtime: `PASS thing runtime check (example truck on Unity physics, Editor)`
+
+Notebook, ML
+- Check Notebook: `PASS notebook check`
+- Validate Main (MLMainSmokeCheck): `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.` (git status afterwards: Main.unity not modified)
+
+OS
+- OSCheck.Run: `PASS os check`, 28 ok lines (before the build, and again after it)
+- OSTestEnvCheck: `PASS os test environment check` (before and after)
+- OSMenuTest `PASS [OSMenuTest] 65 passed, 0 failed`; OSWindowsTest `PASS [OSWindowsTest] 53 passed, 0 failed`; OSToolsTest `PASS [OSToolsTest] 101 passed, 0 failed`; OSProjectsTest `PASS [OSProjectsTest] 88 passed, 0 failed`; OSArtifactsTest `PASS [OSArtifactsTest] 81 passed, 0 failed`; OSSettingsTest `PASS [OSSettingsTest] 109 passed, 0 failed`; OSAgentsTest `PASS [OSAgentsTest] 99 passed, 0 failed`; OSCornerTest `PASS [OSCornerTest] 63 passed, 0 failed`; OSWatchTest `PASS [OSWatchTest] 108 passed, 0 failed`; OSDriveTest `PASS [OSDriveTest] 93 passed, 0 failed (level: full)`; OSPlannerTest `PASS [OSPlannerTest] 101 passed, 0 failed`
+- OSPlayTest: `PASS os play test: 140 passed, 0 failed`, Autopilot line `level: full`, `info level reached: full` (run twice, before and after the build, same result). Screenshots in `unity/Logs/os/`.
+- After the warning fixes and the rebuild: OSCheck 28 ok, OSMenuTest 65/0, OSWindowsTest 53/0, OSDriveTest 93/0 (full), OSPlayTest 140/0, OSTestEnvCheck PASS. The other part tests were not re-run: the fixes touch only OSWindows (one FindObjectsByType call), OSTileView (one attribute) and test code.
+
+No check failed. No regression against the baseline.
+
+### Compile warnings from OS code (found and fixed)
+The recompile tool reported 0 warnings only because nothing needed compiling. The warnings of the last real compile were read from Editor.log and were all from OS files: CS0618 `FindObjectsSortMode` (OSWindows 1, OSDriveTest 1, OSLookShots 2, OSPlayTest 3), CS0162 unreachable code on constants (OSCheck 3), CS0168 unused variable (OSPlayTest 1), UAC1001 `OSTileView.entry` not serialized. Fixed in commit 2e2d4db with no change in behaviour: the sort mode argument dropped (unsorted either way), constants read into locals in the two OSCheck checks, the unused variable removed, `[System.NonSerialized]` on the tile's entry. After it, the build report went from 52 to 49 warnings and the console held no warning from a file under OS/.
+
+### APK
+- Entry point: `QuestBuild.Build` (Core/Editor/QuestBuild.cs) is a batch-mode method: it reads `-buildOutput` (default `Builds/AlbieStandalone.apk`, relative to `unity/`) and ends with `EditorApplication.Exit`, which would have closed the editor that had to stay open. So the same `BuildPipeline.BuildPlayer` call was run from `unity command eval` with identical options (enabled scenes from EditorBuildSettings: Main and SampleScene, Android, BuildOptions.None) and the same default output path, without the Exit. QuestBuild.cs was not edited.
+- First build (at 3bfb24e): `[QuestBuild] Succeeded -> Builds/AlbieStandalone.apk errors=0 warnings=52 bytes=1520747996 seconds=897.3038619` (the report's total size, not the APK).
+- Rebuilt after the warning fixes, so the APK matches the pushed code: `[QuestBuild] Succeeded -> Builds/AlbieStandalone.apk errors=0 warnings=49 bytes=1520601131 seconds=177.9254267`.
+- APK: `C:\Users\marrh\GitHub Repos\albie-vr\unity\Builds\AlbieStandalone.apk`, 128,904,237 bytes = 128.9 MB (122.9 MiB). Not installed on a device. `Builds/` is in .gitignore; the APK and the folder are not staged. The older `Builds/AlbieHandTest.apk` (Nov 4) is untouched.
+- The build left no tracked file changed: ProjectSettings.asset, DevAgentSettings.asset and StreamingAssets/RuntimeActionBindings.json showed as changed while it ran and were back to clean after it. `git status` afterwards: only the pre-existing EditorPipelineConfig.json line-ending change and the untracked files the task lists.
+- For whoever drives this editor: a `delayCall` queued from eval did not fire while the editor was idle (it worked once, later not), so the second build ran as a blocking eval with `--timeout 3500` and `--timeout 3500000`.
+
+### Decisions
+- Fixed the README rather than pass on a false "Known limit": the watch turn setting works, and a hand-back that says otherwise would send Hudson looking for a bug that is not there.
+- Did not run QuestBuild.Build itself: its `EditorApplication.Exit` would have killed the open editor, which the rules forbid. Same call, same options, same path instead.
+- Rebuilt the APK after fixing the warnings: three minutes, and the file now matches HEAD.
+- Cleared the OS compile warnings in code instead of only listing them: the spec asks for no new warnings from OS code.
+
+### Changes outside OS/ on the whole branch (git diff --stat origin/main...HEAD, excluding OS/ and docs/; this run added none)
+58 files, 1665 insertions, 501 deletions. Project Settings, manifest.json and every .unity scene: unchanged.
+- Core: Scripts/Workspace.cs (OS hook: free frame away from a desk, keep open away, retired dock, Reanchor, CanOpen guard, ShrinkToFit), WorkspaceRemote.cs (CanOpen guard), ForgePanel.cs (header reserve, FitPlate), ForgePill.cs (Quiet), ForgeTheme.cs (constants, PillQuietOn), ForgeVolume.cs and Prefabs/ForgeVolume.prefab (caption plate), PanelManipulator.cs (title pills quiet), AlbieVoice.cs (small), Gestures/GestureWindow.cs and Gestures/SimulatedHandSource.cs (left test hand, off by default), Resources/ForgeLook/PanelSurface.mat and Shaders/ForgePanelSurface.shader (plate defaults).
+- CAD: Scripts/CadViewer.cs (`MenuOwnsM`), CadSandboxKeys.cs, Prefabs/CadViewer.prefab (re-serialised, label offset), README.md.
+- Code: Scripts/CodePanel.cs (layout, scroll cues), CodeTools.cs (CanOpen guard), Resources/CodeSample.json (one long line split).
+- ML: TrainingDash/TrainingDash.cs (panel height, heat map rows, empty states), ResultsWall/ResultsWall.cs and ResultsWall.Pages.cs (tab row width).
+- Messages: Resources/SlackIcons (four SVG replaced by four PNG, with .meta), Scripts/SlackUi.cs (icon with no sprite is hidden), SlackRemote.cs (CanOpen guard).
+- Artifacts: Scripts/ArtifactHost.cs, ArtifactNodes.cs, ArtifactValidator.cs, ArtifactWidgets.cs (Allow pill and small hooks), SlalomBrain.cs; Resources/ArtifactTemplates/{brain,cell,dna,eye,heart,plant_cell,slalom}/scene.json (label size, no second line; slalom edit); Mocks: Resources/Mocks/artifacts/slalom/scene.json (same slalom edit).
+- Pet: Scripts/Core/ArrivalDirector.cs (DismissGreeting hook), Scripts/Crew/AlbieCrew.cs and AlbieCrewMember.cs (Bring home, Send out, home spot).
+- Assets root: `_Forge/OS.meta` (the folder's meta).
+
+### Not done or not verified
+- No headset and no device install. Everything in spec 6.4 (real-hand feel, watch-turn thresholds against Meta's system gesture, frame rate on the 3S, passthrough legibility, voice with the paid session, room fit) is still open; the README's "Headset tuning" tables name the parameters.
+- The APK was built and not run: nothing here shows it starts on a Quest.
+
+Free disk: 30.1 GB at start, 18.5 GB at end. Editor: out of Play mode, Main open and not dirty, compiled, 0 errors.
