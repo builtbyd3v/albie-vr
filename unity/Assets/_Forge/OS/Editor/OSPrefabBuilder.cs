@@ -198,6 +198,7 @@ namespace Forge.OS.Editor
                 Ensure<OSWindows>(root);
                 Ensure<OSKeys>(root);
                 Ensure<OSTableButton>(root);
+                Ensure<OSCornerButton>(root);
                 var audio = Ensure<AudioSource>(root);  // OSSounds plays the kit's clips through this one source
                 audio.playOnAwake = false;
                 audio.spatialBlend = 0f;

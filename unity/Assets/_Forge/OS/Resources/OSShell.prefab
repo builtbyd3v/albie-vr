@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 8142171705433386556}
   - component: {fileID: 2671444111484812787}
   - component: {fileID: 3521266515885186444}
+  - component: {fileID: 4784122047664204330}
   m_Layer: 0
   m_Name: OSShell
   m_TagString: Untagged
@@ -183,6 +184,24 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &4784122047664204330
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674179897030290944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa1290fcd1c93154d9df9770a81b4275, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.OS.OSCornerButton
+  distance: 0.45
+  sideDegrees: 28
+  dropDegrees: 22
+  recenterDegrees: 25
+  recenterMeters: 0.3
+  easeSeconds: 0.4
 --- !u!1001 &187986084119899713
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -615,14 +615,34 @@ namespace Forge.OS.Editor
             }
         }
 
-        // 3b. STUB. The corner button comes with its own part (spec 5.12): away from a desk it appears low in the corner of
-        // the view and opens the menu, and it hides while the menu is open. When OSCornerButton exists, replace the Skip with:
-        // wait until it is Shown, Check it appeared, PressButton(its Button), Check shell.MenuOpen and LastSummon == Corner,
-        // Check it hides while the menu is open, then shell.CloseMenu().
+        // 3b. Away from the desk the corner button shows low in the corner of the view, opens the menu when pressed, and hides
+        // while the menu is open (the numbers are checked by OSCornerTest).
         static IEnumerator<float> StepCornerButton()
         {
-            Skip("corner button", "skipped: corner button not built yet");
-            yield break;
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            var corner = shell.GetComponent<OSCornerButton>();
+            Check(corner != null, "the shell has the corner button");
+            if (corner == null) yield break;
+            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
+            Check(corner.Shown, "away from the desk the corner button shows");
+            if (corner.Shown)
+            {
+                float metres = Vector3.Distance(corner.Position, shell.Head.position);
+                Check(metres > 0.40f && metres < 0.50f, $"it sits about 0.45 m from the eyes ({metres:F2} m)");
+                yield return 0.3f;
+                Shot("corner_button_away");
+                bool pressed = PressButton(corner.Button.gameObject, "corner button");
+                if (pressed)
+                {
+                    foreach (float w in Until(() => shell.MenuOpen, 1.5f)) yield return w;
+                    Check(shell.MenuOpen && shell.LastSummon == OSSummon.Corner, "pressing the corner button opens the menu (" + shell.LastSummon + ")");
+                    yield return 0.3f;
+                    Check(!corner.Shown, "the corner button hides while the menu is open");
+                }
+            }
+            if (shell.MenuOpen) shell.CloseMenu();
+            yield return 0.4f;
+            Check(corner.Shown, "the corner button is back once the menu has closed");
         }
 
         // 3c. Away: M opens the menu; Bring windows here puts every window within reach and in view.

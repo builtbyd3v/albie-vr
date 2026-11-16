@@ -763,3 +763,43 @@ PASS os check (OSCheck.Run)
 
 ### Changes outside `OS/`
 None. No Project Settings, scene or `manifest.json`. `Main.unity` was not saved (one test run left it dirty in memory; reopened it from disk, dirty=False, git clean).
+
+## corner-5.12: the corner button (spec 5.12)
+
+### What was done
+- Integrated the staged `OSCornerButton` (`OS/Scripts/OSCornerButton.cs`). It compiled with no changes. It sits on the shell prefab next to the table button (`OSPrefabBuilder` now adds it; the prefab was rebuilt, only `OSShell.prefab` changed).
+- Shown only away from a desk, with no dock hold, no open menu, Settings on. 0.45 m out, 28 degrees to the chosen side, 22 degrees down, in the head's roll-free frame. Re-anchors with a 0.4 s smooth-step ease when the head turns more than 25 degrees or moves more than 0.3 m, and when Settings flips the side. First show does not fly in. Press opens the menu (summon Corner); it hides while the menu is open.
+- Fix found in the live editor: the icon sat left of centre because the empty label box stayed in the button's row. The corner button now hides that `Text` box.
+- New `Editor/OSCornerTest.cs` (Forge/OS/Run Corner Test, `OSCornerTest.LastResult`), on a scratch settings file. `OSPlayTest.StepCornerButton` is now a real step (it was a skip). `OSCheck` gained a corner-button line on the shell prefab.
+
+### Check output (verbatim)
+```
+PASS [OSCornerTest] 55 passed, 0 failed
+measured: corner button at 0.450 m, 28.0 degrees right, 22.0 degrees down
+measured: the pressable button measures 37.7 mm
+measured: the ease took 0.40 s (set 0.4), it moved 0.35 m
+measured: left corner: -28.0 degrees, 22.0 down, 0.45 m
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os play test: 73 passed, 0 failed
+PASS os check (Forge.OS.Editor.OSCheck.Run, 25 ok lines)
+```
+Screenshots (unity/Logs/os/): `91_corner_away.png` (button low right, icon centred), `92_corner_menu_open_corner_hidden.png` (menu open, button gone), `94_corner_left.png` (left corner with the Settings window), `93_corner_settings_off.png`.
+
+### Decisions
+- Corner and side are measured in the head's roll-free gaze frame, not against the horizon: that is how the code places it ("low in the corner of the view"); the first test run measured against the horizon and failed only when the head was pitched.
+- Kept distance, angles, recenter limits and ease time as the writer chose: they match the spec numbers; to be tuned on the headset (public fields on the shell prefab).
+- Button looks slightly oval at the screen edge in the desktop camera: wide-FOV perspective at 35 degrees off axis, the button itself faces the head (asserted within 5 degrees).
+
+### Not done
+- Ray and poke not exercised (no headset); presses are EventSystem pointer presses. Allocation-freeness in LateUpdate checked by reading the code only.
+
+### Changes outside OS/
+None.

@@ -450,6 +450,7 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             if (shell == null) return "Resources/OSShell.prefab is missing";
             if (shell.GetComponentInChildren<OSMenu>(true) == null) return "the shell prefab has no menu";
             if (shell.GetComponent<OSTableButton>() == null) return "the shell prefab has no table button";
+            if (shell.GetComponent<OSCornerButton>() == null) return "the shell prefab has no corner button";
             if (shell.GetComponent<AudioSource>() == null) return "the shell prefab has no AudioSource for OSSounds";
             return null;
         }
