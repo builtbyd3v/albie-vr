@@ -64,6 +64,7 @@ ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
 ok &= Check(sb, "the planner tree is valid: no problems, every path ends in a plan within three questions", PlannerTree);
             ok &= Check(sb, "every system page the strip opens is registered (Build something, Agents, Settings)", SystemPages);
 ok &= Check(sb, "the Agents page registers under the strip's id and the crew's Bring home hook is in place", AgentsPage);
+            ok &= Check(sb, "the test environment saves and restores the user's prefs and reports a changed pref or file", TestEnvironment);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
 
@@ -80,6 +81,15 @@ ok &= Check(sb, "the Agents page registers under the strip's id and the crew's B
         }
 
         // ---------------------------------------------------------------- the checks
+
+        static string TestEnvironment(out string note)
+        {
+            note = null;
+            string report = OSTestEnvCheck.Run();
+            if (report.StartsWith("PASS")) return null;
+            return report.Replace("\n", " | ");
+        }
+
 
         static string ShellPrefab(out string note)
         {

@@ -77,18 +77,14 @@ namespace Forge.OS.Editor
 
         static void RestorePrefs()
         {
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, EditorPrefs.GetBool("OSWatchTest.ForceDesktopWas", false));
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, EditorPrefs.GetBool("OSWatchTest.VoiceOffWas", false));
+            OSTestEnv.Leave();
         }
 
         [MenuItem("Forge/OS/Run Watch Test")]
         public static void Run()
         {
             if (EditorApplication.isPlaying) { Debug.Log("[OSWatchTest] Leave Play mode first."); return; }
-            EditorPrefs.SetBool("OSWatchTest.ForceDesktopWas", EditorPrefs.GetBool(RigSelector.ForceDesktopPref, false));
-            EditorPrefs.SetBool("OSWatchTest.VoiceOffWas", EditorPrefs.GetBool(AlbieVoice.EditorOffPref, false));
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, true);
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, true);
+            OSTestEnv.Enter("OSWatchTest");
             SessionState.SetBool(ActiveKey, true);
             LastResult = "running";
             EditorSceneManager.OpenScene(ScenePath);
@@ -154,6 +150,11 @@ namespace Forge.OS.Editor
             Application.logMessageReceived -= OnLog;
             Check(logged.Count == 0, "no errors, exceptions or [OS] warnings were logged during the run" + (logged.Count == 0 ? "" : ": " + logged[0]));
             Measurements = string.Join("\n", measured);
+            if (!keepPlaying)
+            {
+                string envDiff = OSTestEnv.Leave();
+                Check(envDiff.Length == 0, "the user's own preferences and files are exactly as they were before the run" + (envDiff.Length == 0 ? "" : ": " + envDiff.Replace("\n", " | ")));
+            }
             string summary = $"[OSWatchTest] {passed} passed, {failed} failed";
             LastResult = (failed == 0 ? "PASS " : "FAIL ") + summary + (failed == 0 ? "" : "\n" + string.Join("\n", failures));
             if (failed == 0) Debug.Log(summary);
@@ -309,6 +310,8 @@ namespace Forge.OS.Editor
 
         static IEnumerator<float> Script()
         {
+            // Everything the run could write (settings, notebook, artifacts, approvals) goes to a folder of its own first; the tests that need their own root move on from here.
+            OSTestEnv.UseScratch("oswatch");
             scratch = Path.Combine(Path.GetTempPath(), "OSWatchTest_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(scratch);
             OSSettings.SetPathForTests(Path.Combine(scratch, "os_settings.json"));

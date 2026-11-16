@@ -61,8 +61,7 @@ namespace Forge.OS.Editor
         public static void Stop()
         {
             keepPlaying = false;
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, EditorPrefs.GetBool("OSMenuTest.ForceDesktopWas", false));
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, EditorPrefs.GetBool("OSMenuTest.VoiceOffWas", false));
+            OSTestEnv.Leave();
             EditorApplication.isPlaying = false;
         }
 
@@ -70,10 +69,7 @@ namespace Forge.OS.Editor
         public static void Run()
         {
             if (EditorApplication.isPlaying) { Debug.Log("[OSMenuTest] Leave Play mode first."); return; }
-            EditorPrefs.SetBool("OSMenuTest.ForceDesktopWas", EditorPrefs.GetBool(RigSelector.ForceDesktopPref, false));
-            EditorPrefs.SetBool("OSMenuTest.VoiceOffWas", EditorPrefs.GetBool(AlbieVoice.EditorOffPref, false));
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, true);
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, true);
+            OSTestEnv.Enter("OSMenuTest");
             SessionState.SetBool(ActiveKey, true);
             LastResult = "running";
             EditorSceneManager.OpenScene(ScenePath);
@@ -124,14 +120,18 @@ namespace Forge.OS.Editor
             foreach (var undo in cleanup) { try { undo(); } catch (Exception e) { Debug.LogException(e); } }
             cleanup.Clear();
             Measurements = string.Join("\n", measured);
+            if (!keepPlaying)
+            {
+                string envDiff = OSTestEnv.Leave();
+                Check(envDiff.Length == 0, "the user's own preferences and files are exactly as they were before the run" + (envDiff.Length == 0 ? "" : ": " + envDiff.Replace("\n", " | ")));
+            }
             string summary = $"[OSMenuTest] {passed} passed, {failed} failed";
             LastResult = (failed == 0 ? "PASS " : "FAIL ") + summary + (failed == 0 ? "" : "\n" + string.Join("\n", failures));
             if (failed == 0) Debug.Log(summary);
             else Debug.LogError(summary + "\n" + string.Join("\n", failures));
             SessionState.SetBool(ActiveKey, false);
             if (keepPlaying) return;
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, EditorPrefs.GetBool("OSMenuTest.ForceDesktopWas", false));
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, EditorPrefs.GetBool("OSMenuTest.VoiceOffWas", false));
+            OSTestEnv.Leave();
             EditorApplication.isPlaying = false;
         }
 
@@ -284,6 +284,8 @@ namespace Forge.OS.Editor
 
         static IEnumerator<float> Script()
         {
+            // Everything the run could write (settings, notebook, artifacts, approvals) goes to a folder of its own first; the tests that need their own root move on from here.
+            OSTestEnv.UseScratch("osmenu");
             // Sit at the desk the way the gesture test does.
             Workspace workspace = null;
             while (workspace == null || !workspace.presence.AtDesk)

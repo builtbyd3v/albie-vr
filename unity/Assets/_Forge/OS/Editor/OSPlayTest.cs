@@ -34,7 +34,6 @@ namespace Forge.OS.Editor
     public static class OSPlayTest
     {
         const string ActiveKey = "OSPlayTest.Active", BatchKey = "OSPlayTest.Batch", ResultKey = "OSPlayTest.Result", QuickKey = "OSPlayTest.Quick";
-        const string ForceDesktopWas = "OSPlayTest.ForceDesktopWas", VoiceOffWas = "OSPlayTest.VoiceOffWas";
         const string ScenePath = "Assets/_Forge/Core/Main.unity";
         const double GiveUpSeconds = 720;
         const string AgentTask = "Read the sample project and say what it does";
@@ -136,10 +135,7 @@ namespace Forge.OS.Editor
                 Refuse("save or discard the open scene first");
                 return;
             }
-            EditorPrefs.SetBool(ForceDesktopWas, EditorPrefs.GetBool(RigSelector.ForceDesktopPref, false));
-            EditorPrefs.SetBool(VoiceOffWas, EditorPrefs.GetBool(AlbieVoice.EditorOffPref, false));
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, true);
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, true);
+            OSTestEnv.Enter("OSPlayTest");
             SessionState.SetBool(ActiveKey, true);
             LastResult = "running";
             EditorSceneManager.OpenScene(ScenePath);
@@ -181,13 +177,8 @@ namespace Forge.OS.Editor
             hadArtifactHome = false;
             currentStep = stepShot = firstFailStep = firstFailWhat = firstFailShot = null;
 
-            // The run reads and writes its own settings file and artifact library, never the user's.
-            tempRoot = Path.Combine(Application.temporaryCachePath, "os_playtest");
-            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true); } catch (IOException) { }
-            Directory.CreateDirectory(tempRoot);
-            OSSettings.SetPathForTests(Path.Combine(tempRoot, "os_settings.json"));
-            Forge.Artifacts.ArtifactLibrary.RootOverride = Path.Combine(tempRoot, "artifacts");
-            Forge.Artifacts.ArtifactApprovals.FileOverride = Path.Combine(tempRoot, "artifacts", "approvals.json");
+            // The whole run reads and writes its own notebook, projects, artifact library, approvals and os_settings.json, never the user's.
+            tempRoot = OSTestEnv.UseScratch("osplay");
 
             steps = Script();
             wakeAt = 0;
@@ -238,6 +229,13 @@ namespace Forge.OS.Editor
         static void Finish(bool stopPlay)
         {
             EditorApplication.update -= Tick;
+            try { CleanupLeftovers(); }
+            catch (Exception e) { Debug.LogException(e); }
+            SimulatedHandSource.LeftTestActive = false;
+            // The scratch root goes, every saved preference is put back, and the user's state is compared with what it was at the start.
+            currentStep = "cleanup";
+            string envDiff = OSTestEnv.Leave();
+            Check(envDiff.Length == 0, "the user's own preferences and files are exactly as they were before the run" + (envDiff.Length == 0 ? "" : ": " + envDiff.Replace("\n", " | ")));
             string summary = $"[OSPlayTest] {passed} passed, {failed} failed" + (skipped > 0 ? $" ({skipped} skipped)" : "");
             var result = new StringBuilder();
             if (failed == 0)
@@ -262,16 +260,7 @@ namespace Forge.OS.Editor
             LastResult = result.ToString();
             try { File.WriteAllText(Path.Combine(OSShot.Dir, "play_test_result.txt"), LastResult); } catch (IOException) { }
 
-            try { CleanupLeftovers(); }
-            catch (Exception e) { Debug.LogException(e); }
-            SimulatedHandSource.LeftTestActive = false;
-            OSSettings.SetPathForTests(null);
-            Forge.Artifacts.ArtifactLibrary.RootOverride = null;
-            Forge.Artifacts.ArtifactApprovals.FileOverride = null;
-            try { if (!string.IsNullOrEmpty(tempRoot) && Directory.Exists(tempRoot)) Directory.Delete(tempRoot, true); } catch (IOException) { }
-
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, EditorPrefs.GetBool(ForceDesktopWas, false));
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, EditorPrefs.GetBool(VoiceOffWas, false));
+            tempRoot = null;
             bool batch = SessionState.GetBool(BatchKey, false);
             SessionState.SetBool(ActiveKey, false);
             if (stopPlay) EditorApplication.isPlaying = false;
@@ -1076,7 +1065,7 @@ namespace Forge.OS.Editor
 
             shell.Windows.CloseAll();
             Forge.Notebook.NotebookStore.Flush();
-            Forge.Notebook.NotebookStore.Open(Forge.Notebook.NotebookStore.DefaultProject);  // the app's own notebook again
+            Forge.Notebook.NotebookStore.Open(Forge.Notebook.NotebookStore.DefaultProject, tempRoot);  // the run's own notebook again, never the app's
             Forge.OS.OSProjects.Refresh();
             try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (IOException) { }
         }
@@ -1423,7 +1412,7 @@ namespace Forge.OS.Editor
         static void StopAgentHold()
         {
             if (agentHold != null) { try { agentHold.Stop(); } catch (System.Net.Sockets.SocketException) { } agentHold = null; }
-            PlayerPrefs.DeleteKey(ClaudeClient.UrlPref);
+            OSTestEnv.ClearClaudeUrl();   // the user's own address (if any) comes back at OSTestEnv.Leave
         }
 
         // 7. Agents: two are spawned (a builder and a scout, the way the N key or spawn_agent does), the builder is given a task that
@@ -1444,7 +1433,7 @@ namespace Forge.OS.Editor
             {
                 agentHold = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
                 agentHold.Start();
-                PlayerPrefs.SetString(ClaudeClient.UrlPref, "http://127.0.0.1:" + ((System.Net.IPEndPoint)agentHold.LocalEndpoint).Port + "/api/claude");
+                OSTestEnv.SetClaudeUrl("http://127.0.0.1:" + ((System.Net.IPEndPoint)agentHold.LocalEndpoint).Port + "/api/claude");
 
                 JObject a = AlbieTools.Call("spawn_agent", new JObject { ["type"] = "builder" });
                 JObject b = AlbieTools.Call("spawn_agent", new JObject { ["type"] = "scout" });
@@ -1604,7 +1593,7 @@ namespace Forge.OS.Editor
             ArtifactHost host = ArtifactHost.Current;
             if (host != null) host.Room = null;
             NotebookStore.Flush();
-            NotebookStore.Open(NotebookStore.DefaultProject);  // the app's own notebook again
+            NotebookStore.Open(NotebookStore.DefaultProject, tempRoot);  // the run's own notebook again, never the app's
             OSProjects.Refresh();
         }
 

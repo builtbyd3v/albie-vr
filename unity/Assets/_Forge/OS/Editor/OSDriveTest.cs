@@ -81,18 +81,14 @@ namespace Forge.OS.Editor
 
         static void RestorePrefs()
         {
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, EditorPrefs.GetBool("OSDriveTest.ForceDesktopWas", false));
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, EditorPrefs.GetBool("OSDriveTest.VoiceOffWas", false));
+            OSTestEnv.Leave();
         }
 
         [MenuItem("Forge/OS/Run Drive Test")]
         public static void Run()
         {
             if (EditorApplication.isPlaying) { Debug.Log("[OSDriveTest] Leave Play mode first."); return; }
-            EditorPrefs.SetBool("OSDriveTest.ForceDesktopWas", EditorPrefs.GetBool(RigSelector.ForceDesktopPref, false));
-            EditorPrefs.SetBool("OSDriveTest.VoiceOffWas", EditorPrefs.GetBool(AlbieVoice.EditorOffPref, false));
-            EditorPrefs.SetBool(RigSelector.ForceDesktopPref, true);
-            EditorPrefs.SetBool(AlbieVoice.EditorOffPref, true);
+            OSTestEnv.Enter("OSDriveTest");
             SessionState.SetBool(ActiveKey, true);
             LastResult = "running";
             Level = "not reached";
@@ -159,6 +155,11 @@ namespace Forge.OS.Editor
             Check(logged.Count == 0, "no errors, exceptions or [OS] warnings were logged during the run" + (logged.Count == 0 ? "" : ": " + logged[0]));
             Measure("level reached: " + Level);
             Measurements = string.Join("\n", measured);
+            if (!keepPlaying)
+            {
+                string envDiff = OSTestEnv.Leave();
+                Check(envDiff.Length == 0, "the user's own preferences and files are exactly as they were before the run" + (envDiff.Length == 0 ? "" : ": " + envDiff.Replace("\n", " | ")));
+            }
             string summary = $"[OSDriveTest] {passed} passed, {failed} failed (level: {Level})";
             LastResult = (failed == 0 ? "PASS " : "FAIL ") + summary + (failed == 0 ? "" : "\n" + string.Join("\n", failures));
             if (failed == 0) Debug.Log(summary);
@@ -410,6 +411,8 @@ namespace Forge.OS.Editor
 
         static IEnumerator<float> Script()
         {
+            // Everything the run could write (settings, notebook, artifacts, approvals) goes to a folder of its own first; the tests that need their own root move on from here.
+            OSTestEnv.UseScratch("osdrive");
             string why = null;
             pad = null;
             padDown = false;
