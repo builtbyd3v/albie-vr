@@ -245,7 +245,11 @@ namespace Forge.Artifacts
                     nodes[id] = node;
                     if (node["widgets"] is JArray widgets)
                         foreach (var w in widgets)
-                            if (w.Value<string>("type") == "button" && w.Value<string>("id") != null) buttons.Add(w.Value<string>("id"));
+                            if (w.Value<string>("type") == "button" && w.Value<string>("id") != null)
+                            {
+                                buttons.Add(w.Value<string>("id"));
+                                if (w.Value<string>("alt_id") != null) buttons.Add(w.Value<string>("alt_id"));
+                            }
                 }
                 int zones = 0;
                 foreach (var node in nodes.Values) if (IsZone(node)) zones++;

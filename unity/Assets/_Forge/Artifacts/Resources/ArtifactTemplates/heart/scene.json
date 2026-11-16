@@ -38,20 +38,21 @@
       "kind": "text",
       "text": "Superior vena cava",
       "pos": [
-        -0.13,
+        -0.092,
         0.06,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_svc",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           0.0556,
           -0.06
         ],
@@ -69,20 +70,21 @@
       "kind": "text",
       "text": "Aortic valve",
       "pos": [
-        -0.13,
+        -0.092,
         0.01,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_aortic_valve",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           0.0056,
           -0.06
         ],
@@ -100,20 +102,21 @@
       "kind": "text",
       "text": "Right atrium",
       "pos": [
-        -0.13,
+        -0.092,
         -0.04,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_right_atrium",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           -0.0444,
           -0.06
         ],
@@ -131,20 +134,21 @@
       "kind": "text",
       "text": "Tricuspid valve",
       "pos": [
-        -0.13,
+        -0.092,
         -0.09,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_tricuspid",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           -0.0944,
           -0.06
         ],
@@ -162,20 +166,21 @@
       "kind": "text",
       "text": "Septum",
       "pos": [
-        -0.13,
+        -0.092,
         -0.14,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_septum",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           -0.1444,
           -0.06
         ],
@@ -193,20 +198,21 @@
       "kind": "text",
       "text": "Right ventricle",
       "pos": [
-        -0.13,
+        -0.092,
         -0.19,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_right_ventricle",
       "kind": "line",
       "points": [
         [
-          -0.055,
+          -0.082,
           -0.1944,
           -0.06
         ],
@@ -224,20 +230,21 @@
       "kind": "text",
       "text": "Aorta",
       "pos": [
-        0.13,
+        0.092,
         0.08,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_aorta",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           0.0756,
           -0.06
         ],
@@ -255,20 +262,21 @@
       "kind": "text",
       "text": "Pulmonary artery",
       "pos": [
-        0.13,
+        0.092,
         0.035,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_pulmonary_artery",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           0.0306,
           -0.06
         ],
@@ -286,20 +294,21 @@
       "kind": "text",
       "text": "Pulmonary veins",
       "pos": [
-        0.13,
+        0.092,
         -0.01,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_pulmonary_veins",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           -0.0144,
           -0.06
         ],
@@ -317,20 +326,21 @@
       "kind": "text",
       "text": "Left atrium",
       "pos": [
-        0.13,
+        0.092,
         -0.055,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_left_atrium",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           -0.0594,
           -0.06
         ],
@@ -348,20 +358,21 @@
       "kind": "text",
       "text": "Pulmonary valve",
       "pos": [
-        0.13,
+        0.092,
         -0.1,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_pulmonary_valve",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           -0.1044,
           -0.06
         ],
@@ -379,20 +390,21 @@
       "kind": "text",
       "text": "Mitral valve",
       "pos": [
-        0.13,
+        0.092,
         -0.145,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_mitral",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           -0.1494,
           -0.06
         ],
@@ -410,20 +422,21 @@
       "kind": "text",
       "text": "Left ventricle",
       "pos": [
-        0.13,
+        0.092,
         -0.19,
         -0.06
       ],
       "height": 0.02,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_left_ventricle",
       "kind": "line",
       "points": [
         [
-          0.055,
+          0.082,
           -0.1944,
           -0.06
         ],
@@ -547,27 +560,22 @@
         {
           "type": "button",
           "id": "trace",
-          "label": "Trace the blood"
+          "label": "Trace the blood",
+          "primary": true
         },
         {
           "type": "button",
           "id": "beat_pause",
-          "label": "Pause the beat"
-        },
-        {
-          "type": "button",
-          "id": "beat_play",
-          "label": "Start the beat"
-        },
-        {
-          "type": "button",
-          "id": "labels_on",
-          "label": "Show labels"
+          "label": "Pause the beat",
+          "alt_id": "beat_play",
+          "alt_label": "Start the beat"
         },
         {
           "type": "button",
           "id": "labels_off",
-          "label": "Hide labels"
+          "label": "Hide labels",
+          "alt_id": "labels_on",
+          "alt_label": "Show labels"
         },
         {
           "type": "note",

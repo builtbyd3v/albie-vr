@@ -24,7 +24,7 @@ namespace Forge.ML
     {
         public enum Tab { Overview, Classes, Confusion, Confidence, Images }
         static readonly string[] TabNames = { "Overview", "Classes", "Confusion", "Confidence", "Images" };
-        static readonly float[] TabWidths = { 92, 80, 94, 100, 80 };
+        static readonly float[] TabWidths = { 96, 96, 96, 96, 96 };  // equal, so no tab crowds the next
 
         public MLSession session;
         public Material dotMaterialAsset;
@@ -76,10 +76,10 @@ namespace Forge.ML
                 var t = (Tab)i;
                 tabPills[i] = MLUI.Pill(root, TabNames[i], x, 0, TabWidths[i], TabBar, () => ShowTab(t));
                 tabPills[i].name = "Tab " + TabNames[i];
-                x += TabWidths[i] + 4;
+                x += TabWidths[i] + 6;
                 pages[i] = MLUI.Rect(TabNames[i] + " page", root, 0, BodyTop, r.width, r.height - BodyTop);
             }
-            runLabel = MLUI.Caps(root, "", x + 8, 9, r.width - x - 8, 14, 9); runLabel.alignment = TextAlignmentOptions.TopRight; runLabel.color = MLUI.Faint;
+            runLabel = MLUI.Caps(root, "", x + 8, 9, r.width - x - 8, 14, 9); runLabel.alignment = TextAlignmentOptions.TopRight; runLabel.color = MLUI.Faint; runLabel.overflowMode = TextOverflowModes.Ellipsis;
             images = pages[(int)Tab.Images];
             BuildImages();
 

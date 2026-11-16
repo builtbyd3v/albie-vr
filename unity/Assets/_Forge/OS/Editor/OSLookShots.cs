@@ -1352,7 +1352,7 @@ namespace Forge.OS.Editor
             shell.Windows.BringHere();
             yield return 2.5f;
             OSWindow board = FirstArtifactPanelWindow();
-            if (board != null) FrameWindow("artifact_slalom_scoreboard", "The slalom scoreboard panel, square on: Time, Gates, Cones hit, Runs, the version comparison, the Spacing slider and Run again.", board);
+            if (board != null) FrameWindow("artifact_slalom_scoreboard", "The slalom scoreboard panel, square on: Time, Gates, Cones hit, Runs, the version comparison, the Spacing slider and Start a run.", board);
             else Unreachable("artifact_slalom_scoreboard", "the slalom opened no panel");
             var courseBox = new List<Vector3>();
             AddBounds(courseBox, new Bounds(brain.transform.position + Vector3.up * 0.08f, new Vector3(0.32f, 0.16f, 0.32f)));

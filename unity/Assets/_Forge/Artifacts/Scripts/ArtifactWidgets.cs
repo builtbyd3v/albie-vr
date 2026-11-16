@@ -25,6 +25,8 @@ namespace Forge.Artifacts
             var panel = build.Host.NewPanel(n.Value<string>("title") ?? build.Host.OpenTitle);
             float y = 0f;
             float rowX = 0f;  // buttons sit side by side until something else comes along
+            TMP_Text hintText = null;  // a note that changes once there is a run (see "after_run")
+            string hintAfter = null;
             if (n["widgets"] is JArray widgets)
                 foreach (var widget in widgets)
                 {
@@ -36,19 +38,21 @@ namespace Forge.Artifacts
                     }
                     switch (type)
                     {
-                        case "note": y += Note(panel.Content, y, widget.Value<string>("text")) + Gap; break;
+                        case "note":
+                            y += Note(panel.Content, y, widget.Value<string>("text"), false, out var noteText) + Gap;
+                            if (widget.Value<string>("after_run") != null) { hintText = noteText; hintAfter = widget.Value<string>("after_run"); }
+                            break;
                         case "stat": y += Stat(panel.Content, y, widget, build) + Gap; break;
                         case "runs": y += Runs(panel.Content, y, widget, build) + Gap; break;
                         case "versions": y += Versions(panel.Content, y, build) + Gap; break;
                         case "slider": y += Slider(panel, y, widget.Value<string>("input"), build) + Gap; break;
                         case "button":
-                            string id = widget.Value<string>("id");
-                            float width = Pill(panel.Content, y, rowX, widget.Value<string>("label"), () => build.Host.Fire(id), out var pill);
+                            float width = Button(panel.Content, y, rowX, widget, build, out var pillRect);
                             if (rowX > 0f && rowX + width > ContentWidth)
                             {
                                 y += PillRow + 10f;
                                 rowX = 0f;
-                                pill.anchoredPosition = new Vector2(0f, -y);
+                                pillRect.anchoredPosition = new Vector2(0f, -y);
                             }
                             rowX += width + 10f;
                             break;
@@ -56,19 +60,53 @@ namespace Forge.Artifacts
                 }
             if (rowX > 0f) y += PillRow + Gap;
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;
+            if (hintText != null && build.Host.RunsRow != null) build.Host.RunsRow.SetHint(hintText, hintText.text, hintAfter);
             build.Host.KeepAboveBase(panel);
             return panel.gameObject;
         }
 
         /// <summary>Plain sentences in a panel: the permissions sheet and "this can't open" messages use it too.</summary>
-        public static float Note(RectTransform parent, float y, string message, bool strong = false)
+        public static float Note(RectTransform parent, float y, string message, bool strong = false) =>
+            Note(parent, y, message, strong, out _);
+
+        static float Note(RectTransform parent, float y, string message, bool strong, out TMP_Text shown)
         {
             var text = Text(parent, "Note", 15f, strong ? ForgeTheme.PanelText : ForgeTheme.PanelSubtext, TextAlignmentOptions.TopLeft);
             text.textWrappingMode = TextWrappingModes.Normal;
             text.text = message;
             float height = text.GetPreferredValues(message, ContentWidth, 0f).y;
             Place(text.rectTransform, y, height);
+            shown = text;
             return height;
+        }
+
+        /// <summary>
+        /// A button widget. With <c>alt_id</c> and <c>alt_label</c> it is one toggle: each press fires the current input, then the
+        /// label flips to the other (Pause the beat / Start the beat). <c>primary</c> draws it as the filled main action.
+        /// </summary>
+        static float Button(RectTransform parent, float y, float x, JToken widget, ArtifactBuild build, out RectTransform rect)
+        {
+            string id = widget.Value<string>("id"), label = widget.Value<string>("label");
+            string altId = widget.Value<string>("alt_id"), altLabel = widget.Value<string>("alt_label");
+            bool toggle = altId != null && altLabel != null;
+            bool second = false;
+            ForgePill pill = null;
+            Action press = () =>
+            {
+                build.Host.Fire(second ? altId : id);
+                if (!toggle) return;
+                second = !second;
+                var shown = pill != null ? pill.GetComponentInChildren<TMP_Text>() : null;
+                if (shown != null) shown.text = second ? altLabel : label;
+            };
+            // The pill is as wide as the longer of its two labels, so it doesn't jump when it flips.
+            string widest = toggle && altLabel.Length > label.Length ? altLabel : label;
+            pill = PillControl(parent, y, x, widest, press);
+            var text = pill.GetComponentInChildren<TMP_Text>();
+            if (text != null) text.text = label;
+            if (widget.Value<bool?>("primary") == true) pill.On = true;
+            rect = pill.Rect;
+            return rect.sizeDelta.x;
         }
 
         public static float PanelHeight(float contentHeight) => Chrome + contentHeight;
@@ -272,6 +310,17 @@ namespace Forge.Artifacts
         Func<string> layoutId;
         string[] columns;
         int limit;
+        TMP_Text hint;
+        string hintBefore, hintAfter;
+
+        /// <summary>A note above that says what to do while there is no run, and something else once there is one.</summary>
+        public void SetHint(TMP_Text note, string before, string after)
+        {
+            hint = note;
+            hintBefore = before;
+            hintAfter = after;
+            Refresh();
+        }
 
         public void Bind(TMP_Text value, string id, Func<string> layout, string[] cols, int shown)
         {
@@ -286,21 +335,25 @@ namespace Forge.Artifacts
         {
             if (text == null) return;
             var runs = ArtifactRuns.List(artifactId);
+            if (hint != null) hint.text = hintBefore;
             if (runs.Count == 0) { text.text = "None yet"; return; }
-            int from = Math.Max(0, runs.Count - limit);
+            int shown = 0;
             string current = layoutId?.Invoke();
             var parts = new System.Text.StringBuilder();
-            for (int i = runs.Count - 1; i >= from; i--)
+            for (int i = runs.Count - 1; i >= 0 && shown < limit; i--)
             {
+                // Runs on another course say nothing about this one, so they are not listed here.
+                if (current != null && (string)runs[i]["layout_id"] != current) continue;
+                shown++;
                 if (parts.Length > 0) parts.Append(" · ");
                 var run = runs[i];
                 string outcome = (string)run["outcome"];
                 parts.Append(Summary(run));
                 if (outcome == "failed") parts.Append(' ').Append((string)run["reason"] ?? "fail");
                 else if (outcome == "aborted") parts.Append(" stop");
-                if (current != null && (string)run["layout_id"] != current) parts.Append(" (other course)");
             }
-            text.text = parts.ToString();
+            text.text = parts.Length > 0 ? parts.ToString() : "None on this course";
+            if (hint != null && parts.Length > 0) hint.text = hintAfter;
         }
 
         string Summary(JObject run)
@@ -362,7 +415,10 @@ namespace Forge.Artifacts
             }
             label.text = $"v{current - 1} vs v{current}";
             var compare = NotebookStore.CompareVersions(current - 1, current, artifactId);
-            text.text = Side((JObject)compare["from"]) + "  ·  " + Side((JObject)compare["to"]);
+            string from = Side((JObject)compare["from"]), to = Side((JObject)compare["to"]);
+            // Nothing to compare yet: say so once instead of twice.
+            text.text = from.EndsWith(" no run yet", StringComparison.Ordinal) && to.EndsWith(" no run yet", StringComparison.Ordinal)
+                ? "No runs yet" : from + "  ·  " + to;
         }
 
         /// <summary>One version in a few words, from the records only.</summary>

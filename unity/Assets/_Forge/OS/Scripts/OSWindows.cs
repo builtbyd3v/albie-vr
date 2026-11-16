@@ -29,7 +29,10 @@ namespace Forge.OS
         const float DeskDistance = 0.8f, AwayDistance = 0.95f, DropMeters = 0.05f, RaiseMeters = 0.42f, RingStep = 0.25f, DeskClear = 0.03f;
         // Search in yaw steps (degrees) out to MaxYaw, with this gap (degrees seen from the eyes) between neighbours.
         const float YawStep = 3f, MaxYaw = 110f, GapDegrees = 4f;
-        const int Tiers = 4;
+        // The last resort: two rows high up (metres above the eyes), tried only when nothing else is clear, so they cost far more
+        // than any other place. A big window beside a full mode (the Train desk) only fits up there.
+        const float RaiseMore = 0.62f, RaiseMost = 0.82f, HighRowCost = 130f;
+        const int Tiers = 8;
         const int MaxAttempts = 40;
         const float OuterRingCost = 15f;  // degrees: a place on the further ring counts as this much further from straight ahead
         const float FallbackWidth = 0.5f, FallbackHeight = 0.4f;
@@ -634,9 +637,13 @@ namespace Forge.OS
                 Vector3 bestCenter = default;
                 for (int tier = 0; tier < Tiers; tier++)
                 {
-                    float distance = baseDistance + (tier >= 2 ? RingStep : 0f);
-                    float lift = tier % 2 == 1 ? RaiseMeters : -DropMeters;
-                    float penalty = tier >= 2 ? OuterRingCost : 0f;
+                    // Tiers 0 to 3: below the eyes and RaiseMeters above them, at the preferred distance and one ring out.
+                    // Tiers 4 to 7: the two high rows, at the preferred distance and one ring out.
+                    bool high = tier >= 4;
+                    bool outer = (tier & 2) != 0;
+                    float distance = baseDistance + (outer ? RingStep : 0f);
+                    float lift = high ? ((tier & 1) == 0 ? RaiseMore : RaiseMost) : ((tier & 1) == 1 ? RaiseMeters : -DropMeters);
+                    float penalty = (outer ? OuterRingCost : 0f) + (high ? HighRowCost : 0f);
                     for (int i = 0; i * YawStep <= MaxYaw; i++)
                     {
                         for (int side = 0; side < (i == 0 ? 1 : 2); side++)
