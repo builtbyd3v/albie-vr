@@ -1323,3 +1323,89 @@ The recompile tool reported 0 warnings only because nothing needed compiling. Th
 - The APK was built and not run: nothing here shows it starts on a Quest.
 
 Free disk: 30.1 GB at start, 18.5 GB at end. Editor: out of Play mode, Main open and not dirty, compiled, 0 errors.
+
+## sync-and-text-size (2026-11-16)
+
+### 1. Merge of origin/main
+`git fetch` found 2 commits the branch lacked (PR #72, "ML A: a hands transmitter, so the truck is driven with no controller paired": `Controllers/Scripts/HandsTransmitter.cs`, `HandsTransmitterCheck.cs`, `Artifacts/Scripts/SlalomBrain.cs` reads the transmitter during a hand lap, `SlalomBrainCheck.cs`, two READMEs). `git merge --no-ff origin/main` was clean (commit 166c55b), no conflicts. After it: `unity recompile` 0 errors 0 warnings, and these checks, all after the merge and before any text change:
+- OSCheck `PASS os check` (28 ok lines); OSTestEnvCheck `PASS os test environment check`
+- OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 101/0, OSProjectsTest 88/0, OSArtifactsTest 81/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level: full), OSPlannerTest 101/0
+- OSPlayTest `PASS os play test: 140 passed, 0 failed` (level reached: full)
+- Artifacts: ArtifactRunCheck, BioTemplatesCheck, GltfTimelineCheck, HoopCheck, RepoActivityCheck, RepoConnectorCheck, SimTemplatesCheck, SlalomCheck, VoiceRulesCheck all `PASS`; `[ArtifactChecks] 110 passed, 0 failed`; Check Brain Loop (Play) `PASS slalom brain check (Play mode, the brain truck on its colliders)` including the two new hands-transmitter lines (a full pinch drives into a cone, a right tilt turns the truck right 35 degrees in 1 s)
+- Controllers: AutopilotCheck, BehaviourCloningCheck, ControllersCheck, HandsTransmitterCheck (`PASS hands transmitter check`), FiveInARowCheck, HotReloadCheck, MLTemplateCheck, RoomSlalomCheck, ThingRuntimeCheck all `PASS`
+- NotebookCheck `PASS notebook check`; GestureSelfTest `[GestureSelfTest] 104 passed, 0 failed`; GesturePlayTest `[GesturePlayTest] 32 passed, 0 failed`; ML Validate Main `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.`
+- Main.unity not modified (`git status` shows no .unity file).
+
+Interaction to know about: main's `HandsTransmitter` writes `stick.y` and `hand.roll` on change during a hand lap, the OS Drive pad writes the stick channels and zeroes them on release. Neither overwrites the other every frame (both write on change), and OSDriveTest passes with the merged `SlalomBrain`, so nothing was changed. Not tried together on a headset: if a pad press and a pinch happen in the same frame the later write wins.
+
+### 2. The look of the sixth round (commit 77f84ba, the quiet lit title-bar pill), looked at after the merge
+`Forge.OS.Editor.OSLookShots.Run()` gave `OK look set: 59 pictures`. The eight pictures, opened with Read, before any text change:
+- `16_project_truck_full`: the lit "Face me" pill reads clearly (a lighter fill with a thin ring and white text next to the dimmer "Straight"); nothing is clipped or overlapping, the content ends 30 px above the window's lower edge.
+- `20_settings_page1`: the pill reads clearly; nothing clipped. The Left/Right pair sits about 8 px further right than the switches above it (cosmetic only).
+- `21_settings_page2`: the pill reads clearly; nothing clipped, sliders and note are fine.
+- `25_agents_two_rows`: the pill reads clearly; nothing clipped or overlapping. Cosmetic: a band of empty space above "Bring all home" and between the crew note and "Make an agent".
+- `33_drive_idle`: the pill reads clearly; nothing clipped; the pad, Stop and the hint are all readable.
+- `03_menu_tools`: the menu has no title-bar pill; nothing clipped, the tiles and strip read well.
+- `32_build_plan_card`: the pill reads clearly; nothing clipped, plan lines and buttons readable.
+- `15_notebook_window`: the pill reads clearly; nothing clipped, but the page is dense: the last line sits 24 px above the window's lower edge, and the title bar has no badge (title and subtitle only).
+
+Nothing needed a fix for this step; nothing was changed for it.
+
+### 3. Text size
+Measured first with a new text audit in `OSLookShots` (`look/text_audit.txt`, written for every picture: every visible text of the menu and the OS windows with its units, its cap height in mm from the font's own cap line, and a WIDE or TALL flag when a text does not fit its box). Inter's cap line is 0.686 of its em, so cap height is 0.446 mm per unit at the OS unit of 0.65 mm.
+
+| Text | Before | After |
+|---|---|---|
+| Body text (`OSUi.BodyText`: labels, lines, buttons, tab titles, tile titles) | 20 units, 8.92 mm cap | 22 units, 9.81 mm cap |
+| Secondary text (`OSUi.SmallText`: hints, notes, empty states) | 19 units, 8.47 mm | 21.5 units, 9.59 mm |
+| Tile caption (the line under a tile title; the tile now uses `OSUi.CaptionText`) | 19 units, 8.47 mm (the 17 unit constant `CaptionText` was never used by the tile) | 20 units, 8.92 mm |
+| Section headings (`OSUi.TitleText`) | 24 units, 10.7 mm | 26 units, 11.6 mm |
+
+Audit over the OS windows and the menu (1453 drawn texts per capture, artifact and gesture windows left out): before, most of them were under 9.5 mm cap (721 at 8.92, 344 at 8.47, 69 at 8.45, 2 at 8.05); after, the only texts under 9.5 mm are the tile captions at 8.92 mm (above the 8.5 floor), the ForgePanel header subtitle and mode badge lettering at 8.45 mm (69, see Decisions), and a few tiles drawn pressed in (the animator scales a pressed tile to 0.95).
+The menu is 0.663 m wide, 67.1 degrees of horizontal view at its default 0.5 m (`OSMenuTest`: `menu: 0.663 m wide, 0.316 m tall, 0.50 m from the eyes, 15.0 degrees below eye level, 67.1 degrees of horizontal view`), under the 70 limit, so the caption did not need to be held smaller.
+
+What had to move so nothing clips or shrinks back (all in OS/):
+- `OSUi`: the four size constants (one place); label and tile boxes a little taller for the bigger lines; switch row 44 to 48, slider line 28 to 32. Window-local sizes (`LineSize`, `NoteSize`, `LeadSize`, `BodySize`, `NameSize`, `HintSize`) now read the constants, so nothing hides a smaller number.
+- `OSMenu`: tiles 220 to 226 units wide. Why: at 22 units the strip's five buttons left 14 units (9 mm) between Bring windows here and Close, under the 19 unit (12 mm) gap; at 226 it is 37 units and the others are at least 24.
+- `OSAgentsWindow`: window 0.90 to 0.96 m wide, name column 425 to 450. Why: at 22 units "Read the sample project and say what it d..." and "maps the codebase and finds where things..." were ellipsized (the audit's WIDE flag); both show whole now.
+- `OSProjectWindow`: 0.66 to 0.72 m tall (the truck project's page filled it to 30 px of the edge).
+- `OSNotebookWindow`: 0.78 to 0.86 m tall. Why: at 0.78 the fit step dropped a lesson and a version; at 0.86 the page fits one step down from the fullest and keeps both lessons.
+- `OSCheck` (touch sizes line): fails now if body cap height is under 9.5 mm, secondary under 9, tile caption under 8.5. Output when it ran (small was 21 units then; 21.5 since): `ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap, cap heights: body 9.81 mm, small 9.36 mm, tile caption 8.92 mm)`.
+- `OSLookShots`: the text audit. README: one line on the text sizes.
+
+Settings, Build something and Drive needed no layout change: their windows had room (Drive's two hint lines now wrap onto a second line inside the window).
+Every OS window and menu picture was opened with Read after the change (03, 04, 05, 06, 15, 16, 20, 22, 23, 25, 28, 29, 32, 33): no clipped, overlapping or ellipsized text; the strip and every window fit. The audit reports no WIDE or TALL flag in an OS window except 4 rows reading `TALL(23>0)` for the Agents crew note (a text whose box the layout leaves at height 0 while it draws fine; before the change it read `TALL(21>0)`, so not new).
+
+### Check output (after the text change)
+```
+PASS os check
+PASS os test environment check
+PASS [OSMenuTest] 65 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 101 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 81 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 140 passed, 0 failed   (info level reached: full)
+```
+One flaky run, plainly: in the last full pass OSDriveTest printed `FAIL [OSDriveTest] 83 passed, 1 failed (level: pad only)` with the only failing line `timed out` (the brain's training did not finish in its time), and OSPlannerTest right after it printed `FAIL [OSPlannerTest] 99 passed, 2 failed` (`a pointer reaches Cancel on a question: nothing under the pointer`). Both were re-run alone straight away: OSDriveTest `PASS ... 93 passed, 0 failed (level: full)` twice, OSPlannerTest `PASS ... 101 passed, 0 failed` twice. I read the planner failure as fallout of the timed-out drive test leaving the scene mid-state; I did not find the cause.
+
+### Decisions
+- Raised all four sizes in `OSUi` and nowhere else: every window already reads the floor in `OSUi.Text`, so one place moves the whole OS.
+- Secondary text 21.5 and not 21: 21 is 9.36 mm, under the 9.5 that the body-text ask names, and hints are read as often as the lines.
+- Tile caption 20 (8.92 mm), under its title (22) so the title leads, above the 8.5 floor; the menu did not go over 70 degrees, so there was no reason to hold it smaller.
+- Grew windows (agents wider, project and notebook taller) instead of paging: the notebook already drops rows by its own fit step, and the others had room.
+- Left the ForgePanel header's subtitle and mode badge lettering (8.45 mm cap, 0.05 under the 8.5 caption floor) alone: it is Core's shared look for every module's panels, not OS body text, and a change moves every panel's header. A fix is one font size in `ForgePanel` for its owner.
+- Did not touch the empty band in the Agents window (cosmetic, not clipped).
+
+### Changes outside OS/
+None. Only OS/ files changed, plus this log; the merge brought in main's own commits unchanged.
+
+### Not done or not verified
+- Nothing here has run on a headset: the 9.8 mm cap height is arithmetic from the font and the OS unit, checked on the desktop camera pictures, not at a real 0.5 m.
+- The merge's hands transmitter and the OS Drive pad were not tried together by a hand.

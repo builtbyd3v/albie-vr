@@ -32,7 +32,7 @@ namespace Forge.OS
 
         static readonly Vector2 SizeMeters = new Vector2(0.66f, 0.56f);
         const float AnswerWidth = 520f;                       // OS units: every answer button is this wide, so the column reads as one list
-        const float LeadSize = 26f, LineSize = 20f, NoteSize = 16f;
+        const float LeadSize = 28f, LineSize = OSUi.BodyText, NoteSize = OSUi.SmallText;
 
         /// <summary>For tests: true or false stands in for <see cref="VoiceLive"/>; null (the default) asks the voice.</summary>
         public static bool? VoiceLiveOverride;

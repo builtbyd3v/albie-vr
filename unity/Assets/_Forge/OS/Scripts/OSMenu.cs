@@ -20,8 +20,8 @@ namespace Forge.OS
     {
         // ---- layout, in OS units (one unit is OSKit.unitMeters)
         const float Pad = 28f, TabHeight = 72f, TabWidth = 156f, Gap = 20f;
-        // 220 wide tiles make the plate as wide as the strip of 20 unit body text buttons needs (Build something, Agents, Settings, Bring windows here, Close).
-        const float TileWidth = 220f, TileHeight = 108f, TileGap = 20f, HeadingHeight = 30f;
+        // 226 wide tiles make the plate as wide as the strip of 22 unit body text buttons needs, with at least 19 units (12 mm) between them (Build something, Agents, Settings, Bring windows here, Close).
+        const float TileWidth = 226f, TileHeight = 108f, TileGap = 20f, HeadingHeight = 30f;
         const int Columns = 4, Rows = 2;
         const float GridWidth = Columns * TileWidth + (Columns - 1) * TileGap;
         const float GridHeight = Rows * TileHeight + (Rows - 1) * TileGap + HeadingHeight;
@@ -572,7 +572,7 @@ namespace Forge.OS
             PlaceTopLeft(prevButton.transform, x - 76f - 56f, Pad + (TabHeight - 56f) * 0.5f);
 
             // Empty-state sentence, centred in the grid area.
-            emptyText = OSUi.Text(plate, "", 20f, true);
+            emptyText = OSUi.Text(plate, "", OSUi.SmallText, true);
             emptyText.GetComponent<LayoutElement>().ignoreLayout = true;
             emptyText.alignment = TextAlignmentOptions.Center;
             var emptyRect = (RectTransform)emptyText.transform;

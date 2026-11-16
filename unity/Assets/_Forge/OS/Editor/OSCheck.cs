@@ -507,6 +507,13 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             float buttonHeight = OSUi.ButtonHeight, minTarget = OSUi.MinTarget, body = OSUi.BodyText, small = OSUi.SmallText;  // locals, so the compiler does not fold the constants
             if (buttonHeight < minTarget) return "buttons are shorter than the minimum target";
             if (body < 16f || small < 14f) return "text sizes are under the contract's 16 and 14";
+            // The rubric: body text 9 to 10 mm cap height at 0.5 m (at least 9.5 here), tile captions at least 8.5 mm. Inter's cap line is
+            // 0.686 of its em (measured by OSLookShots' text audit); the menu's real cap heights are read from the drawn text there.
+            float cap = unit * 1000f * 0.686f, caption = OSUi.CaptionText;
+            note += ", cap heights: body " + (body * cap).ToString("F2") + " mm, small " + (small * cap).ToString("F2") + " mm, tile caption " + (caption * cap).ToString("F2") + " mm";
+            if (body * cap < 9.5f) return "body text is " + (body * cap).ToString("F2") + " mm cap height, under the rubric's 9.5";
+            if (small * cap < 9f) return "secondary text is " + (small * cap).ToString("F2") + " mm cap height, under the rubric's 9";
+            if (caption * cap < 8.5f) return "tile captions are " + (caption * cap).ToString("F2") + " mm cap height, under 8.5";
             return null;
         }
 

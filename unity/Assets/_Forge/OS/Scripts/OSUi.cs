@@ -20,9 +20,11 @@ namespace Forge.OS
         public const float MinTarget = 34f;
         /// <summary>Minimum space between neighbours (12 mm).</summary>
         public const float MinGap = 19f;
-        // Body text 20 units is 13 mm em and about 9 mm cap height (Inter: cap line 0.68 em) at the OS unit of 0.65 mm: the spec's
-        // 9 to 10 mm. Secondary text (hints, empty states) 19 units is about 8.5 mm cap; the one-line caption under a tile title 17 (7.6 mm). OSUi.Text lifts anything smaller to the first two.
-        public const float ButtonHeight = 48f, ButtonMinWidth = 133f, BodyText = 20f, SmallText = 19f, CaptionText = 17f, TitleText = 24f;
+        // Text sizes in units. Cap height is 0.446 mm per unit at the OS unit of 0.65 mm (Inter's cap line is 0.686 of its em, measured by
+        // OSLookShots' text audit), so at 0.5 m the rubric's 9 to 10 mm cap height is 20.2 to 22.4 units. Body text 22 units is 14.3 mm em and
+        // 9.8 mm cap height; secondary text (hints, empty states, notes) 21.5 is 9.6 mm; the one-line caption under a tile title 20 is 8.9 mm
+        // (a caption stays below its title so the title leads); section headings 26 are 11.6 mm. OSUi.Text lifts anything smaller to the first two.
+        public const float ButtonHeight = 48f, ButtonMinWidth = 133f, BodyText = 22f, SmallText = 21.5f, CaptionText = 20f, TitleText = 26f;
 
         /// <summary>The name a tab's title is given, so the UI Set's label animation (which finds it as "Label") no longer drives it.</summary>
         public const string TabTitleName = "Title";
@@ -49,7 +51,7 @@ namespace Forge.OS
 
         // ---------------------------------------------------------------- text
 
-        /// <summary>A line of text in the theme's font and colour. Size in units: body 16 or more, secondary 14 or more, titles 20 to 24.</summary>
+        /// <summary>A line of text in the theme's font and colour. Size in units; anything under <see cref="BodyText"/> (or <see cref="SmallText"/> when secondary) is lifted to it, so a window cannot ask for smaller text.</summary>
         public static TMP_Text Text(Transform parent, string text, float size, bool secondary = false)
         {
             var go = new GameObject("Text", typeof(RectTransform));
@@ -125,8 +127,8 @@ namespace Forge.OS
                     // The label's own box would otherwise stay at the prefab's 40 units wide.
                     // The Text box and its label sit in layout groups that don't size them, so give them the label's size.
                     float fit = Mathf.Ceil(labelWidth) + 2f;
-                    ((RectTransform)labelText.transform).sizeDelta = new Vector2(fit, 26f);
-                    ((RectTransform)labelText.transform.parent).sizeDelta = new Vector2(fit, 32f);
+                    ((RectTransform)labelText.transform).sizeDelta = new Vector2(fit, 30f);
+                    ((RectTransform)labelText.transform.parent).sizeDelta = new Vector2(fit, 34f);
                 }
             }
             if (hasLabel) width = Mathf.Max(hasLabel && sprite == null ? 96f : ButtonMinWidth * 0.7f, width);
@@ -165,7 +167,7 @@ namespace Forge.OS
                     title.alignment = TextAlignmentOptions.Center;
                     title.gameObject.name = TabTitleName;  // OSToggleSync colours it (solid, dark when lit); the animation would leave it 10% clear
                     title.gameObject.tag = "QDSUISharedThemeColor";  // and the theme manager leaves this colour alone (it would paint it white)
-                    ((RectTransform)title.transform).sizeDelta = new Vector2(width - 16f, 26f);
+                    ((RectTransform)title.transform).sizeDelta = new Vector2(width - 16f, 30f);
                 }
                 var sub = elements.Find("Label (1)");
                 if (sub != null) sub.gameObject.SetActive(false);
@@ -215,14 +217,14 @@ namespace Forge.OS
                     tile.title.fontSize = BodyText;
                     tile.title.textWrappingMode = TextWrappingModes.NoWrap;
                     tile.title.overflowMode = TextOverflowModes.Ellipsis;
-                    ((RectTransform)tile.title.transform).sizeDelta = new Vector2(textWidth, 28f);
+                    ((RectTransform)tile.title.transform).sizeDelta = new Vector2(textWidth, 30f);
                 }
                 if (tile.status != null)
                 {
-                    tile.status.fontSize = SmallText;
+                    tile.status.fontSize = CaptionText;
                     tile.status.textWrappingMode = TextWrappingModes.NoWrap;
                     tile.status.overflowMode = TextOverflowModes.Ellipsis;
-                    ((RectTransform)tile.status.transform).sizeDelta = new Vector2(textWidth, 22f);
+                    ((RectTransform)tile.status.transform).sizeDelta = new Vector2(textWidth, 26f);
                 }
                 var space = elements.Find("Space");
                 if (space != null) ((RectTransform)space).sizeDelta = new Vector2(10f, 8f);
@@ -268,7 +270,7 @@ namespace Forge.OS
         {
             OSKit kit = OSKit.Current;
             if (kit == null || kit.switchToggle == null || parent == null) return null;
-            RectTransform row = Row(parent, 44f, 16f);
+            RectTransform row = Row(parent, 48f, 16f);
             row.name = "Toggle " + label;
             var rowImage = row.gameObject.AddComponent<Image>();  // invisible plate: makes the label tappable too
             rowImage.color = Color.clear;
@@ -311,7 +313,7 @@ namespace Forge.OS
             column.anchorMin = column.anchorMax = new Vector2(0f, 1f);
             column.pivot = new Vector2(0f, 1f);
             column.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            RectTransform line = Row(column, 28f, 12f);
+            RectTransform line = Row(column, 32f, 12f);
             Text(line, label, BodyText);
             TMP_Text readout = Text(line, "", BodyText, true);
             readout.alignment = TextAlignmentOptions.Right;

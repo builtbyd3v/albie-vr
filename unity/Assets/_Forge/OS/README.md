@@ -25,6 +25,7 @@ The Albie OS is the layer that gives Albie a menu, windows and a set of tools. T
 - **Artifacts tab:** a "New" section with one tile per template in `ArtifactLibrary.Templates` (slalom, hoop course, What shipped?, cell, heart, brain, plant cell, eye, DNA, double pendulum, solar system). Three-body is listed only when it opens here; it opens, it is not created.
 - An empty tab shows a sentence that says what to do (`OSRegistry.EmptyText`).
 - Tapping a tile runs its `open` action. A tile whose thing is open shows as open.
+- **Text sizes** are constants in `OSUi` (one place): body 22 units (9.8 mm cap height at the OS unit of 0.65 mm), secondary text 21.5 (9.6 mm), a tile's caption 20 (8.9 mm), section headings 26. `OSUi.Text` lifts anything smaller, so a window cannot ask for less. The menu is 0.663 m wide, 67 degrees of view at its default 0.5 m. `Capture Look Set` also writes `look/text_audit.txt`: every visible text with its size, its cap height and a flag when it does not fit its box.
 
 ## Ways to open the menu
 

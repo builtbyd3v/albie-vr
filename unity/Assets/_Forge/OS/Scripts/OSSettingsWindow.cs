@@ -25,7 +25,7 @@ namespace Forge.OS
         public const float DistanceMin = 0.35f, DistanceMax = 0.7f, DropMin = 0f, DropMax = 30f;
 
         static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.62f);
-        const float NoteSize = 18f;
+        const float NoteSize = OSUi.SmallText;
 
         ForgePanel panel;
         int page;

@@ -21,10 +21,10 @@ namespace Forge.OS
     {
         public const string WindowId = "project";
 
-        static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.66f);
+        static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.72f);
         const float PollSeconds = 0.5f;
         const int MaxMilestones = 4, MaxVersions = 3, MaxArtifacts = 3;
-        const float LineSize = 20f, NoteSize = 18f, LeadSize = 22f;  // OS units: plan and result lines, hints, the lines people read first
+        const float LineSize = OSUi.BodyText, NoteSize = OSUi.SmallText, LeadSize = 24f;  // OS units: plan and result lines, hints, the lines people read first
 
         ForgePanel panel;
         string projectId;

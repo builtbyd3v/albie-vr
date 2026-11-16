@@ -27,7 +27,7 @@ namespace Forge.OS
         const float PadSize = 260f, KnobSize = 84f;            // OS units: 169 mm and 55 mm
         const float StopWidth = 300f, StopHeight = 76f;         // OS units: 195 x 49 mm
         const float PollSeconds = 0.2f;
-        const float LineSize = 20f, HintSize = 16f;
+        const float LineSize = OSUi.BodyText, HintSize = OSUi.SmallText;
 
         // What the tile's status line last said (rebuilt only when the truck's state changes).
         static int tileKey = -1;

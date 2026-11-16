@@ -144,6 +144,7 @@ namespace Forge.OS.Editor
         {
             ClearLookFolder();
             index.Clear();
+            textAudit.Clear();
             problems.Clear();
             unreachable.Clear();
             findings.Clear();
@@ -250,12 +251,50 @@ namespace Forge.OS.Editor
             Debug.Log("[OSLookShots] unreachable " + screen + ": " + why);
         }
 
+        // Every visible text of the menu and the OS windows at the moment of a picture: its size in OS units, its cap height in
+        // millimetres (the font's own cap line), and a flag when the text does not fit its own box ("wide": a line that does not wrap
+        // is longer than the box; "tall": wrapped text is taller than the box). The measurements the text-size rubric needs.
+        static readonly StringBuilder textAudit = new StringBuilder();
+        static readonly List<TMPro.TMP_Text> auditScratch = new List<TMPro.TMP_Text>();
+
+        static void AuditText(string screen)
+        {
+            if (shell == null) return;
+            float unit = OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f;
+            if (menu != null && menu.Visible) AuditRoot(screen, "menu", menu.gameObject, unit);
+            foreach (OSWindow w in shell.Windows.All)
+                if (w != null && w.Panel != null && w.gameObject.activeInHierarchy) AuditRoot(screen, w.Id, w.gameObject, unit);
+        }
+
+        static void AuditRoot(string screen, string where, GameObject root, float unit)
+        {
+            root.GetComponentsInChildren(false, auditScratch);
+            foreach (TMPro.TMP_Text t in auditScratch)
+            {
+                if (t == null || string.IsNullOrWhiteSpace(t.text) || !t.gameObject.activeInHierarchy) continue;
+                CanvasGroup g = t.GetComponentInParent<CanvasGroup>();
+                if (g != null && g.alpha < 0.05f) continue;
+                float emMm = t.fontSize * t.transform.lossyScale.x * 1000f;
+                var face = t.font != null ? t.font.faceInfo : default;
+                float capRatio = face.pointSize > 0f ? face.capLine / face.pointSize : 0.72f;
+                float capMm = emMm * (capRatio > 0.2f ? capRatio : 0.72f);
+                Rect box = t.rectTransform.rect;
+                string flag = "";
+                if (t.textWrappingMode == TMPro.TextWrappingModes.NoWrap) { if (t.preferredWidth > box.width + 1f) flag = " WIDE(" + t.preferredWidth.ToString("F0") + ">" + box.width.ToString("F0") + ")"; }
+                else if (t.preferredHeight > box.height + 1f) flag = " TALL(" + t.preferredHeight.ToString("F0") + ">" + box.height.ToString("F0") + ")";
+                string text = t.text.Length > 40 ? t.text.Substring(0, 40) : t.text;
+                textAudit.AppendLine(string.Format("{0} | {1} | {2:F1} units | cap {3:F2} mm | {4}{5} | {6}", screen, where, emMm / (unit * 1000f), capMm, t.gameObject.name, flag, text.Replace((char)10, ' ')));
+            }
+            auditScratch.Clear();
+        }
+
         static void WriteIndex()
         {
             try
             {
                 Directory.CreateDirectory(Dir);
                 File.WriteAllText(Path.Combine(Dir, "index.json"), new JArray(index).ToString(Newtonsoft.Json.Formatting.Indented));
+                File.WriteAllText(Path.Combine(Dir, "text_audit.txt"), textAudit.ToString());
             }
             catch (IOException e) { Debug.Log("[OSLookShots] couldn't write index.json: " + e.Message); }
         }
@@ -325,6 +364,7 @@ namespace Forge.OS.Editor
                 ["zoomed"] = fov < defaultFov - 1f,
             };
             index.Add(entry);
+            AuditText(screen);
             WriteIndex();
             Debug.Log("[OSLookShots] shot " + path + " (" + distance.ToString("F2") + " m, fov " + fov.ToString("F0") + ")");
             return true;

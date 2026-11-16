@@ -24,8 +24,8 @@ namespace Forge.OS
         static readonly int[] AttemptCaps = { 4, 3, 2, 1 };
         static readonly int[] VersionCaps = { 3, 2, 2, 1 };
         static readonly int[] LessonCaps = { 3, 2, 1, 1 };
-        const float BodySize = 16f, SmallSize = 14f;
-        static readonly Vector2 WindowSize = new Vector2(0.72f, 0.78f);  // metres
+        const float BodySize = OSUi.BodyText, SmallSize = OSUi.SmallText;
+        static readonly Vector2 WindowSize = new Vector2(0.72f, 0.86f);  // metres
 
         // The last project name made, so the tile and the header don't build a string every time they ask.
         static string nameFor, nameText;
