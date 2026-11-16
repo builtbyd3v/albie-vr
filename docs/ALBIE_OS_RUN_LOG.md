@@ -1232,7 +1232,7 @@ Checks (run after the merge and the OS edits; each line is the check's own outpu
 - GesturePlayTest: [GesturePlayTest] 32 passed, 0 failed
 - ArtifactChecks: [ArtifactChecks] 110 passed, 0 failed (main added the Placement checks)
 - Artifacts menu checks: PASS run check; PASS biology templates check; PASS glTF and timeline check; PASS hoop check; PASS repo activity check; PASS repo connector check; PASS physics templates check; PASS slalom check; PASS voice rules check
-- Brain Loop (Play): PASS slalom brain check (Play mode, the brain truck on its colliders), 24 ok lines, no FAIL, including "another artifact hides and parks the truck, and the slalom brings it back to the start"
+- Brain Loop (Play): PASS slalom brain check (Play mode, the brain truck on its colliders), 20 ok lines (27 lines in all), no FAIL, including "another artifact hides and parks the truck, and the slalom brings it back to the start"
 - Note on counts: OSWindowsTest prints 53 passed when the pet's first-arrival greeting is not holding the desk and 61 when it is (8 greeting-only steps); both are 0 failed, as in earlier rounds.
 
 Changes outside OS/: none (the merge brought main's changes in; no file outside OS/ was edited by hand).
