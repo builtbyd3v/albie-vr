@@ -44,6 +44,7 @@ public static class ArtifactChecks
         Approvals();
         Looks();
         Physics();
+        Placement();
         foreach (var f in failures) Debug.LogError("[ArtifactChecks] FAIL " + f);
         Debug.Log($"[ArtifactChecks] {passed} passed, {failures.Count} failed");
     }
@@ -53,6 +54,99 @@ public static class ArtifactChecks
     {
         Run();
         EditorApplication.Exit(failures.Count == 0 ? 0 : 1);
+    }
+
+    // In the app, the host comes to the user, and it steps aside for a panel that's already there (the Hands panel).
+    static void Placement()
+    {
+        var prefab = Resources.Load<ArtifactHost>(ArtifactBootstrap.Resource);
+        Check(prefab != null, "Resources/ArtifactHost exists, so the app's Main gets a host");
+        if (prefab == null) return;
+        // Camera.main is the first enabled MainCamera, so an open scene's own camera (Main's rig) would win: rest it for the check.
+        var resting = new List<Camera>();
+        foreach (var cam in Camera.allCameras)
+            if (cam.enabled && cam.CompareTag("MainCamera"))
+            {
+                cam.enabled = false;
+                resting.Add(cam);
+            }
+        var camGo = new GameObject("check camera") { tag = "MainCamera" };
+        camGo.AddComponent<Camera>();
+        camGo.transform.position = new Vector3(0f, 1.6f, 0f);
+        var host = UnityEngine.Object.Instantiate(prefab);
+        ForgePanel other = null;
+        try
+        {
+            host.ComeToUser();
+            var straight = host.transform.position;
+            Check(Vector3.Distance(straight, new Vector3(-0.2f, 1.1f, 0.8f)) < 0.01f && Vector3.Angle(host.transform.forward, Vector3.forward) < 0.1f,
+                $"with nothing in the way the host comes 0.8 m ahead at desk height, got {straight:F2}");
+            Check(host.PlacementNote == null, $"straight ahead in the air there's nothing to say about where it is, got '{host.PlacementNote}'");
+
+            // A panel already where the host's own panel would open.
+            other = UnityEngine.Object.Instantiate(host.panelPrefab);
+            other.transform.position = straight + host.transform.rotation * host.panelOffset;
+            host.ComeToUser();
+            var ownPanel = host.transform.TransformPoint(host.panelOffset);
+            float gap = Vector2.Distance(new Vector2(ownPanel.x, ownPanel.z), new Vector2(other.transform.position.x, other.transform.position.z));
+            float reach = Vector2.Distance(new Vector2(host.transform.position.x, host.transform.position.z), Vector2.zero);
+            Check(gap >= ArtifactHost.PanelClearance && Mathf.Abs(reach - Vector2.Distance(new Vector2(straight.x, straight.z), Vector2.zero)) < 0.01f,
+                $"with a panel in the way the host turns aside, as far from the user as before: gap {gap:F2} m, reach {reach:F2} m");
+            string aside = host.transform.position.x > 0f ? "It's to your right." : "It's to your left.";
+            Check(host.PlacementNote == aside, $"turned aside, Albie is told which side: expected '{aside}', got '{host.PlacementNote}'");
+
+            // The host's own panels never count as in the way.
+            other.transform.SetParent(host.transform, true);
+            host.ComeToUser();
+            Check(Vector3.Distance(host.transform.position, straight) < 0.01f, "the host's own panels never push it aside");
+
+            // A desk in front (1.4 m long across the view, 0.74 m high): the host sits on its top, inside its edge.
+            host.Room = new MockFloorPlan("check desk", new Vector2(6f, 6f)).Add("TABLE", new Vector2(0f, 0.9f), new Vector3(1.4f, 0.74f, 0.7f));
+            host.ComeToUser();
+            var onDesk = host.transform.position;
+            Check(Mathf.Abs(onDesk.y - 0.74f) < 0.001f && Mathf.Abs(onDesk.x) <= 0.7f - ArtifactHost.TableMargin + 0.001f
+                  && onDesk.z >= 0.9f - 0.35f + ArtifactHost.TableMargin - 0.001f && onDesk.z <= 0.9f + 0.35f - ArtifactHost.TableMargin + 0.001f,
+                $"a desk in front puts the host on its top, inside its edge: got {onDesk:F2}");
+            Check(host.PlacementNote == "It's on the table in front of you.", $"on the desk, Albie is told so: got '{host.PlacementNote}'");
+
+            // A narrow table to the right, its edge just past the host's spot: the host is pulled onto it, not left in the air beside it.
+            host.Room = new MockFloorPlan("check side table", new Vector2(6f, 6f)).Add("TABLE", new Vector2(0.5f, 0.9f), new Vector3(1.6f, 0.74f, 0.5f));
+            host.ComeToUser();
+            var pulled = host.transform.position;
+            Check(Mathf.Abs(pulled.y - 0.74f) < 0.001f && Mathf.Abs(pulled.x - (-0.18f)) < 0.001f && Mathf.Abs(pulled.z - 0.8f) < 0.001f,
+                $"a table edge within reach pulls the host onto the table: got {pulled:F2}");
+
+            // A coffee table (0.45 m) in front of a standing person is too low to work at: the host floats as before.
+            host.Room = new MockFloorPlan("check coffee table", new Vector2(6f, 6f)).Add("TABLE", new Vector2(0f, 0.9f), new Vector3(1.0f, 0.45f, 0.5f));
+            host.ComeToUser();
+            Check(Vector3.Distance(host.transform.position, straight) < 0.01f, $"a coffee table is too low when standing, the host floats: got {host.transform.position:F2}");
+
+            // A wall 0.5 m ahead: the host keeps its margin, its panel at least stays out of the wall, and the host is never further away than before.
+            host.Room = new MockFloorPlan("check wall", new Vector2(6f, 6f), true, new Vector3(0f, 0f, -2.5f));
+            host.ComeToUser();
+            var byWall = host.transform.position;
+            var panelByWall = host.transform.TransformPoint(host.panelOffset);
+            float wallReach = Vector2.Distance(new Vector2(byWall.x, byWall.z), Vector2.zero);
+            Check(byWall.z <= 0.5f - ArtifactHost.WallMargin + 0.001f && panelByWall.z <= 0.5f + 0.001f
+                  && wallReach <= 0.8f + 0.21f && Mathf.Abs(byWall.y - 1.1f) < 0.001f,
+                $"with a wall 0.5 m ahead the host keeps {ArtifactHost.WallMargin} m off it and the panel is out of it: host {byWall:F2}, panel {panelByWall:F2}, reach {wallReach:F2} m");
+
+            // A wall close on the right: the panel swaps to the left and the host moves right of centre, still straight ahead.
+            host.Room = new MockFloorPlan("check wall right", new Vector2(6f, 6f), true, new Vector3(-2.45f, 0f, 0f));
+            host.ComeToUser();
+            var swapped = host.transform.position;
+            Check(host.panelOffset.x < 0f && Vector3.Distance(swapped, new Vector3(0.2f, 1.1f, 0.8f)) < 0.01f && Vector3.Angle(host.transform.forward, Vector3.forward) < 0.1f,
+                $"with a wall close on the right the panel opens on the left and the host stays ahead: host {swapped:F2}, panel x {host.panelOffset.x:F2}");
+            host.Room = null;
+            host.ComeToUser();
+            Check(host.panelOffset.x > 0f && Vector3.Distance(host.transform.position, straight) < 0.01f, "with the wall gone the panel is back on the right");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(host.gameObject);
+            UnityEngine.Object.DestroyImmediate(camGo);
+            foreach (var cam in resting) if (cam != null) cam.enabled = true;
+        }
     }
 
     static void Fixtures()

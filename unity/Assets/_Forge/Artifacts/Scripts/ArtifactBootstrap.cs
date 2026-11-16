@@ -50,24 +50,18 @@ namespace Forge.Artifacts
         /// In the app, a slalom for the truck gets ML A's brain truck (<see cref="SlalomBrain"/>) at its start, so "drive
         /// it twice and I'll learn it" (the <c>brain_*</c> and <c>autopilot_*</c> tools, ML B's brain panel) drives a
         /// real truck on the course, not just the panel's preview. It drives by the Touch thumbstick or the hands
-        /// transmitter, and its sensors see the cones and the room's colliders (Main's EffectMesh). Any other scene
-        /// lets go of the truck so it doesn't score as that scene's Thing. Called each time the host builds a scene.
-        /// Stands in for Person 2's Thing runtime until that's on main.
+        /// transmitter, and its sensors see the cones and the room's colliders (Main's EffectMesh). Called each time the
+        /// host builds a scene. Once spawned, the truck follows the host itself (<see cref="SlalomBrain.Spawn"/>): it hides
+        /// when the scene comes down and is back at the start when a truck course is built. Stands in for Person 2's
+        /// Thing runtime until that's on main.
         /// </summary>
         public static SlalomBrain EnsureBrain(ArtifactHost host)
         {
             if (host == null || !host.FollowsUser) return null;
-            var brain = Object.FindFirstObjectByType<SlalomBrain>();
             bool truckCourse = host.Run != null && (string)host.OpenManifest?["links"]?["thing"] == "truck";
-            if (!truckCourse)
-            {
-                if (brain != null && ReferenceEquals(host.Thing, brain.Scored)) host.Thing = null;
-                return null;
-            }
-            if (brain == null) return SlalomBrain.Spawn(host, keyHints: false);
-            host.Thing = brain.Scored;
-            if (brain.State == SlalomBrain.Mode.Idle) brain.PlaceAtStart();
-            return brain;
+            if (!truckCourse) return null;
+            var brain = Object.FindFirstObjectByType<SlalomBrain>();
+            return brain != null ? brain : SlalomBrain.Spawn(host, keyHints: false);
         }
     }
 }
