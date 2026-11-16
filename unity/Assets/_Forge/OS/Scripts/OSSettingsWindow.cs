@@ -39,7 +39,7 @@ namespace Forge.OS
         public string ResetNote => resetNote;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register() => OSShell.RegisterSystem(WindowId, () => Open());
+        public static void Register() => OSShell.RegisterSystem(WindowId, () => Open());
 
         /// <summary>Opens Settings, or brings it forward. Null when the scene has no shell.</summary>
         public static OSWindow Open()

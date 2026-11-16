@@ -2,6 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using Forge.Artifacts;
+using Forge.Controllers;
+using Forge.Notebook;
+using Forge.Pet;
+using Newtonsoft.Json.Linq;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -27,10 +33,11 @@ namespace Forge.OS.Editor
     [InitializeOnLoad]
     public static class OSPlayTest
     {
-        const string ActiveKey = "OSPlayTest.Active", BatchKey = "OSPlayTest.Batch", ResultKey = "OSPlayTest.Result";
+        const string ActiveKey = "OSPlayTest.Active", BatchKey = "OSPlayTest.Batch", ResultKey = "OSPlayTest.Result", QuickKey = "OSPlayTest.Quick";
         const string ForceDesktopWas = "OSPlayTest.ForceDesktopWas", VoiceOffWas = "OSPlayTest.VoiceOffWas";
         const string ScenePath = "Assets/_Forge/Core/Main.unity";
-        const double GiveUpSeconds = 300;
+        const double GiveUpSeconds = 720;
+        const string AgentTask = "Read the sample project and say what it does";
 
         // What "Bring windows here" has to achieve: every window this close to the eyes and in the front arc the window manager
         // fans them into (OSWindows.MaxYaw is 110 degrees to each side, used only when the rows in front are full), never behind.
@@ -44,6 +51,9 @@ namespace Forge.OS.Editor
         static readonly List<string> failures = new List<string>();
         static string currentStep, stepShot, firstFailStep, firstFailWhat, firstFailShot;
         static string tempRoot;
+        // How step 6 ended: null for a plain run, else what it fell back to ("pad laps, pretrained brain"); the result says so.
+        static string fallbackNote;
+        static readonly List<string> skippedNotes = new List<string>();
 
         // What the steps share, refreshed by Ready().
         static OSShell shell;
@@ -79,8 +89,37 @@ namespace Forge.OS.Editor
             Run();
         }
 
+        /// <summary>True when the long part of step 6 (two laps driven through the pad, Train, the Autopilot) is part of the run.</summary>
+        public static bool Full => !SessionState.GetBool(QuickKey, false);
+
+        /// <summary>
+        /// The same walk without the long part of step 6: Course, the brain truck and a short drive on the pad still run, but the two
+        /// recorded laps, Train and the Autopilot are skipped (and the result says so, so it is never mistaken for a full PASS).
+        /// </summary>
+        public static void RunQuick()
+        {
+            if (Running)
+            {
+                Debug.LogError("[OSPlayTest] A run is already in progress.");
+                return;
+            }
+            SessionState.SetBool(QuickKey, true);
+            RunNow();
+        }
+
         [MenuItem("Forge/OS/Run Play Test")]
         public static void Run()
+        {
+            if (Running)
+            {
+                Debug.LogError("[OSPlayTest] A run is already in progress.");
+                return;
+            }
+            SessionState.SetBool(QuickKey, false);
+            RunNow();
+        }
+
+        static void RunNow()
         {
             if (Running)
             {
@@ -136,6 +175,8 @@ namespace Forge.OS.Editor
             try { File.WriteAllText(ManifestPath, ""); } catch (IOException) { }
             passed = failed = skipped = shotCount = 0;
             failures.Clear();
+            skippedNotes.Clear();
+            fallbackNote = null;
             homePositions.Clear();
             hadArtifactHome = false;
             currentStep = stepShot = firstFailStep = firstFailWhat = firstFailShot = null;
@@ -201,9 +242,13 @@ namespace Forge.OS.Editor
             var result = new StringBuilder();
             if (failed == 0)
             {
-                Debug.Log(summary);
-                result.Append("PASS os play test: ").Append(passed).Append(" passed, 0 failed");
+                // A run that fell back, or skipped the long part, never reads as a plain PASS.
+                bool quick = !Full;
+                result.Append(fallbackNote != null || quick ? "PASS with fallback os play test: " : "PASS os play test: ").Append(passed).Append(" passed, 0 failed");
                 if (skipped > 0) result.Append(" (").Append(skipped).Append(" skipped)");
+                if (fallbackNote != null) result.Append(". Step 6 used the fallback: ").Append(fallbackNote);
+                if (quick) result.Append(". Quick run: ").Append(string.Join("; ", skippedNotes));
+                Debug.Log(summary + (fallbackNote != null ? " [fallback: " + fallbackNote + "]" : "") + (quick ? " [quick run]" : ""));
             }
             else
             {
@@ -217,6 +262,8 @@ namespace Forge.OS.Editor
             LastResult = result.ToString();
             try { File.WriteAllText(Path.Combine(OSShot.Dir, "play_test_result.txt"), LastResult); } catch (IOException) { }
 
+            try { CleanupLeftovers(); }
+            catch (Exception e) { Debug.LogException(e); }
             SimulatedHandSource.LeftTestActive = false;
             OSSettings.SetPathForTests(null);
             Forge.Artifacts.ArtifactLibrary.RootOverride = null;
@@ -259,6 +306,7 @@ namespace Forge.OS.Editor
         static void Skip(string what, string why)
         {
             skipped++;
+            skippedNotes.Add(what + " skipped (" + why + ")");
             Debug.Log($"[OSPlayTest] skip {what}: {why}");
         }
 
@@ -320,8 +368,9 @@ namespace Forge.OS.Editor
         // ---------------------------------------------------------------- the steps
 
         /// <summary>
-        /// The script, in spec 6.1 numbering. Add a step by writing a method that returns <c>IEnumerator&lt;float&gt;</c> and
-        /// adding it here in order: 4 watch turn, 5 build something, 6 the truck, 7 agents, 8 settings. A step that fails marks
+        /// The script, in spec 6.1 numbering (1 arrive, 2 tabs and three open things, 3 away: corner button and Bring windows
+        /// here, 4 watch turn, 5 build something, 6 the truck, 7 agents, 8 settings, 9 close all). Add a step by writing a method
+        /// that returns <c>IEnumerator&lt;float&gt;</c> and adding it here in order. A step that fails marks
         /// the run failed; the next step still runs (each recovers from a failed press by calling the API, so it can go on).
         /// </summary>
         static List<Step> Steps() => new List<Step>
@@ -334,10 +383,10 @@ namespace Forge.OS.Editor
             new Step("3c menu with M, bring windows here", StepBringHere),
             new Step("3d menu over an open mode, away from a desk", StepMenuOverMode),
             new Step("4 watch turn", StepWatch),
-            // 6 truck project   (Course, Drive pad laps, Train, Autopilot)
-            // 7 agents          (spawn, bring home, send out)
-            // 8 settings        (corner button off, it is gone)
             new Step("5 build something", StepBuild),
+            new Step("6 truck project: course, drive pad laps, train, autopilot", StepTruck),
+            new Step("7 agents: spawn, bring home, send out", StepAgents),
+            new Step("8 settings: corner button off", StepSettings),
             new Step("9 close all", StepCloseAll),
         };
 
@@ -1030,6 +1079,533 @@ namespace Forge.OS.Editor
             Forge.Notebook.NotebookStore.Open(Forge.Notebook.NotebookStore.DefaultProject);  // the app's own notebook again
             Forge.OS.OSProjects.Refresh();
             try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (IOException) { }
+        }
+
+        // ---------------------------------------------------------------- 6. the truck project
+
+        // The Drive pad, driven by real pointer events (a press, drags to screen positions on the pad, a release) sent through the
+        // pad's own handlers, as OSDriveTest does; the manual channels are never written by the test.
+        static OSDrivePad pad;
+        static PointerEventData padPointer;
+        static GameObject padPressed, padDragged;
+        static bool padDown;
+        static string padWhy;
+        static readonly List<Collider> roomColliders = new List<Collider>();
+
+        static float Chan(string name) => ManualInputs.Values[ManualInputs.IndexOf(name)];
+
+        static bool PadPress(Vector2 n)
+        {
+            padWhy = null;
+            if (pad == null) { padWhy = "no pad"; return false; }
+            Camera cam = PetUser.HeadCamera;
+            var rect = (RectTransform)pad.transform;
+            Vector3 world = rect.TransformPoint(rect.rect.center + n * pad.Travel);
+            if (cam == null) { padWhy = "no head camera"; return false; }
+            Vector3 s = cam.WorldToScreenPoint(world);
+            if (s.z <= 0f) { padWhy = "the pad is behind the camera"; return false; }
+            var screen = new Vector2(s.x, s.y);
+            var hits = new List<RaycastResult>();
+            EventSystem.current.RaycastAll(new PointerEventData(EventSystem.current) { position = screen }, hits);
+            if (hits.Count == 0) { padWhy = "nothing under the pointer at " + screen; return false; }
+            RaycastResult hit = hits[0];
+            if (hit.gameObject != pad.gameObject) { padWhy = "'" + hit.gameObject.name + "' is on top of the pad"; return false; }
+            padPointer = new PointerEventData(EventSystem.current) { position = screen, pressPosition = screen, button = PointerEventData.InputButton.Left };
+            padPointer.pointerCurrentRaycast = hit;
+            padPointer.pointerPressRaycast = hit;
+            ExecuteEvents.ExecuteHierarchy(hit.gameObject, padPointer, ExecuteEvents.pointerEnterHandler);
+            padPressed = ExecuteEvents.ExecuteHierarchy(hit.gameObject, padPointer, ExecuteEvents.pointerDownHandler);
+            padPointer.pointerPress = padPressed;
+            padPointer.rawPointerPress = hit.gameObject;
+            padPointer.eligibleForClick = true;
+            padDragged = ExecuteEvents.GetEventHandler<IDragHandler>(hit.gameObject);
+            padPointer.pointerDrag = padDragged;
+            if (padDragged != null)
+            {
+                ExecuteEvents.Execute(padDragged, padPointer, ExecuteEvents.initializePotentialDrag);
+                ExecuteEvents.Execute(padDragged, padPointer, ExecuteEvents.beginDragHandler);
+                padPointer.dragging = true;
+            }
+            padDown = true;
+            return true;
+        }
+
+        static void PadMove(Vector2 n)
+        {
+            Camera cam = PetUser.HeadCamera;
+            if (!padDown || cam == null) return;
+            var rect = (RectTransform)pad.transform;
+            Vector3 s = cam.WorldToScreenPoint(rect.TransformPoint(rect.rect.center + n * pad.Travel));
+            if (s.z <= 0f) return;
+            var screen = new Vector2(s.x, s.y);
+            padPointer.delta = screen - padPointer.position;
+            padPointer.position = screen;
+            if (padDragged != null) ExecuteEvents.Execute(padDragged, padPointer, ExecuteEvents.dragHandler);
+        }
+
+        static void PadUp()
+        {
+            if (!padDown) return;
+            padDown = false;
+            if (padPressed != null) ExecuteEvents.Execute(padPressed, padPointer, ExecuteEvents.pointerUpHandler);
+            if (padPointer.dragging && padDragged != null) ExecuteEvents.Execute(padDragged, padPointer, ExecuteEvents.endDragHandler);
+            padPointer.dragging = false;
+            padPressed = padDragged = null;
+        }
+
+        // The desktop rig's simulated room has wall and furniture colliders where the mock living room's strip of floor is, so a
+        // truck put down on the slalom's start would crash at once: they are switched off while the pad drives (the cones stay).
+        static void SwitchOffRoomColliders()
+        {
+            roomColliders.Clear();
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (!c.enabled || !c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
+                c.enabled = false;
+                roomColliders.Add(c);
+            }
+        }
+
+        static void RestoreRoomColliders()
+        {
+            foreach (Collider c in roomColliders) if (c != null) c.enabled = true;
+            roomColliders.Clear();
+        }
+
+        // For a failure message: what the truck's body sphere touches now, and how many room colliders are on again.
+        static string TouchDiag(SlalomBrain brain)
+        {
+            var found = Physics.OverlapSphere(brain.transform.position + brain.transform.up * brain.Body.sensorHeight, MockTruckSim.TruckRadius, ~0, QueryTriggerInteraction.Ignore);
+            string names = "";
+            foreach (Collider c in found) names += c.name + " (" + (c.transform.parent != null ? c.transform.parent.name : "root") + "), ";
+            int roomOn = 0;
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (c.enabled && c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) roomOn++;
+            return "touching " + (found.Length == 0 ? "nothing" : names) + "; room colliders on again: " + roomOn + "; truck at " + brain.transform.position.ToString("F2");
+        }
+
+        static string LapLine(SlalomBrain brain) => brain.State + " laps " + brain.CompletedLaps + " target " + brain.LapTarget;
+
+        static OSDriveWindow DriveView() => shell.Windows.Find(OSDriveWindow.WindowId)?.GetComponent<OSDriveWindow>();
+        static OSWindow ProjectWin() => shell.Windows.Find(OSProjectWindow.WindowId);
+        static OSProjectWindow ProjectView() => ProjectWin()?.GetComponent<OSProjectWindow>();
+
+        // Presses the project window's own action button (Course, Drive, Train, Autopilot), looking at the window first.
+        static bool PressAction(string label)
+        {
+            OSWindow win = ProjectWin();
+            if (win == null) { Check(false, "press '" + label + "': the project window is not open"); return false; }
+            rig.LookAt(CenterOf(win));
+            return PressButton(label, win);
+        }
+
+        // 6. The RC truck project from the menu, then its own buttons: Course (asks, then gives the slalom and the brain truck),
+        // Drive (opens the pad and starts a two-lap recording), two laps driven through the pad, Train, Autopilot completes the
+        // slalom. On a scratch notebook, the scratch artifact library and the mock living room's floor. The same flow as OSDriveTest,
+        // and it reports the same level: "full", or "pad laps, pretrained brain" (said in the output line and in the result).
+        static IEnumerator<float> StepTruck()
+        {
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            string why;
+            string root = Path.Combine(tempRoot ?? Application.temporaryCachePath, "notebook_truck");
+            Directory.CreateDirectory(root);
+            NotebookStore.Open(NotebookStore.DefaultProject, root);
+            OSProjects.Register();
+            OSProjects.Refresh();
+            ManualInputs.Clear();
+            pad = null;
+            padDown = false;
+            shell.Windows.CloseAll();
+            OSModes.Close();
+            if (AlbieTools.Call("artifact_close", new JObject()) == null) Debug.Log("[OSPlayTest] artifact_close answered nothing");
+            yield return 0.8f;
+
+            ArtifactHost host = ArtifactHost.Current ?? ArtifactBootstrap.Ensure();
+            Check(host != null, "the artifact host is in the scene");
+            if (host == null) yield break;
+            host.Room = MockFloorPlan.LivingRoom();  // the simulated living room of the desktop rig has no clear strip of floor
+
+            // The project, from the Projects tab.
+            foreach (float w in PressTile(OSTab.Projects, e => e.id == NotebookStore.DefaultProject, "the RC truck project")) yield return w;
+            if (pressedEntry == null) RecoverOpen("project", NotebookStore.DefaultProject);
+            foreach (float w in Until(() => shell.Windows.IsOpen(OSProjectWindow.WindowId), 5f)) yield return w;
+            OSProjectWindow project = ProjectView();
+            Check(project != null && project.ProjectId == NotebookStore.DefaultProject, "the RC truck project window is open");
+            if (project == null) yield break;
+            yield return 0.8f;
+
+            // ---- Course: asks first, then the slalom and the brain truck.
+            Check(BrainLoops.Active == null, "no brain truck before Course");
+            PressAction("Course");
+            yield return 0.8f;
+            Check(project.StatusLine.StartsWith("The slalom asks first.", StringComparison.Ordinal), "Course asks for permission first (" + project.StatusLine + ")");
+            if (host.OpenManifest != null) ArtifactApprovals.Approve(host.OpenManifest);  // Allow, on the scratch approvals
+            AlbieTools.Call("artifact_close", new JObject());
+            yield return 0.5f;
+            PressAction("Course");
+            foreach (float w in Until(() => BrainLoops.Active != null, 8f)) yield return w;
+            yield return 0.8f;
+            var brain = BrainLoops.Active as SlalomBrain;
+            Check(brain != null, "Course gave the brain truck");
+            if (brain == null) { Shot("truck_no_brain"); yield break; }
+            Check(host.OpenId == "slalom", "Course opened the slalom (" + host.OpenId + ")");
+            string thing = host.OpenManifest != null ? (string)host.OpenManifest["links"]?["thing"] : null;
+            Check(thing == "truck", "the slalom is linked to the truck (" + thing + ")");
+            Check(project.StatusLine.StartsWith("The slalom is open. The brain truck is at the start.", StringComparison.Ordinal), "the project window says so (" + project.StatusLine + ")");
+            SwitchOffRoomColliders();
+            brain.PlaceAtStart();
+            var pursuit = new OSDriveTest.Pursuit(host, brain);
+            Check(pursuit.Gates >= 3, "the slalom has its gates (" + pursuit.Gates + ")");
+            rig.LookAt(brain.transform.position + Vector3.up * 0.05f);
+            yield return 0.6f;
+            Shot("truck_course");
+
+            // ---- Drive: the pad opens, a two-lap recording starts.
+            PressAction("Drive");
+            foreach (float w in Until(() => shell.Windows.IsOpen(OSDriveWindow.WindowId), 3f)) yield return w;
+            OSDriveWindow drive = DriveView();
+            Check(drive != null && drive.Pad != null, "Drive opened the pad window");
+            if (drive == null || drive.Pad == null) yield break;
+            pad = drive.Pad;
+            yield return 0.8f;
+            Check(brain.State == SlalomBrain.Mode.Lap && brain.LapTarget == 2, "Drive started a two-lap recording (" + LapLine(brain) + ")");
+            Check(drive.ThingLine.StartsWith("Drives: the truck", StringComparison.Ordinal), "the Drive window says which Thing it drives (" + drive.ThingLine + ")");
+            rig.LookAt(CenterOf(shell.Windows.Find(OSDriveWindow.WindowId)));
+            yield return 0.6f;
+
+            // The knob up, through the pointer path: the truck goes forward; letting go writes zero and it stops.
+            brain.PlaceAtStart();
+            Vector3 start = brain.transform.position, startForward = brain.transform.forward;
+            bool pressed = PadPress(new Vector2(0f, 1f));
+            Check(pressed, "a press at the top of the pad reaches it: " + padWhy);
+            yield return 0.25f;
+            Check(pad.Held && Mathf.Abs(Chan("stick.y") - OSDriveWindow.HandThrottle) < 0.01f, "knob up: stick.y is the hand throttle (" + Chan("stick.y").ToString("F3") + ")");
+            float until = Time.time + 1.0f;
+            while (Time.time < until) yield return 0f;
+            float along = Vector3.Dot(brain.transform.position - start, startForward);
+            Check(along > 0.1f && brain.Body.Speed > 0.2f, "knob up: the truck moves forward (" + along.ToString("F2") + " m, " + brain.Body.Speed.ToString("F2") + " m/s)");
+            Shot("truck_pad_knob_up");
+            PadUp();
+            Check(Chan("stick.x") == 0f && Chan("stick.y") == 0f, "letting go writes zero to the two channels at once");
+
+            // The big Stop ends that recording (the laps for the record start clean from the Drive action below).
+            OSToolsTest.Press(drive.StopButton.gameObject, out why);
+            yield return 0.4f;
+            Check(brain.State == SlalomBrain.Mode.Idle, "Stop ended the recording (" + LapLine(brain) + ")");
+
+            if (!Full)
+            {
+                Skip("step 6: two laps through the pad, Train and the Autopilot", "quick run");
+                yield break;
+            }
+
+            // ---- two laps recorded by driving the pad through the slalom
+            int lapsBefore = brain.CompletedLaps;
+            brain.PlaceAtStart();
+            PressAction("Drive");
+            yield return 0.8f;
+            Check(brain.State == SlalomBrain.Mode.Lap && brain.LapTarget == lapsBefore + 2, "Drive started the two laps (" + LapLine(brain) + ")");
+            rig.LookAt(CenterOf(shell.Windows.Find(OSDriveWindow.WindowId)));
+            yield return 0.6f;
+            bool holding = false, shotTaken = false;
+            float deadline = Time.time + 150f, lastLook = 0f, lapStart = Time.time;
+            while (brain.State == SlalomBrain.Mode.Lap && Time.time < deadline)
+            {
+                Vector2 knob = pursuit.Knob();
+                if (!holding)
+                {
+                    if (!PadPress(knob)) { Check(false, "the pad could not be pressed during the laps: " + padWhy); break; }
+                    holding = true;
+                }
+                else PadMove(knob);
+                if (Time.time - lastLook > 1.5f) { rig.LookAt(CenterOf(shell.Windows.Find(OSDriveWindow.WindowId))); lastLook = Time.time; }
+                if (!shotTaken && Time.time - lapStart > 8f) { shotTaken = true; Shot("truck_pad_driving"); }
+                yield return 0f;
+            }
+            if (holding) PadUp();
+            Check(Chan("stick.x") == 0f && Chan("stick.y") == 0f, "the laps over, the pad let go and the channels are zero");
+            int padLaps = brain.CompletedLaps - lapsBefore;
+            Check(padLaps >= 2 && brain.State == SlalomBrain.Mode.Idle, "two laps of the slalom were driven through the pad (" + padLaps + " completed in " + (Time.time - lapStart).ToString("F0") + " s, " + LapLine(brain) + ")");
+            var runs = ArtifactRuns.List("slalom");
+            string lastRun = runs.Count > 0 ? (string)runs[runs.Count - 1]["outcome"] : null;
+            Check(runs.Count >= 2 && lastRun == "completed", "the laps are recorded as scored runs and the last one completed (" + runs.Count + " runs, last " + lastRun + ")");
+            rig.LookAt(CenterOf(shell.Windows.Find(OSDriveWindow.WindowId)));
+            yield return 0.4f;
+            Shot("truck_laps_recorded");
+            if (padLaps < 2) yield break;
+
+            // ---- Train, from the project window's own button
+            PressAction("Train");
+            yield return 0.6f;
+            Check(project.StatusLine.StartsWith("Training the brain", StringComparison.Ordinal), "Train started on the pad laps (" + project.StatusLine + ")");
+            foreach (float w in Until(() => brain.State == SlalomBrain.Mode.Training, 2f)) yield return w;
+            Shot("truck_training");
+            foreach (float w in Until(() => brain.State != SlalomBrain.Mode.Training, 90f)) yield return w;
+            Check(brain.State == SlalomBrain.Mode.Idle && brain.Cloners != null && brain.Cloners[0].Done, "the brain trained on the pad laps (" + brain.State + ", " + brain.Status + ")");
+            shell.Windows.Close("brain");  // the trainer window and the ML desk are not part of the pictures that follow
+            OSModes.Close();
+            yield return 0.8f;
+
+            // ---- Autopilot, from the project window's own button
+            // Live training is stochastic (the first candidates can crash); the Autopilot itself walks its candidates and then the
+            // pretrained brain. If every one of them fails, a user would tap Autopilot once more: so does this step, once, and says so.
+            bool autoOk = false;
+            int taps = 0;
+            for (; taps < 2 && !autoOk; taps++)
+            {
+                if (taps == 1)
+                {
+                    Debug.Log("[OSPlayTest] info the Autopilot's candidates all failed (" + string.Join(", ", brain.Attempts) + "; " + TouchDiag(brain) + "): tapping Autopilot once more");
+                    brain.PlaceAtStart();
+                    yield return 0.5f;
+                }
+                PressAction("Autopilot");
+                yield return 0.5f;
+                Check(project.StatusLine.StartsWith("The Autopilot is driving", StringComparison.Ordinal), "Autopilot started (" + project.StatusLine + ")");
+                foreach (float w in Until(() => brain.State != SlalomBrain.Mode.Autopilot, 80f)) yield return w;
+                yield return 0.5f;
+                runs = ArtifactRuns.List("slalom");
+                lastRun = runs.Count > 0 ? (string)runs[runs.Count - 1]["outcome"] : null;
+                autoOk = brain.State == SlalomBrain.Mode.Idle && !string.IsNullOrEmpty(brain.Drove) && brain.Drove != "nothing" && lastRun == "completed";
+            }
+            bool fellBack = brain.Drove == "the pretrained fallback";
+            string level = fellBack ? "pad laps, pretrained brain" : "full";
+            string lastReason = runs.Count > 0 ? (string)runs[runs.Count - 1]["reason"] : null;
+            Check(autoOk, "the Autopilot completed the slalom (" + taps + " tap" + (taps == 1 ? "" : "s") + ", drove: " + brain.Drove + ", attempts: " + string.Join(", ", brain.Attempts) + ", last run " + lastRun + (lastReason != null ? " because " + lastReason : "") + (autoOk ? "" : "; " + TouchDiag(brain)) + "; level: " + level + (fellBack ? ", FALLBACK: the pretrained brain drove, not the one just trained" : "") + ")");
+            if (autoOk && fellBack) fallbackNote = "the Autopilot drove the slalom on the pretrained brain (level: " + level + ")";
+            Debug.Log("[OSPlayTest] info level reached: " + level + "; OSDriveTest's last run reached: " + (OSDriveTest.Level ?? "not run in this session"));
+            rig.LookAt(brain.transform.position + Vector3.up * 0.05f);
+            yield return 0.5f;
+            Shot("truck_autopilot_done");
+            RestoreRoomColliders();
+        }
+
+        // ---------------------------------------------------------------- 7. agents
+
+        static System.Net.Sockets.TcpListener agentHold;
+
+        static AlbieCrewMember Member(string id) => AlbieCrew.Instance != null ? AlbieCrew.Instance.Find(AlbieAgentTypes.Find(id)) : null;
+
+        static OSAgentsWindow AgentsView() => shell.Windows.Find(OSAgentsWindow.WindowId)?.GetComponent<OSAgentsWindow>();
+
+        static JObject CrewEntry(string agent)
+        {
+            if (!(AlbieTools.Call("crew_status", new JObject())["crew"] is JArray list)) return null;
+            foreach (JToken item in list) if ((string)item["agent"] == agent) return (JObject)item;
+            return null;
+        }
+
+        static Button RowButton(OSAgentsWindow window, string agent, string button)
+        {
+            Transform row = OSToolsTest.FindDeep(window.transform, "Agent " + agent);
+            Transform b = row != null ? OSToolsTest.FindDeep(row, "Button " + button) : null;
+            return b != null ? b.GetComponent<Button>() : null;
+        }
+
+        static string RowText(OSAgentsWindow window, string agent)
+        {
+            Transform row = OSToolsTest.FindDeep(window.transform, "Agent " + agent);
+            if (row == null) return null;
+            var parts = new List<string>();
+            foreach (TMP_Text t in row.GetComponentsInChildren<TMP_Text>(false)) if (t.gameObject.activeInHierarchy) parts.Add(t.text);
+            return string.Join("|", parts);
+        }
+
+        static void DismissAgents()
+        {
+            AlbieCrew crew = AlbieCrew.Instance;
+            if (crew == null) return;
+            var ids = new List<string>();
+            for (int i = 0; i < crew.Members.Count; i++) if (crew.Members[i] != null) ids.Add(crew.Members[i].PetId);
+            foreach (string id in ids) AlbieTools.Call("dismiss_agent", new JObject { ["agent"] = id });
+        }
+
+        static void StopAgentHold()
+        {
+            if (agentHold != null) { try { agentHold.Stop(); } catch (System.Net.Sockets.SocketException) { } agentHold = null; }
+            PlayerPrefs.DeleteKey(ClaudeClient.UrlPref);
+        }
+
+        // 7. Agents: two are spawned (a builder and a scout, the way the N key or spawn_agent does), the builder is given a task that
+        // stays running offline, the Agents window opens from the menu strip, Bring home sends the builder home with its task
+        // still assigned, Send out puts it back. (The full matrix, with Dismiss and paging, is OSAgentsTest.)
+        static IEnumerator<float> StepAgents()
+        {
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            string why;
+            foreach (float w in Until(() => AlbieCrew.Instance != null, 8f)) yield return w;
+            AlbieCrew crew = AlbieCrew.Instance;
+            Check(crew != null, "the crew is in Main");
+            if (crew == null) yield break;
+            shell.Windows.Close(OSAgentsWindow.WindowId);
+            DismissAgents();
+            yield return 0.8f;
+            try
+            {
+                agentHold = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+                agentHold.Start();
+                PlayerPrefs.SetString(ClaudeClient.UrlPref, "http://127.0.0.1:" + ((System.Net.IPEndPoint)agentHold.LocalEndpoint).Port + "/api/claude");
+
+                JObject a = AlbieTools.Call("spawn_agent", new JObject { ["type"] = "builder" });
+                JObject b = AlbieTools.Call("spawn_agent", new JObject { ["type"] = "scout" });
+                Check((string)a["hatched"] == "builder" && (string)b["hatched"] == "scout", "spawn_agent hatched a builder and a scout: " + a + " " + b);
+                Check(crew.Members.Count == 2, "the crew is two agents (" + crew.Members.Count + ")");
+                yield return 1.0f;  // a crew member hooks onto the event source in its first Update
+                JObject t = AlbieTools.Call("assign_task", new JObject { ["agent"] = "builder", ["task"] = AgentTask, ["mode"] = "qa" });
+                Check((string)t["status"] == "working", "assign_task started the builder's task: " + t);
+                yield return 1.2f;
+                Check(CrewEntry("builder") != null && (string)CrewEntry("builder")["task"] == AgentTask, "crew_status lists the builder with its task");
+
+                // The Agents window, from the menu strip.
+                foreach (float w in EnsureMenuOpen()) yield return w;
+                if (menu != null) rig.LookAt(menu.LastCenter);
+                yield return 0.4f;
+                PressButton("Agents", menu);
+                foreach (float w in Until(() => shell.Windows.IsOpen(OSAgentsWindow.WindowId), 3f)) yield return w;
+                if (!shell.Windows.IsOpen(OSAgentsWindow.WindowId))
+                {
+                    Check(false, "the Agents button opened the window (recovering with OpenSystem)");
+                    shell.OpenSystem("agents");
+                    yield return 0.8f;
+                }
+                yield return 0.8f;
+                OSAgentsWindow view = AgentsView();
+                Check(view != null && view.RowCount == 2, "the Agents window shows a row for each of the two (" + (view != null ? view.RowCount.ToString() : "no window") + ")");
+                if (view == null) yield break;
+                Check(!shell.MenuOpen, "the strip button closed the menu");
+                string builderRow = RowText(view, "builder");
+                Check(builderRow != null && builderRow.Contains(AgentTask) && builderRow.Contains("Walking"), "the builder's row shows its real task and Walking: " + builderRow);
+                rig.LookAt(CenterOf(shell.Windows.Find(OSAgentsWindow.WindowId)));
+                yield return 0.6f;
+                Shot("agents_two_rows");
+
+                // Bring home: the task is kept.
+                Button bring = RowButton(view, "builder", "Bring home");
+                bool pressed = bring != null && PressButton(bring.gameObject, "builder's Bring home");
+                if (bring == null) Check(false, "the builder's row has a Bring home button");
+                yield return 0.8f;
+                AlbieCrewMember builder = Member("builder");
+                Check(pressed && builder != null && builder.Home, "Bring home sent the builder home");
+                if (builder != null && !builder.Home) AlbieTools.Call("crew_status", new JObject());  // (nothing to recover: the checks below say what is wrong)
+                Check(view.StatusLine.Contains("is home") && view.StatusLine.Contains("task keeps running"), "the window says it is home and its task keeps running: " + view.StatusLine);
+                JObject entry = CrewEntry("builder");
+                Check(entry != null && (string)entry["task"] == AgentTask, "at home the builder's task is still assigned: " + entry);
+                Check(builder != null && builder.Bridge != null && builder.Bridge.Busy && builder.Bridge.TaskInProgress, "at home the builder's bridge is still busy with the task");
+                Check(builder != null && builder.Controller.State == AlbieState.Working, "at home the builder is still Working (" + (builder != null ? builder.Controller.State.ToString() : "gone") + ")");
+                string homeRow = RowText(AgentsView(), "builder");
+                Check(homeRow != null && homeRow.Contains("Home") && homeRow.Contains(AgentTask), "the builder's row says Home and still shows the task: " + homeRow);
+                Check(RowButton(AgentsView(), "builder", "Send out") != null && RowButton(AgentsView(), "builder", "Bring home") == null, "the builder's button flipped to Send out");
+                rig.LookAt(CenterOf(shell.Windows.Find(OSAgentsWindow.WindowId)));
+                yield return 0.6f;
+                Shot("agents_builder_home");
+
+                // Send out: walking again, the task is still there.
+                Button send = RowButton(AgentsView(), "builder", "Send out");
+                pressed = send != null && PressButton(send.gameObject, "builder's Send out");
+                if (send == null) Check(false, "the builder's row has a Send out button");
+                yield return 0.8f;
+                builder = Member("builder");
+                Check(pressed && builder != null && !builder.Home && !builder.BodyHidden, "Send out put the builder back to walking, visible");
+                Check(AgentsView().StatusLine.Contains("is out again"), "the window says it is out again: " + AgentsView().StatusLine);
+                entry = CrewEntry("builder");
+                Check(entry != null && (string)entry["task"] == AgentTask, "after Send out the task is still assigned: " + entry);
+                Check(RowButton(AgentsView(), "builder", "Bring home") != null, "the builder's button is Bring home again");
+                rig.LookAt(CenterOf(shell.Windows.Find(OSAgentsWindow.WindowId)));
+                yield return 0.5f;
+                Shot("agents_builder_out");
+            }
+            finally
+            {
+                DismissAgents();
+                StopAgentHold();
+            }
+            yield return 1.0f;
+            Check(crew.Members.Count == 0, "the two agents were dismissed at the end of the step (" + crew.Members.Count + " left)");
+            shell.Windows.Close(OSAgentsWindow.WindowId);
+            yield return 0.4f;
+        }
+
+        // ---------------------------------------------------------------- 8. settings
+
+        static string SettingsFile()
+        {
+            try { return File.Exists(OSSettings.Path) ? File.ReadAllText(OSSettings.Path) : ""; }
+            catch (IOException) { return ""; }
+        }
+
+        // 8. Settings from the menu strip: the corner button shows away from the desk; its switch goes off and the button is gone
+        // at once (setting and file say so); on again and it is back.
+        static IEnumerator<float> StepSettings()
+        {
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            var corner = shell.GetComponent<OSCornerButton>();
+            Check(corner != null, "the shell has the corner button");
+            if (corner == null) yield break;
+            Check(OSSettings.Current.cornerButton, "the Corner button setting starts on");
+            if (shell.MenuOpen) shell.CloseMenu();
+            yield return 0.5f;
+            foreach (float w in Until(() => corner.Shown, 3f)) yield return w;
+            Check(corner.Shown, "away from the desk the corner button shows before Settings is opened");
+
+            foreach (float w in EnsureMenuOpen()) yield return w;
+            if (menu != null) rig.LookAt(menu.LastCenter);
+            yield return 0.4f;
+            PressButton("Settings", menu);
+            foreach (float w in Until(() => shell.Windows.IsOpen(OSSettingsWindow.WindowId), 3f)) yield return w;
+            if (!shell.Windows.IsOpen(OSSettingsWindow.WindowId))
+            {
+                Check(false, "the Settings button opened the window (recovering with OpenSystem)");
+                shell.OpenSystem("settings");
+                yield return 0.8f;
+            }
+            yield return 0.8f;
+            OSWindow win = shell.Windows.Find(OSSettingsWindow.WindowId);
+            Check(win != null, "the Settings window is open");
+            if (win == null) yield break;
+            Check(!shell.MenuOpen, "the strip button closed the menu");
+            rig.LookAt(CenterOf(win));
+            yield return 0.6f;
+            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
+            Check(corner.Shown, "the corner button is back with the menu closed and Settings open");
+            Shot("settings_corner_on");
+
+            Transform row = OSToolsTest.FindDeep(win.transform, "Toggle Corner button");
+            Toggle toggle = row != null ? row.GetComponentInChildren<Toggle>(false) : null;
+            Check(toggle != null && toggle.isOn, "the Corner button switch is on");
+            bool pressed = toggle != null && PressButton(toggle.gameObject, "Corner button switch");
+            yield return 0.7f;
+            Check(pressed && !OSSettings.Current.cornerButton, "the setting is off");
+            Check(SettingsFile().Contains("\"cornerButton\": false"), "the settings file says so");
+            Check(!corner.Shown, "the corner button is gone");
+            Check(corner.Button == null || !corner.Button.gameObject.activeInHierarchy, "its button is not on screen");
+            rig.LookAt(CenterOf(win));
+            yield return 0.4f;
+            Shot("settings_corner_off");
+
+            // Back on: the button returns, and the settings (a scratch file) are left as they were.
+            row = OSToolsTest.FindDeep(win.transform, "Toggle Corner button");
+            toggle = row != null ? row.GetComponentInChildren<Toggle>(false) : null;
+            pressed = toggle != null && PressButton(toggle.gameObject, "Corner button switch");
+            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
+            Check(pressed && OSSettings.Current.cornerButton && corner.Shown, "switched on again, the corner button is back");
+            if (!OSSettings.Current.cornerButton) { OSSettings.Current.cornerButton = true; OSSettings.Current.Save(); }
+        }
+
+        // What the steps leave behind when the run ends in any way: the pad, the colliders, the agents, the notebook.
+        static void CleanupLeftovers()
+        {
+            if (padDown && padPointer != null) { try { PadUp(); } catch (Exception) { } }
+            padDown = false;
+            RestoreRoomColliders();
+            StopAgentHold();
+            if (!Application.isPlaying) return;
+            ManualInputs.Clear();
+            DismissAgents();
+            ArtifactHost host = ArtifactHost.Current;
+            if (host != null) host.Room = null;
+            NotebookStore.Flush();
+            NotebookStore.Open(NotebookStore.DefaultProject);  // the app's own notebook again
+            OSProjects.Refresh();
         }
 
         // 9. Close all: nothing is left.

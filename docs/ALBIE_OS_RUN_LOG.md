@@ -860,3 +860,56 @@ Screenshots (unity/Logs/os/): `101_watch_desk_wrist_button.png` (round button, i
 
 ### Changes outside OS/
 - `unity/Assets/_Forge/Core/Scripts/Gestures/SimulatedHandSource.cs` (Gestures module, the Hudson-owned hand source): added four static test fields (`LeftTestActive` default false, `LeftTestWrist`, `LeftTestRotation`, `LeftTestShape`), a `SubsystemRegistration` reset that puts them back, and in `Read` replaced `if (hand != 1) return;` with `if (hand == 0) { if (LeftTestActive) SyntheticHand.Build(sample, LeftTestShape, LeftTestWrist, LeftTestRotation, true); return; } if (hand != 1) return;`. Why: on the desktop rig hand 0 was never tracked, so the watch could not be exercised. With `LeftTestActive` false (the default) hand 0 returns exactly as before, so `GestureSelfTest` (104/0, its own synthetic hands, idle test unchanged) and `GesturePlayTest` (32/0, drives hand 1 only) are unaffected, as the runs above show.
+
+## playtest-p1: OSPlayTest steps 6 to 8 and the P1 checks in OSCheck (spec 6.1)
+
+### What was done
+- `OSPlayTest` now walks all nine steps of spec 6.1 in order (1, 2a, 2b, 3a corner button was already a real step, 3b, 3c, 3d, 4 watch turn, 5 build something were already in). New: **6** the RC truck project from the Projects tab, then the project window's own buttons by real pointer presses: Course (asks first, Allow on the scratch approvals, gives the slalom and the brain truck, linked to the truck), Drive (opens the pad, starts a two-lap recording), a knob-up press on the pad (the truck moves, letting go writes zero), Stop, Drive again and two laps driven through the pad by the same pursuit `OSDriveTest` uses, the laps are scored runs, Train, Autopilot completes the slalom. **7** Agents: `spawn_agent` builder and scout, a task that stays running offline, the Agents window from the menu strip, Bring home (task kept: crew_status, bridge busy, still Working), Send out. **8** Settings from the strip: the corner button shows, its switch goes off and the button is gone (setting, file, `Shown`, button inactive), on again and it is back. **9** Close all (unchanged, now with the truck, pad, Train and agents' leftovers to close).
+- 29 screenshots in the manifest (`Logs/os/play_test_shots.txt`), 18 to 29 are new: `18_truck_course`, `19_truck_pad_knob_up`, `20_truck_pad_driving`, `21_truck_laps_recorded`, `22_truck_training`, `23_truck_autopilot_done`, `24_agents_two_rows`, `25_agents_builder_home`, `26_agents_builder_out`, `27_settings_corner_on`, `28_settings_corner_off`, `29_closed_all`.
+- **Level and fallback:** step 6 reports the level the way `OSDriveTest` does ("full", or "pad laps, pretrained brain" when `brain.Drove` is the pretrained fallback) in its Autopilot output line. A fallback sets a note and the final result then starts `PASS with fallback os play test`, never a plain PASS. `OSDriveTest.Level` is logged next to it (an info line) when that test ran in the same session.
+- **Time:** the whole run takes about 2.3 minutes (step 6 about 1 minute: the laps take 20 to 30 s, training about 1.5 s of compute, the Autopilot 10 to 30 s). That is well under 6 minutes, so the long part is not behind a flag by need. `RunQuick()` exists anyway (skips the two laps, Train and the Autopilot, about 1.5 min) and its result says `PASS with fallback ... Quick run: ... skipped`, so it can never read as a full PASS. `Run()` sets `Full`, `RunQuick()` clears it. It was run once: `PASS with fallback os play test: 128 passed, 0 failed (1 skipped). Quick run: step 6: two laps through the pad, Train and the Autopilot skipped (quick run)`.
+- `OSCheck` gained: the planner tree check now also needs 5 or more paths, `MaxQuestions` 3, and walks "answer 1 every time" to "answer 5 every time" and each must end in a plan within 3 questions (on top of `OSPlanner.Validate()` returning no problems); the tabs check requires the Drive tile (it was skipped when Drive was not built); new line "every system page the strip opens is registered (Build something, Agents, Settings)" which runs each page's `Register()`, then checks `OSShell.HasSystem` and reads `OSMenu.cs` for every `OpenSystem("...")` the strip calls; settings round-trip sets every field away from its default (including `watchTurn`, `cornerButton`, `cornerOnLeft`, `gestureDisplay`, `flatLayout`), checks they come back and are named in the file, ResetToDefaults restores all of them, and fails if a field is added to `OSSettings` that the check does not know.
+
+### Check output (verbatim, last runs)
+```
+PASS os check (OSCheck.Run, 27 ok lines)
+PASS os play test: 136 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSCornerTest] 55 passed, 0 failed
+PASS [OSWatchTest] 107 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression ...
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+The play test's step 6 line in the last run: `the Autopilot completed the slalom (1 tap, drove: candidate 1, attempts: candidate 1 completed, last run completed; level: full)`. Compile: 0 errors, 0 warnings.
+
+### Flaky Autopilot at step 6 (said plainly)
+Of 12 full runs of the final play test, 2 failed at the Autopilot (the second also logged a step 8 line, "the menu opened when asked (recovering with OpenMenu)", a knock-on of the same stalled run): all three trained candidates and the pretrained fallback crashed (`attempts: candidate 1 crashed, candidate 2 crashed, candidate 3 crashed, the pretrained fallback crashed`), the second time even after a second tap. Both were the first run right after a recompile and domain reload; the other 10 runs (and run 3 of the loop, where candidates 1 and 2 crashed and candidate 3 completed) passed. I could not reproduce it with the diagnostic line in (it prints what the truck touches and how many room colliders are back on), so the cause is not found. Candidate guess: an editor stall just after the reload (the log of the first failure has `IPCStream ... Timed out`) while the truck is placed on the slalom start. The step now taps Autopilot a second time if every candidate failed (the output line says "2 taps"), the way a user would. `OSDriveTest` takes the same route and passed in its one run in this session (it was not looped).
+
+### Decisions (one line of why each)
+- **Step 6 copies the pad-driving helpers (a real press, drags, a release) into `OSPlayTest` and shares only the pursuit (`OSDriveTest.Pursuit`, now internal).** Why: the helpers hold statics tied to `OSDriveTest`'s own run; the pursuit is the part worth sharing.
+- **Step 6 leaves the project, Drive and slalom open and step 9 closes them.** Why: Close all is then tested on a real pile (a project, a pad, the slalom with its brain truck), not on nothing.
+- **Agents step skips waiting for the agent to walk to its pad.** Why: the test is away from the desk where Bring home hides the body (`Home, hidden`); the pad walk is `OSAgentsTest`'s.
+- **`OSSettingsWindow.Register()` made public.** Why: `OSCheck` runs it, as it does for the other two pages.
+- **`PASS with fallback` for a fallback or quick run.** Why: the brief: never a plain PASS.
+
+### Not working or not done
+- The Autopilot flake above.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses.
+- The Main scene was left dirty by some of the other checks (ML smoke, Check Artifacts); it was reopened from disk (never saved) before the play test. `Main.unity` is not modified in git.
+
+### Changes outside OS/
+None. (`OSDriveTest.Pursuit` and `OSSettingsWindow.Register` are inside `OS/`.)

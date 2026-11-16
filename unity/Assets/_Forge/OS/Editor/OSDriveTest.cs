@@ -300,7 +300,8 @@ namespace Forge.OS.Editor
         // ---------------------------------------------------------------- the truck
 
         // The pursuit: the next gate as pad positions. The same weave and look-ahead the scripted driver uses on a room slalom.
-        sealed class Pursuit
+        // Internal so the play test (OSPlayTest step 6) drives the same pursuit through the pad.
+        internal sealed class Pursuit
         {
             readonly MockCourse course = new MockCourse { Name = "open slalom" };
             readonly ArtifactHost host;

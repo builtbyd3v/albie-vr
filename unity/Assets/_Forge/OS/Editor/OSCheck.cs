@@ -43,7 +43,7 @@ namespace Forge.OS.Editor
             ok &= Check(sb, "the tools answer an error, not an exception, with no shell", ToolsWithoutShell);
             ok &= Check(sb, "the registry fills, finds, replaces and orders", Registry);
             ok &= Check(sb, "every tab has an empty-state sentence", EmptyTexts);
-            ok &= Check(sb, "settings round-trip, clamp, and survive a damaged file", Settings);
+            ok &= Check(sb, "settings round-trip (every field, including the P1 ones), clamp, and survive a damaged file", Settings);
             ok &= Check(sb, "the kit asset loads and every UI Set reference resolves", KitReferences);
             ok &= Check(sb, "every friendly icon name resolves to the Filled atlas, and the builder maps them all", Icons);
             ok &= Check(sb, "the Albie theme is derived from the UI Set dark theme", Theme);
@@ -58,10 +58,11 @@ ok &= Check(sb, "the OS kit has every prefab, theme and icon the OS asks for", K
 ok &= Check(sb, "every entry has a snake_case id, a title, an icon the kit resolves and an open action", EntriesComplete);
 ok &= Check(sb, "ids and titles are unique on each tab", EntriesUnique);
 ok &= Check(sb, "every status line and open flag answers without throwing and reads like the UI", StatusDelegates);
-ok &= Check(sb, "the tabs hold the seven tools, the four starter projects and every artifact template", TabsHoldWhatTheSpecSays);
+ok &= Check(sb, "the tabs hold the seven tools (Drive included), the four starter projects and every artifact template", TabsHoldWhatTheSpecSays);
 ok &= Check(sb, "os_open's description names every tool id and kind", OsOpenDescription);
 ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
-ok &= Check(sb, "the planner tree ends in a plan within three questions", PlannerTree);
+ok &= Check(sb, "the planner tree is valid: no problems, every path ends in a plan within three questions", PlannerTree);
+            ok &= Check(sb, "every system page the strip opens is registered (Build something, Agents, Settings)", SystemPages);
 ok &= Check(sb, "the Agents page registers under the strip's id and the crew's Bring home hook is in place", AgentsPage);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
@@ -297,10 +298,15 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 if (!s.tableButton || !s.watchTurn || !s.cornerButton || s.cornerOnLeft || s.gestureDisplay || s.flatLayout) return "the defaults are wrong";
                 if (!Mathf.Approximately(s.menuDistance, 0.5f) || !Mathf.Approximately(s.menuDropDegrees, 15f)) return "the menu placement defaults are wrong";
 
+                // Every field away from its default: the three menu-button switches, the corner side, the two sliders, the gesture
+                // display and the layout (the P1 fields are watchTurn, cornerButton, cornerOnLeft, gestureDisplay, flatLayout).
                 s.tableButton = false;
+                s.watchTurn = false;
+                s.cornerButton = false;
                 s.cornerOnLeft = true;
                 s.menuDistance = 0.62f;
                 s.menuDropDegrees = 22f;
+                s.gestureDisplay = true;
                 s.flatLayout = true;
                 int changed = 0;
                 Action count = () => changed++;
@@ -312,7 +318,14 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 if (!File.Exists(path)) return "Save wrote no file";
                 var back = OSSettings.Current;
                 if (ReferenceEquals(back, s)) return "Reload kept the old object";
-                if (back.tableButton || !back.cornerOnLeft || !back.flatLayout || !back.watchTurn) return "the values didn't round-trip";
+                if (back.tableButton || back.watchTurn || back.cornerButton || !back.cornerOnLeft || !back.gestureDisplay || !back.flatLayout) return "the values didn't round-trip";
+                string[] known = { "tableButton", "watchTurn", "cornerButton", "cornerOnLeft", "menuDistance", "menuDropDegrees", "gestureDisplay", "flatLayout" };
+                string text = File.ReadAllText(path);
+                foreach (string key in known)
+                    if (!text.Contains("\"" + key + "\"")) return "the file doesn't name '" + key + "'";
+                // A field added later that this check doesn't know about: it has to be added here, so it is round-tripped too.
+                foreach (FieldInfo field in typeof(OSSettings).GetFields(BindingFlags.Public | BindingFlags.Instance))
+                    if (Array.IndexOf(known, field.Name) < 0) return "OSSettings." + field.Name + " is a new field: add it to this round-trip check";
                 if (!Mathf.Approximately(back.menuDistance, 0.62f) || !Mathf.Approximately(back.menuDropDegrees, 22f)) return "the sliders didn't round-trip";
 
                 back.menuDistance = 9f;
@@ -337,8 +350,12 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                     return "a partial file didn't keep what it had and default the rest";
 
                 OSSettings.Current.tableButton = false;
+                OSSettings.Current.watchTurn = false;
+                OSSettings.Current.cornerButton = false;
+                OSSettings.Current.gestureDisplay = true;
                 OSSettings.ResetToDefaults();
-                if (!OSSettings.Current.tableButton) return "ResetToDefaults didn't";
+                var reset = OSSettings.Current;
+                if (!reset.tableButton || !reset.watchTurn || !reset.cornerButton || reset.cornerOnLeft || reset.gestureDisplay || reset.flatLayout) return "ResetToDefaults didn't";
                 note = "file " + new FileInfo(path).Length + " bytes";
                 return null;
             }
@@ -678,13 +695,9 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             EnsureRegistered();
             var missing = new List<string>();
 
-            // Drive (the hand transmitter, spec 5.8) is its own part: it is required once its window exists.
-            bool driveBuilt = Type.GetType("Forge.OS.OSDriveWindow, Assembly-CSharp") != null;
+            // The seven tools, the Drive tile (the hand transmitter, spec 5.8) among them: all required.
             foreach (string id in new[] { "cad", "code", "train", "notebook", "drive", "messages", "gestures" })
-            {
-                if (id == "drive" && !driveBuilt) continue;
                 if (OSRegistry.Find(OSTab.Tools, id) == null) missing.Add("tool " + id);
-            }
 
             foreach (string id in new[] { "proj_truck", "proj_quadcopter", "proj_rocket", "proj_classifier" })
                 if (OSRegistry.Find(OSTab.Projects, id) == null) missing.Add("project " + id);
@@ -703,7 +716,6 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             }
 
             if (missing.Count > 0) return "missing: " + string.Join(", ", missing);
-            if (!driveBuilt) note = "Drive is not built yet";
             return null;
         }
 
@@ -771,7 +783,53 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             List<string> problems = Forge.OS.OSPlanner.Validate();
             if (problems.Count > 0)
                 return problems[0] + (problems.Count > 1 ? " (and " + (problems.Count - 1) + " more)" : "");
-            note = Forge.OS.OSPlanner.PathCount() + " paths";
+            if (Forge.OS.OSPlanner.MaxQuestions > 3) return "the planner allows " + Forge.OS.OSPlanner.MaxQuestions + " questions, the spec says at most 3";
+            int paths = Forge.OS.OSPlanner.PathCount();
+            if (paths < 5) return "only " + paths + " paths end in a plan (the first question alone has five answers)";
+            // Walked here as well as by Validate: taking answer 1, then 2, ... of every question, a plan always arrives by question 3.
+            for (int pick = 0; pick < 5; pick++)
+            {
+                var planner = new Forge.OS.OSPlanner();
+                int asked = 0;
+                while (!planner.Done && asked < 8)
+                {
+                    asked++;
+                    planner.Answer(Mathf.Min(pick, planner.Current.choices.Length - 1));
+                }
+                if (!planner.Done) return "answer " + (pick + 1) + " each time never ends in a plan";
+                if (asked > 3) return "answer " + (pick + 1) + " each time took " + asked + " questions";
+            }
+            note = paths + " paths";
+            return null;
+        }
+
+        // The menu strip opens "build", "agents" and "settings" (OSMenu); each page's Register() is what the app runs at start,
+        // so it is run here, and the shell must then know the id.
+        static string SystemPages(out string note)
+        {
+            note = null;
+            Forge.OS.OSBuildFlow.Register();
+            Forge.OS.OSAgentsWindow.Register();
+            Forge.OS.OSSettingsWindow.Register();
+            string[] expected = { "build", "agents", "settings" };
+            foreach (string id in expected)
+                if (!OSShell.HasSystem(id)) return "the strip opens '" + id + "' but no page is registered under it";
+            if (OSShell.HasSystem("nope") || OSShell.HasSystem(null) || OSShell.HasSystem("")) return "HasSystem said yes to an id nobody registered";
+            if (OSShell.SystemIds.Length != expected.Length) return "the shell lists " + OSShell.SystemIds.Length + " system ids, the strip opens " + expected.Length;
+            foreach (string id in OSShell.SystemIds)
+                if (Array.IndexOf(expected, id) < 0 || !OSShell.HasSystem(id)) return "the shell lists the system id '" + id + "', which the strip does not open or which has no page";
+
+            // What the strip really opens, read from its source: every OpenSystem("id") call in OSMenu is one of the three, and each of the three is there.
+            string source = Path.Combine(Application.dataPath, "_Forge/OS/Scripts/OSMenu.cs");
+            if (!File.Exists(source)) return "OSMenu.cs is not where this check expects it";
+            var found = new List<string>();
+            foreach (Match m in Regex.Matches(File.ReadAllText(source), "OpenSystem\\(\"([a-z_]+)\"\\)"))
+                if (!found.Contains(m.Groups[1].Value)) found.Add(m.Groups[1].Value);
+            foreach (string id in found)
+                if (Array.IndexOf(expected, id) < 0 || !OSShell.HasSystem(id)) return "the strip opens '" + id + "', which has no registered page";
+            foreach (string id in expected)
+                if (!found.Contains(id)) return "the strip has no button that opens '" + id + "'";
+            note = string.Join(", ", expected);
             return null;
         }
     }
