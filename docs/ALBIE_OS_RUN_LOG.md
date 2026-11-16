@@ -913,3 +913,87 @@ Of 12 full runs of the final play test, 2 failed at the Autopilot (the second al
 
 ### Changes outside OS/
 None. (`OSDriveTest.Pursuit` and `OSSettingsWindow.Register` are inside `OS/`.)
+
+## fixes-p1: what the P1 review and the P1 play test found
+
+### Owner: re-enter your Claude address if you had one set (read this first)
+Before this fix, `OSPlayTest` (step 7) and `OSAgentsTest` pointed the editor PlayerPrefs key `Albie.ClaudeUrl` (`ClaudeClient.UrlPref`) at a loopback socket and then deleted the key. Editor PlayerPrefs are the user's own, so every run of those two tests erased a Claude address that may have been set. The key was absent in the registry when this was found, and there is no way to know whether one existed before the first run. **If you had set a Claude proxy address in the editor (PlayerPrefs `Albie.ClaudeUrl`), it is gone: set it again.** Nothing else of the user's was written by the tests: `os_settings.json` in the data folder has the same size and modification time (Nov 16 01:43) before and after this session's runs, and the data folder holds only `mruk_config.dat` and `os_settings.json`. From now on every OS test saves the key (present or absent, and its value) before it touches it and puts exactly that back (see item 1).
+
+### What was done
+1. **Tests no longer touch the user's state (`OS/Editor/OSTestEnv.cs`, `OSTestEnvCheck.cs`).** One shared helper for all 12 OS tests (the 11 part tests and the play test), replacing a copy per test.
+   - `OSTestEnv.Enter(name)` saves `Forge.ForceDesktop`, `Albie.VoiceOffInEditor` (EditorPrefs) and `Albie.ClaudeUrl` (PlayerPrefs), each as "was there?" plus the value, into EditorPrefs (so an interrupted run or a closed editor keeps them), takes a "before" picture of the user's state, and only then forces desktop on and voice off. If a saved copy is still pending from an interrupted run it is the user's real original: it is put back first, so a second run can never save the forced value as the original. `OSTestEnv.Leave()` puts every value back exactly (a key that was absent is deleted again), clears the pending marker, compares the picture, and returns the differences. Every test's `Finish` calls it before the summary and adds one check: "the user's own preferences and files are exactly as they were before the run" (so each test has one more check than before).
+   - The picture is: ForceDesktop, VoiceOff, the Claude address, every player pref in the registry key of this project (except Unity's own session keys), every editor pref starting `Forge.` or `Albie.`, and every file in the data folder (`persistentDataPath`, path, size, MD5; Unity's analytics folder left out).
+   - Safety net: `[InitializeOnLoad]` restores a pending copy when no run is marked in progress (editor reopened), and when Play mode ends while a run is marked (stopped by hand). The twelve old `<Test>.ForceDesktopWas` / `VoiceOffWas` keys are deleted on load (their values were the same as the real ones).
+   - Agents test and play test set and clear the loopback address through `OSTestEnv.SetClaudeUrl` / `ClearClaudeUrl` (which refuse to run without `Enter`, so they can never delete a key they did not save).
+   - `OSTestEnv.UseScratch(name)` sends os_settings.json, the artifact library, the approvals file and the notebook (truck project open) to a folder of their own, and every one of the 12 tests calls it as the first thing in its script (the part tests that already had their own scratch still move on to it). **The whole play test now runs on a scratch root** (it was step 5 only; the notebook, projects, library, approvals and settings of all nine steps), and its "the app's own notebook again" now means the run's own, never the real one.
+   - `OSTestEnvCheck.Run()` (menu `Forge > OS > Check Test Environment`, also one line in `OSCheck`): proves with the user's own values in place that a Claude address set and cleared comes back, that an interrupted run's saved originals are what the next run saves, and that a new pref or file left by a run is reported; and then FAILS if the last run of any OS test in this editor session left a user pref or file different. Run it after a play test to see.
+   - **Not fixed (outside OS, not mine):** `GesturePlayTest` (Core/Editor) has the same save-and-force pattern with its own `Was` keys. Owner: Hudson (Core). It should call the same save-only-if-nothing-pending logic.
+2. **CAD no longer references the OS.** `CadViewer.MenuOwnsM` (public static bool, default false, reset at SubsystemRegistration) replaces `Forge.OS.OSKeys.Active` in CAD's measure key; `OSKeys` sets it true in `OnEnable` and false in `OnDisable`. Plain M measures unless something owns M as its menu, then Shift+M. The three comment/README lines (CadViewer class comment, the key line, `CAD/README.md`) say so. Nothing outside `OS/` mentions `Forge.OS` any more (one comment in `Core/Workspace.cs` aside, which is only text).
+3. **Settings, Gesture display.** The switch now shows the real state (a gesture panel exists and is active), not the saved flag. `OSToolsCatalog.ApplySavedGestureDisplay()` applies the saved flag once; `OSShell.Start` calls it (polling twice a second for 10 s until the gesture engine exists, then stopping). `OSSettingsTest` got a fresh-launch block (flag saved on, panel destroyed: the switch shows OFF; apply; the panel shows; the switch shows ON; with the flag off, apply does nothing) in place of the lines that assumed the flag.
+4. **Corner and table buttons are taken down with the shell** (`OnDestroy` destroys their root, as `OSWatch` does). `OSTableButton` keeps the presence it subscribed to in `hooked`, so `Hook(false)` removes the listener from that same object even if the workspace has been given another one (or none) since. `OSCornerTest` checks: one of each exists, the listener is let go of with the workspace's presence null, and destroying the components takes the buttons down.
+5. **Drive step text.** `OSProjectWindow.DriveMissing` = "The Drive pad couldn't be found." replaces "Coming with the Drive pad." (the only case left). The notebook button's "isn't available yet" became "couldn't be found" for the same reason. `OSProjectsTest` now requires the Drive tool to be registered and no "coming" line.
+6. **Build something, failed Start.** `OSBuildFlow.StartBuild` remembers whether the project folder existed, and on any failure (the notebook refusing the plan, or an exception) reopens the previous project and deletes the folder only if this Start created it. Today `NotebookStore.Open` does not create the folder (it appears on the first write), so on the current notebook nothing was left behind; the code now holds whatever the notebook does later. A test seam (`OSBuildFlow.OpenedForTests`) lets `OSPlannerTest` create the folder before the plan fails. Test lines: a plan with no reason fails with a sentence, nothing kept, the truck project open again, the card still open; with the folder made first it is removed; with the truck plan (folder already there) the folder and files are untouched; Cancel afterwards leaves the scratch root as it was.
+7. **Drive pad guard.** While held, the pad keeps the pressing pointer's event data and lets go (writes zero) when `pointerPress` is no longer the pad (cleared by a module on release or cancel, or given to another object) or the pad's canvas (or its root) is no longer enabled; the check starts the frame after the press (a module sets `pointerPress` just after our handler returns) and reads four fields, no allocation. What the Interaction SDK's `PointableCanvasModule` does: a lost pointer (Cancel, Unhover, canvas unregistered) clears `pointerPress`; Unhover-while-pressed marks the pointer for deletion and processes it with `forceRelease`, which does not send pointer-up. `OSDriveTest` presses, then clears `ped.pointerPress` with no up (pad lets go, channels zero), presses and hides the canvas (lets go, zero), and checks a healthy press is not released by the guard (held through a 0.85 s hold) and a normal up still lets go at once.
+8. **The Autopilot flake: found.** See the next section.
+9. **`OSCheck` leaves a clean open scene clean.** Some of its checks build and tear down objects in the open scene (marking it unsaved), which made the next Play-mode test refuse with "save or discard the open scene first" (this happened once in this session). If the scene was clean when `Run()` started and is dirty at the end, it is opened again from disk (never saved).
+
+### The Autopilot flake at step 6: cause found
+Earlier note: 2 of 12 runs failed at the Autopilot, all three trained candidates and the pretrained fallback "crashed", both times the first run after a recompile. Four tries to reproduce (none reproduced, ruled out): the first run after a code recompile; after a forced domain reload (`EditorUtility.RequestScriptReload`); after a clean-cache full recompile; and with the editor main thread blocked four times for 3 s each while the Autopilot ran (the frame delta is capped, the Autopilot is frame-rate independent). Then a fifth run, after I added a log line that says where and against what each attempt ended, failed in the same way, and the log said:
+
+```
+'candidate 1 crashed' at (-1.07, 0.00, 0.41), 1.95 m from the start; touching: AlbieAssistant (PetRuntime)
+'candidate 2 crashed' at (-1.49, 0.00, 0.07), 1.52 m from the start; touching: AlbieAssistant (PetRuntime), DesktopRig (root)
+'candidate 3 crashed' at (-1.40, 0.00, 0.15), 1.60 m from the start; touching: DesktopRig (root)
+(second tap) 'candidate 1 crashed' ... touching: AlbieAssistant (PetRuntime)   'candidate 2 crashed' ... touching: DesktopRig (root)
+```
+**Cause:** the brain truck's body (`ExampleTruckBody.obstacles`, a `LayerMask` of `~0`: every layer) treats every enabled non-trigger collider as a wall. The desktop user's body (a `CharacterController` on `DesktopRig`) and Albie (`AlbieAssistant`, who follows the user) stand on the slalom's line in this simulated room (the mock living room's floor strip is laid over the desktop rig's room), 1.5 to 2 m from the start. Whether a run touches them depends on how far a candidate's weave swings at that spot, which is why most runs pass; a candidate that clips either one is a crash, and when every candidate and the fallback clip them, the run fails. It was not the reload: the two earlier failures only happened to follow one. The room's own colliders were already switched off by the test; these two were not.
+**Where it lives:** the test environment (the desktop rig and the pet are in the path), and a property of the Controllers module (`ExampleTruckBody.obstacles = ~0`, nothing is excluded by layer). For the Artifacts/Controllers owner: on a headset the user's body is not a collider, but Albie is, so a pet standing on the course would fail a run the same way; consider a layer for the pet (and the desktop rig) that the body's `obstacles` leaves out, or a "ignore these colliders" list on `SlalomBrain`. I did not touch that module.
+**Fix in the OS tests:** `OSPlayTest` switches off the user's body and Albie's colliders together with the room's (restored at the end of step 6; the switch-off is repeated before each Autopilot tap in case something came late); the user is moved onto the course during the Autopilot (at gate 2, Albie follows) and back after, so the run now passes through exactly what used to fail it, and the log says what it switched off. The step also logs the room, the slowest frame and, per failed attempt, where and against what. **Guard in the OS:** the Project window refuses to start the Autopilot when something solid sits on the truck's start spot (`OSProjects.StartBlocked`, which asks the physics scene exactly what the truck's crash test asks): every brain would crash at once, so it says "Something is in the truck's way at the start. Move it, then tap Autopilot again." instead of burning through all of them. The play test checks the refusal with a cube on the start spot and waits for a clear start before the real tap. Results after the fix: 4 full runs, all a plain PASS (the one that showed the rig and Albie on the course, then the 3 of the final sequence).
+
+### Check output (verbatim, final sequence, after a forced clean recompile and a forced script reload)
+```
+unity recompile: completed {'errors': 0, 'warnings': 0}   (and up_to_date on the second call)
+PASS os check (OSCheck.Run, 28 ok lines)
+PASS os play test: 140 passed, 0 failed     (run 1, right after a script reload)
+PASS os play test: 140 passed, 0 failed     (run 2)
+PASS os play test: 140 passed, 0 failed     (run 3)
+PASS [OSMenuTest] 64 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 96 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 69 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os test environment check (4 own checks and "last run ...: unchanged" for all 12 OS tests)
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+Counts are the old ones plus: +1 each for the new "user's own preferences and files are exactly as they were" check, and the new lines (Settings +6, Corner +7, Planner +9, Drive +10, play test +2 for the refusal and +1 for the body switch-off). Free disk 33 to 37 GB throughout.
+
+### Decisions (one line of why each)
+- **Restore with "was it there" (delete a key that was absent) rather than writing false.** Why: writing false creates a key the user never had.
+- **The saved originals live in EditorPrefs and the "run in progress" marker in SessionState.** Why: a domain reload keeps SessionState and EditorPrefs survive an editor restart; a static does not.
+- **Every test, not only the leaky ones, gets the scratch root and the before/after picture.** Why: the audit found 6 of the 12 tests with no scratch for the notebook at all; the picture tells what a run really touches rather than what I think it touches.
+- **The Autopilot guard refuses only a start that would crash at once.** Why: it asks the physics scene the same question the truck's own crash test asks, so it can never refuse a run that would have worked.
+- **The test moves the user onto the course instead of only switching colliders off.** Why: it makes the old failure deterministic as a scenario (the rig and the pet standing in the truck's way) and the run still passes.
+- **`OSCheck` reopens a scene it dirtied.** Why: without it a clean `Check OS` blocked the next Play-mode test.
+
+### Not working or not done
+- `GesturePlayTest` (Core) still has the old unsafe save-and-force prefs pattern (Hudson). Not touched.
+- The Artifacts/Controllers obstacle mask (`~0`) is for their owner (above).
+- Ray and poke are still not exercised (no headset): the pad guard is tested with event data, not with the Interaction SDK's own pointer.
+- Whether the user had a Claude address set before the earlier runs deleted it cannot be known (see the first heading).
+
+### Changes outside OS/
+- `unity/Assets/_Forge/CAD/Scripts/CadViewer.cs`: added `public static bool MenuOwnsM` with a `SubsystemRegistration` reset, and the measure key reads it instead of `Forge.OS.OSKeys.Active`; two comment lines say so. Why: deleting the OS folder must not break CAD's compile.
+- `unity/Assets/_Forge/CAD/README.md`: the line on the Dimensions key names `CadViewer.MenuOwnsM` instead of `OSKeys.Active`. Why: same.
