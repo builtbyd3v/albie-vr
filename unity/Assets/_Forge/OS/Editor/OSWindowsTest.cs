@@ -161,6 +161,14 @@ namespace Forge.OS.Editor
             EditorApplication.isPlaying = false;
         }
 
+        static readonly System.Reflection.FieldInfo GrabField = typeof(PanelManipulator).GetField("<Grabbing>k__BackingField", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+        // PanelManipulator.Grabbing has a private setter; the test sets the counter the way a grab does.
+        static void SetGrabbing(int value)
+        {
+            if (GrabField != null) GrabField.SetValue(null, value);
+        }
+
         static void Check(bool condition, string what)
         {
             Debug.Log($"[OSWindowsTest] {(condition ? "ok  " : "FAIL")} {what}");
@@ -350,6 +358,16 @@ namespace Forge.OS.Editor
             ForgePanel[] mode = ModePanels(workspace);
             Check(mode.Length >= 3, "CAD has its panels (" + mode.Length + ")");
             AssertNoOverlap("at the desk", head, w1, w2, mode);
+
+            // a held window is never glided away from the hand (an artifact host asks for ClearAll again and again)
+            w1.Root.SetPositionAndRotation(w2.Root.position + head.right * 0.05f, w2.Root.rotation);
+            SetGrabbing(1);
+            bool movedWhileHeld = windows.ClearOf(w1, null);
+            SetGrabbing(0);
+            Check(!movedWhileHeld && !w1.Panel.Handles.Busy, "ClearOf leaves a window alone while a panel is held (Grabbing > 0)");
+            Check(windows.ClearOf(w1, null), "once the hand lets go, the same window that covers another one is moved to a free place");
+            yield return 1.5f;
+            AssertNoOverlap("after clearing the covered window", head, w1, w2, mode);
             Vector3 p1 = CenterOf(w1.Panel), p2 = CenterOf(w2.Panel);
             var modePositions = new Vector3[mode.Length];
             for (int i = 0; i < mode.Length; i++) modePositions[i] = CenterOf(mode[i]);

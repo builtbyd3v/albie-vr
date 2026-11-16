@@ -705,6 +705,7 @@ namespace Forge.OS
         {
             Transform head = OSShell.FindHead();
             if (window == null || window.IsGroup || window.Panel == null || window.Root == null || head == null || !window.gameObject.activeInHierarchy) return false;
+            if (PanelManipulator.Grabbing > 0) return false;  // somebody is holding a panel: never glide one out of their hand (a later tick moves it once it is let go)
             Vector3 eye = head.position;
             Vector3 forward = FlatForward(head);
             ignoreRoot = ownRoot;
@@ -746,9 +747,18 @@ namespace Forge.OS
         IEnumerator ClearAfter(Transform ownRoot)
         {
             yield return new WaitForSeconds(0.8f);
+            yield return WaitForRelease();
             if (ownRoot != null) ClearAll(ownRoot);
             yield return new WaitForSeconds(1.7f);
+            yield return WaitForRelease();
             if (ownRoot != null) ClearAll(ownRoot);
+        }
+
+        // A held panel is skipped by ClearOf, so a tick that lands mid-grab would do nothing: wait for the hand to let go (at most 10 s).
+        static IEnumerator WaitForRelease()
+        {
+            float until = Time.unscaledTime + 10f;
+            while (PanelManipulator.Grabbing > 0 && Time.unscaledTime < until) yield return null;
         }
 
         readonly List<Renderer> volumeRenderers = new List<Renderer>();
