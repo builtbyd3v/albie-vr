@@ -1148,20 +1148,31 @@ namespace Forge.OS.Editor
 
         // The desktop rig's simulated room has wall and furniture colliders where the mock living room's strip of floor is, so a
         // truck put down on the slalom's start would crash at once: they are switched off while the pad drives (the cones stay).
-        // Switches off every simulated-room collider that is on now and returns how many were new. Called again before the long
-        // runs: the simulated room builds its meshes a little after the scene starts, so colliders that were not there at the
-        // first call must not be left on in the truck's way. It never clears the list, so RestoreRoomColliders puts all back.
+        // Switches off what the truck must not crash into in this test and returns how many colliders were new: the simulated
+        // room (its meshes are built a little after the scene starts, so this is called again before the long runs), and the
+        // desktop user's body (a character controller) and Albie, who both stand on the course line. The brain truck's body
+        // treats every collider as an obstacle (ExampleTruckBody.obstacles is all layers): in 2 of 15 full runs a candidate crashed into
+        // "DesktopRig" or "AlbieAssistant" 1 to 2 m from the start, every candidate and the fallback did, and the run failed. On a
+        // headset the user's body is not a collider; Albie's is, and only RestoreRoomColliders turns these back on.
         static int SwitchOffRoomColliders()
         {
             int added = 0;
             foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
-                if (!c.enabled || !c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
+                if (!c.enabled) continue;
+                bool bystander = c.GetComponentInParent<global::DesktopRig>() != null || IsUnderNamed(c.transform, "AlbieAssistant");
+                if (!bystander && !c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
                 c.enabled = false;
                 roomColliders.Add(c);
                 added++;
             }
             return added;
+        }
+
+        static bool IsUnderNamed(Transform t, string name)
+        {
+            for (; t != null; t = t.parent) if (t.name == name) return true;
+            return false;
         }
 
         // How many simulated-room colliders exist and how many are on, for the log lines of step 6.
@@ -1389,7 +1400,7 @@ namespace Forge.OS.Editor
                     string stillBlocked;
                     Check(!OSProjects.StartBlocked(brain, out stillBlocked), "the block removed: the start spot is clear again" + (stillBlocked != null ? " (" + stillBlocked + ")" : ""));
                 }
-                // A room collider that appeared since the first switch-off would be in the truck's way on every attempt.
+                // A collider that appeared since the first switch-off (a room mesh, Albie) would be in the truck's way on every attempt.
                 int late = SwitchOffRoomColliders();
                 string waitingOn = null;
                 foreach (float w in Until(() => !OSProjects.StartBlocked(brain, out waitingOn), 4f)) yield return w;
@@ -1398,6 +1409,17 @@ namespace Forge.OS.Editor
                 PressAction("Autopilot");
                 yield return 0.5f;
                 Check(project.StatusLine.StartsWith("The Autopilot is driving", StringComparison.Ordinal), "Autopilot started (" + project.StatusLine + ")");
+                // The user stands in the middle of the course while it drives (Albie comes over to them): neither is an obstacle.
+                CharacterController rigBody = rig != null ? rig.GetComponent<CharacterController>() : null;
+                Vector3 rigHome = rig != null ? rig.transform.position : Vector3.zero;
+                var gateSlots = host.Build.Slots.TryGetValue("course.gates", out var gatePoses) ? gatePoses : null;
+                if (rig != null && rigBody != null && gateSlots != null && gateSlots.Count > 0)
+                {
+                    Pose origin = host.SceneOrigin;
+                    Vector3 onCourse = origin.position + origin.rotation * gateSlots[Mathf.Min(1, gateSlots.Count - 1)].position;
+                    Check(!rigBody.enabled, "the user's body is not an obstacle while the truck runs (its collider is off)");
+                    rig.transform.position = new Vector3(onCourse.x, rigHome.y, onCourse.z);
+                }
                 // Watched every frame, so that when an attempt ends in a crash the log says where and against what.
                 int seen = brain.Attempts.Count;
                 Vector3 lastPos = brain.transform.position, startPos = lastPos;
@@ -1419,6 +1441,7 @@ namespace Forge.OS.Editor
                     lastPos = brain.transform.position;
                     yield return 0f;
                 }
+                if (rig != null) rig.transform.position = rigHome;
                 yield return 0.5f;
                 runs = ArtifactRuns.List("slalom");
                 lastRun = runs.Count > 0 ? (string)runs[runs.Count - 1]["outcome"] : null;
