@@ -33,12 +33,21 @@ namespace Forge.OS.Editor
         public static void Tap(params Key[] keys)
         {
             if (!Application.isPlaying) return;
+            FocusGameView();
             if (keyboard == null || !keyboard.added) keyboard = TestKeyboard();
             steps.Clear();
             startFrame = Time.frameCount;
             steps.Add(new Step { keys = keys, frame = 1 });
             steps.Add(new Step { keys = new Key[0], frame = 5 });
             if (!hooked) Hook();
+        }
+
+        // In the editor the Input System drops a key event unless the Game view has focus (the editor can be focused on another window),
+        // so a tap first puts the Game view in front. Harmless when it already is, or when there is no Game view.
+        static void FocusGameView()
+        {
+            System.Type gameView = System.Type.GetType("UnityEditor.GameView,UnityEditor");
+            if (gameView != null && UnityEditor.EditorWindow.focusedWindow?.GetType() != gameView) UnityEditor.EditorWindow.FocusWindowIfItsOpen(gameView);
         }
 
         // Devices added in Play mode outlive it, so each test run would pile up another keyboard until the Input System

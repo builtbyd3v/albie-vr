@@ -669,3 +669,55 @@ Menu strip button -> RC truck -> Small and quick -> Slalom around my couch -> pl
 
 ### Changes outside `OS/`
 None. Edits to other OS files: `Scripts/OSProjectWindow.cs` gets `public void Suggest(string line) => SetStatus(line);`; `Editor/OSCheck.cs` gets the `PlannerTree` walk and `BuildToolDefinition`; `Editor/OSPlayTest.cs` gets step 5. No Project Settings, scene or `manifest.json`.
+
+## agents-5.10: Agents window, Bring home, Send out, Dismiss behind a confirm
+
+Integrated the staged `agents` part. It compiled on the first try (0 errors, 0 warnings). Logic that had never run needed three real fixes, all found by the new play test (below).
+
+### What was done
+- Copied `OSAgentsWindow.cs` (window id `agents`, registers under the strip button's id), `OSAgentHome.cs` (pad spot, bring home, send out, all) and `OSHomePad.cs` (the disc on the desk under a home agent) into `unity/Assets/_Forge/OS/Scripts/`.
+- Applied the staged Pet hook by hand (`HOOKS.md`, sections 1 and 2a to 2d), plus one addition of mine (`SettleHomeSpot`, see Decisions). Listed precisely under "Changes outside OS/".
+- New `Editor/OSAgentsTest.cs` (menu `Forge/OS/Run Agents Test`, `LastResult`, 98 checks) and an `OSCheck` line for the page and the hook.
+- `OSMenuTest`: after the strip's Agents press the test now closes the real window (HOOKS.md section 5).
+
+### Check output (verbatim)
+```
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS os check   (ok   the Agents page registers under the strip's id and the crew's Bring home hook is in place)
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements from the Agents test: `desk surface built: True, at desk: True, crew allowed (Code mode): False`; the builder reached its pad in 2.0 to 3.0 s, the scout in 7.5 to 8.0 s (an agent walks about 15 cm a second); the builder stood 0.000 m from its (settled) pad and moved 0.0000 m in a second; the smallest button in the window is 30 mm tall (the panel's own "Face me"; the window's own buttons are larger).
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `71_agents_two_rows.png` (Albie as lead, Builder with its real task "Read the sample project and say what it does" and Scout "Idle", both Walking, Bring home and Dismiss on each row, Bring all home and Send all out above, the type buttons under them), `72_agents_home_pad.png` (the window put away; the builder with its hat standing on its coloured pad on the desk), `73_agents_both_home.png` (both rows say Home with the home icon, buttons flipped to Send out, "2 agents are home."), `74_agents_dismiss_confirm.png` (the card "Dismiss Scout? It goes away and its task stops." with Dismiss and Cancel, nothing dismissed yet), `75_agents_page_one_of_three.png` (nine agents, page 1 of 3 with the pager). The test checks that no text is clipped or overlapping (`OSToolsTest.LayoutProblem`), no placeholder text, and that every button is at least 22 x 22 mm; I also looked at each picture for brand names and found none.
+
+### What the test proves
+Empty crew: "No agents yet." and Bring all home is off. `spawn_agent` builder and scout (crew egg gate shut), `assign_task` to the builder (the request goes to a local socket that never answers, so the task stays running offline). The menu strip's Agents button opens the window and closes the menu. Two rows; the builder's row shows its real task. Bring home on the builder: it walks to a pad on the desk, stands still on it, its task is still listed in `crew_status`, its bridge is still busy, its controller is still Working, no result arrived, the window's row still shows the task. Send out: back to walking, pad gone, task still there. The scout wanders again after Send out (moves at least 8 cm). Bring all home and Send all out with the right buttons on and off, the two pads at least 7 cm apart. Dismiss opens a confirm that names the agent and says its task stops; Cancel keeps the agent; Dismiss removes it. The `dismiss_agent` tool path stops the task (`stopped_task: true`); Bring home never did. Fixer hatched from the window with `CrewAllowed` false. Nine agents take three pages and the pager works. All agents dismissed: no pad left behind.
+
+### Decisions (one line of why each)
+- **The hatching gate stays as it is (the decision spec 5.10 asks for).** `AlbieCrew.CrewAllowed` (gate mode `code`) gates only the egg and picker, the N and X keys and the captions' mute; `AlbieCrew.Spawn`, the hub's `crew.spawn`, `spawn_agent` and `assign_task` never read it. The Agents window hatches through `spawn_agent`, so a user in the OS who never opens Code still gets agents. Why: it needs no Pet change, keeps the egg a desk prop tied to the code view, and the test hatches a Fixer with `CrewAllowed == false` to prove the window does not depend on it. If Hudson wants the egg and keys everywhere: set `gateModeId` to empty on the `AlbieCrew` in Main.unity (Core owner only); nothing here depends on it.
+- **Bring home never calls `GoHome`.** Why: `GoHome` destroys the member and `dismiss_agent` drops its task; Bring home only stops wandering (a 6 cm territory on the pad plus the controller's own `StationAt`), so the task, bridge and hub state keep running. Away from a desk, or with no free pad, the body is hidden (`forceRenderingOff`, colliders off) and it keeps working out of sight.
+- **Dismiss is the only thing that stops a task, and it asks first.** Why: spec says so. The row button is labelled "Dismiss" (a row has no room for "(stops its task)"); the card says "Dismiss Scout? It goes away and its task stops." before anything happens, and a hint line under the rows says it too.
+- **The window reads each agent's task through the `crew_status` tool twice a second.** Why: `CrewTools.running` is private and one small allocation per half second was not worth a change outside OS/; the staged HOOKS.md section 3 has the zero-allocation accessor if it ever matters.
+- **`SettleHomeSpot` (my addition to the Pet hook).** Why: the controller stops walking about 15 cm short of the point it was sent to (`NavMeshAgent.stoppingDistance` 0.1 plus its 0.05 arrival slack), and a working agent stands at the front of its territory about 13 cm from the centre, so the agent stood beside its pad. Once a home agent has not moved 1 cm over a 0.3 s tick and is within 30 cm of its pad, the pad's spot becomes where it stands (the pad follows; `Taken` still keeps two pads 7 cm apart).
+- **The test waits for an agent to arrive instead of a fixed 8 s, and waits one second between `spawn_agent` and `assign_task`.** Why: a walk of 1.3 m takes 9 s; and a crew member hooks onto the event source in its first `Update`, so a task injected in the very frame it hatched is missed (the bridge never goes busy). That second one is a real, pre-existing race in the Pet module (the voice path and the hub are slower than a frame, so it does not show there); I left it alone and am logging it here.
+- **`OSInput.Tap` puts the Game view in front first, and `OSMenuTest` waits for the menu up to 4 s after M.** Why: with the editor focused on another window the Input System drops the key event (found by running `OSMenuTest` first: "M opens the menu" failed, 55 passed and 8 failed; with the Game view focused it is 63 and 0). Tests that already had a fallback are unchanged.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset): presses are EventSystem pointer presses as in the other OS tests.
+- The Agents step in `OSPlayTest` (spec 6.1 step 7) was not added; `OSAgentsTest` covers it in full and the placeholder comment in `OSPlayTest` is still there.
+- Away from a desk, the hidden branch (body hidden, no pad) is implemented but did not run in the live test: the test always sits at the desk, so `SetHome(true, null)` and the hidden-body checks were not exercised.
+- Agents walk to their pad at about 15 cm a second, so Bring all home with agents on the far side of a 2 m desk takes up to 13 s before they stand on their pads. The pads show at once.
+- One run of `OSMenuTest` printed the failure `the selected tab's label ... contrast ... 5.5:1, at least 5.5`: a rounding edge in an existing check, not seen on the other runs.
+
+### Changes outside `OS/`
+- `Pet/Scripts/Crew/AlbieCrewMember.cs` (+134 lines, nothing removed): `using System.Collections.Generic;`; public `Home`, `HomeSpot` (Vector3?), `BodyHidden`; `SetHome(bool home, Vector3? spot = null)`; private helpers `ParkAtHome`, `HomeTick` (every 0.3 s while home), `SettleHomeSpot`, `SetBodyHidden`, `ApplyBodyHidden`; one line at the top of `Update`: `if (Home && !Leaving) HomeTick();`. `GoHome`, `Init`, `Awake`, `OnPoked` are untouched. Why: Bring home must stop wandering without ending the task.
+- `Pet/Scripts/Crew/AlbieCrew.cs` (+10, -3): new `NotifyHomeChanged()` (re-split the areas, raise `Changed`); `ClearDeskForLead` skips a home member (`m == null || m.Home`) so the whistle neither dismisses nor lines it up; `AssignTerritories` leaves a home member out of the areas it hands out; `AssignLineup` skips a home member. Why: without these the crew's own bookkeeping would walk a home agent off its pad or dismiss it on a whistle.
+No Project Settings, scene or `manifest.json`. `Main.unity` was not touched.

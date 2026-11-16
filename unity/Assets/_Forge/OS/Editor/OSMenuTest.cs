@@ -414,7 +414,9 @@ namespace Forge.OS.Editor
 
             // ---- the M key, then the Close buttons
             OSInput.Tap(Key.M);
-            yield return 0.8f;
+            // The key is played out over game frames; an editor that is not focused ticks slowly, so wait for the menu, not a fixed time.
+            for (float waitedForM = 0f; waitedForM < 4f && !shell.MenuOpen; waitedForM += 0.25f) yield return 0.25f;
+            yield return 0.4f;
             Check(shell.MenuOpen && shell.LastSummon == OSSummon.Key, "M opens the menu");
             Check(Press(FindDeep(menu.transform, "Button Close")?.gameObject, out why), "a pointer reaches the Close button: " + why);
             yield return 0.5f;
@@ -431,6 +433,7 @@ namespace Forge.OS.Editor
             yield return 0.6f;
             Check(Press(FindDeep(menu.transform, "Button Agents")?.gameObject, out why), "a pointer reaches Agents: " + why);
             yield return 0.3f;
+            shell.Windows.Close(OSAgentsWindow.WindowId);   // the strip now opens the real Agents window; put it away so it does not stay into the next step
             Check(shell.MenuOpen || OSShell.HasSystem("agents"), "Agents with no page registered leaves the menu open and doesn't throw");
             shell.CloseMenu();
             yield return 0.4f;
@@ -464,7 +467,9 @@ namespace Forge.OS.Editor
             Check(!table.Shown, "the table button is gone away from the desk");
 
             OSInput.Tap(Key.M);
-            yield return 0.8f;
+            // The key is played out over game frames; an editor that is not focused ticks slowly, so wait for the menu, not a fixed time.
+            for (float waitedForM = 0f; waitedForM < 4f && !shell.MenuOpen; waitedForM += 0.25f) yield return 0.25f;
+            yield return 0.4f;
             Check(shell.MenuOpen, "M opens the menu away from the desk");
             Check(Press(FindDeep(menu.transform, "Tab Projects")?.gameObject, out why), "away: a pointer reaches the Projects tab: " + why);
             yield return 0.3f;

@@ -62,6 +62,7 @@ ok &= Check(sb, "the tabs hold the seven tools, the four starter projects and ev
 ok &= Check(sb, "os_open's description names every tool id and kind", OsOpenDescription);
 ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
 ok &= Check(sb, "the planner tree ends in a plan within three questions", PlannerTree);
+ok &= Check(sb, "the Agents page registers under the strip's id and the crew's Bring home hook is in place", AgentsPage);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
 
@@ -741,6 +742,24 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             float mm = button.ButtonMeters * 1000f;
             if (mm < 22f) return "the table button is " + mm.ToString("F1") + " mm, the minimum is 22";
             note = mm.ToString("F0") + " mm";
+            return null;
+        }
+
+        static string AgentsPage(out string note)
+        {
+            note = null;
+            Forge.OS.OSAgentsWindow.Register();
+            if (!OSShell.HasSystem("agents")) return "Register() did not register the 'agents' page";
+            var member = typeof(Forge.Pet.AlbieCrewMember);
+            if (member.GetMethod("SetHome") == null) return "AlbieCrewMember has no SetHome (the Pet hook is missing)";
+            if (member.GetProperty("Home") == null || member.GetProperty("HomeSpot") == null || member.GetProperty("BodyHidden") == null) return "AlbieCrewMember is missing Home, HomeSpot or BodyHidden";
+            if (typeof(Forge.Pet.AlbieCrew).GetMethod("NotifyHomeChanged") == null) return "AlbieCrew has no NotifyHomeChanged";
+            // With no scene there is no crew: nothing is home, nothing is brought, and asking for a spot is a plain no.
+            if (Forge.Pet.AlbieCrew.Instance != null) { note = "skipped the no-crew calls: a crew is running"; return null; }
+            if (Forge.OS.OSAgentHome.HomeCount() != 0) return "HomeCount() is not 0 with no crew";
+            if (Forge.OS.OSAgentHome.BringHome(null)) return "BringHome(null) said it found a pad";
+            if (Forge.OS.OSAgentHome.TryPadSpot(null, out _)) return "TryPadSpot found a spot with no shell";
+            if (Forge.OS.OSAgentHome.BringAllHome() != 0 || Forge.OS.OSAgentHome.SendAllOut() != 0) return "Bring all home or Send all out moved someone with no crew";
             return null;
         }
 
