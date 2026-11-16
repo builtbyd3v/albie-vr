@@ -1067,3 +1067,38 @@ One earlier OSAgentsTest run failed once ("the builder stands still on its pad (
 
 ### Changes outside OS/
 - Core: the constants, material, shader defaults, `ForgePanel.Awake`/`FitPlate` and `ForgePill.Refresh` above (this run is the Core owner's).
+
+## look-capture (the picture set for the grading loop)
+
+### What was done
+- New editor tool `unity/Assets/_Forge/OS/Editor/OSLookShots.cs`, menu `Forge/OS/Capture Look Set`, `public static Run()`, `RunOnly("settings,agents")` for one section, static `LastResult` and `Running` (both survive the domain reload through SessionState), modelled on OSPlayTest: Main in Play on the desktop rig, voice off, the shared scratch environment (OSTestEnv.UseScratch, so the user's notebook, projects, artifacts, approvals and settings are never read or written; OSTestEnv.Leave compares the user's state afterwards), the MockFloorPlan living room for the slalom.
+- It walks the product in 14 sections (table, menu, states, windows, settings, agents, build, drive, modes, artifacts, truck, three, away, closed) and writes `unity/Logs/os/look/NN_name.png` (1600 x 1000) plus `unity/Logs/os/look/index.json` (file, path, screen, what, distance, fov, zoomed) and `result.txt`. Only that folder is cleared at the start.
+- 59 pictures: the table button (seated view and straight down), the menu on all three tabs with page 2, hover and pressed on a tile and on a strip button (each with a full-menu and a close picture), Notebook (attempts, one waiting for a verdict), the truck Project window with a full plan, the classifier Project window (offline line), the gesture display, Settings pages 1 to 3 and the Forget permissions confirm card, Agents (empty, two rows, one home, home with the desk, Dismiss confirm), Build something (questions 1, 2, 3 and the plan card), Drive idle and recording, CAD with Notebook, Code with the project window, Train with the menu, Messages with Settings (each with a wide and a square-on picture), the heart, repo activity (Allow sheet, then open), the slalom scoreboard and course, three windows at the desk, windows still there after walking away, the menu away, the corner button, the watch button, windows after Bring windows here away, the empty desk after Close all.
+- Result of the last run: `OK look set: 59 pictures` with one product finding (below). Every picture was opened and looked at.
+
+### How the pictures are framed (decisions, one line of why each)
+- **The head camera itself renders each picture from a pose set for that one call, then goes back.** Why: it is the user's camera (same pipeline, same UI sorting), and nothing in the scene moves, so no window re-flows and the desk state is untouched.
+- **A surface is framed square on, along its own normal, at the distance where it fills about 88 percent of the picture at the head camera's field of view, kept between 0.45 and 0.9 m.** Why: the grader judges size from the picture and the reported distance. A surface too small to fill the picture at 0.45 m (a button) is shown with a narrower field of view from 0.45 m ("zoomed": true in index.json); one too big at 0.9 m with a wider one.
+- **Where context matters (old window beside new, windows around the user) a second picture is taken from the real head position**, at the widest field of view that is needed (up to 95 degrees), not from across the room.
+- **For the one render only, `forceRenderingOff` hides**: the desktop rig's own hand dots and ray beam, Albie's speech caption ("I can't hear you right now" appears whenever Albie asks something with voice off), and room furniture or props that stand between the camera and the surface (a window placed into a sofa). Panels and windows are never hidden. Undone right after the render.
+- **Hover and pressed states are driven with real EventSystem pointer events on the control (enter, then down held), released without a click.** Why: the UI Set buttons take their look from the Selectable state, so this is what a hovering or pressing hand produces, and no action runs.
+- **The classifier project window is finished by hand for its own picture** (see the finding), and the previous picture shows what the user gets.
+
+### Finding in the product (not fixed: not this part's job)
+- **Tapping Image classifier opens the Project window and the Train mode in the same moment; the window manager then glides the window clear of Train's panels and that glide cancels the window's fade-in half way, so the window stays at alpha 0, invisible.** Seen in `17_project_classifier_with_train.png` (only Train shows) and probed over 3 seconds (alpha 0.00 at every step, scale 0.00092). The OSProjectsTest check does not see it because it reads text, not pixels. Probable fix: AnimateIn must not be stopped by Glide (restart the fade after a Glide, or make Glide leave the alpha alone) in OSWindows.
+- Not a defect of the pictures: the brain truck has no visible model in the desktop simulation, so `49_slalom_course_truck.png` shows the course (gates, cones, green line) and the start gate only; the desktop simulation draws no left hand, so the watch pictures show the button without the wrist.
+
+### Check output
+```
+OK look set: 59 pictures in unity/Logs/os/look
+product findings: [windows] after tapping Image classifier the Project window stays invisible (alpha 0.00, scale 0.00092): the window glide that clears it of the Train panels cancels its open animation
+PASS os check   (OSCheck.Run, 28 ok lines, no FAIL)
+compile: 0 errors, 0 warnings. Console: 0 errors in the run; warnings only the known TMP Ellipsis, MRUK scene model, no-hub ones.
+```
+
+### Not done / limits
+- Pictures come from the desktop rig (simulated living room, flat shading): they judge layout, size, legibility and states, not passthrough or headset optics.
+- No screen was left out. Nothing was unreachable.
+
+### Changes outside OS/
+- None.
