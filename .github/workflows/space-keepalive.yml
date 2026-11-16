@@ -1,0 +1,52 @@
+# Keeps the CAD + ML cloud (HF Space builtbyd3v/albie-cloud) awake and tells the owner when it can't be.
+# Every 12 h it asks /health, so a free cpu-basic Space never reaches its 48 h sleep. It fails (GitHub emails the
+# person who last changed the schedule below) when the Space is paused, stopped or broken, or /health doesn't answer.
+# Schedules run only from main. Run it by hand from Actions > Space keepalive > Run workflow.
+name: Space keepalive
+on:
+  schedule:
+    - cron: '17 5,17 * * *'
+  workflow_dispatch:
+concurrency: space-keepalive
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check the Space and ask /health
+        env:
+          SPACE: builtbyd3v/albie-cloud
+          HEALTH: https://builtbyd3v-albie-cloud.hf.space/health
+          ALBIE_APP_KEY: ${{ secrets.ALBIE_APP_KEY }}
+        run: |
+          answer=$(curl -s --max-time 20 "https://huggingface.co/api/spaces/$SPACE/runtime" || true)
+          stage=$(jq -r '.stage // "UNKNOWN"' <<<"$answer" 2>/dev/null || echo UNKNOWN)
+          stage=${stage:-UNKNOWN}
+          why=$(jq -r '.errorMessage // ""' <<<"$answer" 2>/dev/null || true)
+          echo "stage $stage"
+          case "$stage" in
+            PAUSED|STOPPED)
+              echo "::error::The Space is $stage ($why). CAD, flight sim and ML training on the headset are down until the owner restarts it at https://huggingface.co/spaces/$SPACE/settings"
+              exit 1 ;;
+            *ERROR|NO_APP_FILE|DELETING)
+              echo "::error::The Space failed with $stage ($why): https://huggingface.co/spaces/$SPACE"
+              exit 1 ;;
+          esac
+          # The key goes in a header file, never on the command line. Without it /health answers 401, which still
+          # reaches the app and counts as a visit.
+          headers=$(mktemp)
+          [ -n "$ALBIE_APP_KEY" ] && printf 'x-albie-key: %s\n' "$ALBIE_APP_KEY" > "$headers"
+          code=000
+          for _ in $(seq 1 12); do  # a sleeping Space takes 1 to 2 min to wake: up to 12 x 15 s
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -H @"$headers" "$HEALTH" || true)
+            echo "$(date -u +%H:%M:%S) /health $code"
+            [ "$code" = 200 ] && exit 0
+            if [ "$code" = 401 ]; then
+              [ -z "$ALBIE_APP_KEY" ] && { echo "::notice::Reached the app (401: no ALBIE_APP_KEY secret here)."; exit 0; }
+              echo "::error::/health refused the ALBIE_APP_KEY secret (401): the Space's key and the repo secret differ."
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "::error::/health did not answer 200 in about 3 min (last $code): https://huggingface.co/spaces/$SPACE"
+          exit 1
