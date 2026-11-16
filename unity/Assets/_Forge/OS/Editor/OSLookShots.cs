@@ -343,7 +343,7 @@ namespace Forge.OS.Editor
         static void HideNoise(Vector3 eye, List<Vector3> probes, Transform keep)
         {
             noise.Clear();
-            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
                 if (r == null || !r.enabled || r.forceRenderingOff) continue;
                 bool hide = alsoHide.Contains(r) || r.GetComponentInParent<AlbieCaption>() != null || r.name == "SimJoint" || r.name == "GestureBeam" || (r is LineRenderer && r.GetComponentInParent<global::DesktopRig>() != null);
@@ -1225,7 +1225,7 @@ namespace Forge.OS.Editor
             if (best == null) { Unreachable(screen, "the mode opened no panel"); return; }
             // The mode's 3D parts (a CAD part and its plinth, Train's slabs) stand between the camera and the panel: left out of this picture.
             alsoHide.Clear();
-            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
             {
                 if (r == null || r.transform.IsChildOf(best.transform) || r.GetComponentInParent<Canvas>() != null) continue;
                 for (Transform t = r.transform; t != null; t = t.parent)

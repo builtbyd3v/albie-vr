@@ -792,7 +792,7 @@ namespace Forge.OS
                 // A window that is turned or rolled covers more than its width says: use its real corners as the eyes see them.
                 covers.Add(CoverOfPanel(rect, at, shift, size, eye, forward));
             }
-            var volumes = FindObjectsByType<ForgeVolume>(FindObjectsSortMode.None);
+            var volumes = FindObjectsByType<ForgeVolume>();
             for (int i = 0; i < volumes.Length; i++)
             {
                 ForgeVolume volume = volumes[i];

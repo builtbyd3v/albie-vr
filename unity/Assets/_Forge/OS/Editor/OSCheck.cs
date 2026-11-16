@@ -504,8 +504,9 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             note = target.ToString("F1") + " mm target, " + gap.ToString("F1") + " mm gap";
             if (target < 22f) return "the minimum target is " + target + " mm";
             if (gap < 12f) return "the minimum gap is " + gap + " mm";
-            if (OSUi.ButtonHeight < OSUi.MinTarget) return "buttons are shorter than the minimum target";
-            if (OSUi.BodyText < 16f || OSUi.SmallText < 14f) return "text sizes are under the contract's 16 and 14";
+            float buttonHeight = OSUi.ButtonHeight, minTarget = OSUi.MinTarget, body = OSUi.BodyText, small = OSUi.SmallText;  // locals, so the compiler does not fold the constants
+            if (buttonHeight < minTarget) return "buttons are shorter than the minimum target";
+            if (body < 16f || small < 14f) return "text sizes are under the contract's 16 and 14";
             return null;
         }
 
@@ -807,7 +808,8 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             List<string> problems = Forge.OS.OSPlanner.Validate();
             if (problems.Count > 0)
                 return problems[0] + (problems.Count > 1 ? " (and " + (problems.Count - 1) + " more)" : "");
-            if (Forge.OS.OSPlanner.MaxQuestions > 3) return "the planner allows " + Forge.OS.OSPlanner.MaxQuestions + " questions, the spec says at most 3";
+            int maxQuestions = Forge.OS.OSPlanner.MaxQuestions;
+            if (maxQuestions > 3) return "the planner allows " + maxQuestions + " questions, the spec says at most 3";
             int paths = Forge.OS.OSPlanner.PathCount();
             if (paths < 5) return "only " + paths + " paths end in a plan (the first question alone has five answers)";
             // Walked here as well as by Validate: taking answer 1, then 2, ... of every question, a plan always arrives by question 3.

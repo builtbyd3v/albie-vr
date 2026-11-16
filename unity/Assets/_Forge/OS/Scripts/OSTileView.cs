@@ -23,7 +23,7 @@ namespace Forge.OS
         public Image icon;
         public TMP_Text title, status;
         public Image outline;
-        public OSEntry entry;
+        [System.NonSerialized] public OSEntry entry;
 
         void Awake()
         {

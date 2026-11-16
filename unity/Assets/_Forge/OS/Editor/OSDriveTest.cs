@@ -352,7 +352,7 @@ namespace Forge.OS.Editor
         static void SwitchOffRoomColliders()
         {
             switchedOff.Clear();
-            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude))
             {
                 if (!c.enabled || !c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
                 c.enabled = false;

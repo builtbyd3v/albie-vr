@@ -1157,7 +1157,7 @@ namespace Forge.OS.Editor
         static int SwitchOffRoomColliders()
         {
             int added = 0;
-            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude))
             {
                 if (!c.enabled) continue;
                 bool bystander = c.GetComponentInParent<global::DesktopRig>() != null || IsUnderNamed(c.transform, "AlbieAssistant");
@@ -1179,7 +1179,7 @@ namespace Forge.OS.Editor
         static string RoomLine()
         {
             int total = 0, on = 0;
-            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include))
             {
                 if (!c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
                 total++;
@@ -1201,7 +1201,7 @@ namespace Forge.OS.Editor
             string names = "";
             foreach (Collider c in found) names += c.name + " (" + (c.transform.parent != null ? c.transform.parent.name : "root") + "), ";
             int roomOn = 0;
-            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude))
                 if (c.enabled && c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) roomOn++;
             return "touching " + (found.Length == 0 ? "nothing" : names) + "; room colliders on again: " + roomOn + "; truck at " + brain.transform.position.ToString("F2");
         }
@@ -1511,7 +1511,6 @@ namespace Forge.OS.Editor
         static IEnumerator<float> StepAgents()
         {
             if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
-            string why;
             foreach (float w in Until(() => AlbieCrew.Instance != null, 8f)) yield return w;
             AlbieCrew crew = AlbieCrew.Instance;
             Check(crew != null, "the crew is in Main");
