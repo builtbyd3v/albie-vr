@@ -1409,3 +1409,62 @@ None. Only OS/ files changed, plus this log; the merge brought in main's own com
 ### Not done or not verified
 - Nothing here has run on a headset: the 9.8 mm cap height is arithmetic from the font and the OS unit, checked on the desktop camera pictures, not at a real 0.5 m.
 - The merge's hands transmitter and the OS Drive pad were not tried together by a hand.
+
+## Improvement round 1: fixes from the audit (improve-fix-1)
+
+Nine audit findings, confirmed against the code, fixed most severe first. Only files under `unity/Assets/_Forge/OS/` changed (plus this log). Free disk on C: was 17.9 GB before the first and before the last Play run.
+
+### What was done
+1. **Settings sliders wrote `os_settings.json` on every drag callback** (3 findings, one cause). `OSSettingsWindow`: the Distance and Height callbacks now return at once when the rounded value equals the stored one, otherwise edit `OSSettings.Current` in memory (`ChangeLive`) and set `saveAt = Time.unscaledTime + SliderSaveDelay` (0.25 s, under the 0.4 s the old test waited). `Update` writes once when the delay passes (`FlushSave`, under the `saving` guard so the slider is not rebuilt under the finger); `OnDisable`, `OnDestroy`, `OnApplicationPause(true)` and `Rebuild` flush a waiting edit first. Toggles and choices still save at once through `Change`. Test lines in `OSSettingsTest`: 11 slider moves in 0.33 s give 0 writes while moving (an `OSSettings.Changed` counter) and the setting follows in memory, then exactly 1 write after the rest; a fresh edit shows `SavePending`.
+2. **A held window was glided out of the hand** (`OSWindows.ClearOf`). `ClearOf` now returns false while `PanelManipulator.Grabbing > 0` (the only accessor there is; it is per app, not per panel), and `ClearAfter` waits (at most 10 s) for the release before each delayed `ClearAll`, so the 0.8 s and 2.5 s ticks still clear the window once it is let go. Test in `OSWindowsTest`: a window put on top of another is not moved with `Grabbing` at 1 (and is not `Busy`), is moved once `Grabbing` is 0, and nothing overlaps afterwards.
+3. **Menu and Project window read every run file** (`OSArtifacts.ReadRow`, `OSProjects.LinkedArtifacts`). New `OSArtifacts.NewestRun(artifactId, projectIdOrNull)`: lists the `run_*.json` names, sorts them by number, and loads newest first with `ArtifactRuns.Load`, stopping at the first valid record (and the first for the project when one is given). Both callers use it, so the parses fall from every run to normally one. `ProjectName` now caches its answer for one rebuild (it called `OSRegistry.Find`, which allocates a list, once per row). Test lines in `OSProjectsTest`: newest with no project is the last record written; the truck project's newest walks back past another project's newer run; no match and no runs give null.
+4. **Menu caption colour rewritten every frame.** The kit animator's colour curves name the tile's status label `Label (1)`. `OSUi.Tile` now renames that object to `Caption` (`OSUi.TileCaptionName`) and calls `Animator.Rebind()`, so the curves find nothing; `OSTileView.Show` sets the colour once and `LateUpdate` keeps only the pressed-fill step. `OSMenuTest` line: every tile's caption has the new name and the right colour, and a colour set to red by the test is still red 0.3 s later (an animator that still reached it would put grey back).
+5. **First open built the whole menu in one frame.** `OSShell.Prewarm` (a coroutine from `Start`, `PrewarmDelay` 3 s) calls `OSMenu.Prewarm()` (only `Build()`: the controls and one theme pass, with `visual` inactive; nothing is shown or refreshed) and one frame later `OSWatch.Prewarm()`. Skipped when the menu is already open or built. `OSMenuTest` line: the menu is built before anybody opens it and stays hidden.
+6. **Menu placement search up to 560 x 28 points.** `OSMenu.Blocked` and `BlockedCore` take a `limit` and stop counting when they reach it; `Pose` passes the fewest count so far while nothing is clear and 1 once a clear place is known (the only two questions it asks of the count), so the chosen place is the same. `OSPlayTest` line: capped at 1 and at 3 agree with the full count.
+7. **Artifacts tab rebuild reads every run file.** Covered by 3 (newest run, one project-name lookup per rebuild).
+- **OSCheck** (now 29 ok lines) has a new line "the hand-drag guards are wired": the slider write delay is 0.05 to 0.5 s, `FlushSave` and the application-pause flush exist, the prewarm hooks exist, the tile caption is not named as the animator's path, and `OSTileView` keeps its pressed-fill step. It checks the wiring only; the behaviour is proven on the desktop rig by the part tests below.
+
+### Checks (verbatim result lines)
+```
+PASS os check   (29 ok lines)
+PASS [OSSettingsTest] 113 passed, 0 failed
+PASS [OSWindowsTest] 56 passed, 0 failed
+PASS [OSMenuTest] 67 passed, 0 failed
+PASS [OSToolsTest] 101 passed, 0 failed
+PASS [OSProjectsTest] 91 passed, 0 failed
+PASS [OSArtifactsTest] 81 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 141 passed, 0 failed   (info level reached: full)
+PASS os test environment check
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 110 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)   (21 ok, 0 FAIL)
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS run check / PASS biology templates check / PASS glTF and timeline check / PASS hoop check / PASS slalom check / PASS voice rules check / PASS notebook check / PASS autopilot check / PASS controller runner check
+```
+Compile: 0 errors, no warning from a file under OS/. One flaky run, plainly: the first OSAgentsTest run failed once (`FAIL [OSAgentsTest] 98 passed, 1 failed`, line `the builder stands still on its pad (0.0508 m in 1 s)`, the pet drifting while idle) and passed 99/0 on two reruns; it touches nothing changed here. The Artifacts and Controllers checks not listed (Five In A Row, Room Slalom, Hot Reload, Thing Runtime, ML Template, Behaviour Cloning, Repo checks) were not re-run: nothing outside OS/ changed.
+
+### Decisions
+- Slider debounce 0.25 s, not 0.4 s: `OSSettingsTest` waits 0.4 s before reading the file, and 0.25 s leaves that margin.
+- Held-window guard uses the global `PanelManipulator.Grabbing`: there is no per-panel accessor, and `PanelManipulator.cs` is neither OS nor a `Forge*.cs` shared-look file. While anybody holds any panel no window is cleared; it is cleared on the next tick after the release.
+- Prewarm builds the menu and the wrist button only: the corner button builds at session start already and the table button when the user sits at the desk, so a prewarm helps little there; a tile prewarm would need a `Refresh`, which hands the gesture display to the window manager early (see the comment in `OSMenu`).
+- `OSArtifacts.NewestRun` is public (the Editor assembly does not see internals) and sorts by the run number in the file name exactly as `ArtifactRuns.List` does.
+
+### For module owners
+- `unity/Assets/_Forge/Artifacts/Scripts/ArtifactRuns.cs` line 64 (`List`): reads and parses every run file of an artifact and offers no "newest only" call. A public `ArtifactRuns.Newest(artifactId)` with a project filter would replace the OS-local `OSArtifacts.NewestRun`. Not needed for the OS to be fast; the OS helper is enough.
+- `unity/Assets/_Forge/Artifacts/Scripts/ArtifactLibrary.cs` line 155 (`List`): parses every manifest, and `OSArtifacts.ReadRow` then parses the same manifest again for its `links.project`. A `List` variant that includes `links` and the scene `space` would remove the second manifest read and the `ArtifactPackage.Load` per non-template artifact (`SpaceOf`). Left as it is.
+- `unity/Assets/_Forge/Core/Scripts/PanelManipulator.cs` line 36: `Grabbing` is a global count. A per-panel `IsHeld` would let `OSWindows.ClearOf` skip only the held window instead of all windows while anything is held.
+
+### Not done or not verified
+- **Nothing here is proven on a headset.** The slider write, the held-window guard, the prewarm and the caption change are proven only by mouse-style presses and reflection on the desktop rig. The OSCheck line stops the wiring from vanishing; it cannot show that a hand drag behaves.
+- Tile caption (finding 4): the claim that the animator writes the label every frame, and that this dirties the menu canvas every frame, was never measured. The rename removes the script's own write and the label's animator curves; the animator still writes the tile's plate, icon and title graphics each frame, so the canvas may still be dirtied. Profile on the device (`Canvas.BuildBatch`, `Canvas.SendWillRenderCanvases` with the menu open and idle); if hot, the next step is to disable each tile's Animator while it is idle (needs a hover and press test pass).
+- Not done from the findings: a per-row cache keyed on manifest and runs-folder write times, and a `SpaceOf` cache (the confirmers called them unnecessary; both stay open if a headset profile shows the Artifacts tab hitching). The second manifest parse and the `ArtifactPackage.Load` per non-template artifact remain (see For module owners).
+- The menu prewarm gain and the placement-search gain are unmeasured; the 50 to 150 ms and tens-of-ms figures in the audit were estimates.
+
+### Changes outside OS/
+None.
