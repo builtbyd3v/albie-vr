@@ -344,7 +344,7 @@ namespace Forge.OS
             if (!OSProjects.EnsureOpen(projectId, out string error)) return error;
 
             ArtifactHost current = ArtifactHost.Current;
-            if (current != null && current.OpenId == "slalom" && BrainLoops.Active is SlalomBrain && LinksTruckForThisProject(current))
+            if (current != null && current.OpenId == "slalom" && OSProjects.LiveLoop is SlalomBrain && LinksTruckForThisProject(current))
                 return "The slalom is already open, with the brain truck at the start.";
 
             OSProjects.LinkedArtifacts(projectId, linked);
@@ -385,7 +385,7 @@ namespace Forge.OS
             string thing = host != null && host.OpenManifest != null ? (string)host.OpenManifest["links"]?["thing"] : null;
             string text;
             if (thing != "truck") text = "The slalom is open, but it isn't linked to the truck, so no brain truck came with it.";
-            else if (BrainLoops.Active is SlalomBrain) text = "The slalom is open. The brain truck is at the start.";
+            else if (OSProjects.LiveLoop is SlalomBrain) text = "The slalom is open. The brain truck is at the start.";
             else text = "The slalom is open, but the brain truck didn't appear.";
             string say = (string)opened["say"];
             return string.IsNullOrWhiteSpace(say) ? text : text + " " + say.Trim();
@@ -397,7 +397,7 @@ namespace Forge.OS
             if (drive == null) return DriveMissing;
             if (!OSProjects.OpenTool(drive, out string error)) return error;
 
-            var brain = BrainLoops.Active as SlalomBrain;
+            var brain = OSProjects.LiveLoop as SlalomBrain;
             if (brain == null) return "The Drive pad is open. Open the course first so the truck can run.";
             if (brain.State != SlalomBrain.Mode.Idle) return "The Drive pad is open. The truck is " + StateWord(brain.State) + ".";
 
@@ -419,7 +419,7 @@ namespace Forge.OS
                 return "Train is open.";
             }
 
-            if (BrainLoops.Active == null) return "Open the course first. The brain learns from laps on the slalom.";
+            if (OSProjects.LiveLoop == null) return "Open the course first. The brain learns from laps on the slalom.";
             JObject result = AlbieTools.Call("brain_train", new JObject());
             string error = (string)result["error"];
             if (error != null) return OSProjects.Plain(error);
@@ -429,7 +429,7 @@ namespace Forge.OS
 
         string DoAutopilot()
         {
-            var brain = BrainLoops.Active as SlalomBrain;
+            var brain = OSProjects.LiveLoop as SlalomBrain;
             if (brain == null) return "Open the course first. The Autopilot drives the slalom.";
             bool stop = brain.State == SlalomBrain.Mode.Autopilot;
             // Something solid on the start spot would crash every brain at once, so say so instead of burning through them.
@@ -497,7 +497,7 @@ namespace Forge.OS
             if (brainText == null) return;
             ArtifactHost host = ArtifactHost.Current;
             bool courseOpen = host != null && host.OpenId != null;
-            var brain = BrainLoops.Active as SlalomBrain;
+            var brain = OSProjects.LiveLoop as SlalomBrain;
             int key = (courseOpen ? 1 : 0) + (brain != null ? 2 : 0);
             if (brain != null) key += (int)brain.State * 4 + Mathf.Min(brain.CompletedLaps, 99) * 32;
             if (key == brainKey) return;  // nothing changed: no string is built

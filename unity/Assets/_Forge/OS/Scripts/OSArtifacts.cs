@@ -524,6 +524,12 @@ namespace Forge.OS
         static void Succeeded(string id, JObject result)
         {
             string say = (string)result["say"];
+            // Where the host landed ("It's on the table to your right.") is for the voice and the project window: the tile keeps
+            // its own line (open, who it is for), because the person sees the artifact in front of them.
+            ArtifactHost host = ArtifactHost.Current;
+            string placed = host != null ? host.PlacementNote : null;
+            if (!string.IsNullOrEmpty(say) && !string.IsNullOrEmpty(placed) && say.EndsWith(placed, System.StringComparison.Ordinal))
+                say = say.Substring(0, say.Length - placed.Length).TrimEnd();
             if (!string.IsNullOrEmpty(say)) notices[id] = Short(say);
             Refresh();
         }

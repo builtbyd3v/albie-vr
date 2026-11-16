@@ -1205,3 +1205,35 @@ Changes outside OS/: Artifacts/Scripts/{ArtifactWidgets,ArtifactNodes,ArtifactVa
 - Checks (final tree): OSCheck PASS; OSPlayTest 140/0; OSMenuTest 65/0, OSWindowsTest 61/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (full), OSPlannerTest 101/0 (run with the pill change; OSMenu then identical to the committed file). One OSPlayTest run failed once at step 6 "menu opened when asked" and passed 140/0 on rerun (flake).
 - Look set: 59 pictures.
 - Changes outside OS/: Core/Scripts/ForgePill.cs, Core/Scripts/ForgeTheme.cs (PillQuietOn).
+
+## merge-main
+
+Merged origin/main (21 commits: the artifact host on the table and room-aware placement, "Albie says where the artifact went", the brain truck hiding with the host, tool description changes, Devpost and freeze docs, ML A check hardening) into feat/albie-os with `git merge --no-ff origin/main`. Merge commit 86f6e23.
+
+Conflicts: none. Git auto-merged ArtifactHost.cs and SlalomBrain.cs (the only files both sides touched; this branch's look-pass edits there are the Allow primary pill on the permissions sheet and `SlalomBrain.LapTarget` / the null-safe lap status, main's are `ComeToUser` placement, `PlacementNote`, `Spawned`, the `Closed` event and the hide/show of the truck). I read the merged result: the two sets of edits sit in different methods and compile together. Nothing of ours was dropped; no look finding comes back. Main.unity, Packages/manifest.json and ProjectSettings came in as main's (this branch never changed them); no file was edited by hand during the merge.
+
+What main's new behaviour changes for the OS, and what was done:
+- Host placement: `ArtifactHost.ComeToUser` now puts the host on a table in front of the user (top 0.2 to 1 m below the eyes), keeps out of walls, and turns aside from any other ForgePanel. OS windows are ForgePanels, so the host steps aside for them; the existing `AdoptPanels` + `OSWindows.ClearOf` still runs after the host builds and only moves the host's panel if it still covers another window. No change needed. New test steps (OSArtifactsTest) open the heart with a desk in front and check: host y on the desk top, `PlacementNote` "It's on the table ...", the tile keeps its own line, the panel and volume are still adopted and movable, Close all closes it.
+- "Albie says where it went": `artifact_open` now appends the placement note to `say`. OSArtifacts showed `say` under the tile in place of the status line, so a placed artifact would have lost "open · for RC truck" from its tile. `OSArtifacts.Succeeded` now drops the placement note from the tile notice (the voice and the Project window's Course line, which prints `say`, still carry it).
+- Brain truck: `SlalomBrain` is now spawned once and then hidden and parked whenever the host shows no truck course (`Hidden`), and `BrainLoops.Active` stays non-null. The OS would have offered Drive, Train and Autopilot on an unseen truck. New `OSProjects.LiveLoop` returns `BrainLoops.Active` unless it is a hidden brain truck; the Project window (Course, Drive, Train, Autopilot and the brain line), the Drive window (thing line, state, tile status, Stop) and the Train tile / brain trainer window use it. OSToolsTest now expects, after Close all at the desk, no brain trainer and "open · no truck yet", then reopens the slalom and checks the truck is back. OSArtifactsTest closes and reopens the slalom from its tile and checks Hidden and LiveLoop both ways.
+- Course action: `DescribeCourse` already prints `say`, so the Project window now also says where the host went. Unchanged otherwise.
+
+Decisions:
+- A hidden brain truck counts as "no truck" to the OS rather than changing `BrainLoops` (not ours): one helper, one line per call site.
+- The placement note stays off the tile (24-character status line, and the person sees the artifact in front of them).
+
+Checks (run after the merge and the OS edits; each line is the check's own output):
+- compile: 0 errors, 0 warnings
+- OSCheck: PASS os check
+- OSPlayTest: PASS os play test: 140 passed, 0 failed (info level reached: full; the Autopilot completed the slalom, drove: candidate 1)
+- OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 101/0, OSProjectsTest 88/0, OSArtifactsTest 81/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level: full), OSPlannerTest 101/0
+- OSTestEnvCheck: PASS os test environment check
+- GestureSelfTest: [GestureSelfTest] 104 passed, 0 failed
+- GesturePlayTest: [GesturePlayTest] 32 passed, 0 failed
+- ArtifactChecks: [ArtifactChecks] 110 passed, 0 failed (main added the Placement checks)
+- Artifacts menu checks: PASS run check; PASS biology templates check; PASS glTF and timeline check; PASS hoop check; PASS repo activity check; PASS repo connector check; PASS physics templates check; PASS slalom check; PASS voice rules check
+- Brain Loop (Play): PASS slalom brain check (Play mode, the brain truck on its colliders), 24 ok lines, no FAIL, including "another artifact hides and parks the truck, and the slalom brings it back to the start"
+- Note on counts: OSWindowsTest prints 53 passed when the pet's first-arrival greeting is not holding the desk and 61 when it is (8 greeting-only steps); both are 0 failed, as in earlier rounds.
+
+Changes outside OS/: none (the merge brought main's changes in; no file outside OS/ was edited by hand).
+Free disk: 30 GB at start and end. Editor: out of Play mode, Main open and not dirty, 0 compile errors.

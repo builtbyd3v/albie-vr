@@ -608,11 +608,29 @@ namespace Forge.OS.Editor
             Check(!windows.IsOpen(OSToolsCatalog.GesturesId) && (display2 == null || !display2.gameObject.activeInHierarchy), "Close all closes the gesture display too");
             Check(windows.Count == 0 && !OSModes.IsOpen("ml"), "Close all leaves no windows and no mode");
 
-            // ---- back at the desk with the truck still there: Train opens the ML desk and the brain trainer
+            // ---- back at the desk: Close all took the slalom down, so the brain truck is hidden and Train offers no brain trainer
             workspace.presence.forceSeated = true;
             waited = 0f;
             while (!workspace.presence.AtDesk && waited < 4f) { waited += 0.25f; yield return 0.25f; }
             yield return 0.8f;
+            Check(OSProjects.LiveLoop == null && OSArtifacts.OpenId() == null, "desk: Close all took the slalom down and the brain truck is hidden, so the OS offers no truck");
+            step = PressTile(shell, menu, "train", null);
+            while (step.MoveNext()) yield return step.Current;
+            Check(pressOk, "desk: a pointer reaches the Train tile with no truck: " + pressWhy);
+            yield return 1.5f;
+            Check(OSModes.IsOpen("ml") && !windows.IsOpen(OSToolsCatalog.BrainId), "desk: Train with no truck opens the ML desk and no brain trainer");
+            string noTruckStatus = OSRegistry.Find(OSTab.Tools, "train").status();
+            Check(noTruckStatus.StartsWith("open · no truck", StringComparison.Ordinal), "the Train tile says 'open · no truck yet' (" + noTruckStatus + ")");
+            windows.CloseAll();
+            OSModes.Close();
+            yield return 1.2f;
+
+            // ---- the slalom is opened again: the truck is back, and Train opens the ML desk and the brain trainer
+            make = MakeTruck();
+            while (make.MoveNext()) yield return make.Current;
+            Check(OSProjects.LiveLoop != null, "desk: the slalom is open again and the brain truck is back (" + truckNote + ")");
+            workspace.Close();
+            yield return 1.2f;
             step = PressTile(shell, menu, "train", null);
             while (step.MoveNext()) yield return step.Current;
             Check(pressOk, "desk: a pointer reaches the Train tile with a truck: " + pressWhy);

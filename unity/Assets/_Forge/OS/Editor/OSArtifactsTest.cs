@@ -443,6 +443,34 @@ namespace Forge.OS.Editor
             yield return 1f;
             Check(OpenId() == null, "Close all closes the heart");
 
+            // ---- the host on a table (main's room-aware placement): the heart stands on a desk in front, Albie says so, the tile keeps its own line
+            {
+                Camera eyes = Camera.main;
+                Check(eyes != null, "there is a camera to place the artifact in front of");
+                if (eyes != null)
+                {
+                    Vector3 eye = eyes.transform.position;
+                    Vector3 ahead = Vector3.ProjectOnPlane(eyes.transform.forward, Vector3.up).normalized;
+                    float top = eye.y - 0.6f;
+                    host.Room = new MockFloorPlan("os desk", new Vector2(12f, 12f), true, new Vector3(eye.x, 0f, eye.z))
+                        .Add("TABLE", new Vector2(ahead.x * 0.8f, ahead.z * 0.8f), new Vector3(3f, top, 3f));
+                    step = PressTile(shell, menu, "heart", null);
+                    while (step.MoveNext()) yield return step.Current;
+                    yield return 1.5f;
+                    Check(pressOk && OpenId() == "heart", "tapping the Heart tile opens it with a desk in front (open: " + (OpenId() ?? "none") + ", " + pressWhy + ")");
+                    Check(Mathf.Abs(host.transform.position.y - top) < 0.01f, "the host stands on the desk top (host y " + host.transform.position.y.ToString("F2") + ", desk top " + top.ToString("F2") + ")");
+                    Check(host.PlacementNote != null && host.PlacementNote.StartsWith("It's on the table", StringComparison.Ordinal), "Albie is told where it went (" + (host.PlacementNote ?? "nothing") + ")");
+                    string onDesk = Status("heart");
+                    Check(onDesk.StartsWith("open", StringComparison.Ordinal) && !onDesk.Contains("table"), "the tile keeps its own line, not the placement note (" + onDesk + ")");
+                    WindowReport(shell, out count, out movable);
+                    Check(count >= 1 && movable, "the heart on the desk is still a movable, tracked window");
+                    windows.CloseAll();
+                    yield return 1f;
+                    Check(OpenId() == null, "Close all closes the heart on the desk");
+                    host.Room = MockFloorPlan.LivingRoom();
+                }
+            }
+
             // ---- the solar system
             step = PressTile(shell, menu, "new_solar_system", null);
             while (step.MoveNext()) yield return step.Current;
@@ -544,6 +572,22 @@ namespace Forge.OS.Editor
                 string problem = OSToolsTest.LayoutProblem(board);
                 Check(problem == null, "the slalom panel text is inside it and doesn't overlap" + (problem ?? ""));
                 Check(BrandIn(OSToolsTest.AllText(board)) == null, "no brand name in the slalom panel");
+            }
+
+            // ---- the brain truck hides while no truck course is up: the OS offers no truck then, and it is back with the slalom
+            {
+                var brainTruck = BrainLoops.Active as SlalomBrain;
+                Check(brainTruck != null && !brainTruck.Hidden && OSProjects.LiveLoop != null, "while the slalom is open the OS offers the brain truck");
+                step = PressTile(shell, menu, "slalom", null);
+                while (step.MoveNext()) yield return step.Current;
+                yield return 1f;
+                Check(pressOk && OpenId() == null, "tapping the Slalom tile closes it");
+                Check(brainTruck != null && brainTruck.Hidden && OSProjects.LiveLoop == null, "with the slalom closed the brain truck is hidden and the OS offers no truck");
+                step = PressTile(shell, menu, "slalom", null);
+                while (step.MoveNext()) yield return step.Current;
+                yield return 2f;
+                Check(pressOk && OpenId() == "slalom", "tapping the Slalom tile opens it again (" + (OpenId() ?? "none") + ")");
+                Check(brainTruck != null && !brainTruck.Hidden && OSProjects.LiveLoop != null, "the brain truck is back with the slalom");
             }
 
             // ---- the tab with things made: user's artifacts first, then New

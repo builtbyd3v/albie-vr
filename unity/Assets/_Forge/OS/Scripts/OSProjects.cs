@@ -360,6 +360,21 @@ namespace Forge.OS
             return false;
         }
 
+        /// <summary>
+        /// The brain loop the OS should offer, or null. The brain truck stays spawned after it first appears but hides itself
+        /// (<see cref="SlalomBrain.Hidden"/>) while the host shows something that is not a truck course, or nothing; a hidden
+        /// truck is "no truck yet" to every OS window, so Drive and Train never run an unseen truck.
+        /// </summary>
+        public static Forge.Controllers.IBrainLoop LiveLoop
+        {
+            get
+            {
+                Forge.Controllers.IBrainLoop loop = Forge.Controllers.BrainLoops.Active;
+                var brain = loop as SlalomBrain;
+                return brain != null && brain.Hidden ? null : loop;
+            }
+        }
+
         static readonly Collider[] startBlockers = new Collider[4];
 
         /// <summary>

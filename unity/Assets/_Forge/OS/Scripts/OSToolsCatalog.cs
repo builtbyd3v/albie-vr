@@ -109,8 +109,8 @@ namespace Forge.OS
         {
             if (!OSModes.Open("ml")) Debug.Log("[OS] Train couldn't open the ML desk here.");
             // Nothing in Main shows the controller brain panel, so the OS does: as a window of its own, beside the ML desk,
-            // whenever a brain truck is running (BrainLoops.Active is the SlalomBrain that ArtifactBootstrap.EnsureBrain spawns).
-            if (BrainLoops.Active != null) OpenBrain();
+            // whenever a brain truck is running (OSProjects.LiveLoop is the SlalomBrain that ArtifactBootstrap.EnsureBrain spawns).
+            if (OSProjects.LiveLoop != null) OpenBrain();
         }
 
         /// <summary>
@@ -137,7 +137,7 @@ namespace Forge.OS
         static string TrainStatus()
         {
             bool open = OSModes.IsOpen("ml") || WindowOpen(BrainId);
-            IBrainLoop loop = BrainLoops.Active;
+            IBrainLoop loop = OSProjects.LiveLoop;
             var brain = loop as Forge.Artifacts.SlalomBrain;
             int state = loop == null ? -1 : (brain != null ? (int)brain.State : 0);
             int laps = brain != null ? Mathf.Clamp(brain.CompletedLaps, 0, 99) : 0;

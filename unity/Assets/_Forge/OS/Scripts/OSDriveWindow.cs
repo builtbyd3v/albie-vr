@@ -162,7 +162,7 @@ namespace Forge.OS
         void Poll(bool force)
         {
             if (thingText == null) return;
-            IBrainLoop loop = BrainLoops.Active;
+            IBrainLoop loop = OSProjects.LiveLoop;
             var brain = loop as SlalomBrain;
             int hosts = ThingHosts.Count;
             int tk = (brain != null ? 1 : 0) | (loop != null ? 2 : 0) | (Mathf.Min(hosts, 15) << 2);
@@ -224,7 +224,7 @@ namespace Forge.OS
 
         static string TileStatus()
         {
-            IBrainLoop loop = BrainLoops.Active;
+            IBrainLoop loop = OSProjects.LiveLoop;
             var brain = loop as SlalomBrain;
             int key = StateKey(loop, brain) + (ThingHosts.Count > 0 ? 1 << 20 : 0);
             if (key == tileKey) return tileText;
@@ -254,7 +254,7 @@ namespace Forge.OS
         {
             if (pad != null) pad.Release();
             ManualInputs.Clear();
-            IBrainLoop loop = BrainLoops.Active;
+            IBrainLoop loop = OSProjects.LiveLoop;
             string said = "Stopped. The pad is at rest.";
             if (loop != null)
             {
