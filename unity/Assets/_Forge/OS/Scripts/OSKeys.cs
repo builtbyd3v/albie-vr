@@ -11,8 +11,9 @@ namespace Forge.OS
     /// </summary>
     public class OSKeys : MonoBehaviour
     {
-        /// <summary>True while an OSKeys is enabled, i.e. while a plain M is the menu. CAD's measure key reads this: M alone
-        /// when the OS isn't running (standalone CAD sandbox), Shift+M while it is.</summary>
+        /// <summary>True while an OSKeys is enabled, i.e. while a plain M is the menu. It sets <see cref="CadViewer.MenuOwnsM"/>
+        /// with it (CAD's measure key reads that flag and knows nothing about the OS): M alone measures when the OS isn't running
+        /// (standalone CAD sandbox), Shift+M while it is.</summary>
         public static bool Active { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -21,8 +22,8 @@ namespace Forge.OS
         OSShell shell;
 
         void Awake() => shell = GetComponent<OSShell>();
-        void OnEnable() => Active = true;
-        void OnDisable() => Active = false;
+        void OnEnable() { Active = true; CadViewer.MenuOwnsM = true; }
+        void OnDisable() { Active = false; CadViewer.MenuOwnsM = false; }
 
         void Update()
         {
