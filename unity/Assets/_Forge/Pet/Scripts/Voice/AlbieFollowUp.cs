@@ -62,11 +62,11 @@ namespace Forge.Pet
         [SerializeField, Tooltip("Hands-free speech only counts while the user faces Albie, or names it (\"Albie, ...\"). Buttons and the whistle always work.")]
         bool lookToTalk = true;
         [SerializeField, Tooltip("Max angle (degrees) between where the user looks and Albie's body (its apparent size is added on top).")]
-        float lookAngle = 40f;   // 25 never fired on the Quest (live 18:3x: facing=False every turn)
+        float lookAngle = 15f;   // Quest 2026-11-03: facing Albie 0-16 deg, side talk 30-62 deg; the limit adds his size (~14 deg)
         [SerializeField, Tooltip("Looking at Albie this recently (s) still counts: you glance at it, then turn to speak.")]
         float lookGrace = 1.5f;
         [SerializeField, Tooltip("Facing Albie counts as saying its name. Off: every hands-free sentence needs \"Albie\" (at the desk it sits in front of the screen, so looking at the screen read as looking at it). Pair with the hub's VOICE_FACING=1.")]
-        bool lookCountsAsName;
+        bool lookCountsAsName = true;
 
         ITextToSpeech _tts;
         ITalkLevel _talk;
@@ -237,8 +237,8 @@ namespace Forge.Pet
             if (pushToTalk.BeginHandsFree())
             {
                 pushToTalk.MarkSpeechHeard();         // 0.3 s of speech is already in the pre-roll
-                // Quiet at once (free speech: no need to face him; live 11:04 the hub saw facing=False on every turn).
-                if (cutIn) _tts.Stop();
+                // Quiet at once, but only when facing him: side talk over him must not cut him off (or reach Grok).
+                if (cutIn && facing) _tts.Stop();
                 _following = reply;
             }
             else { hub.RequireName = false; hub.StopMonitoring(); }
