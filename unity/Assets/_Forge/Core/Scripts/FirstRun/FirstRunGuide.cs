@@ -154,8 +154,10 @@ public class FirstRunGuide : MonoBehaviour
     void OnEnable()
     {
         if (Instance == null) Instance = this;
-        // TODO(merge): AppLifecycle.Resumed += OnResumed;  (and AppLifecycle.Resumed -= OnResumed; in OnDisable)
+        AppLifecycle.Resumed += OnResumed;
     }
+
+    void OnDisable() => AppLifecycle.Resumed -= OnResumed;
 
     void OnDestroy()
     {
