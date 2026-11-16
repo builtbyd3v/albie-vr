@@ -4,10 +4,10 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 
 /// <summary>
-/// One Slack message on a translucent slate card (MessageCard.prefab, pooled by its owners; 1 canvas unit = 1 mm).
+/// One message on a translucent slate card (MessageCard.prefab, pooled by its owners; 1 canvas unit = 1 mm).
 /// Two styles: <see cref="Style.Inbox"/> (Mentions panel): initials bubble, name + channel,
 /// relative time, up to two lines of text; hover lifts it 1 cm toward the viewer and makes it opaque; click opens the
-/// conversation. <see cref="Style.Thread"/> (the Slack panel's message list): bubble, name, time, the whole text,
+/// conversation. <see cref="Style.Thread"/> (the chat panel's message list): bubble, name, time, the whole text,
 /// "N replies" when the hub reports a thread, the user's own rows tinted. Mentions of the user get a thin accent strip.
 /// Owners size the card: <see cref="Measure"/> gives the height for a width, <see cref="Layout"/> places the children.
 /// Hover and click arrive as uGUI pointer events from the mouse (DesktopRig) and Interaction SDK rays / pokes alike.
@@ -52,7 +52,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     }
 
     /// <summary>
-    /// Show <paramref name="m"/>. <paramref name="renderedBody"/> is its text as TMP rich text (<see cref="SlackText.Render"/>);
+    /// Show <paramref name="m"/>. <paramref name="renderedBody"/> is its text as TMP rich text (<see cref="ChatText.Render"/>);
     /// <paramref name="channelLabel"/> ("#forge-team", "DM") sits after the name in the Inbox style only.
     /// Binding the same message again in the same style is a no-op, so pooled rows refill cheaply.
     /// </summary>
@@ -64,28 +64,28 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         rendered = renderedBody ?? "";
         width = -1f;  // re-measure
 
-        string name = SlackText.SenderName(m);
-        if (initial != null) initial.text = SlackText.Initials(m);
-        if (bubble != null) bubble.color = SlackUi.BubbleColor(string.IsNullOrEmpty(m.user) ? name : m.user);
+        string name = ChatText.SenderName(m);
+        if (initial != null) initial.text = ChatText.Initials(m);
+        if (bubble != null) bubble.color = ChatUi.BubbleColor(string.IsNullOrEmpty(m.user) ? name : m.user);
         bool imessage = style == Style.IMessage;
-        SlackUi.Show(bubble, !imessage);
+        ChatUi.Show(bubble, !imessage);
         if (nameText != null)
         {
-            SlackUi.Show(nameText, !imessage);
+            ChatUi.Show(nameText, !imessage);
             nameText.text = style == Style.Inbox && !string.IsNullOrEmpty(channelLabel)
                 ? name + "  <alpha=#80><size=85%>" + channelLabel
                 : m.isMe ? name + "  <alpha=#80><size=85%>you" : name;
         }
         body.text = rendered;
         body.color = Color.white;
-        body.fontSize = imessage ? 13.5f : SlackUi.Body;
+        body.fontSize = imessage ? 13.5f : ChatUi.Body;
         body.overflowMode = style == Style.Inbox ? TextOverflowModes.Ellipsis : TextOverflowModes.Overflow;
-        if (timeText != null) SlackUi.Show(timeText, !imessage);
-        if (accent != null) SlackUi.Show(accent, !imessage && m.mentionsMe && !m.isMe);
+        if (timeText != null) ChatUi.Show(timeText, !imessage);
+        if (accent != null) ChatUi.Show(accent, !imessage && m.mentionsMe && !m.isMe);
         if (meta != null)
         {
             bool replies = style == Style.Thread && m.replyCount.HasValue && m.replyCount.Value > 0;
-            SlackUi.Show(meta, replies);
+            ChatUi.Show(meta, replies);
             if (replies) meta.text = m.replyCount.Value == 1 ? "1 reply" : m.replyCount.Value + " replies";
         }
         RefreshTime();
@@ -96,7 +96,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
 
     public void RefreshTime()
     {
-        if (Message != null && timeText != null) timeText.text = SlackText.RelativeTime(Message.ts) + (Message.edited ? " · edited" : "");
+        if (Message != null && timeText != null) timeText.text = ChatText.RelativeTime(Message.ts) + (Message.edited ? " · edited" : "");
     }
 
     /// <summary>Height (mm) the card needs at <paramref name="w"/> mm wide; measured once per bind and width.</summary>
@@ -106,12 +106,12 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (CardStyle == Style.IMessage)
         {
             float bubbleTextW = Mathf.Max(28f, w - 26f);
-            return Mathf.Max(36f, SlackUi.Height(body, rendered, bubbleTextW) + 20f);
+            return Mathf.Max(36f, ChatUi.Height(body, rendered, bubbleTextW) + 20f);
         }
         if (Mathf.Approximately(w, width)) return measured;
         width = w;
         float textW = Mathf.Max(20f, w - NameX - PadX);
-        float h = BodyY + SlackUi.Height(body, rendered, textW) + BodyBottom;
+        float h = BodyY + ChatUi.Height(body, rendered, textW) + BodyBottom;
         if (meta != null && meta.gameObject.activeSelf) h += MetaH;
         measured = Mathf.Max(BubbleT + 16f, h);
         return measured;
@@ -133,22 +133,22 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
             if (frame != null)
             {
                 frame.Corner = 18f;
-                frame.color = Message != null && Message.isMe ? SlackUi.IMessageOutgoing : SlackUi.IMessageIncoming;
+                frame.color = Message != null && Message.isMe ? ChatUi.IMessageOutgoing : ChatUi.IMessageIncoming;
             }
-            SlackUi.Place(body.rectTransform, padX, padY, Mathf.Max(20f, w - padX * 2f), Mathf.Max(16f, h - padY * 2f));
+            ChatUi.Place(body.rectTransform, padX, padY, Mathf.Max(20f, w - padX * 2f), Mathf.Max(16f, h - padY * 2f));
             return;
         }
         bool inbox = CardStyle == Style.Inbox;
         float b = inbox ? BubbleI : BubbleT;
         float nameX = inbox ? NameXI : NameX;
-        if (bubble != null) SlackUi.Place(bubble.rectTransform, PadX, inbox ? 10f : 8f, b, b);
-        if (accent != null) SlackUi.Place(accent.rectTransform, 2f, 10f, 3f, Mathf.Max(8f, h - 20f));
-        if (timeText != null) SlackUi.PlaceRight(timeText.rectTransform, PadX, inbox ? 9f : NameY + 1f, TimeW + 30f, LineH);
-        if (nameText != null) SlackUi.Place(nameText.rectTransform, nameX, inbox ? 8f : NameY, Mathf.Max(20f, w - nameX - PadX - TimeW), LineH);
+        if (bubble != null) ChatUi.Place(bubble.rectTransform, PadX, inbox ? 10f : 8f, b, b);
+        if (accent != null) ChatUi.Place(accent.rectTransform, 2f, 10f, 3f, Mathf.Max(8f, h - 20f));
+        if (timeText != null) ChatUi.PlaceRight(timeText.rectTransform, PadX, inbox ? 9f : NameY + 1f, TimeW + 30f, LineH);
+        if (nameText != null) ChatUi.Place(nameText.rectTransform, nameX, inbox ? 8f : NameY, Mathf.Max(20f, w - nameX - PadX - TimeW), LineH);
         float bodyY = inbox ? 26f : BodyY;
         float bodyH = inbox ? h - bodyY - 8f : Mathf.Max(12f, h - bodyY - BodyBottom - (meta != null && meta.gameObject.activeSelf ? MetaH : 0f));
-        SlackUi.Place(body.rectTransform, nameX, bodyY, Mathf.Max(20f, w - nameX - PadX), bodyH);
-        if (meta != null && meta.gameObject.activeSelf) SlackUi.Place(meta.rectTransform, nameX, bodyY + bodyH, Mathf.Max(20f, w - nameX - PadX), MetaH);
+        ChatUi.Place(body.rectTransform, nameX, bodyY, Mathf.Max(20f, w - nameX - PadX), bodyH);
+        if (meta != null && meta.gameObject.activeSelf) ChatUi.Place(meta.rectTransform, nameX, bodyY + bodyH, Mathf.Max(20f, w - nameX - PadX), MetaH);
     }
 
     public void OnPointerEnter(PointerEventData eventData) => SetHover(true);
@@ -163,8 +163,8 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     }
 
     Color RestFill => CardStyle == Style.IMessage
-        ? Message != null && Message.isMe ? SlackUi.IMessageOutgoing : SlackUi.IMessageIncoming
-        : Message != null && Message.isMe ? SlackUi.MeFill : SlackUi.CardFill;
+        ? Message != null && Message.isMe ? ChatUi.IMessageOutgoing : ChatUi.IMessageIncoming
+        : Message != null && Message.isMe ? ChatUi.MeFill : ChatUi.CardFill;
 
     void ApplyRest()
     {

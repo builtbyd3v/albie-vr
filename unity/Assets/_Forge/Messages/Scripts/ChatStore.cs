@@ -3,27 +3,27 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// The Slack model both panels read: the conversation list (notify.channels, sticky on connect; GET /messages/channels
+/// The chat model both panels read: the conversation list (notify.channels, sticky on connect; GET /messages/channels
 /// on open), each conversation's history (GET /messages/history, cached oldest -> newest, grown by "load earlier" and
 /// notify.message), the user id -> name map learnt from messages (for &lt;@U..&gt; mentions), who "me" is
 /// (GET /messages/users/me) and the recent messages across conversations the Mentions panel lists. Static, so the
-/// Mentions panel and Slack panel agree; subscribes to ForgeEvents once. Live hub only:
+/// Mentions panel and Chat panel agree; subscribes to ForgeEvents once. Live hub only:
 /// with no hub nothing loads and the panels show their offline line. Events fire on the main thread when data changes;
 /// nothing here runs per frame.
 /// </summary>
-public static class SlackStore
+public static class ChatStore
 {
     public const int RecentCap = 200;
 
     /// <summary>The conversations in the hub's order (channels first, then DMs, as the hub lists them).</summary>
-    public static readonly List<SlackChannel> Channels = new List<SlackChannel>();
+    public static readonly List<ChatChannel> Channels = new List<ChatChannel>();
     /// <summary>True once a channel list has arrived (even an empty one).</summary>
     public static bool ChannelsKnown { get; private set; }
     /// <summary>Recent messages across conversations, newest first, capped (digest + live + loaded history).</summary>
     public static readonly List<NotifyMessage> Recent = new List<NotifyMessage>(RecentCap + 1);
     public static string MeId { get; private set; }
     public static string MeName { get; private set; }
-    /// <summary>The Slack workspace's name (the sidebar header), or null until the hub says.</summary>
+    /// <summary>The workspace's name (the sidebar header), or null until the hub says.</summary>
     public static string TeamName { get; private set; }
 
     /// <summary>The list or a count changed (notify.channels, a local seen, a live message).</summary>
@@ -109,19 +109,19 @@ public static class SlackStore
         if (!channelsRequested)
         {
             channelsRequested = true;
-            ForgeNet.Get<SlackChannelList>("/messages/channels", list =>
+            ForgeNet.Get<ChatChannelList>("/messages/channels", list =>
             {
                 if (list != null) ReplaceChannels(list.channels);
             }, error =>
             {
                 channelsRequested = false;
-                Debug.LogWarning($"[SlackStore] GET /messages/channels: {error}");
+                Debug.LogWarning($"[ChatStore] GET /messages/channels: {error}");
             });
         }
         if (!meRequested)
         {
             meRequested = true;
-            ForgeNet.Get<SlackMe>("/messages/users/me", me =>
+            ForgeNet.Get<ChatMe>("/messages/users/me", me =>
             {
                 if (me == null) return;
                 MeId = me.userId;
@@ -132,7 +132,7 @@ public static class SlackStore
             }, error =>
             {
                 meRequested = false;
-                Debug.LogWarning($"[SlackStore] GET /messages/users/me: {error}");
+                Debug.LogWarning($"[ChatStore] GET /messages/users/me: {error}");
             });
         }
     }
@@ -152,7 +152,7 @@ public static class SlackStore
         ReplaceChannels(n.channels);
     }
 
-    static void ReplaceChannels(List<SlackChannel> list)
+    static void ReplaceChannels(List<ChatChannel> list)
     {
         Channels.Clear();
         if (list != null) for (int i = 0; i < list.Count; i++) if (list[i] != null && !string.IsNullOrEmpty(list[i].id)) Channels.Add(list[i]);
@@ -167,11 +167,11 @@ public static class SlackStore
     public static void Provisional(string id, string name, string kind)
     {
         if (string.IsNullOrEmpty(id) || Find(id) != null) return;
-        Channels.Add(new SlackChannel { id = id, name = string.IsNullOrEmpty(name) ? id : name, kind = string.IsNullOrEmpty(kind) ? "channel" : kind });
+        Channels.Add(new ChatChannel { id = id, name = string.IsNullOrEmpty(name) ? id : name, kind = string.IsNullOrEmpty(kind) ? "channel" : kind });
         ChannelsChanged?.Invoke();
     }
 
-    public static SlackChannel Find(string id)
+    public static ChatChannel Find(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
         for (int i = 0; i < Channels.Count; i++) if (Channels[i].id == id) return Channels[i];
@@ -179,7 +179,7 @@ public static class SlackStore
     }
 
     /// <summary>The conversation to show first for one provider: default, else unread, else first.</summary>
-    public static SlackChannel DefaultChannel(bool imessage = false)
+    public static ChatChannel DefaultChannel(bool imessage = false)
     {
         for (int i = 0; i < Channels.Count; i++)
             if (IsProvider(Channels[i], imessage) && Channels[i].isDefault) return Channels[i];
@@ -189,7 +189,7 @@ public static class SlackStore
         return null;
     }
 
-    public static bool IsProvider(SlackChannel channel, bool imessage)
+    public static bool IsProvider(ChatChannel channel, bool imessage)
     {
         if (channel == null) return false;
         bool byId = !string.IsNullOrEmpty(channel.id) && channel.id.StartsWith("im:", StringComparison.Ordinal);
@@ -221,7 +221,7 @@ public static class SlackStore
         if (changed) ChannelsChanged?.Invoke();
         if (Demo) MessagesDemo.Seen(channelId);
         if (ForgeNet.Status == ForgeNetStatus.Live && !string.IsNullOrEmpty(channelId))
-            ForgeNet.Post($"/messages/channels/{channelId}/seen", null, null, error => Debug.LogWarning($"[SlackStore] seen {channelId}: {error}"));
+            ForgeNet.Post($"/messages/channels/{channelId}/seen", null, null, error => Debug.LogWarning($"[ChatStore] seen {channelId}: {error}"));
     }
 
     // ---- History ----
@@ -248,7 +248,7 @@ public static class SlackStore
             path += "&before=" + Uri.EscapeDataString(cached[0].ts ?? "");
         }
         loading.Add(channelId);
-        ForgeNet.Get<SlackHistory>(path, h =>
+        ForgeNet.Get<ChatHistory>(path, h =>
         {
             loading.Remove(channelId);
             if (h == null) return;
@@ -284,7 +284,7 @@ public static class SlackStore
         }, error =>
         {
             loading.Remove(channelId);
-            Debug.LogWarning($"[SlackStore] history {channelId}: {error}");
+            Debug.LogWarning($"[ChatStore] history {channelId}: {error}");
             HistoryChanged?.Invoke(channelId);  // so the panel can drop its "Loading…"
         });
     }
@@ -333,12 +333,12 @@ public static class SlackStore
         var list = History(channelId);
         if (list != null && IndexOf(list, ts) >= 0) return;
         var c = Find(channelId);
-        bool dm = c != null && SlackText.IsDmKind(c.kind);
+        bool dm = c != null && ChatText.IsDmKind(c.kind);
         if (list != null) echoes.Add(ts);  // no loaded history: nothing to replace later, so nothing to remember
         OnMessage(new NotifyMessage
         {
             channel = channelId,
-            channelName = dm ? c.kind : SlackText.Bare(c?.name) ?? "",
+            channelName = dm ? c.kind : ChatText.Bare(c?.name) ?? "",
             isDm = dm,
             user = MeId,
             userName = string.IsNullOrEmpty(MeName) ? "You" : MeName,
@@ -351,7 +351,7 @@ public static class SlackStore
     }
 
     // notify.sent: the only signal for an iMessage send (the hub emits no notify.message for those), and a fallback for
-    // a Slack post whose notify.message is missing. A thread reply lands without its thread here; notify.message has it.
+    // a post whose notify.message is missing. A thread reply lands without its thread here; notify.message has it.
     static void OnSent(NotifySent s)
     {
         if (s != null) AddOwn(s.channel, s.text, s.ts);
@@ -371,10 +371,10 @@ public static class SlackStore
         if (m.isMe && !string.IsNullOrEmpty(m.user) && string.IsNullOrEmpty(MeId)) MeId = m.user;
         for (int i = 0; i < Recent.Count; i++)
             if (Recent[i].ts == m.ts && Recent[i].channel == m.channel) return;
-        double t = SlackText.Ts(m.ts);
+        double t = ChatText.Ts(m.ts);
         int at = Recent.Count;
         for (int i = 0; i < Recent.Count; i++)
-            if (SlackText.Ts(Recent[i].ts) < t) { at = i; break; }
+            if (ChatText.Ts(Recent[i].ts) < t) { at = i; break; }
         Recent.Insert(at, m);
         if (Recent.Count > RecentCap) Recent.RemoveAt(Recent.Count - 1);
     }
@@ -383,14 +383,14 @@ public static class SlackStore
     public static string NameOf(string userId) =>
         userId != null && userNames.TryGetValue(userId, out string name) ? name : null;
 
-    // Oldest first; Slack ts is "<seconds>.<micros>" so a numeric compare orders it.
+    // Oldest first; message ts is "<seconds>.<micros>" so a numeric compare orders it.
     static void InsertByTime(List<NotifyMessage> list, NotifyMessage m)
     {
-        double t = SlackText.Ts(m.ts);
+        double t = ChatText.Ts(m.ts);
         int at = list.Count;
         for (int i = list.Count - 1; i >= 0; i--)
         {
-            if (SlackText.Ts(list[i].ts) <= t) { at = i + 1; break; }
+            if (ChatText.Ts(list[i].ts) <= t) { at = i + 1; break; }
             at = i;
         }
         list.Insert(at, m);

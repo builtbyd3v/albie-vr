@@ -283,10 +283,10 @@ public class NotifyMessage
     [JsonProperty("user")] public string user;
     [JsonProperty("user_name")] public string userName;
     [JsonProperty("text")] public string text;
-    [JsonProperty("ts")] public string ts;                    // Slack message ts; reply thread key
+    [JsonProperty("ts")] public string ts;                    // message ts; reply thread key
     [JsonProperty("thread_ts")] public string threadTs;
     [JsonProperty("mentions_me")] public bool mentionsMe;     // a DM, or the text mentions the user
-    // Slack panel additions (PROJECT_CONTEXT 8.8); the hub may leave them out, so they default to "not sent".
+    // Chat panel additions (PROJECT_CONTEXT 8.8); the hub may leave them out, so they default to "not sent".
     [JsonProperty("reply_count")] public int? replyCount;     // thread replies under this message
     // edited / is_me are optional in the contract (null unless known): a null reads as false instead of dropping the message.
     [JsonProperty("edited", NullValueHandling = NullValueHandling.Ignore)] public bool edited;
@@ -295,7 +295,7 @@ public class NotifyMessage
 }
 
 /// <summary>One conversation in notify.channels / GET /messages/channels (channel, private, dm or group-dm).</summary>
-public class SlackChannel
+public class ChatChannel
 {
     [JsonProperty("source")] public string source;             // slack | imessage
     [JsonProperty("id")] public string id;
@@ -312,7 +312,7 @@ public class SlackChannel
 /// <summary>The conversation list with unread counts; sticky (re-sent on connect) and replaced whole on every change.</summary>
 public class NotifyChannels
 {
-    [JsonProperty("channels")] public List<SlackChannel> channels = new List<SlackChannel>();
+    [JsonProperty("channels")] public List<ChatChannel> channels = new List<ChatChannel>();
 }
 
 /// <summary>A reply Albie wrote but has NOT sent: show it as a Send / Cancel card. Send = POST /messages/drafts/{id}/send.</summary>

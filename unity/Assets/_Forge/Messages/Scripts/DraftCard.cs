@@ -9,8 +9,8 @@ using UnityEngine.UI;
 /// Send / Cancel. Send -> POST /messages/drafts/{id}/send (the hub posts it under the user's own name);
 /// Cancel -> POST /messages/drafts/{id}/cancel. The card closes itself on notify.sent / notify.draft_cancelled for
 /// its draft, so saying "send it" to Albie (the messages_confirm tool) or a newer draft (reason superseded) dismisses it
-/// too. Spawned and placed by <see cref="DraftPresenter"/> only while the Slack panel is closed (open, the draft goes to
-/// its composer instead). Buttons are uGUI Buttons (SlackButton pills), so mouse (DesktopRig) and Interaction SDK
+/// too. Spawned and placed by <see cref="DraftPresenter"/> only while the chat panel is closed (open, the draft goes to
+/// its composer instead). Buttons are uGUI Buttons (ChatButton pills), so mouse (DesktopRig) and Interaction SDK
 /// ray/poke (wired on the ForgePanel prefab) both work. Look: the module's translucent slate card inside the graphite frame.
 /// </summary>
 public class DraftCard : MonoBehaviour
@@ -33,7 +33,7 @@ public class DraftCard : MonoBehaviour
     string recipient;  // "#forge-team" / "Hudson": where Send posts it
     Color statusColor;
     bool statusColorKnown;
-    static readonly Color SentColor = new Color(0.17f, 0.67f, 0.46f);  // Slack's green: it went out
+    static readonly Color SentColor = new Color(0.17f, 0.67f, 0.46f);  // green: it went out
     /// <summary>Sent or cancelled; the card is on its way out.</summary>
     public bool Closing { get; private set; }
     /// <summary>What to destroy when the card closes (the presenter's holder); defaults to this object.</summary>
@@ -64,8 +64,8 @@ public class DraftCard : MonoBehaviour
         NotifyMessage to = d.replyTo;
         // The hub names a DM draft after the person (channels stay bare), so the kind comes from the conversation list
         // (by channel id) or the message being answered, never from the name.
-        var conversation = SlackStore.Find(d.channel);
-        bool dm = conversation != null ? SlackText.IsDmKind(conversation.kind)
+        var conversation = ChatStore.Find(d.channel);
+        bool dm = conversation != null ? ChatText.IsDmKind(conversation.kind)
             : (to != null && to.isDm) || d.channelName == "dm" || d.channelName == "group-dm";
         if (dm)
         {
@@ -75,16 +75,16 @@ public class DraftCard : MonoBehaviour
         }
         else
         {
-            recipient = string.IsNullOrEmpty(d.channelName) ? null : $"#{SlackText.Bare(d.channelName)}";
+            recipient = string.IsNullOrEmpty(d.channelName) ? null : $"#{ChatText.Bare(d.channelName)}";
             header.text = recipient ?? "Message";
         }
 
         bool hasReply = to != null && !string.IsNullOrEmpty(to.text);
         replying.gameObject.SetActive(hasReply);
-        if (hasReply) replying.text = $"Replying to {SlackText.SenderName(to)}: {FirstLine(to.text)}";
+        if (hasReply) replying.text = $"Replying to {ChatText.SenderName(to)}: {FirstLine(to.text)}";
 
         body.text = d.text ?? "";
-        ShowFiles(SlackText.Attachments(d.attachments));
+        ShowFiles(ChatText.Attachments(d.attachments));
         if (!statusColorKnown) { statusColor = status.color; statusColorKnown = true; }
         status.color = statusColor;
         status.text = d.edited ? "Edited by Albie" : "Albie wrote this";
@@ -99,7 +99,7 @@ public class DraftCard : MonoBehaviour
     {
         if (files == null && line.Length > 0)
         {
-            files = SlackUi.Text(body.transform.parent, "Files", SlackUi.Small, SlackUi.AccentA(0.95f));
+            files = ChatUi.Text(body.transform.parent, "Files", ChatUi.Small, ChatUi.AccentA(0.95f));
             files.overflowMode = TextOverflowModes.Ellipsis;
             var rt = files.rectTransform;
             rt.anchorMin = Vector2.zero;
@@ -120,7 +120,7 @@ public class DraftCard : MonoBehaviour
         if (Draft == null || Closing) return;
         SetButtons(false);
         status.text = "Sending…";
-        if (SlackStore.Demo) { Demo(() => MessagesDemo.SendDraft(Draft.draftId)); return; }  // notify.sent closes the card
+        if (ChatStore.Demo) { Demo(() => MessagesDemo.SendDraft(Draft.draftId)); return; }  // notify.sent closes the card
         ForgeNet.Post($"/messages/drafts/{Draft.draftId}/send", null, null, Fail);  // confirmation arrives as notify.sent
     }
 
@@ -129,7 +129,7 @@ public class DraftCard : MonoBehaviour
         if (Draft == null || Closing) return;
         SetButtons(false);
         status.text = "Cancelling…";
-        if (SlackStore.Demo) { Demo(() => MessagesDemo.CancelDraft(Draft.draftId)); return; }
+        if (ChatStore.Demo) { Demo(() => MessagesDemo.CancelDraft(Draft.draftId)); return; }
         ForgeNet.Post($"/messages/drafts/{Draft.draftId}/cancel", null, null, Fail);  // arrives as notify.draft_cancelled
     }
 

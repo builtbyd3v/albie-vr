@@ -8,7 +8,7 @@ using UnityEngine;
 /// <summary>
 /// Hub off: the messenger's own back end on the device, over the demo conversations in <c>Resources/MessagesDemo.json</c>.
 /// Answers the panels' GETs (/messages/channels, /messages/users/me, /messages/history) through
-/// <see cref="ForgeNet.MockRest"/>, so <see cref="SlackStore"/> reads them the same way it reads the hub. Each message's
+/// <see cref="ForgeNet.MockRest"/>, so <see cref="ChatStore"/> reads them the same way it reads the hub. Each message's
 /// <c>ago_min</c> becomes a ts that many minutes before the app started, so the times read naturally.
 /// It also stands in for the hub's draft endpoints (hub/messaging): one open draft at a time, shown through the same
 /// notify.draft / notify.sent / notify.draft_cancelled events, and a confirmed send lands in the local conversation as
@@ -172,7 +172,7 @@ public static class MessagesDemo
         if (exact != null) return exact;
         if (partials == 1) return partial;
         if (partials > 1) throw new ArgumentException($"'{q}' could be several conversations; say the full name");
-        // A person who has written in a channel but has no DM yet: open one, as Slack would.
+        // A person who has written in a channel but has no DM yet: open one, as the hub would.
         foreach (JObject c in demo["channels"])
             foreach (JObject m in c["messages"])
             {
