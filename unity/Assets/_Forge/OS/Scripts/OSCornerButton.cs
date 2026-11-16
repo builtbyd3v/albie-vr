@@ -74,6 +74,12 @@ namespace Forge.OS
             placed = false;
         }
 
+        // The button is a scene root of its own, so it has to be taken down with the shell.
+        void OnDestroy()
+        {
+            if (root != null) Destroy(root);
+        }
+
         void LateUpdate()
         {
             if (shell == null) return;

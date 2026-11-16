@@ -18,7 +18,7 @@ namespace Forge.OS
         OSShell shell;
         GameObject root;
         Button button;
-        DeskPresence presence;
+        DeskPresence presence, hooked;  // hooked: the presence whose frameChanged this button listens to (so the same one is let go of)
         bool shown, built, buildFailed, reported;
 
         /// <summary>The pressable button, or null before it is first shown (for checks).</summary>
@@ -45,12 +45,23 @@ namespace Forge.OS
             shown = false;
         }
 
+        // Always lets go of the presence it listened to, even if the workspace has been given another one (or has gone) since.
         void Hook(bool on)
         {
+            if (hooked != null) hooked.frameChanged.RemoveListener(Place);
+            hooked = null;
+            if (!on) return;
             presence = shell != null && shell.workspace != null ? shell.workspace.presence : null;
             if (presence == null) return;
-            presence.frameChanged.RemoveListener(Place);
-            if (on) presence.frameChanged.AddListener(Place);
+            presence.frameChanged.AddListener(Place);
+            hooked = presence;
+        }
+
+        // The button sits under the desk frame, not under this object, so it has to be taken down with the shell.
+        void OnDestroy()
+        {
+            Hook(false);
+            if (root != null) Destroy(root);
         }
 
         void Update()

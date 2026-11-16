@@ -469,7 +469,38 @@ namespace Forge.OS.Editor
             foreach (float w in Until(() => shell.AtDesk, 4f)) yield return w;
             yield return 0.5f;
             Check(shell.AtDesk && !corner.Shown, "back at the desk the corner button is hidden again");
+
+            // ---- both buttons are scene objects of their own (the corner one a root, the table one under the desk frame): they go with the shell
+            yield return 0.3f;
+            Check(CountNamed("OSCornerButton") == 1 && CountNamed("OSTableButton") == 1, "one corner button and one table button exist");
+            var hookedField = typeof(OSTableButton).GetField("hooked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Check(hookedField != null && hookedField.GetValue(table) == (object)presence, "the table button keeps the presence it listens to");
+            // The workspace lets go of its presence (null) in the same frame the button is switched off: it still lets go of the one it had.
+            var held = workspace.presence;
+            workspace.presence = null;
+            table.enabled = false;
+            Check(hookedField != null && hookedField.GetValue(table) == null, "switched off with the workspace's presence gone: the listener is removed from the presence it was added to");
+            workspace.presence = held;
+            table.enabled = true;
+            Check(hookedField != null && hookedField.GetValue(table) == (object)presence, "switched on again: it listens to the presence again");
+            UnityEngine.Object.Destroy(corner);
+            UnityEngine.Object.Destroy(table);
+            yield return 0.3f;
+            Check(CountNamed("OSCornerButton") == 0, "destroying the corner button component takes its button down with it");
+            Check(CountNamed("OSTableButton") == 0, "destroying the table button component takes its button down with it");
+            shell.gameObject.AddComponent<OSTableButton>();
+            shell.gameObject.AddComponent<OSCornerButton>();
+            yield return 0.8f;
+            Check(CountNamed("OSTableButton") == 1 && shell.GetComponent<OSTableButton>().Shown, "a table button put back on the shell shows again at the desk");
             presence.forceSeated = false;
+        }
+
+        static int CountNamed(string name)
+        {
+            int n = 0;
+            foreach (Transform t in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsInactive.Include))
+                if (t.name == name) n++;
+            return n;
         }
     }
 }
