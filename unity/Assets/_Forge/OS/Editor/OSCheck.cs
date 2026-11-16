@@ -78,6 +78,7 @@ ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
 ok &= Check(sb, "the planner tree is valid: no problems, every path ends in a plan within three questions", PlannerTree);
             ok &= Check(sb, "every system page the strip opens is registered (Build something, Agents, Settings)", SystemPages);
 ok &= Check(sb, "the Agents page registers under the strip's id and the crew's Bring home hook is in place", AgentsPage);
+            ok &= Check(sb, "the hand-drag guards are wired: slider writes wait for the drag, a held panel is left alone, the menu and wrist button are built ahead, tile captions are out of the animator's reach", HandDragGuards);
             ok &= Check(sb, "the test environment saves and restores the user's prefs and reports a changed pref or file", TestEnvironment);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
@@ -95,6 +96,20 @@ ok &= Check(sb, "the Agents page registers under the strip's id and the crew's B
         }
 
         // ---------------------------------------------------------------- the checks
+
+        // Wiring that only a hand on a headset exercises (a slow slider drag, a pinched window, the first wrist turn). The
+        // behaviour is proven on the desktop rig by the part tests; this stops the wiring itself from being lost unnoticed.
+        static string HandDragGuards(out string note)
+        {
+            note = null;
+            if (OSSettingsWindow.SliderSaveDelay < 0.05f || OSSettingsWindow.SliderSaveDelay > 0.5f) return "the slider write delay is " + OSSettingsWindow.SliderSaveDelay + " s (want 0.05 to 0.5)";
+            if (typeof(OSSettingsWindow).GetMethod("FlushSave") == null) return "OSSettingsWindow has no FlushSave (pending slider edits would be lost when the window goes)";
+            if (typeof(OSSettingsWindow).GetMethod("OnApplicationPause", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) == null) return "OSSettingsWindow does not flush on application pause";
+            if (OSShell.PrewarmDelay <= 0f || typeof(OSMenu).GetMethod("Prewarm") == null || typeof(OSWatch).GetMethod("Prewarm") == null) return "the menu and watch prewarm hooks are missing";
+            if (OSUi.TileCaptionName == "Label (1)" || string.IsNullOrEmpty(OSUi.TileCaptionName)) return "the tile caption keeps the name the kit animator drives";
+            if (typeof(OSTileView).GetMethod("LateUpdate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic) == null) return "OSTileView lost its pressed-fill step";
+            return null;
+        }
 
         static string TestEnvironment(out string note)
         {

@@ -195,6 +195,9 @@ namespace Forge.OS
             return toggle;
         }
 
+        /// <summary>The name a tile's status label gets, so the kit animator's colour curves (which name the label "Label (1)") no longer reach it.</summary>
+        public const string TileCaptionName = "Caption";
+
         /// <summary>One grid tile: a UI Set text tile, optionally in the "new" outline style (see <see cref="OSMenu"/>).</summary>
         public static OSTileView Tile(Transform parent, bool outline, float width, float height)
         {
@@ -211,6 +214,14 @@ namespace Forge.OS
                 tile.icon = elements.Find("Icon")?.GetComponent<Image>();
                 tile.title = elements.Find("Label")?.GetComponent<TMP_Text>();
                 tile.status = elements.Find("Label (1)")?.GetComponent<TMP_Text>();
+                if (tile.status != null)
+                {
+                    // The kit animator drives this label's colour by its path: under another name the curves find nothing,
+                    // so the caption colour OSTileView sets stays (see OSTileView.CaptionColor).
+                    tile.status.gameObject.name = TileCaptionName;
+                    Animator animator = go.GetComponent<Animator>();
+                    if (animator != null) animator.Rebind();
+                }
                 float textWidth = width - 24f;  // the tile's own 12-unit padding each side
                 if (tile.title != null)
                 {

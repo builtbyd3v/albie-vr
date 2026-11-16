@@ -130,12 +130,30 @@ namespace Forge.OS
         // a frame or two after the scene loads). Polls twice a second for ten seconds, then gives up quietly (no hands here).
         IEnumerator Start()
         {
+            if (Application.isPlaying) StartCoroutine(Prewarm());
             var wait = new WaitForSecondsRealtime(0.5f);
             for (int i = 0; i < 20; i++)
             {
                 if (OSToolsCatalog.ApplySavedGestureDisplay()) yield break;
                 yield return wait;
             }
+        }
+
+        /// <summary>Seconds after the shell starts before the menu and the wrist button are built (see <see cref="Prewarm"/>).</summary>
+        public const float PrewarmDelay = 3f;
+
+        // The menu and the wrist button each instantiate about a dozen kit prefabs and run a theme pass the first time they are
+        // used. Doing that in the frame the user opens the menu (the headline action) or turns the wrist is a visible hitch,
+        // so a few seconds after start, while nothing is on show, they are built one per frame. Nothing is shown and nothing is
+        // refreshed: the first open behaves as before, with the building already done. Skipped for anything already open.
+        IEnumerator Prewarm()
+        {
+            yield return new WaitForSecondsRealtime(PrewarmDelay);
+            OSMenu menu = GetComponentInChildren<OSMenu>(true);
+            if (menu != null && !menuOpen) menu.Prewarm();
+            yield return null;
+            OSWatch watch = GetComponent<OSWatch>();
+            if (watch != null) watch.Prewarm();
         }
 
         void OnDisable()

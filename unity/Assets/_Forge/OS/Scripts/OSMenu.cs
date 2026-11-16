@@ -258,7 +258,10 @@ namespace Forge.OS
                         for (float d = settings.menuDistance; d >= nearest - 0.001f; d -= DistanceStep)
                         {
                             float cost = turning + (settings.menuDistance - d) * 100f;
-                            int blocked = BlockedCore(eye, eye + direction * d, facing, size, meshes);
+                            // Once a clear place is known only a count of 0 matters, and before that only a count under the fewest so far:
+                            // the count may stop at that limit (the answer to both questions is the same as with the full count).
+                            int limit = bestCost == float.MaxValue ? fewestBlocked : 1;
+                            int blocked = BlockedCore(eye, eye + direction * d, facing, size, meshes, limit);
                             if (blocked == 0)
                             {
                                 if (cost < bestCost)
@@ -355,12 +358,13 @@ namespace Forge.OS
         /// <paramref name="eye"/>: 0 means a pointer reaches the whole plate. Panels are every <see cref="ForgePanel"/> (windows,
         /// a mode's panels, artifact panels) that is showing and takes pointer hits, or a model's solids (the meshes under a
         /// panel or volume; with <paramref name="meshes"/> false only the panel planes and volume boxes count, because the open
-        /// menu switches the solids that remain in front of it off). For placing the menu and for the play test.
+        /// menu switches the solids that remain in front of it off). For placing the menu and for the play test. The count stops
+        /// as soon as it reaches <paramref name="limit"/> (the placement search only needs to know "none" or "fewer than the best so far").
         /// </summary>
-        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes = true)
+        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes = true, int limit = int.MaxValue)
         {
             CollectVolumes();
-            return BlockedCore(eye, center, rotation, size, meshes);
+            return BlockedCore(eye, center, rotation, size, meshes, limit);
         }
 
         static readonly List<ForgeVolume> volumes = new List<ForgeVolume>();
@@ -416,7 +420,7 @@ namespace Forge.OS
             contentBounds.Add(box);
         }
 
-        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes)
+        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes, int limit)
         {
             int blocked = 0;
             Vector3 right = rotation * Vector3.right, up = rotation * Vector3.up;
@@ -436,7 +440,7 @@ namespace Forge.OS
                     for (int i = 0; i < panels.Count && !covered; i++) covered = PanelCovers(panels[i], eye, ray, length);
                     for (int i = 0; i < volumes.Count && !covered; i++) covered = VolumeCovers(volumes[i], eye, ray, length);
                     for (int i = 0; meshes && i < contentBounds.Count && !covered; i++) covered = RayMeetsBounds(contentBounds[i], eye, ray, length);
-                    if (covered) blocked++;
+                    if (covered && ++blocked >= limit) return blocked;
                 }
             }
             return blocked;
@@ -503,6 +507,16 @@ namespace Forge.OS
         }
 
         // ---------------------------------------------------------------- building
+
+        /// <summary>True once the plate's controls exist (built on the first open, or ahead of it by <see cref="Prewarm"/>).</summary>
+        public bool IsBuilt => built;
+
+        /// <summary>Builds the plate's controls now, while the menu is put away, so the first open does not have to. Does nothing once built or while open.</summary>
+        public void Prewarm()
+        {
+            if (built || Visible || (shell != null && shell.MenuOpen)) return;
+            Build();
+        }
 
         /// <summary>Builds the plate's contents from the kit on first use. False when the kit is missing.</summary>
         bool Build()

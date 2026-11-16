@@ -851,6 +851,10 @@ namespace Forge.OS.Editor
             // The pointer press below only proves the first hit is a tile; this proves nothing is in front of any part of the plate.
             int blockedNow = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters, meshes: false);
             int meshesNow = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters);
+            int cappedAt1 = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters, true, 1);
+            int cappedAt3 = OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters, true, 3);
+            Check((meshesNow == 0 && cappedAt1 == 0 && cappedAt3 == 0) || (cappedAt1 == 1 && cappedAt3 == Mathf.Min(3, meshesNow)),
+                $"a placement count capped at a limit agrees with the full count ({meshesNow}: capped at 1 gives {cappedAt1}, at 3 gives {cappedAt3})");
             Debug.Log($"[OSPlayTest] info {meshesNow} of 28 plate points have a model's solids in front of them; the open menu switched off {menu.HiddenContentCount} model part(s)");
             Check(meshesNow == 0 || menu.HiddenContentCount > 0, $"solids in front of the plate ({meshesNow} points) are switched off while the menu is open ({menu.HiddenContentCount} parts)");
             Vector3 flat = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;

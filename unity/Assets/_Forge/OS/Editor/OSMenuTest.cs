@@ -327,6 +327,9 @@ namespace Forge.OS.Editor
 
             string why;
             Check(!shell.MenuOpen, "the menu starts closed");
+            // The menu is built a few seconds after the shell starts, before anybody opens it (no hitch on the first open).
+            for (float builtWait = 0f; builtWait < OSShell.PrewarmDelay + 4f && !menu.IsBuilt; builtWait += 0.25f) yield return 0.25f;
+            Check(menu.IsBuilt && !menu.Visible && !shell.MenuOpen, "the menu was built ahead of its first open and stays hidden (built " + menu.IsBuilt + ", visible " + menu.Visible + ")");
             // A tab chosen before the menu was ever built (a voice os_tab) is the tab the first build shows, not Tools.
             shell.SetTab(OSTab.Projects);
             Check(Press(table.Button.gameObject, out why), "a pointer reaches the table button: " + why);
@@ -408,6 +411,20 @@ namespace Forge.OS.Editor
             Check(menuPositionBefore == menu.transform.position, "the menu stayed where it was summoned (world-locked)");
             openedTool = null;
             OSTileView cad = menu.ActiveTiles.Count > 0 ? menu.ActiveTiles[0] : null;
+            // The caption colour is set once, not every frame: the kit animator must not reach the label (it is renamed away from the path its curves name).
+            bool captionsHold = menu.ActiveTiles.Count > 0;
+            for (int i = 0; i < menu.ActiveTiles.Count; i++)
+            {
+                OSTileView t = menu.ActiveTiles[i];
+                if (t.status == null || t.status.gameObject.name != OSUi.TileCaptionName || t.status.color != new Color(1f, 1f, 1f, 0.88f)) captionsHold = false;
+                if (t.status != null) t.status.color = Color.red;  // if the animator still wrote it, the next frames would put grey back
+            }
+            yield return 0.3f;
+            for (int i = 0; i < menu.ActiveTiles.Count; i++)
+                if (menu.ActiveTiles[i].status != null && menu.ActiveTiles[i].status.color != Color.red) captionsHold = false;
+            Check(captionsHold, "a tile's caption is renamed, holds its colour, and nothing rewrites it each frame (the animator no longer reaches it)");
+            for (int i = 0; i < menu.ActiveTiles.Count; i++)
+                if (menu.ActiveTiles[i].status != null) menu.ActiveTiles[i].status.color = new Color(1f, 1f, 1f, 0.88f);
             Check(cad != null && Press(cad.gameObject, out why), "a pointer reaches the CAD tile: " + why);
             yield return 0.6f;
             Check(openedTool == "cad", "pressing the CAD tile ran its open action (" + openedTool + ")");

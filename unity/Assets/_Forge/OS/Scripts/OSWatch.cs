@@ -393,6 +393,15 @@ namespace Forge.OS
             Hide();
         }
 
+        /// <summary>True once the wrist button exists (built the first time it shows, or ahead of that by <see cref="Prewarm"/>).</summary>
+        public bool IsBuilt => built;
+
+        /// <summary>Builds the button now, hidden, so the first wrist turn does not have to. Does nothing once built or while shown.</summary>
+        public void Prewarm()
+        {
+            if (!built && !buildFailed && !shown) Build();
+        }
+
         // A failed build is remembered (until the component is enabled again) so the missing kit is not looked up every frame.
         bool Build()
         {

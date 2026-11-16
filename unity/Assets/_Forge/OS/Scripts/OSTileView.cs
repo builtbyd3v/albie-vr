@@ -11,7 +11,9 @@ namespace Forge.OS
         // The UI Set tile animator lights the plate on press (white 20%, brighter than rest and hover), so a press read as
         // a lit state. A press must read as pushed in: while the pointer is down on the tile the plate is darkened under
         // its resting fill (the animator's small scale-down stays). The caption keeps a colour that passes 4.5:1 in rest,
-        // hover and pressed, which the animator's own dim grey does not.
+        // hover and pressed, which the animator's own dim grey does not: OSUi.Tile renames the caption object so the
+        // animator's colour curves no longer find it, and Show sets the colour once (no per-frame write, which would
+        // dirty the menu canvas every frame the menu is open).
         static readonly Color PressedFill = new Color(0f, 0f, 0f, 0.30f);
         static readonly Color CaptionColor = new Color(1f, 1f, 1f, 0.88f);
 
@@ -38,11 +40,10 @@ namespace Forge.OS
         public void OnPointerEnter(PointerEventData e) => inside = true;
         public void OnPointerExit(PointerEventData e) => inside = false;
 
-        // After the animator has written this frame's colours.
+        // After the animator has written this frame's colours (only while a press is held).
         void LateUpdate()
         {
             if (plate != null && down && inside && button != null && button.interactable) plate.color = PressedFill;
-            if (status != null && status.color != CaptionColor) status.color = CaptionColor;
         }
 
         /// <summary>Shows an entry: icon, title, and its status line (or "open" when it is open and says nothing else).</summary>
@@ -66,7 +67,11 @@ namespace Forge.OS
             {
                 Debug.LogException(ex);
             }
-            if (status != null) status.text = line ?? "";
+            if (status != null)
+            {
+                status.text = line ?? "";
+                if (status.color != CaptionColor) status.color = CaptionColor;
+            }
         }
     }
 }
