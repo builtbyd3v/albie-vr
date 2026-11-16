@@ -1181,3 +1181,10 @@ Changes outside OS/: Pet/Scripts/Core/ArrivalDirector.cs (DismissGreeting, a sma
 Checks: OSCheck PASS; OSPlayTest 140/0; OSMenuTest 65/0, OSWindowsTest 61/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (full), OSPlannerTest 101/0; ArtifactChecks 97/0, BioTemplatesCheck, SlalomCheck, ArtifactRunCheck, GltfTimelineCheck, SimTemplatesCheck, VoiceRulesCheck PASS. Not re-run: GestureSelfTest, GesturePlayTest, Brain Loop, notebook, room slalom, ML Validate Main (nothing they touch changed except ML ResultsWall layout text).
 
 Changes outside OS/: Artifacts/Scripts/{ArtifactWidgets,ArtifactNodes,ArtifactValidator}.cs, Artifacts/Resources/ArtifactTemplates/{heart,slalom}/scene.json, Mocks/Resources/Mocks/artifacts/slalom/scene.json (same slalom edit), ML/ResultsWall/{ResultsWall,ResultsWall.Pages}.cs.
+
+## look-fix-r4
+
+- ResultsWall tab row (ML/ResultsWall/ResultsWall.cs): the five fixed 96 mm tabs are now one width computed from the panel (clamped 56 to 96 mm) so the row never passes the right edge; the run label width is clamped to 0 and the label is hidden when under 24 mm. Why: the last pill (Images) hung outside the frame in the narrow Train results window. Outside OS/: this one file, small.
+- Checks: OSCheck PASS; OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSPlannerTest 101/0, OSDriveTest 93/0 (full), OSPlayTest 140/0.
+- Look set: 59 pictures; 38_mode_train_with_menu and 17_project_classifier_with_train show the Images pill inside the frame.
+- Not run: GestureSelfTest, GesturePlayTest, ArtifactChecks, ML Validate Main (change is layout-only in ResultsWall).
