@@ -334,7 +334,7 @@ An older host that reads a scene using either one ignores the field, without an 
 
 ## Not part of this work
 
-Steps A0 to A7 and B1 to B4 made no edits to `Core/` or `hub/main.py`. The Core edits to sign off are the two `AlbieVoice.cs` commits in P-A8-1. `hub/main.py` is untouched.
+Steps A0 to A7 and B1 to B4 made no edits to `Core/` or `hub/main.py`. The Core edits to sign off are the two `AlbieVoice.cs` commits in P-A8-1. `hub/main.py` gets one change, in C1 (two lines that mount the artifacts router; sign-off below). A line's `width` is read once when it is built, so the guide no longer says a slider can drive it (proposal: make it live in a runtime bump).
 
 ## C1. Hub: POST /artifacts/review (advisory Jev review)
 
