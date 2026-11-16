@@ -1,0 +1,261 @@
+{
+ "note": "The stopwatch with no hand: its upright round pivot spins about its own axis (world Y), so nothing seems to move.",
+ "expect": {
+  "errors": [],
+  "warnings": [
+   "motion_invisible"
+  ]
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_stopwatch_round_spin",
+  "title": "Stopwatch",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 4
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 1,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.25
+  },
+  "generators": [],
+  "nodes": [
+   {
+    "id": "dial",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.36,
+     0.01,
+     0.36
+    ],
+    "pos": [
+     0,
+     0,
+     0.01
+    ],
+    "rot": [
+     90,
+     0,
+     0
+    ],
+    "color": "#161B26"
+   },
+   {
+    "id": "tick_12",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.008,
+     0.03,
+     0.004
+    ],
+    "pos": [
+     0,
+     0.15,
+     0
+    ],
+    "color": "#E8ECF2"
+   },
+   {
+    "id": "tick_3",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.03,
+     0.008,
+     0.004
+    ],
+    "pos": [
+     0.15,
+     0,
+     0
+    ],
+    "color": "#E8ECF2"
+   },
+   {
+    "id": "tick_6",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.008,
+     0.03,
+     0.004
+    ],
+    "pos": [
+     0,
+     -0.15,
+     0
+    ],
+    "color": "#E8ECF2"
+   },
+   {
+    "id": "tick_9",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.03,
+     0.008,
+     0.004
+    ],
+    "pos": [
+     -0.15,
+     0,
+     0
+    ],
+    "color": "#E8ECF2"
+   },
+   {
+    "id": "pivot",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.02,
+     0.02,
+     0.02
+    ],
+    "pos": [
+     0,
+     0,
+     -0.01
+    ],
+    "color": "#E8ECF2"
+   },
+   {
+    "id": "caption",
+    "kind": "text",
+    "text": "One turn of the hand is one minute",
+    "pos": [
+     0,
+     -0.22,
+     0
+    ],
+    "height": 0.018,
+    "color": "#D0D4DA"
+   },
+   {
+    "id": "clock",
+    "kind": "timeline",
+    "duration_s": 60,
+    "loop": true,
+    "autoplay": false
+   },
+   {
+    "id": "controls",
+    "kind": "panel",
+    "title": "Stopwatch",
+    "widgets": [
+     {
+      "type": "button",
+      "id": "start",
+      "label": "Start"
+     },
+     {
+      "type": "button",
+      "id": "stop",
+      "label": "Stop"
+     },
+     {
+      "type": "button",
+      "id": "reset",
+      "label": "Reset"
+     }
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "type": "animate",
+    "target": "pivot",
+    "property": "rot",
+    "timeline": "clock",
+    "keys": [
+     [
+      0,
+      [
+       0,
+       0,
+       0
+      ]
+     ],
+     [
+      60,
+      [
+       0,
+       -360,
+       0
+      ]
+     ]
+    ]
+   },
+   {
+    "type": "on_input",
+    "input": "start",
+    "do": [
+     {
+      "timeline": "clock",
+      "action": "play"
+     }
+    ]
+   },
+   {
+    "type": "on_input",
+    "input": "stop",
+    "do": [
+     {
+      "timeline": "clock",
+      "action": "pause"
+     }
+    ]
+   },
+   {
+    "type": "on_input",
+    "input": "reset",
+    "do": [
+     {
+      "timeline": "clock",
+      "action": "restart"
+     },
+     {
+      "timeline": "clock",
+      "action": "pause"
+     }
+    ]
+   }
+  ],
+  "run": null
+ }
+}

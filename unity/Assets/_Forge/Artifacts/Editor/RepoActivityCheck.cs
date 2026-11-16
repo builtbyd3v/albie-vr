@@ -135,19 +135,15 @@ public static class RepoActivityCheck
         var nowhere = (JObject)template.Manifest.DeepClone();
         nowhere["data"][0]["source"] = "connector:issues/list_issues";
         nowhere["permissions"]["connectors"] = new JArray("issues:read");
-        var orphan = ArtifactData.Resolve(PackageFrom("orphan", nowhere, template.Scene), out problem);
-        if (orphan != null || problem == null || !problem.Contains("no copy of it")) return "a source with no data anywhere: " + problem;
-        note = $"no_data says: \"{problem}\"";
+        // The dry open refuses it before anything is saved (A5), with the same no_data an open would give.
+        nowhere["id"] = "orphan";
+        var orphan = ArtifactLibrary.FromScene(nowhere, template.Scene, out var refused);
+        problem = refused.Count > 0 ? refused[0].message : null;
+        if (orphan != null || refused.Count == 0 || refused[0].code != "no_data" || !problem.Contains("no copy of it"))
+            return "a source with no data anywhere: " + (refused.Count > 0 ? refused[0].ToString() : "saved");
+        if (Directory.Exists(ArtifactLibrary.Folder("orphan"))) return "an artifact with no data was saved";
+        note = $"no_data says, before saving: \"{problem}\"";
         return null;
-    }
-
-    static ArtifactPackage PackageFrom(string id, JObject manifest, JObject scene)
-    {
-        manifest = (JObject)manifest.DeepClone();
-        manifest["id"] = id;
-        ArtifactLibrary.FromScene(manifest, scene, out var errors);
-        if (errors.Count > 0) throw new InvalidOperationException(errors[0].ToString());
-        return ArtifactPackage.Load(id, out _);
     }
 
     static string Validator(out string note)
