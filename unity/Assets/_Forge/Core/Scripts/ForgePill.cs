@@ -91,7 +91,8 @@ public class ForgePill : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     {
         if (surface == null || label == null) return;
         bool solid = on && !quiet;
-        surface.color = solid ? ForgeTheme.PillOn : on ? new Color(1f, 1f, 1f, 0.30f) : hovers > 0 ? ForgeTheme.PillOffHover : ForgeTheme.PillOff;
+        surface.color = solid ? ForgeTheme.PillOn : on ? ForgeTheme.PillQuietOn : hovers > 0 ? ForgeTheme.PillOffHover : ForgeTheme.PillOff;
+        surface.Outline = on && quiet ? 0.7f : 0f;  // the lit quiet pill is told apart by a thin ring, not a lighter fill
         label.color = solid ? ForgeTheme.PillOnText : ForgeTheme.PillOffText;
         ForgeTheme.DarkOnLight(label, solid, ForgeTheme.DarkPillDilate);
     }

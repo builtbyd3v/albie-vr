@@ -60,6 +60,8 @@ public static class ForgeTheme
     // The on pill and its dark text are the OS primary button: solid white, dark text #272727 (the OS theme's inverted text colour).
     // Was off text 0.85, on 0.92, on text #1C1E21.
     public static readonly Color PillOffText = new Color(1f, 1f, 1f, 1f);
+    // Lit quiet pill (title bar): a dark-grey tint so the white label keeps >= 4.5:1 on the dark header.
+    public static readonly Color PillQuietOn = new Color(1f, 1f, 1f, 0.13f);
     public static readonly Color PillOn = new Color(1f, 1f, 1f, 1f);
     public static readonly Color PillOnText = new Color32(39, 39, 39, 255);
     public const float PillHeight = 30f, PillText = 13f;
