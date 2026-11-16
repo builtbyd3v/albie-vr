@@ -84,5 +84,6 @@ public class ForgePill : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
         if (surface == null || label == null) return;
         surface.color = on ? ForgeTheme.PillOn : hovers > 0 ? ForgeTheme.PillOffHover : ForgeTheme.PillOff;
         label.color = on ? ForgeTheme.PillOnText : ForgeTheme.PillOffText;
+        ForgeTheme.DarkOnLight(label, on, ForgeTheme.DarkPillDilate);
     }
 }

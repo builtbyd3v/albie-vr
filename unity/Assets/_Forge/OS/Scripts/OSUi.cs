@@ -20,7 +20,9 @@ namespace Forge.OS
         public const float MinTarget = 34f;
         /// <summary>Minimum space between neighbours (12 mm).</summary>
         public const float MinGap = 19f;
-        public const float ButtonHeight = 48f, ButtonMinWidth = 133f, BodyText = 16f, SmallText = 14f, TitleText = 22f;
+        // Body text 20 units is 13 mm em and about 9 mm cap height (Inter: cap line 0.68 em) at the OS unit of 0.65 mm: the spec's
+        // 9 to 10 mm. Secondary text (hints, empty states) 19 units is about 8.5 mm cap; the one-line caption under a tile title 17 (7.6 mm). OSUi.Text lifts anything smaller to the first two.
+        public const float ButtonHeight = 48f, ButtonMinWidth = 133f, BodyText = 20f, SmallText = 19f, CaptionText = 17f, TitleText = 24f;
 
         /// <summary>The name a tab's title is given, so the UI Set's label animation (which finds it as "Label") no longer drives it.</summary>
         public const string TabTitleName = "Title";
@@ -65,7 +67,7 @@ namespace Forge.OS
             }
             if (secondary) go.tag = "QDSUITextSecondaryColor";
             tmp.text = text ?? "";
-            tmp.fontSize = size;
+            tmp.fontSize = Mathf.Max(size, secondary ? SmallText : BodyText);
             tmp.textWrappingMode = TextWrappingModes.Normal;
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.raycastTarget = false;
@@ -113,6 +115,7 @@ namespace Forge.OS
                 labelText.text = label ?? "";
                 labelText.fontSize = BodyText;
                 labelText.fontStyle = style == OSButtonStyle.Primary ? FontStyles.Bold : FontStyles.Normal;  // dark on white reads thin otherwise
+                ForgeTheme.DarkOnLight(labelText, style == OSButtonStyle.Primary);  // and so does the stroke weight alone: a heavier face on top
                 labelText.textWrappingMode = TextWrappingModes.NoWrap;
                 labelText.overflowMode = TextOverflowModes.Overflow;
                 if (hasLabel)
@@ -122,8 +125,8 @@ namespace Forge.OS
                     // The label's own box would otherwise stay at the prefab's 40 units wide.
                     // The Text box and its label sit in layout groups that don't size them, so give them the label's size.
                     float fit = Mathf.Ceil(labelWidth) + 2f;
-                    ((RectTransform)labelText.transform).sizeDelta = new Vector2(fit, 22f);
-                    ((RectTransform)labelText.transform.parent).sizeDelta = new Vector2(fit, 30f);
+                    ((RectTransform)labelText.transform).sizeDelta = new Vector2(fit, 26f);
+                    ((RectTransform)labelText.transform.parent).sizeDelta = new Vector2(fit, 32f);
                 }
             }
             if (hasLabel) width = Mathf.Max(hasLabel && sprite == null ? 96f : ButtonMinWidth * 0.7f, width);
@@ -162,7 +165,7 @@ namespace Forge.OS
                     title.alignment = TextAlignmentOptions.Center;
                     title.gameObject.name = TabTitleName;  // OSToggleSync colours it (solid, dark when lit); the animation would leave it 10% clear
                     title.gameObject.tag = "QDSUISharedThemeColor";  // and the theme manager leaves this colour alone (it would paint it white)
-                    ((RectTransform)title.transform).sizeDelta = new Vector2(width - 16f, 22f);
+                    ((RectTransform)title.transform).sizeDelta = new Vector2(width - 16f, 26f);
                 }
                 var sub = elements.Find("Label (1)");
                 if (sub != null) sub.gameObject.SetActive(false);
@@ -209,17 +212,17 @@ namespace Forge.OS
                 float textWidth = width - 24f;  // the tile's own 12-unit padding each side
                 if (tile.title != null)
                 {
-                    tile.title.fontSize = 18f;
+                    tile.title.fontSize = BodyText;
                     tile.title.textWrappingMode = TextWrappingModes.NoWrap;
                     tile.title.overflowMode = TextOverflowModes.Ellipsis;
-                    ((RectTransform)tile.title.transform).sizeDelta = new Vector2(textWidth, 26f);
+                    ((RectTransform)tile.title.transform).sizeDelta = new Vector2(textWidth, 28f);
                 }
                 if (tile.status != null)
                 {
-                    tile.status.fontSize = SmallText;
+                    tile.status.fontSize = CaptionText;
                     tile.status.textWrappingMode = TextWrappingModes.NoWrap;
                     tile.status.overflowMode = TextOverflowModes.Ellipsis;
-                    ((RectTransform)tile.status.transform).sizeDelta = new Vector2(textWidth, 20f);
+                    ((RectTransform)tile.status.transform).sizeDelta = new Vector2(textWidth, 22f);
                 }
                 var space = elements.Find("Space");
                 if (space != null) ((RectTransform)space).sizeDelta = new Vector2(10f, 8f);

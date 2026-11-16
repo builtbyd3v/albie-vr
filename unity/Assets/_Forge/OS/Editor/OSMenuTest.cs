@@ -382,6 +382,7 @@ namespace Forge.OS.Editor
                 Check(Mm(r.rect.width, r) >= 22f && Mm(r.rect.height, r) >= 22f, label + " is at least 22 x 22 mm");
             }
             Shot("01_menu_desk_tools");
+            LabelWeights(menu);
 
             // ---- tabs
             Check(Press(FindDeep(menu.transform, "Tab Projects")?.gameObject, out why), "a pointer reaches the Projects tab: " + why);
@@ -540,6 +541,81 @@ namespace Forge.OS.Editor
             float drawn = (lightest + 0.05f) / (darkest + 0.05f);
             Measure($"selected tab label as drawn: darkest pixel luminance {darkest:F3}, fill {lightest:F3}, contrast {drawn:F1}:1");
             Check(drawn >= 5.5f, "the selected tab's label, as drawn, is dark on the light fill (contrast of its darkest pixel " + drawn.ToString("F1") + ":1, at least 5.5; it was 5.0 with the pale label)");
+        }
+
+        // How solid labels are drawn, from the head camera's picture. Ink is the average coverage of the label's text box: each pixel's
+        // distance from the fill, as a share of the distance from the fill to the text colour, in display values. A thin face has less.
+        // Dark labels on a light fill must be at least as solid as the white labels on the dark one (the SDF font draws dark-on-light thinner).
+        static void LabelWeights(OSMenu menu)
+        {
+            Camera cam = PetUser.HeadCamera;
+            Texture2D picture = cam != null ? OSShot.Capture(1280, 800) : null;
+            if (picture == null) { Debug.Log("[OSMenuTest] skip label weights: no camera or no graphics"); return; }
+            Color32[] pixels = picture.GetPixels32();
+            UnityEngine.Object.DestroyImmediate(picture);
+            float whiteSum = 0f, darkSum = 0f;
+            int whites = 0, darks = 0;
+            // (control, label path under it, dark text)
+            string[][] labels =
+            {
+                new[] { "Tab Tools", "Content/Background/Elements/" + OSUi.TabTitleName, "dark" },
+                new[] { "Tab Projects", "Content/Background/Elements/" + OSUi.TabTitleName, "white" },
+                new[] { "Tab Artifacts", "Content/Background/Elements/" + OSUi.TabTitleName, "white" },
+                new[] { "Button Build something", "Content/Background/Elements/Text/Label", "dark" },
+                new[] { "Button Agents", "Content/Background/Elements/Text/Label", "white" },
+                new[] { "Button Settings", "Content/Background/Elements/Text/Label", "white" },
+                new[] { "Button Bring windows here", "Content/Background/Elements/Text/Label", "white" },
+            };
+            foreach (var entry in labels)
+            {
+                Transform control = FindDeep(menu.transform, entry[0]);
+                var label = control != null ? control.Find(entry[1])?.GetComponent<TMPro.TMP_Text>() : null;
+                if (label == null) { Check(false, "found the label of " + entry[0]); continue; }
+                bool dark = entry[2] == "dark";
+                float ink = Ink(cam, pixels, label, dark);
+                Measure($"label ink, {entry[0]} ({(dark ? "dark on light" : "white on dark")}): {ink:F3}");
+                if (dark) { darkSum += ink; darks++; } else { whiteSum += ink; whites++; }
+            }
+            if (darks == 0 || whites == 0) return;
+            float darkInk = darkSum / darks, whiteInk = whiteSum / whites;
+            Measure($"label ink: dark on light {darkInk:F3}, white on dark {whiteInk:F3}, ratio {darkInk / Mathf.Max(0.0001f, whiteInk):F2}");
+            Check(darkInk >= whiteInk, "the dark-on-light labels (selected tab, Build something) are drawn at least as solid as the white ones (ink " + darkInk.ToString("F3") + " against " + whiteInk.ToString("F3") + ")");
+        }
+
+        static float Ink(Camera cam, Color32[] pixels, TMPro.TMP_Text label, bool dark)
+        {
+            var corners = new Vector3[4];
+            label.rectTransform.GetWorldCorners(corners);
+            float minX = 1f, maxX = 0f, minY = 1f, maxY = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 v = cam.WorldToViewportPoint(corners[i]);
+                minX = Mathf.Min(minX, v.x); maxX = Mathf.Max(maxX, v.x);
+                minY = Mathf.Min(minY, v.y); maxY = Mathf.Max(maxY, v.y);
+            }
+            float textFraction = Mathf.Clamp01(label.preferredWidth / Mathf.Max(1f, label.rectTransform.rect.width));
+            float midX = (minX + maxX) * 0.5f, halfX = (maxX - minX) * 0.5f * textFraction;
+            // Only the text's own height: cap line down to the baseline, centred in the box.
+            float midY = (minY + maxY) * 0.5f, halfY = (maxY - minY) * 0.5f * Mathf.Clamp01(label.preferredHeight / Mathf.Max(1f, label.rectTransform.rect.height)) * 0.8f;
+            int x0 = Mathf.Max(0, Mathf.RoundToInt((midX - halfX) * 1280f)), x1 = Mathf.Min(1279, Mathf.RoundToInt((midX + halfX) * 1280f));
+            int y0 = Mathf.Max(0, Mathf.RoundToInt((midY - halfY) * 800f)), y1 = Mathf.Min(799, Mathf.RoundToInt((midY + halfY) * 800f));
+            var values = new List<float>();
+            for (int y = y0; y <= y1; y++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    Color32 p = pixels[y * 1280 + x];
+                    values.Add((0.299f * p.r + 0.587f * p.g + 0.114f * p.b) / 255f);
+                }
+            if (values.Count == 0) return 0f;
+            var sorted = new List<float>(values);
+            sorted.Sort();
+            float fill = sorted[sorted.Count / 2];                    // the fill is most of the box
+            float text = dark ? 0.153f : 1f;                           // the theme's text colours, in display values (0.153 is #272727's grey)
+            float span = Mathf.Abs(text - fill);
+            if (span < 0.05f) return 0f;
+            float sum = 0f;
+            foreach (float v in values) sum += Mathf.Clamp01(Mathf.Abs(v - fill) / span);
+            return sum / values.Count;
         }
 
         static Color Over(Color top, Color under) => new Color(

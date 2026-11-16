@@ -222,8 +222,18 @@ public class ForgePanel : MonoBehaviour
 
     void Awake()
     {
+        FitPlate();
         SyncHitArea();
         LayoutHeader();
+    }
+
+    // The plate's corner comes from ForgeTheme.PanelCorner, not from what the prefab saved, so one constant restyles every
+    // window (the sandboxes too).
+    void FitPlate()
+    {
+        var background = transform.Find("Background");
+        var plate = background != null ? background.GetComponent<ForgeSurface>() : null;
+        if (plate != null && plate.Style == ForgeSurface.Kind.Panel) plate.Corner = ForgeTheme.PanelCorner;
     }
 
     // The Interaction SDK only lets rays and pokes hit inside its clippers' boxes, which the prefab saved at the

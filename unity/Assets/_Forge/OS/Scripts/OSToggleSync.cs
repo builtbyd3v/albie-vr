@@ -69,6 +69,7 @@ namespace Forge.OS
                 : (theme != null ? theme.textPrimaryColor : Color.white);
             color.a = 1f;
             label.color = color;
+            ForgeTheme.DarkOnLight(label, toggle.isOn);  // dark on the light lit fill: a heavier face so it is as solid as the white labels
         }
 
         IEnumerator Snap(float delay)

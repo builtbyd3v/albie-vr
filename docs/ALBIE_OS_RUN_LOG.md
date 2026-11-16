@@ -997,3 +997,73 @@ Counts are the old ones plus: +1 each for the new "user's own preferences and fi
 ### Changes outside OS/
 - `unity/Assets/_Forge/CAD/Scripts/CadViewer.cs`: added `public static bool MenuOwnsM` with a `SubsystemRegistration` reset, and the measure key reads it instead of `Forge.OS.OSKeys.Active`; two comment lines say so. Why: deleting the OS folder must not break CAD's compile.
 - `unity/Assets/_Forge/CAD/README.md`: the line on the Dimensions key names `CadViewer.MenuOwnsM` instead of `OSKeys.Active`. Why: same.
+
+## restyle-5.13: old windows next to the new UI, and the typography of the new UI
+
+### What was done
+- **(A) One plate for every window and the menu.** The older windows (CAD, Code, Train, Messages, Gestures, artifact sheets, notes, timers) and the OS windows are all `ForgePanel`s, so the cheapest wide change is in Core's shared look. The menu's backplate was measured in a screenshot (top #3A3C40, bottom #252629, opaque) and the plate was matched to it. Pictures: `unity/Logs/os/restyle_before_*.png` and `restyle_after_*.png` (an old window beside the Settings window, on a plain backdrop with only the two windows drawn), plus `restyle_*_text.txt` (every text of the OS windows and the menu with its size in units, em and cap height in mm).
+- **(B) Typography.** Dark-on-light labels (selected tab, primary buttons such as Build something and Start, the old windows' "Face me" pill) get a heavier face (TextMeshPro face dilate, one shared material per font). Body text raised to 20 units.
+- Tool for the pictures: `Forge.OS.Editor.OSRestyleShots.Run("before"|"after")` (Editor/OSRestyleShots.cs, no menu item). It keeps the machine's `notes.json` and puts it back. Its first versions added 16 notes to the real file; they were removed by hand again (the 3 sample notes were left).
+
+### What the before and after pictures show
+Before: the older windows and the OS windows shared the frame shape but sat on a much darker plate (#212429 to #131519, 96 percent) than the menu (#3A3C40 to #252629), with a 26 mm corner against the menu's 23 mm, text at 95 and 50 percent white, the on pill at 92 percent with #1C1E21 text. After: the same plate, 24 mm corner, text at 100 and 72 percent white, the on pill solid white with #272727 text (the OS primary button). Header height, title size and weight were already identical (both come from the same prefab); old windows have no close button (they close through the workspace), OS windows keep theirs. Module colours inside windows (Messages purple, the CAD peach badge, charts) are left alone on purpose.
+
+### Changed constants (Core, the owner's module)
+| File | Constant | Old | New |
+|---|---|---|---|
+| ForgeTheme.cs | PanelTop | 33,36,42 a245 | 58,60,64 a255 |
+| ForgeTheme.cs | PanelBottom | 19,21,25 a245 | 37,38,41 a255 |
+| ForgeTheme.cs | PanelText | white a0.95 | white a1 |
+| ForgeTheme.cs | PanelSubtext | white a0.5 | white a0.72 |
+| ForgeTheme.cs | PanelCorner | 26 | 24 |
+| ForgeTheme.cs | PillOffText | white a0.85 | white a1 |
+| ForgeTheme.cs | PillOn | white a0.92 | white a1 |
+| ForgeTheme.cs | PillOnText | #1C1E21 | #272727 |
+| PanelSurface.mat | _Top / _Bottom | 0.129,0.141,0.165,0.96 / 0.075,0.082,0.098,0.96 | 0.227,0.235,0.251,1 / 0.145,0.149,0.161,1 |
+| ForgePanelSurface.shader | defaults of _Top, _Bottom | the old material values | the new material values |
+
+Also new in ForgeTheme: `DarkOnLight(TMP_Text, bool, float)`, `DarkLabelDilate` 0.4, `DarkPillDilate` 0.15. `ForgePanel.Awake` sets the plate's corner from `ForgeTheme.PanelCorner` (the prefab still says 26, so the constant now rules every window and sandbox). `ForgePill.Refresh` calls `DarkOnLight` for its on state. No layout size of any module changed.
+
+### Measurements
+- Dark labels, drawn ink (average coverage of the label's text box in the camera picture, `OSMenuTest.LabelWeights`): with only the bold style, dark on light 0.158 against white on dark 0.330 (ratio 0.48, about half as solid). With face dilate 0.25: 0.269 (0.81). With 0.4: dark 0.347 against white 0.320, ratio 1.08, kept and now a check in OSMenuTest. Selected tab label as drawn: darkest pixel luminance 0.019 on a 0.905 fill, contrast 13.8:1 (it was 10.2:1).
+- Body text: Inter cap height is 0.444 of the OS unit size, so 16 units was 7.1 mm cap (10.4 mm em), short of the spec's 9 to 10 mm. Now `OSUi.BodyText` 20 units = 8.9 mm cap; secondary text (hints, empty states) 19 units = 8.4 mm; the caption under a tile title 17 units = 7.6 mm (the one size below the rubric, kept so tiles fit); window titles 26 units = 12.5 mm. Before: 60 of 109 texts under 8.9 mm cap. After: lowest 7.6 mm (4 tile captions). `OSUi.Text` lifts anything smaller to the floor, so no window needed its own edit.
+- Layout follow-ups: menu tiles 188 to 220 units wide and tabs 156 x 72 so the strip of 20 unit buttons fits (menu 0.647 m wide, 65.8 degrees of view at 0.5 m, under the 70 limit).
+
+### Check output
+```
+PASS os check
+PASS [OSMenuTest] 65 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 96 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 69 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 140 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+PASS voice rules check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+```
+One earlier OSAgentsTest run failed once ("the builder stands still on its pad (0.0105 m in 1 s)", a pet movement flake); it passed on the rerun and in the later full run. Room slalom was not re-run: nothing it touches changed.
+
+### Decisions (one line of why each)
+- **Change the shared Core constants and material, not each module.** Why: every window is a ForgePanel; one change reaches all of them and the sandboxes.
+- **Plate opaque.** Why: the menu's backplate measured opaque; 96 percent let the room show through.
+- **Two dilate strengths (0.4 body labels, 0.15 small pills).** Why: 0.4 clogged the old small pills in a picture.
+- **Dilate on top of Bold.** Why: Bold alone measured half as solid as the white labels.
+- **Tile caption stays 17.** Why: a bigger one would not fit the 108 unit tile.
+
+### Not done
+- Old windows keep their own internal colours and small module text (9 to 11 unit captions in Code and Train); those are module UIs.
+- Pictures are from the desktop rig; a headset check is still needed.
+
+### Changes outside OS/
+- Core: the constants, material, shader defaults, `ForgePanel.Awake`/`FitPlate` and `ForgePill.Refresh` above (this run is the Core owner's).

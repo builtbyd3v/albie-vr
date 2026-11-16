@@ -19,8 +19,9 @@ namespace Forge.OS
     public sealed class OSMenu : MonoBehaviour
     {
         // ---- layout, in OS units (one unit is OSKit.unitMeters)
-        const float Pad = 28f, TabHeight = 64f, TabWidth = 150f, Gap = 20f;
-        const float TileWidth = 188f, TileHeight = 108f, TileGap = 20f, HeadingHeight = 30f;
+        const float Pad = 28f, TabHeight = 72f, TabWidth = 156f, Gap = 20f;
+        // 220 wide tiles make the plate as wide as the strip of 20 unit body text buttons needs (Build something, Agents, Settings, Bring windows here, Close).
+        const float TileWidth = 220f, TileHeight = 108f, TileGap = 20f, HeadingHeight = 30f;
         const int Columns = 4, Rows = 2;
         const float GridWidth = Columns * TileWidth + (Columns - 1) * TileGap;
         const float GridHeight = Rows * TileHeight + (Rows - 1) * TileGap + HeadingHeight;
@@ -726,7 +727,7 @@ namespace Forge.OS
         TMP_Text Pooled(List<TMP_Text> pool, ref int index)
         {
             if (index < pool.Count) return Activate(pool[index++]);
-            TMP_Text heading = OSUi.Text(plate, "", 18f, true);
+            TMP_Text heading = OSUi.Text(plate, "", OSUi.BodyText, true);
             heading.GetComponent<LayoutElement>().ignoreLayout = true;
             heading.fontStyle = FontStyles.Bold;
             heading.textWrappingMode = TextWrappingModes.NoWrap;
