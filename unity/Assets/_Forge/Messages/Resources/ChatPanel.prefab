@@ -90,7 +90,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2894739284190203916, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
       propertyPath: m_Name
-      value: SlackPanel
+      value: ChatPanel
       objectReference: {fileID: 0}
     - target: {fileID: 3969253326686314734, guid: 75efe100cdce7b44780642c7b8c5dbe1, type: 3}
       propertyPath: panelId
@@ -144,4 +144,5 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 712b56e376bfc4be9a33b06bf0761b21, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SlackPanel
+  m_EditorClassIdentifier: Assembly-CSharp::ChatPanel
+  iMessagePanel: 0
