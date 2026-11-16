@@ -64,6 +64,7 @@ public static class SlalomCheck
             ok &= Check(sb, "the same room gives the same course", Deterministic);
             ok &= Check(sb, "slots: cones, alternating gates, start, finish", Slots);
             ok &= Check(sb, "layout saved, reused, remade when furniture moves", Layouts);
+            ok &= Check(sb, "Quest boundary keeps a course inside", Boundary);
             ok &= Check(sb, "layout origin survives the room frame", OriginRoundTrip);
             ok &= Check(sb, "template → library, versions, links", Template);
             ok &= Check(sb, "the slalom scene can be built", Buildable);
@@ -360,6 +361,37 @@ public static class SlalomCheck
         var none = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Unscanned(), false);
         if (none.Ok || none.Code != "no_room_data") return "unscanned: " + none.Code;
         note = "lay_0001 reused on rerun; relayout, a new spacing, moved furniture, another room and a lost anchor each made a new one";
+        return null;
+    }
+
+    static string Boundary(out string note)
+    {
+        note = null;
+        Vector2[] large = { new Vector2(-1.5f, -2.5f), new Vector2(1.5f, -2.5f), new Vector2(1.5f, 2.5f), new Vector2(-1.5f, 2.5f) };
+        var room = MockFloorPlan.LivingRoom().WithBoundary(large);
+        var fit = FloorSlalom.Fit(room, Default());
+        if (!fit.Ok) return "large boundary: " + fit.Code + " " + fit.Message;
+        foreach (var pair in fit.Slots)
+            foreach (var slot in pair.Value)
+                if (!PlayArea.Inside(room.Boundary, fit.Origin + Quaternion.Euler(0f, fit.Yaw, 0f) * slot.position, PlayArea.Margin)) return pair.Key + " left the boundary";
+
+        var small = MockFloorPlan.LivingRoom().WithBoundary(
+            new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(1f, 1f), new Vector2(-1f, 1f));
+        var refused = FloorSlalom.Fit(small, Default());
+        if (refused.Ok || refused.Code != "no_free_floor" || !refused.Message.Contains("boundary")) return "small boundary: " + refused.Code + " " + refused.Message;
+
+        ArtifactLibrary.TryTemplate("slalom", out var manifest, out var scene);
+        var generator = (JObject)scene["generators"][0];
+        var scenario = (JObject)manifest["scenarios"][0];
+        var inputs = new ArtifactInputs(manifest);
+        var savedRoom = MockFloorPlan.LivingRoom();
+        var first = ArtifactGenerators.Place(manifest, generator, inputs, scenario, savedRoom, false);
+        if (!first.Ok) return "saved setup: " + first.Message;
+        var changedRoom = MockFloorPlan.LivingRoom().WithBoundary(
+            new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(1f, 1f), new Vector2(-1f, 1f));
+        var remade = ArtifactGenerators.Place(manifest, generator, inputs, scenario, changedRoom, false);
+        if (!remade.Ok || remade.Reused || remade.Message == null || !remade.Message.Contains("boundary has changed")) return "saved boundary: " + remade.Message;
+        note = "large boundary placed inside; small boundary refused; saved course was remade after shrink";
         return null;
     }
 
