@@ -432,6 +432,12 @@ namespace Forge.OS
             var brain = BrainLoops.Active as SlalomBrain;
             if (brain == null) return "Open the course first. The Autopilot drives the slalom.";
             bool stop = brain.State == SlalomBrain.Mode.Autopilot;
+            // Something solid on the start spot would crash every brain at once, so say so instead of burning through them.
+            if (!stop && brain.State == SlalomBrain.Mode.Idle && OSProjects.StartBlocked(brain, out string blocker))
+            {
+                Debug.Log("[OS] The Autopilot did not start: " + blocker + " is on the truck's start spot.");
+                return "Something is in the truck's way at the start. Move it, then tap Autopilot again.";
+            }
             JObject result = AlbieTools.Call(stop ? "autopilot_off" : "autopilot_on", new JObject());
             string error = (string)result["error"];
             if (error != null) return OSProjects.Plain(error);

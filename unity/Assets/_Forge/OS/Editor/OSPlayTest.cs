@@ -170,6 +170,8 @@ namespace Forge.OS.Editor
             DeleteOldShots();
             try { File.WriteAllText(ManifestPath, ""); } catch (IOException) { }
             passed = failed = skipped = shotCount = 0;
+            playStartedAt = Time.realtimeSinceStartup;
+            slowestFrame = 0f;
             failures.Clear();
             skippedNotes.Clear();
             fallbackNote = null;
@@ -206,6 +208,7 @@ namespace Forge.OS.Editor
 
         static void Tick()
         {
+            if (Application.isPlaying && Time.unscaledDeltaTime > slowestFrame) slowestFrame = Time.unscaledDeltaTime;
             if (EditorApplication.timeSinceStartup - startedAt > GiveUpSeconds)
             {
                 Check(false, "timed out after " + GiveUpSeconds + " s");
@@ -1080,6 +1083,7 @@ namespace Forge.OS.Editor
         static bool padDown;
         static string padWhy;
         static readonly List<Collider> roomColliders = new List<Collider>();
+        static float playStartedAt, slowestFrame;
 
         static float Chan(string name) => ManualInputs.Values[ManualInputs.IndexOf(name)];
 
@@ -1144,15 +1148,33 @@ namespace Forge.OS.Editor
 
         // The desktop rig's simulated room has wall and furniture colliders where the mock living room's strip of floor is, so a
         // truck put down on the slalom's start would crash at once: they are switched off while the pad drives (the cones stay).
-        static void SwitchOffRoomColliders()
+        // Switches off every simulated-room collider that is on now and returns how many were new. Called again before the long
+        // runs: the simulated room builds its meshes a little after the scene starts, so colliders that were not there at the
+        // first call must not be left on in the truck's way. It never clears the list, so RestoreRoomColliders puts all back.
+        static int SwitchOffRoomColliders()
         {
-            roomColliders.Clear();
+            int added = 0;
             foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
                 if (!c.enabled || !c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
                 c.enabled = false;
                 roomColliders.Add(c);
+                added++;
             }
+            return added;
+        }
+
+        // How many simulated-room colliders exist and how many are on, for the log lines of step 6.
+        static string RoomLine()
+        {
+            int total = 0, on = 0;
+            foreach (Collider c in UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (!c.name.EndsWith("_EffectMesh", StringComparison.Ordinal)) continue;
+                total++;
+                if (c.enabled && c.gameObject.activeInHierarchy) on++;
+            }
+            return "room colliders " + total + " (" + on + " on), frame " + Time.frameCount + ", " + (Time.realtimeSinceStartup - playStartedAt).ToString("F1") + " s after Play started, slowest frame so far " + (slowestFrame * 1000f).ToString("F0") + " ms";
         }
 
         static void RestoreRoomColliders()
@@ -1241,7 +1263,8 @@ namespace Forge.OS.Editor
             string thing = host.OpenManifest != null ? (string)host.OpenManifest["links"]?["thing"] : null;
             Check(thing == "truck", "the slalom is linked to the truck (" + thing + ")");
             Check(project.StatusLine.StartsWith("The slalom is open. The brain truck is at the start.", StringComparison.Ordinal), "the project window says so (" + project.StatusLine + ")");
-            SwitchOffRoomColliders();
+            int switchedOff = SwitchOffRoomColliders();
+            Debug.Log("[OSPlayTest] info the room colliders switched off after Course: " + switchedOff + "; " + RoomLine());
             brain.PlaceAtStart();
             var pursuit = new OSDriveTest.Pursuit(host, brain);
             Check(pursuit.Gates >= 3, "the slalom has its gates (" + pursuit.Gates + ")");
@@ -1348,10 +1371,54 @@ namespace Forge.OS.Editor
                     brain.PlaceAtStart();
                     yield return 0.5f;
                 }
+                // Something solid on the start spot would crash every attempt at once: the project window refuses to start then, and says so.
+                if (taps == 0)
+                {
+                    brain.PlaceAtStart();
+                    var blocker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    blocker.name = "OSPlayTest start blocker";
+                    blocker.transform.position = brain.transform.position + Vector3.up * 0.1f;
+                    blocker.transform.localScale = Vector3.one * 0.3f;
+                    Physics.SyncTransforms();
+                    yield return 0.3f;
+                    PressAction("Autopilot");
+                    yield return 0.4f;
+                    Check(brain.State == SlalomBrain.Mode.Idle && project.StatusLine.Contains("in the truck's way"), "a block on the start spot: the Autopilot does not start and the window says so (" + brain.State + ", " + project.StatusLine + ")");
+                    UnityEngine.Object.Destroy(blocker);
+                    yield return 0.4f;
+                    string stillBlocked;
+                    Check(!OSProjects.StartBlocked(brain, out stillBlocked), "the block removed: the start spot is clear again" + (stillBlocked != null ? " (" + stillBlocked + ")" : ""));
+                }
+                // A room collider that appeared since the first switch-off would be in the truck's way on every attempt.
+                int late = SwitchOffRoomColliders();
+                string waitingOn = null;
+                foreach (float w in Until(() => !OSProjects.StartBlocked(brain, out waitingOn), 4f)) yield return w;
+                if (OSProjects.StartBlocked(brain, out waitingOn)) Debug.Log("[OSPlayTest] info the start spot is still blocked by " + waitingOn + " after waiting; the Autopilot will say so");
+                Debug.Log("[OSPlayTest] info before the Autopilot tap " + (taps + 1) + ": " + late + " room collider" + (late == 1 ? "" : "s") + " had come back or appeared late and were switched off; " + RoomLine() + "; " + TouchDiag(brain));
                 PressAction("Autopilot");
                 yield return 0.5f;
                 Check(project.StatusLine.StartsWith("The Autopilot is driving", StringComparison.Ordinal), "Autopilot started (" + project.StatusLine + ")");
-                foreach (float w in Until(() => brain.State != SlalomBrain.Mode.Autopilot, 80f)) yield return w;
+                // Watched every frame, so that when an attempt ends in a crash the log says where and against what.
+                int seen = brain.Attempts.Count;
+                Vector3 lastPos = brain.transform.position, startPos = lastPos;
+                double autoEnd = EditorApplication.timeSinceStartup + 80.0;
+                while (brain.State == SlalomBrain.Mode.Autopilot && EditorApplication.timeSinceStartup < autoEnd)
+                {
+                    if (brain.Attempts.Count != seen)
+                    {
+                        seen = brain.Attempts.Count;
+                        string ended = brain.Attempts[seen - 1];
+                        if (!ended.EndsWith("completed", StringComparison.Ordinal))
+                        {
+                            var hit = Physics.OverlapSphere(lastPos + brain.transform.up * brain.Body.sensorHeight, MockTruckSim.TruckRadius + 0.1f, ~0, QueryTriggerInteraction.Ignore);
+                            string names = "";
+                            foreach (Collider c in hit) names += c.name + " (" + (c.transform.parent != null ? c.transform.parent.name : "root") + (c.enabled ? "" : ", off") + "), ";
+                            Debug.Log("[OSPlayTest] info '" + ended + "' at " + lastPos.ToString("F2") + ", " + Vector3.Distance(lastPos, startPos).ToString("F2") + " m from the start; touching: " + (hit.Length == 0 ? "nothing (a missed gate or the finish, or a cone's own collider is off)" : names) + RoomLine());
+                        }
+                    }
+                    lastPos = brain.transform.position;
+                    yield return 0f;
+                }
                 yield return 0.5f;
                 runs = ArtifactRuns.List("slalom");
                 lastRun = runs.Count > 0 ? (string)runs[runs.Count - 1]["outcome"] : null;

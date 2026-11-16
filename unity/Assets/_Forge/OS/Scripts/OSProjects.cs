@@ -360,6 +360,29 @@ namespace Forge.OS
             return false;
         }
 
+        static readonly Collider[] startBlockers = new Collider[4];
+
+        /// <summary>
+        /// True when something solid sits where the brain truck is put at the start of a run: the truck would crash on its first
+        /// step, every time, so the Autopilot (which tries each trained brain and the pretrained one from that pose) would fail all
+        /// of them. <paramref name="what"/> is the collider's name for the log. This asks the physics scene exactly what the
+        /// truck's own crash test asks (<c>ExampleTruckBody.Apply</c>: a sphere at the sensor height, the body's obstacle mask,
+        /// triggers ignored), so it refuses only a run that would crash at once. False when there is no course open.
+        /// </summary>
+        public static bool StartBlocked(SlalomBrain brain, out string what)
+        {
+            what = null;
+            ArtifactHost host = ArtifactHost.Current;
+            if (brain == null || brain.Body == null || host == null || host.Run == null) return false;
+            Pose at = host.SceneOrigin;
+            Vector3 centre = at.position + at.rotation * Vector3.up * brain.Body.sensorHeight;
+            int n = brain.gameObject.scene.GetPhysicsScene().OverlapSphere(centre, Forge.Controllers.MockTruckSim.TruckRadius, startBlockers, brain.Body.obstacles, QueryTriggerInteraction.Ignore);
+            if (n == 0) return false;
+            what = startBlockers[0] != null ? startBlockers[0].name : "something";
+            for (int i = 0; i < startBlockers.Length; i++) startBlockers[i] = null;
+            return true;
+        }
+
         /// <summary>The first tool registered under any of these ids on the Tools tab, or null.</summary>
         public static OSEntry FindTool(params string[] ids)
         {
