@@ -287,16 +287,14 @@ namespace Forge.OS
 
                 try
                 {
-                    var runs = ArtifactRuns.List(item.id);
-                    for (int r = runs.Count - 1; r >= 0; r--)
+                    JObject run = OSArtifacts.NewestRun(item.id, projectId);  // the newest run for this project, found without parsing the older ones
+                    if (run != null)
                     {
-                        if ((string)runs[r]["project_id"] != projectId) continue;
-                        item.runId = (string)runs[r]["run_id"];
-                        item.runOutcome = (string)runs[r]["outcome"];
-                        item.runReason = (string)runs[r]["reason"];
-                        double? seconds = (double?)runs[r]["metrics"]?["completion_time_s"];
+                        item.runId = (string)run["run_id"];
+                        item.runOutcome = (string)run["outcome"];
+                        item.runReason = (string)run["reason"];
+                        double? seconds = (double?)run["metrics"]?["completion_time_s"];
                         item.runSeconds = seconds.HasValue ? (float?)seconds.Value : null;
-                        break;
                     }
                 }
                 catch (Exception e)

@@ -51,6 +51,7 @@ namespace Forge.OS
         static readonly HashSet<string> RoomTemplates = new HashSet<string> { "slalom", "hoop_course" };
 
         static readonly List<OSEntry> cached = new List<OSEntry>();
+        static readonly Dictionary<string, string> projectNames = new Dictionary<string, string>();  // one rebuild's answers (OSRegistry.Find allocates)
         static readonly Dictionary<string, string> notices = new Dictionary<string, string>();
         static readonly List<ForgePanel> panelScratch = new List<ForgePanel>();
         static readonly List<ForgeVolume> volumeScratch = new List<ForgeVolume>();
@@ -64,6 +65,7 @@ namespace Forge.OS
         static void ResetStatics()
         {
             cached.Clear();
+            projectNames.Clear();
             notices.Clear();
             panelScratch.Clear();
             volumeScratch.Clear();
@@ -150,6 +152,7 @@ namespace Forge.OS
         {
             rebuilding = true;
             cached.Clear();
+            projectNames.Clear();
             try
             {
                 var rows = new List<Row>();
@@ -214,9 +217,43 @@ namespace Forge.OS
             string key = row.template ?? id;
             row.room = FriendlyTitles.ContainsKey(key) ? RoomTemplates.Contains(key) : SpaceOf(id) == "room";
 
-            List<JObject> runs = ArtifactRuns.List(id);  // oldest first, so the newest is the last
-            if (runs.Count > 0) row.runWord = RunWord((string)runs[runs.Count - 1]["outcome"]);
+            JObject newest = NewestRun(id, null);
+            if (newest != null) row.runWord = RunWord((string)newest["outcome"]);
             return row;
+        }
+
+        /// <summary>
+        /// The newest run record of an artifact, or the newest one made for <paramref name="projectId"/> when that is given.
+        /// <see cref="ArtifactRuns.List"/> reads and parses every run file; the lists only want the last one, so this walks
+        /// the run files newest first (by their number) and stops at the first valid match. Null when there is none.
+        /// </summary>
+        public static JObject NewestRun(string artifactId, string projectId)
+        {
+            if (string.IsNullOrEmpty(artifactId)) return null;
+            string folder = ArtifactRuns.Folder(artifactId);
+            string[] files;
+            try
+            {
+                if (!Directory.Exists(folder)) return null;
+                files = Directory.GetFiles(folder, "run_*.json");
+            }
+            catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException) { return null; }
+
+            var numbers = new int[files.Length];
+            for (int i = 0; i < files.Length; i++)
+            {
+                string name = Path.GetFileNameWithoutExtension(files[i]);
+                numbers[i] = name.Length > 4 && int.TryParse(name.Substring(4), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n) ? n : 0;
+            }
+            System.Array.Sort(numbers, files);  // oldest first, the same order ArtifactRuns.List uses
+            for (int i = files.Length - 1; i >= 0; i--)
+            {
+                JObject record = ArtifactRuns.Load(artifactId, Path.GetFileNameWithoutExtension(files[i]));
+                if (record == null) continue;  // damaged or another schema: skipped, as List skips it
+                if (projectId != null && (string)record["project_id"] != projectId) continue;
+                return record;
+            }
+            return null;
         }
 
         static string SpaceOf(string id)
@@ -245,6 +282,14 @@ namespace Forge.OS
 
         // The project's display name from the Projects tab, so the tile says "for RC truck" and not "for proj_truck".
         static string ProjectName(string projectId)
+        {
+            if (projectNames.TryGetValue(projectId, out string known)) return known;
+            string name = ProjectNameUncached(projectId);
+            projectNames[projectId] = name;
+            return name;
+        }
+
+        static string ProjectNameUncached(string projectId)
         {
             OSEntry entry = OSRegistry.Find(OSTab.Projects, projectId);
             if (entry != null && !string.IsNullOrEmpty(entry.title)) return entry.title;

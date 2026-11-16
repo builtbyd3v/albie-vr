@@ -419,6 +419,21 @@ namespace Forge.OS.Editor
             Check(problem == null, "with data the window text is inside it and doesn't overlap" + (problem ?? ""));
             Shot("53_truck_window_run");
 
+            // the newest run is found without parsing the older ones, and a project filter walks back to its own run
+            string firstRun = (string)record["run_id"];
+            ArtifactRuns.Save(new JObject
+            {
+                ["schema"] = ArtifactRuns.Schema,
+                ["artifact_id"] = "slalom",
+                ["run_id"] = ArtifactRuns.NextId("slalom"),
+                ["project_id"] = "proj_someone_else",
+                ["outcome"] = "failed",
+            });
+            JObject newestAny = OSArtifacts.NewestRun("slalom", null), newestMine = OSArtifacts.NewestRun("slalom", NotebookStore.DefaultProject);
+            Check(newestAny != null && (string)newestAny["outcome"] == "failed", "NewestRun with no project is the last record written");
+            Check(newestMine != null && (string)newestMine["run_id"] == firstRun && (string)newestMine["outcome"] == "completed", "NewestRun for the truck project walks back past another project's newer run");
+            Check(OSArtifacts.NewestRun("slalom", "proj_nobody") == null && OSArtifacts.NewestRun("no_such_artifact", null) == null, "NewestRun is null with no match and for an artifact with no runs");
+
             // ---- the fullest window: a long plan with many milestones, many versions, an attempt with an outcome
             var milestones = new JArray();
             string[] steps8 = { "Drives on the real floor", "Finishes the slalom by hand", "Autopilot finishes the slalom", "A clean lap at 2 m/s or more", "Three clean laps in a row", "Send the model to a friend", "Tune the steering near the cones" };
