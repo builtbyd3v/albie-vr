@@ -1102,3 +1102,53 @@ compile: 0 errors, 0 warnings. Console: 0 errors in the run; warnings only the k
 
 ### Changes outside OS/
 - None.
+
+## look-fix-r1 (round 1 of the look review fixes)
+
+### What was done
+- **Menu tile pressed** (OSTileView): while the pointer is down on a tile the plate is drawn black at 30 percent, darker than rest (the UI Set animator lit it white on press). The caption (status line) is locked to near white (0.88 alpha) in every state and raised from 17 to 19 units. Verified in `09_menu_tile_pressed.png` and `10_menu_tile_pressed_close.png`: the pressed Notebook tile is darker than its neighbours, the caption is bright and readable.
+- **Project window invisible after Image classifier** (OSWindows.Glide): a glide now finishes a running open fade (scale 1, alpha 1) before it moves the window, never cancels it half way. The capture no longer reports the finding; `17_project_classifier_with_train.png` shows the Image classifier window next to the Train panels (partly behind the Training panel from the capture's vantage, but drawn).
+- **Code sidebar overlap** (CodePanel.BuildFileList): the two Place() calls took (top, height) and were given (0, y); now `Place(title, y + 2, 16)` and `Place(state, y + 90, 38)`. `37_mode_code_panel.png`: ROCKET-LAB, THING CONTROLLER, the field and Apply read cleanly.
+- **Code lines cut at the right edge** (CodePanel + CodeSample.json): a right-edge fade and a thin horizontal position bar show when a line runs on; the demo rocket.py long line is split in two (ratio = ...). The fade colour matches the well.
+- **Train class names stacked** (TrainingDash): the panel is at least 0.68 m tall (set in Awake, so the workspace's reset size is the same), a heat row is never under 14 units, names are drawn at 11 units only when a row is 12 or more, epoch labels 10, label column 96. `40_mode_train_panel.png` shows the nine class names in a column.
+- **Messages icons as grey squares** (Messages/Resources/SlackIcons): the four svg files (the svg importer is not in this project, so no sprite loaded) are replaced by 128 px white PNG sprites; SlackUi.Icon turns the Image off when the sprite is missing. `42_mode_messages_panel.png`: carets, send arrow and sparkle show.
+- **Agents roles clipped** (OSAgentsWindow): the name column is 425 wide and the state column 120 (the state is one word). `25_agents_two_rows.png`: both role lines are whole, the Builder task is whole.
+- **CAD Model rocket over the Drawing header** (Workspace.ShrinkToFit): a narrow room pulls a side panel in over its neighbour (RoomFit's second pass only keeps it out of the walls); now a side panel that reaches within 9 degrees of the panel inside it is scaled down (never below 0.6) to fit. `34_mode_cad_with_notebook.png`: the Drawing header buttons show, the Model rocket panel is smaller and beside it.
+- **Volume captions** (ForgeVolume): hint line 14 units bold on a dark rounded plate, moved out past the ring edge. `43_artifact_heart.png`, `46_artifact_repo_activity.png`: the caption reads and no longer sits on the ring.
+- **Heart and other biology labels** (ArtifactTemplates brain, cell, dna, eye, heart, plant_cell): label height 0.011 to 0.02 and the small second line dropped (at the larger size the two-line labels ran into each other, which a first try with wrapped 85 percent lines showed). `43_artifact_heart.png`: 13 names, all readable, none overlapping.
+- **Windows over a volume** (OSWindows.ClearAllSoon, OSArtifacts): when an artifact's volume is adopted, every other open window that covers it moves to a free place, now and again 0.8 s and 2.5 s later (the model and its labels build after the box). A volume's cover is its box plus every renderer under it (the labels). `51_three_windows_desk.png`, `52_away_windows_stay.png`: the Notebook sits above the heart, clear of its labels.
+
+### Check output
+```
+OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level full), OSPlannerTest 101/0
+PASS os check (28 ok lines, no FAIL)
+PASS os play test: 140 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS biology templates check, glTF and timeline check, repo activity check, repo connector check, voice rules check, physics templates check
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+OK look set: 59 pictures in unity/Logs/os/look   (no product findings)
+compile: 0 errors, 0 warnings
+```
+
+### Decisions
+- Pressed fill is set in OSTileView.LateUpdate (after the animator) rather than by editing the package clip: the clip is a UI Set asset.
+- The Train panel is made taller instead of squeezing the probe strip: the probe photos are a feature and the heat map needs 14 units per class.
+- Biology label second lines dropped, not wrapped: wrapped three-line labels overlapped their neighbours at the old spacing and the leader lines are tied to the label positions.
+- Side panels shrink (not slide out) in a narrow room: sliding out puts them in the wall.
+- A volume's window clearing runs on spawn, not on every move: there is no per-volume registry to poll without allocating, and a volume dragged by hand should not make windows jump.
+
+### Not done / limits
+- The CAD Model rocket panel shrinks to about 0.7 of its width in the capture room, so its title is clipped ("Model rock...").
+- 17: the Image classifier window is visible but a corner of it is behind the Training panel from the capture camera; from the user's eye the layout keeps them apart.
+- The explanation lines of the biology labels are gone from the 3D labels (the names remain).
+
+### Changes outside OS/
+- Code/Scripts/CodePanel.cs: Place() arguments, scroll cues. Code/Resources/CodeSample.json: one long line split.
+- ML/TrainingDash/TrainingDash.cs: panel height, heat map rows and label sizes.
+- Messages/Resources/SlackIcons: svg replaced by png; Messages/Scripts/SlackUi.cs: icon with no sprite is hidden.
+- Core/Scripts/ForgeVolume.cs and Core/Prefabs/ForgeVolume.prefab, CAD/Prefabs/CadViewer.prefab (re-serialised by Unity with the new label offset): caption size, plate and position.
+- Core/Scripts/Workspace.cs: ShrinkToFit after the RoomFit pass.
+- Artifacts/Resources/ArtifactTemplates/{brain,cell,dna,eye,heart,plant_cell}/scene.json: label size, no second line.

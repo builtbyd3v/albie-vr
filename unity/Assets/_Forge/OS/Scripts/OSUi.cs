@@ -219,7 +219,7 @@ namespace Forge.OS
                 }
                 if (tile.status != null)
                 {
-                    tile.status.fontSize = CaptionText;
+                    tile.status.fontSize = SmallText;
                     tile.status.textWrappingMode = TextWrappingModes.NoWrap;
                     tile.status.overflowMode = TextOverflowModes.Ellipsis;
                     ((RectTransform)tile.status.transform).sizeDelta = new Vector2(textWidth, 22f);

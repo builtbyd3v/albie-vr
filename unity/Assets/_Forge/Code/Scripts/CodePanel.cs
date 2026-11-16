@@ -24,6 +24,9 @@ public class CodePanel : MonoBehaviour
     TMP_Text code, note, status, projectLabel;
     Image highlight;
     ScrollRect scroll;
+    // A long line runs past the right edge: a fade there says "more", and a thin bar along the bottom shows where you are.
+    Image edgeFade, hTrack, hThumb;
+    static Sprite fadeSprite;
     ForgePill undo, reset;
     TMP_InputField controllerSpeed;
     TMP_Text controllerState;
@@ -66,9 +69,56 @@ public class CodePanel : MonoBehaviour
             controllerPoll = Time.unscaledTime + 0.5f;
             RefreshControllerState();
         }
+        UpdateScrollCues();
         if (!dirty || code == null) return;
         dirty = false;
         Refresh();
+    }
+
+    void BuildScrollCues(RectTransform codeBox)
+    {
+        if (fadeSprite == null)
+        {
+            var tex = new Texture2D(32, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int i = 0; i < 32; i++) tex.SetPixel(i, 0, new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, i / 31f)));
+            tex.Apply();
+            fadeSprite = Sprite.Create(tex, new Rect(0f, 0f, 32f, 1f), new Vector2(0.5f, 0.5f), 100f);
+        }
+        edgeFade = Rect("EdgeFade", codeBox, new Vector2(1f, 0f), Vector2.one).gameObject.AddComponent<Image>();
+        edgeFade.sprite = fadeSprite;
+        edgeFade.color = new Color(0.16f, 0.165f, 0.17f, 1f);
+        edgeFade.raycastTarget = false;
+        var frt = edgeFade.rectTransform;
+        frt.pivot = new Vector2(1f, 0.5f);
+        frt.offsetMin = new Vector2(-90f, Pad);
+        frt.offsetMax = new Vector2(-Pad, -Pad);
+        hTrack = Rect("HTrack", codeBox, new Vector2(0f, 0f), new Vector2(1f, 0f)).gameObject.AddComponent<Image>();
+        hTrack.color = new Color(1f, 1f, 1f, 0.12f);
+        hTrack.raycastTarget = false;
+        hTrack.rectTransform.pivot = new Vector2(0.5f, 0f);
+        hTrack.rectTransform.offsetMin = new Vector2(Pad + 6f, 3f);
+        hTrack.rectTransform.offsetMax = new Vector2(-Pad - 6f, 7f);
+        hThumb = Rect("HThumb", hTrack.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 1f)).gameObject.AddComponent<Image>();
+        hThumb.color = new Color(1f, 1f, 1f, 0.55f);
+        hThumb.raycastTarget = false;
+        hThumb.rectTransform.pivot = new Vector2(0f, 0.5f);
+    }
+
+    void UpdateScrollCues()
+    {
+        if (edgeFade == null || viewport == null) return;
+        float view = viewport.rect.width, total = content.sizeDelta.x;
+        bool wide = total > view + 1f;
+        if (edgeFade.enabled != wide) { edgeFade.enabled = wide; hTrack.enabled = wide; hThumb.enabled = wide; }
+        if (!wide) return;
+        float maxX = total - view;
+        float x = Mathf.Clamp(-content.anchoredPosition.x, 0f, maxX);
+        edgeFade.color = new Color(0.16f, 0.165f, 0.17f, x >= maxX - 2f ? 0f : 1f);
+        float trackW = hTrack.rectTransform.rect.width;
+        float thumbW = Mathf.Max(24f, trackW * view / total);
+        var trt = hThumb.rectTransform;
+        trt.sizeDelta = new Vector2(thumbW, 0f);
+        trt.anchoredPosition = new Vector2((trackW - thumbW) * (x / maxX), 0f);
     }
 
     // ---------------------------------------------------------------- layout
@@ -121,6 +171,8 @@ public class CodePanel : MonoBehaviour
         code.rectTransform.anchorMin = code.rectTransform.anchorMax = code.rectTransform.pivot = new Vector2(0f, 1f);
         code.rectTransform.anchoredPosition = Vector2.zero;
 
+        BuildScrollCues(codeBox);
+
         scroll = codeBox.gameObject.AddComponent<ScrollRect>();
         scroll.viewport = viewport;
         scroll.content = content;
@@ -170,14 +222,14 @@ public class CodePanel : MonoBehaviour
         var controllerTitle = Text("Controller", side, 10f, ForgeTheme.PanelSubtext);
         controllerTitle.text = "THING CONTROLLER";
         controllerTitle.characterSpacing = 1.5f;
-        Place(controllerTitle.rectTransform, 0f, y + 2f);
+        Place(controllerTitle.rectTransform, y + 2f, 16f);
         controllerSpeed = Forge.ML.MLUI.Input(side, "max_speed", "max_speed", 0f, y + 22f, SideWidth - 6f, 28f);
         controllerSpeed.text = "1.5";
         controllerApply = Forge.ML.MLUI.Pill(side, "Apply max_speed", 0f, y + 56f, SideWidth - 6f, 28f, ApplyControllerSpeed);
         controllerState = Text("Controller state", side, 10f, ForgeTheme.PanelSubtext);
         controllerState.textWrappingMode = TextWrappingModes.Normal;
         controllerState.rectTransform.sizeDelta = new Vector2(SideWidth - 10f, 38f);
-        Place(controllerState.rectTransform, 0f, y + 90f);
+        Place(controllerState.rectTransform, y + 90f, 38f);
     }
 
     // ---------------------------------------------------------------- refresh

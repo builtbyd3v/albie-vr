@@ -802,6 +802,42 @@ public class Workspace : MonoBehaviour
                 if (Floats(o) && RoomFit.InWall(o.position, o.rotation, FitSize(o), o.panel == null))
                     RoomFit.Fit(ref o.position, ref o.rotation, FitSize(o), o.panel == null, layout == WorkspaceLayout.Curved);
         }
+        // A narrow room can pull a side panel in over its neighbour (RoomFit's second pass only keeps it out of the walls):
+        // it then gets narrower, to the room that is left, rather than sit on the panel beside it.
+        ShrinkToFit(eye, main, +1, WorkspaceSlot.Right, WorkspaceSlot.FarRight);
+        ShrinkToFit(eye, main, -1, WorkspaceSlot.Left, WorkspaceSlot.FarLeft);
+    }
+
+    const float MinShrink = 0.6f, ShrinkGapDegrees = 9f;
+
+    // Seen from the eyes, a side panel that reaches over the outer edge of the panel inside it is scaled down (keeping its
+    // proportions, never below MinShrink of its size) until it just clears it.
+    void ShrinkToFit(Vector3 eye, OpenItem main, int side, WorkspaceSlot near, WorkspaceSlot far)
+    {
+        OpenItem inner = main;
+        for (int i = 0; i < 2; i++)
+        {
+            OpenItem o = Find(i == 0 ? near : far);
+            if (o == null || o.panel == null) continue;
+            if (inner != null && inner.panel != null)
+            {
+                Vector3 a = inner.position - eye, b = o.position - eye;
+                float yawA = Mathf.Atan2(a.x, a.z) * Mathf.Rad2Deg, yawB = Mathf.Atan2(b.x, b.z) * Mathf.Rad2Deg;
+                float distA = Mathf.Max(new Vector2(a.x, a.z).magnitude, 0.05f), distB = Mathf.Max(new Vector2(b.x, b.z).magnitude, 0.05f);
+                float edgeA = yawA * side + Mathf.Atan2(Size(inner).x * 0.5f, distA) * Mathf.Rad2Deg;
+                Vector2 size = o.panel.SizeMeters;
+                float halfB = Mathf.Atan2(size.x * 0.5f, distB) * Mathf.Rad2Deg;
+                float room = yawB * side - edgeA - ShrinkGapDegrees;  // the half-width (deg) that just fits
+                if (room < halfB)
+                {
+                    float fit = Mathf.Tan(Mathf.Max(room, 0f) * Mathf.Deg2Rad) * distB * 2f;  // the width (m) that just fits
+                    float k = Mathf.Clamp(fit / size.x, MinShrink, 1f);
+                    o.panel.SizeMeters = size * k;
+                    o.restSize = o.panel.SizeMeters;
+                }
+            }
+            inner = o;
+        }
     }
 
     // How much further than panelRadius the main panel goes to stand behind the volume in the middle of the desk (its

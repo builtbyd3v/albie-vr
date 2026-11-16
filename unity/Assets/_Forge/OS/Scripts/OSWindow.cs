@@ -30,6 +30,10 @@ namespace Forge.OS
         /// <summary>The motion (open, close, bring here) the window manager is running on it, if any.</summary>
         internal Coroutine Motion { get; set; }
 
+        /// <summary>True while the scale-and-fade open is the running motion, and the scale it lands on. A glide must finish it, never cut it off (a window cut off at alpha 0 stays invisible).</summary>
+        internal bool Opening { get; set; }
+        internal Vector3 OpenRest { get; set; }
+
         /// <summary>Where a running glide is taking the window's centre (valid while <see cref="Motion"/> is set), so the next window keeps clear of it.</summary>
         internal Vector3 TargetCenter { get; set; }
 

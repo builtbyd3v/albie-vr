@@ -374,6 +374,8 @@ namespace Forge.OS
             Vector3 rest = t.localScale;
             if (handles != null) handles.Busy = true;
             StopMotion(window);
+            window.Opening = true;
+            window.OpenRest = rest;
             window.Motion = StartCoroutine(ForgeTween.Run(OpenSeconds, 0f, k =>
             {
                 if (t == null) return;
@@ -383,6 +385,7 @@ namespace Forge.OS
             }, () =>
             {
                 window.Motion = null;
+                window.Opening = false;
                 if (t == null) return;
                 t.localScale = rest;
                 if (group != null) group.alpha = 1f;
@@ -432,6 +435,19 @@ namespace Forge.OS
         {
             if (window.Motion != null) StopCoroutine(window.Motion);
             window.Motion = null;
+            window.Opening = false;
+        }
+
+        // Lets a window that is still scaling and fading in land fully (scale 1, alpha 1) before something else moves it.
+        void FinishOpen(OSWindow window)
+        {
+            if (!window.Opening) return;
+            ForgePanel panel = window.Panel;
+            StopMotion(window);
+            if (panel == null) return;
+            panel.transform.localScale = window.OpenRest;
+            var group = panel.GetComponent<CanvasGroup>();
+            if (group != null) group.alpha = 1f;
         }
 
         // ---------------------------------------------------------------- placement
@@ -513,6 +529,7 @@ namespace Forge.OS
                 handles.Cancel();
                 handles.Busy = true;
             }
+            FinishOpen(window);
             StopMotion(window);
             Vector3 fromPosition = root.position;
             Quaternion fromRotation = root.rotation;
@@ -671,6 +688,56 @@ namespace Forge.OS
             return true;
         }
 
+        /// <summary>
+        /// Something new stands in the room (a volume came up): every other open window that now covers it moves to the
+        /// nearest free place. Windows under <paramref name="ownRoot"/> are not moved (they were laid out with the thing); it counts as an obstacle for all the others.
+        /// </summary>
+        public void ClearAll(Transform ownRoot)
+        {
+            for (int i = 0; i < windows.Count; i++)
+            {
+                OSWindow w = windows[i];
+                if (w == null || w.IsGroup || w.Root == null || closing.Contains(w)) continue;
+                if (ownRoot != null && w.Root.IsChildOf(ownRoot)) continue;
+                ClearOf(w, null);  // the new thing counts like any other: only its own windows are skipped above
+            }
+        }
+
+        /// <summary>
+        /// <see cref="ClearAll"/> now, and again after the model and its labels have loaded and settled (they are built a
+        /// moment after the volume stands there, so the first look sees only the box).
+        /// </summary>
+        public void ClearAllSoon(Transform ownRoot)
+        {
+            ClearAll(ownRoot);
+            if (Application.isPlaying && isActiveAndEnabled) StartCoroutine(ClearAfter(ownRoot));
+        }
+
+        IEnumerator ClearAfter(Transform ownRoot)
+        {
+            yield return new WaitForSeconds(0.8f);
+            if (ownRoot != null) ClearAll(ownRoot);
+            yield return new WaitForSeconds(1.7f);
+            if (ownRoot != null) ClearAll(ownRoot);
+        }
+
+        readonly List<Renderer> volumeRenderers = new List<Renderer>();
+
+        // A volume's box plus everything drawn around it (the model's labels stand outside the box).
+        Bounds VolumeBounds(ForgeVolume volume)
+        {
+            Vector3 box = Vector3.Scale(volume.size, volume.transform.lossyScale);
+            var b = new Bounds(volume.transform.position + Vector3.up * (box.y * 0.5f), box);
+            volume.GetComponentsInChildren(false, volumeRenderers);
+            for (int i = 0; i < volumeRenderers.Count; i++)
+            {
+                Renderer r = volumeRenderers[i];
+                if (r != null && r.enabled && r.bounds.size.sqrMagnitude < 9f) b.Encapsulate(r.bounds);
+            }
+            volumeRenderers.Clear();
+            return b;
+        }
+
         List<Cover> CollectCovers(OSWindow moving, Vector3 eye, Vector3 forward)
         {
             covers.Clear();
@@ -696,8 +763,8 @@ namespace Forge.OS
                 if (volume == null || !volume.gameObject.activeInHierarchy || (moving.Volume != null && volume == moving.Volume)) continue;
                 if (ignoreRoot != null && volume.transform.IsChildOf(ignoreRoot)) continue;
                 if (workspace != null && workspace.IsOpenItem(volume.gameObject)) continue;
-                Vector3 box = Vector3.Scale(volume.size, volume.transform.lossyScale);
-                covers.Add(CoverOf(volume.transform.position + Vector3.up * (box.y * 0.5f), box.x, box.y, eye, forward));
+                Bounds vb = VolumeBounds(volume);
+                covers.Add(CoverOf(vb.center, Mathf.Max(vb.size.x, vb.size.z), vb.size.y, eye, forward));
             }
             if (workspace != null && workspace.ActiveMode != null)
             {

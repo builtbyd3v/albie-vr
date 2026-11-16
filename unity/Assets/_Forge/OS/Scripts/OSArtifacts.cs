@@ -580,7 +580,10 @@ namespace Forge.OS
                 GameObject root = volume.gameObject;
                 windows.Adopt(NextWindowId(artifactId), volume.Title, root, () => CloseFromWindow(host, root));
             }
+            bool hadVolume = volumeScratch.Count > 0;
             volumeScratch.Clear();
+            // A model stands there now, labels and all: windows that were already open and cover it move aside.
+            if (hadVolume) windows.ClearAllSoon(host.transform);
         }
 
         // A fresh id each time: a rebuilt artifact's old windows are destroyed at the end of the frame, so a reused id would still find them.

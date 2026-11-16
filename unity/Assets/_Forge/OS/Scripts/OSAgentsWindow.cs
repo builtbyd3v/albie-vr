@@ -26,7 +26,7 @@ namespace Forge.OS
         const float PollSeconds = 0.5f;
         const int RowsPerPage = 4, TypeButtons = 5;
         const float BodySize = 16f, NameSize = 18f, SmallSize = 14f;
-        const float RowHeight = 64f, NameWidth = 220f, StateWidth = 190f, ButtonsWidth = 300f, FlipWidth = 170f, DismissWidth = 110f;
+        const float RowHeight = 64f, NameWidth = 425f, StateWidth = 120f, ButtonsWidth = 300f, FlipWidth = 170f, DismissWidth = 110f;
 
         const string WalkingWord = "Walking", HomeWord = "Home", HiddenWord = "Home, hidden", WithYouWord = "With you", FollowingWord = "Following you";
 
