@@ -35,6 +35,20 @@ namespace Forge.OS.Editor
 
         public static string Run()
         {
+            // Some checks build and tear down objects in the open scene, which marks it unsaved; a scene that was clean when the
+            // check started is opened again from disk afterwards (nothing in it is the check's to keep), so the next Play-mode test
+            // is not refused with "save or discard the open scene first". A scene that was already unsaved is left alone.
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            bool wasDirty = scene.isDirty;
+            string scenePath = scene.path;
+            string report = RunChecks();
+            if (!wasDirty && scene.isDirty && !string.IsNullOrEmpty(scenePath) && !EditorApplication.isPlayingOrWillChangePlaymode)
+                UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath);
+            return report;
+        }
+
+        static string RunChecks()
+        {
             var sb = new StringBuilder();
             bool ok = true;
             ok &= Check(sb, "the OSShell prefab has the shell, the windows and the keys", ShellPrefab);
