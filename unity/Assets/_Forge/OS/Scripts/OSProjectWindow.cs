@@ -250,6 +250,9 @@ namespace Forge.OS
             return line;
         }
 
+        /// <summary>What the Drive step says in the one case left: the Drive tool is not in the menu's registry (it is registered at start).</summary>
+        public const string DriveMissing = "The Drive pad couldn't be found.";
+
         void BuildActions(RectTransform section)
         {
             RectTransform row = OSUi.Row(section, 48f, 19f);
@@ -257,7 +260,7 @@ namespace Forge.OS
             {
                 case OSProjectKind.Truck:
                     AddAction(row, "Course", "course", OSButtonStyle.Primary);
-                    AddAction(row, "Drive", "drive", OSButtonStyle.Secondary, OSProjects.FindTool("drive") == null ? "Coming with the Drive pad." : null);
+                    AddAction(row, "Drive", "drive", OSButtonStyle.Secondary, OSProjects.FindTool("drive") == null ? DriveMissing : null);
                     AddAction(row, "Train", "train", OSButtonStyle.Secondary);
                     AddAction(row, "Autopilot", "autopilot", OSButtonStyle.Secondary);
                     AddAction(row, "Code", "code", OSButtonStyle.Secondary);
@@ -275,7 +278,7 @@ namespace Forge.OS
                     AddAction(row, "Train", "train", OSButtonStyle.Secondary);
                     break;
             }
-            AddAction(row, "Notebook", "notebook", OSButtonStyle.Secondary, OSProjects.FindTool("notebook") == null ? "The notebook window isn't available yet." : null);
+            AddAction(row, "Notebook", "notebook", OSButtonStyle.Secondary, OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null);
 
             for (int i = 0; i < hints.Count; i++) OSUi.Text(section, hints[i], NoteSize, true);
             if (kind == OSProjectKind.Truck) brainText = OSUi.Text(section, "", NoteSize, true);
@@ -391,7 +394,7 @@ namespace Forge.OS
         string DoDrive()
         {
             OSEntry drive = OSProjects.FindTool("drive");
-            if (drive == null) return "Coming with the Drive pad.";
+            if (drive == null) return DriveMissing;
             if (!OSProjects.OpenTool(drive, out string error)) return error;
 
             var brain = BrainLoops.Active as SlalomBrain;

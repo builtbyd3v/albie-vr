@@ -327,7 +327,7 @@ namespace Forge.OS.Editor
             string text = OSToolsTest.AllText(win);
             foreach (string needle in new[] { "RC truck", "Plan", "Versions", "Artifacts", "Continue", "Course", "Drive", "Train", "Autopilot", "Code", "Send", "Notebook", "No plan written yet", "Nothing linked yet" })
                 Check(text.Contains(needle), "the truck window shows '" + needle + "'");
-            Check(text.Contains("Coming with the Drive pad.") || OSRegistry.Find(OSTab.Tools, "drive") != null, "Drive says honestly that it is not here yet, or works");
+            Check(OSRegistry.Find(OSTab.Tools, "drive") != null && !text.Contains("Coming with") && !text.Contains(OSProjectWindow.DriveMissing), "Drive is a real step: the tool is registered and the window carries no 'coming soon' or 'not found' line");
             Check(text.Contains(OSProjects.SendUnavailable), "Send says honestly that it needs the cloud messenger");
             Check(!text.Contains("TMP") && !text.Contains("New Text"), "no default text left in the window");
             string problem = OSToolsTest.LayoutProblem(win);
