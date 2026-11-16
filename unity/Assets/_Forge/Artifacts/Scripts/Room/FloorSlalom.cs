@@ -65,11 +65,14 @@ namespace Forge.Artifacts
             Tight(ref s.NarrowLane, ref s.TightSpacing, s.Lane, s.MinSpacing);
             // Gates stay half the full lane out, so a narrow course scores the same; only the floor it needs shrinks.
             Func<int, float, Dictionary<string, List<Pose>>> slots = (gates, spacing) => Slots(id, gates, spacing, s.Lane);
-            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around, slots);
+            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around, slots, true);
             if (!fit.Ok && (s.NarrowLane < s.Lane || s.TightSpacing < s.MinSpacing))
-                fit = Narrow(fit, Search(room, s.MinGates, s.MinGates, s.MinSpacing, s.TightSpacing, s.NarrowLane, s.Clearance, s.Around, slots));
+                fit = Narrow(fit, Search(room, s.MinGates, s.MinGates, s.MinSpacing, s.TightSpacing, s.NarrowLane, s.Clearance, s.Around, slots, true));
+            bool boundaryTooSmall = !fit.Ok && room.Boundary != null && FitsWithoutBoundary(room, s, slots);
+            if (boundaryTooSmall)
+                fit.Message = "Your Quest boundary is too small for a slalom here. Redraw it bigger, or ask for hoops.";
             if (fit.Ok) fit.Message = Message(fit.Shrunk, fit.Narrow, fit.Gates, fit.Spacing, s.Around, fit.AroundFound);
-            else fit.Message = string.Format(CultureInfo.InvariantCulture,
+            else if (!boundaryTooSmall) fit.Message = string.Format(CultureInfo.InvariantCulture,
                 "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
                 s.MinGates, s.TightSpacing, Length(s.MinGates, s.TightSpacing), 2f * s.NarrowLane, s.Clearance * 100f);
             return fit;
@@ -98,9 +101,9 @@ namespace Forge.Artifacts
         /// Fewer spacing first, then fewer markers. A failure has code <c>no_free_floor</c> and no message.
         /// </summary>
         internal static Result Search(IFloorPlan room, int count, int minCount, float spacing, float minSpacing, float lane, float clearance,
-                                      string around, Func<int, float, Dictionary<string, List<Pose>>> slots)
+                                      string around, Func<int, float, Dictionary<string, List<Pose>>> slots, bool useBoundary = true)
         {
-            var grid = new FloorGrid(room, clearance);
+            var grid = new FloorGrid(room, clearance, useBoundary);
             Vector3 target = grid.Centroid;
             float baseYaw = room.AxisYaw;
             bool aroundFound = false;
@@ -147,9 +150,23 @@ namespace Forge.Artifacts
             StillFits(room, origin, yaw, gates, spacing, lane > 0f ? lane : s.Lane, s.Clearance);
 
         internal static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int count, float spacing, float lane, float clearance)
+            => StillFits(room, origin, yaw, count, spacing, lane, clearance, true);
+
+        internal static bool StillFitsWithoutBoundary(IFloorPlan room, Vector3 origin, float yaw, int count, float spacing, float lane, float clearance)
+            => StillFits(room, origin, yaw, count, spacing, lane, clearance, false);
+
+        static bool StillFits(IFloorPlan room, Vector3 origin, float yaw, int count, float spacing, float lane, float clearance, bool useBoundary)
         {
             if (room == null || !room.HasFloor) return false;
-            return new FloorGrid(room, clearance).Clear(origin, yaw, count, spacing, lane);
+            return new FloorGrid(room, clearance, useBoundary).Clear(origin, yaw, count, spacing, lane);
+        }
+
+        static bool FitsWithoutBoundary(IFloorPlan room, Settings s, Func<int, float, Dictionary<string, List<Pose>>> slots)
+        {
+            var fit = Search(room, s.Gates, s.MinGates, s.Spacing, s.MinSpacing, s.Lane, s.Clearance, s.Around, slots, false);
+            if (!fit.Ok && (s.NarrowLane < s.Lane || s.TightSpacing < s.MinSpacing))
+                fit = Narrow(fit, Search(room, s.MinGates, s.MinGates, s.MinSpacing, s.TightSpacing, s.NarrowLane, s.Clearance, s.Around, slots, false));
+            return fit.Ok;
         }
 
         /// <summary>The slots, local to the course origin, all on the floor.</summary>
@@ -237,7 +254,7 @@ namespace Forge.Artifacts
             public readonly float Diagonal;
             readonly List<Vector3> freeCells = new List<Vector3>();
 
-            public FloorGrid(IFloorPlan room, float clearance)
+            public FloorGrid(IFloorPlan room, float clearance, bool useBoundary)
             {
                 var b = room.FloorBounds;
                 min = b.min;
@@ -252,6 +269,7 @@ namespace Forge.Artifacts
                     {
                         var p = new Vector3(min.x + (ix + 0.5f) * Cell, y, min.z + (iz + 0.5f) * Cell);
                         if (!room.IsFree(p, clearance)) continue;
+                        if (useBoundary && room.Boundary != null && !PlayArea.Inside(room.Boundary, p, clearance + PlayArea.Margin)) continue;
                         free[iz * nx + ix] = true;
                         freeCells.Add(p);
                         sum += p;
