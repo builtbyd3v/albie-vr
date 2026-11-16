@@ -30,20 +30,20 @@ public class DraftPresenter : MonoBehaviour
     {
         presence = FindAnyObjectByType<DeskPresence>();
         ForgeEvents.OnNotifyDraft += OnDraft;
-        SlackPanel.ActiveChanged += OnPanelsChanged;
+        ChatPanel.ActiveChanged += OnPanelsChanged;
     }
 
     void OnDestroy()
     {
         ForgeEvents.OnNotifyDraft -= OnDraft;
-        SlackPanel.ActiveChanged -= OnPanelsChanged;
+        ChatPanel.ActiveChanged -= OnPanelsChanged;
     }
 
     // The matching provider panel opened while a card floats: its composer takes over the draft, the card folds.
     void OnPanelsChanged()
     {
         if (card == null || card.Closing) return;
-        var panel = SlackPanel.ForSource(card.Draft != null ? card.Draft.source : null);
+        var panel = ChatPanel.ForSource(card.Draft != null ? card.Draft.source : null);
         if (panel == null) return;
         panel.ReceiveDraft(card.Draft);
         DigestTrigger.FoldOut(this, card.Root != null ? card.Root : card.gameObject);
@@ -53,7 +53,7 @@ public class DraftPresenter : MonoBehaviour
     void OnDraft(NotifyDraft d)
     {
         if (d == null || string.IsNullOrEmpty(d.draftId)) return;
-        if (SlackPanel.ForSource(d.source) != null) return;  // the matching panel handles it in its composer
+        if (ChatPanel.ForSource(d.source) != null) return;  // the matching panel handles it in its composer
         if (card != null)
         {
             if (card.Draft != null && card.Draft.draftId == d.draftId && d.edited)

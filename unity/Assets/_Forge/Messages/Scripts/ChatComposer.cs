@@ -5,23 +5,23 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 /// <summary>
-/// The Slack panel's composer, laid out like Slack's message box: a rounded field with a grey edge ("Message #general"),
+/// The chat panel's composer, a rounded message box: a rounded field with a grey edge ("Message #general"),
 /// a toolbar inside it (Ask Albie on the left, the green Send arrow on the right, grey while there is nothing to send),
 /// a status line under it ("Sending…", "Sent", errors) and, for a draft Albie wrote, a banner above it ("Albie drafted
-/// this", Cancel). Built at runtime under the panel's Content by <see cref="SlackPanel"/>, which lays it out and ticks it.
+/// this", Cancel). Built at runtime under the panel's Content by <see cref="ChatPanel"/>, which lays it out and ticks it.
 /// Sending: text you typed becomes a draft (POST /messages/drafts with the open conversation) that is sent at once
 /// (POST .../send), since you wrote it yourself. A draft from Albie (notify.draft) lands in the field as editable text
 /// with Send / Cancel; Send PATCHes the text first when you changed it, and its files (a CAD design's STEP, STL, drawing,
 /// parts list) show on the banner and go up with it. Albie rewording the open draft (messages_edit_draft) replaces the
 /// text in the field. Nothing leaves without a Send. What was sent goes into the conversation at once
-/// (<see cref="SlackStore.AddOwn"/>), without waiting for Slack. On the iMessage panel the box is Messages' rounded grey
+/// (<see cref="ChatStore.AddOwn"/>), without waiting for the provider. On the iMessage panel the box is Messages' rounded grey
 /// field with a blue Send.
 /// Keyboard: on the Quest TMP_InputField opens the system keyboard when poked; on desktop the keyboard types into it.
 /// The Interaction SDK's PointableCanvasModule never sends OnUpdateSelected (that is where TMP reads key events), so
 /// <see cref="Tick"/> sends it while the field is focused; <see cref="ForgeInput.TextFieldFocused"/> mirrors the focus
 /// so other key handlers can stand down.
 /// </summary>
-public class SlackComposer
+public class ChatComposer
 {
     const float BoxH = 84f, FieldTop = 9f, FieldH = 40f, ToolH = 26f, BannerH = 30f, FilesH = 18f, CaptionH = 18f, Gap = 6f;
     const float Corner = 9f, Edge = 1.2f, SendW = 34f, StatusSeconds = 2.5f, TextSize = 13f;
@@ -32,7 +32,7 @@ public class SlackComposer
     // The banner grows by a line while the draft carries files.
     float BannerHeight => BannerH + (filesLine.Length > 0 ? FilesH : 0f);
 
-    readonly SlackPanel owner;
+    readonly ChatPanel owner;
     readonly RectTransform root, box, fieldRect, banner, bannerText;
     readonly ForgeSurface edge, fill, bannerFill;
     readonly TMP_InputField field;
@@ -40,10 +40,10 @@ public class SlackComposer
     readonly Image sendIcon;
     readonly bool imessage;                    // on the iMessage panel: Messages' look
     string filesLine = "";                     // the Albie draft's attachments in one line (on the banner), "" for none
-    readonly SlackButton send, askAlbie, cancel;
+    readonly ChatButton send, askAlbie, cancel;
     BaseEventData updateEvent;
 
-    SlackChannel channel;
+    ChatChannel channel;
     string draftId, draftText, draftChannel, draftThread, draftName;  // the Albie draft in the field, if any
     string ownText, ownChannel, ownDraftId;    // the draft we created ourselves (its notify.draft must not land in the field)
     string closedDraftId;                      // the last Albie draft sent or cancelled here: late echoes of it are ignored
@@ -54,48 +54,48 @@ public class SlackComposer
     public bool HasDraft => draftId != null;
     public RectTransform Root => root;
 
-    public SlackComposer(Transform parent, SlackPanel owner)
+    public ChatComposer(Transform parent, ChatPanel owner)
     {
         this.owner = owner;
         imessage = owner.IsIMessagePanel;
-        root = SlackUi.Rect(parent, "Composer");
+        root = ChatUi.Rect(parent, "Composer");
 
         // Albie's draft banner (shown only with a draft).
-        banner = SlackUi.Rect(root, "Banner");
-        bannerFill = SlackUi.Surface(banner, "Fill", SlackUi.AccentA(0.16f), 8f);
-        SlackUi.Stretch(bannerFill.rectTransform, 0f, 0f, 0f, 0f);
-        var sparkle = SlackUi.Icon(banner, "Sparkle", "sparkle", SlackUi.Accent);
-        SlackUi.Place(sparkle.rectTransform, 10f, (BannerH - 15f) * 0.5f, 15f, 15f);
-        bannerLabel = SlackUi.Text(banner, "Label", 12f, SlackUi.SkText);
+        banner = ChatUi.Rect(root, "Banner");
+        bannerFill = ChatUi.Surface(banner, "Fill", ChatUi.AccentA(0.16f), 8f);
+        ChatUi.Stretch(bannerFill.rectTransform, 0f, 0f, 0f, 0f);
+        var sparkle = ChatUi.Icon(banner, "Sparkle", "sparkle", ChatUi.Accent);
+        ChatUi.Place(sparkle.rectTransform, 10f, (BannerH - 15f) * 0.5f, 15f, 15f);
+        bannerLabel = ChatUi.Text(banner, "Label", 12f, ChatUi.MsgText);
         bannerLabel.overflowMode = TextOverflowModes.Ellipsis;
         bannerText = bannerLabel.rectTransform;
-        files = SlackUi.Text(banner, "Files", 11f, SlackUi.Accent);
+        files = ChatUi.Text(banner, "Files", 11f, ChatUi.Accent);
         files.overflowMode = TextOverflowModes.Ellipsis;
-        SlackUi.Show(files, false);
-        cancel = SlackButton.CreatePill(banner, "Cancel", SlackButton.Ghost, Cancel, 22f, 11.5f);
-        SlackUi.Show(banner, false);
+        ChatUi.Show(files, false);
+        cancel = ChatButton.CreatePill(banner, "Cancel", ChatButton.Ghost, Cancel, 22f, 11.5f);
+        ChatUi.Show(banner, false);
 
         // The box: a grey edge around the field colour, the text area and the toolbar inside.
-        box = SlackUi.Rect(root, "Box");
+        box = ChatUi.Rect(root, "Box");
         float corner = imessage ? 22f : Corner;
-        edge = SlackUi.Surface(box, "Edge", imessage ? SlackUi.White(0.16f) : SlackUi.SkBorder, corner);
-        SlackUi.Stretch(edge.rectTransform, 0f, 0f, 0f, 0f);
-        fill = SlackUi.Surface(box, "Fill", imessage ? SlackUi.IMessageComposer : SlackUi.SkField, corner - Edge);
-        SlackUi.Stretch(fill.rectTransform, Edge, Edge, Edge, Edge);
+        edge = ChatUi.Surface(box, "Edge", imessage ? ChatUi.White(0.16f) : ChatUi.MsgBorder, corner);
+        ChatUi.Stretch(edge.rectTransform, 0f, 0f, 0f, 0f);
+        fill = ChatUi.Surface(box, "Fill", imessage ? ChatUi.IMessageComposer : ChatUi.MsgField, corner - Edge);
+        ChatUi.Stretch(fill.rectTransform, Edge, Edge, Edge, Edge);
 
-        fieldRect = SlackUi.Rect(box, "Field");
-        var hit = fieldRect.gameObject.AddComponent<SlackHitArea>();  // a press anywhere on the field focuses it
+        fieldRect = ChatUi.Rect(box, "Field");
+        var hit = fieldRect.gameObject.AddComponent<ChatHitArea>();  // a press anywhere on the field focuses it
         hit.raycastTarget = true;
-        var area = SlackUi.Rect(fieldRect, "TextArea");
-        SlackUi.Stretch(area, 0f, 0f, 0f, 0f);
+        var area = ChatUi.Rect(fieldRect, "TextArea");
+        ChatUi.Stretch(area, 0f, 0f, 0f, 0f);
         area.gameObject.AddComponent<RectMask2D>();
-        text = SlackUi.Text(area, "Text", TextSize, SlackUi.SkName, align: TextAlignmentOptions.TopLeft, wrap: true);
+        text = ChatUi.Text(area, "Text", TextSize, ChatUi.MsgName, align: TextAlignmentOptions.TopLeft, wrap: true);
         text.richText = false;
-        SlackUi.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
-        placeholder = SlackUi.Text(area, "Placeholder", TextSize, SlackUi.SkMuted, align: TextAlignmentOptions.TopLeft, wrap: true);
+        ChatUi.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
+        placeholder = ChatUi.Text(area, "Placeholder", TextSize, ChatUi.MsgMuted, align: TextAlignmentOptions.TopLeft, wrap: true);
         placeholder.text = imessage ? "Text message" : "Message";
         placeholder.overflowMode = TextOverflowModes.Ellipsis;
-        SlackUi.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
+        ChatUi.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
 
         field = fieldRect.gameObject.AddComponent<TMP_InputField>();
         field.targetGraphic = hit;
@@ -111,7 +111,7 @@ public class SlackComposer
         field.customCaretColor = true;
         field.caretColor = Color.white;
         field.caretWidth = 1;
-        field.selectionColor = new Color(SlackUi.SkLink.r, SlackUi.SkLink.g, SlackUi.SkLink.b, 0.35f);
+        field.selectionColor = new Color(ChatUi.MsgLink.r, ChatUi.MsgLink.g, ChatUi.MsgLink.b, 0.35f);
         field.restoreOriginalTextOnEscape = false;
         field.resetOnDeActivation = false;
         field.characterLimit = 4000;
@@ -119,20 +119,20 @@ public class SlackComposer
         field.onValueChanged.AddListener(_ => RefreshButtons());
 
         // Toolbar inside the box.
-        askAlbie = SlackButton.Create(box, "AskAlbie", SlackButton.Ghost, 6f, AskAlbie);
-        var askIcon = SlackUi.Icon(askAlbie.transform, "Sparkle", "sparkle", SlackUi.Accent);
-        SlackUi.Place(askIcon.rectTransform, 7f, (ToolH - 13f) * 0.5f, 13f, 13f);
-        var askLabel = SlackUi.Text(askAlbie.transform, "Label", 11.5f, SlackUi.SkMuted, bold: true);
+        askAlbie = ChatButton.Create(box, "AskAlbie", ChatButton.Ghost, 6f, AskAlbie);
+        var askIcon = ChatUi.Icon(askAlbie.transform, "Sparkle", "sparkle", ChatUi.Accent);
+        ChatUi.Place(askIcon.rectTransform, 7f, (ToolH - 13f) * 0.5f, 13f, 13f);
+        var askLabel = ChatUi.Text(askAlbie.transform, "Label", 11.5f, ChatUi.MsgMuted, bold: true);
         askLabel.text = "Ask Albie";
-        float aw = SlackUi.Width(askLabel, askLabel.text);
-        SlackUi.Place(askLabel.rectTransform, 25f, 0f, aw + 2f, ToolH);
+        float aw = ChatUi.Width(askLabel, askLabel.text);
+        ChatUi.Place(askLabel.rectTransform, 25f, 0f, aw + 2f, ToolH);
         askAlbie.Rect.sizeDelta = new Vector2(25f + aw + 9f, ToolH);
 
-        send = SlackButton.Create(box, "Send", SlackButton.SendOff, 6f, Send);
-        sendIcon = SlackUi.Icon(send.transform, "Arrow", "send", SlackUi.SkMuted);
-        SlackUi.Place(sendIcon.rectTransform, (SendW - 15f) * 0.5f, (ToolH - 15f) * 0.5f, 15f, 15f);
+        send = ChatButton.Create(box, "Send", ChatButton.SendOff, 6f, Send);
+        sendIcon = ChatUi.Icon(send.transform, "Arrow", "send", ChatUi.MsgMuted);
+        ChatUi.Place(sendIcon.rectTransform, (SendW - 15f) * 0.5f, (ToolH - 15f) * 0.5f, 15f, 15f);
 
-        caption = SlackUi.Text(root, "Caption", 10.5f, SlackUi.SkMuted, align: TextAlignmentOptions.Right);
+        caption = ChatUi.Text(root, "Caption", 10.5f, ChatUi.MsgMuted, align: TextAlignmentOptions.Right);
         caption.overflowMode = TextOverflowModes.Ellipsis;
         RefreshButtons();
     }
@@ -140,31 +140,31 @@ public class SlackComposer
     /// <summary>Place the composer at (x, y) in its parent, <paramref name="w"/> wide, <see cref="Height"/> tall.</summary>
     public void Layout(float x, float y, float w)
     {
-        SlackUi.Place(root, x, y, w, Height);
+        ChatUi.Place(root, x, y, w, Height);
         float by = 0f;
         if (HasDraft)
         {
-            SlackUi.Place(banner, 0f, 0f, w, BannerHeight);
+            ChatUi.Place(banner, 0f, 0f, w, BannerHeight);
             Vector2 c = cancel.Rect.sizeDelta;
-            SlackUi.PlaceRight(cancel.Rect, 6f, (BannerH - c.y) * 0.5f, c.x, c.y);
-            SlackUi.Place(bannerText, 32f, 0f, Mathf.Max(20f, w - 32f - c.x - 16f), BannerH);
-            SlackUi.Place(files.rectTransform, 32f, BannerH - 6f, Mathf.Max(20f, w - 44f), FilesH);
+            ChatUi.PlaceRight(cancel.Rect, 6f, (BannerH - c.y) * 0.5f, c.x, c.y);
+            ChatUi.Place(bannerText, 32f, 0f, Mathf.Max(20f, w - 32f - c.x - 16f), BannerH);
+            ChatUi.Place(files.rectTransform, 32f, BannerH - 6f, Mathf.Max(20f, w - 44f), FilesH);
             by = BannerHeight + Gap;
         }
-        SlackUi.Place(box, 0f, by, w, BoxH);
-        SlackUi.Place(fieldRect, 14f, FieldTop, w - 28f, FieldH);
+        ChatUi.Place(box, 0f, by, w, BoxH);
+        ChatUi.Place(fieldRect, 14f, FieldTop, w - 28f, FieldH);
         float ty = BoxH - ToolH - 6f;
         Vector2 a = askAlbie.Rect.sizeDelta;
-        SlackUi.Place(askAlbie.Rect, 6f, ty, a.x, ToolH);
-        SlackUi.PlaceRight(send.Rect, 8f, ty, SendW, ToolH);
-        SlackUi.Place(caption.rectTransform, 4f, by + BoxH + 2f, w - 8f, CaptionH - 3f);
+        ChatUi.Place(askAlbie.Rect, 6f, ty, a.x, ToolH);
+        ChatUi.PlaceRight(send.Rect, 8f, ty, SendW, ToolH);
+        ChatUi.Place(caption.rectTransform, 4f, by + BoxH + 2f, w - 8f, CaptionH - 3f);
     }
 
     /// <summary>The open conversation (what Send posts to and Ask Albie reads from).</summary>
-    public void SetChannel(SlackChannel c)
+    public void SetChannel(ChatChannel c)
     {
         channel = c;
-        placeholder.text = imessage ? "Text message" : c == null ? "Pick a conversation" : "Message " + SlackText.DisplayName(c);
+        placeholder.text = imessage ? "Text message" : c == null ? "Pick a conversation" : "Message " + ChatText.DisplayName(c);
         RefreshButtons();
     }
 
@@ -175,7 +175,7 @@ public class SlackComposer
         {
             focused = f;
             ForgeInput.TextFieldFocused = f;
-            if (!imessage) edge.color = f ? SlackUi.SkBorderFocus : SlackUi.SkBorder;
+            if (!imessage) edge.color = f ? ChatUi.MsgBorderFocus : ChatUi.MsgBorder;
         }
         if (f)
         {
@@ -211,7 +211,7 @@ public class SlackComposer
         string body = field.text != null ? field.text.Trim() : "";
         if (body.Length == 0) { Status("Nothing to send yet"); return; }
         string target = draftId != null ? draftChannel : channel?.id;
-        if (SlackStore.Demo && !string.IsNullOrEmpty(target)) { DemoSend(target, body); return; }
+        if (ChatStore.Demo && !string.IsNullOrEmpty(target)) { DemoSend(target, body); return; }
         if (ForgeNet.Status != ForgeNetStatus.Live) { Status("Connecting…"); return; }
         if (string.IsNullOrEmpty(target)) { Status("Pick a conversation first"); return; }
 
@@ -222,7 +222,7 @@ public class SlackComposer
         {
             string id = draftId, thread = draftThread;
             if (body != draftText)
-                SlackNet.Patch<NotifyDraft>($"/messages/drafts/{id}", new JObject { ["text"] = body }, _ => { draftText = body; PostSend(id, target, body, thread); }, Fail);
+                ChatNet.Patch<NotifyDraft>($"/messages/drafts/{id}", new JObject { ["text"] = body }, _ => { draftText = body; PostSend(id, target, body, thread); }, Fail);
             else PostSend(id, target, body, thread);
         }
         else
@@ -258,15 +258,15 @@ public class SlackComposer
             return;
         }
         sending = true;  // so Sent() runs for a typed message too
-        SlackStore.AddOwn(target, body, ts, thread);
+        ChatStore.AddOwn(target, body, ts, thread);
         Sent();
     }
 
     // The hub answers with the post's ts: the message goes into the conversation right away (notify.sent follows).
     void PostSend(string id, string target, string body, string thread) =>
-        ForgeNet.Post<SlackSendReply>($"/messages/drafts/{id}/send", null, reply =>
+        ForgeNet.Post<ChatSendReply>($"/messages/drafts/{id}/send", null, reply =>
         {
-            if (reply != null) SlackStore.AddOwn(target, body, reply.ts, thread);
+            if (reply != null) ChatStore.AddOwn(target, body, reply.ts, thread);
             Sent();
         }, Fail);
 
@@ -284,7 +284,7 @@ public class SlackComposer
 
     void Fail(string error)
     {
-        Debug.LogWarning($"[SlackComposer] {error}");
+        Debug.LogWarning($"[ChatComposer] {error}");
         sending = false;
         Status(error != null && error.Contains("404") ? "That draft is gone (sent, cancelled or expired)" : "Hub didn't answer, try again");
         RefreshButtons();
@@ -294,7 +294,7 @@ public class SlackComposer
     {
         if (draftId == null) return;
         string id = draftId;
-        if (SlackStore.Demo)
+        if (ChatStore.Demo)
         {
             try { MessagesDemo.CancelDraft(id); }
             catch (System.ArgumentException) { }  // already gone: clearing the field is all that's left
@@ -315,7 +315,7 @@ public class SlackComposer
         else Status("Albie is reading it…");
     }
 
-    // ---- Hub events (routed by SlackPanel) ----
+    // ---- Hub events (routed by ChatPanel) ----
 
     /// <summary>notify.draft: Albie's draft lands in the field (the panel switches to its conversation); our own drafts are skipped.</summary>
     public void ReceiveDraft(NotifyDraft d)
@@ -345,7 +345,7 @@ public class SlackComposer
         sending = false;
         field.SetTextWithoutNotify(draftText);
         SetFiles(d);
-        SlackUi.Show(banner, true);
+        ChatUi.Show(banner, true);
         statusText = null;
         RefreshCaption();
         RefreshButtons();
@@ -380,11 +380,11 @@ public class SlackComposer
     /// <summary>The files line for Albie's draft (its attachments go up with the text on Send); hidden without any.</summary>
     void SetFiles(NotifyDraft d)
     {
-        string line = d != null ? SlackText.Attachments(d.attachments) : "";
+        string line = d != null ? ChatText.Attachments(d.attachments) : "";
         if (line == filesLine) return;
         filesLine = line;
         files.text = line;
-        SlackUi.Show(files, line.Length > 0);
+        ChatUi.Show(files, line.Length > 0);
         owner.MarkLayoutDirty();  // the banner grows or shrinks by the line
     }
 
@@ -393,7 +393,7 @@ public class SlackComposer
         if (draftId != null) closedDraftId = draftId;
         draftId = draftText = draftChannel = draftThread = draftName = null;
         SetFiles(null);
-        SlackUi.Show(banner, false);
+        ChatUi.Show(banner, false);
         RefreshCaption();
         owner.MarkLayoutDirty();
     }
@@ -410,21 +410,21 @@ public class SlackComposer
         caption.text = statusText ?? "";
         if (draftId != null)
         {
-            var c = SlackStore.Find(draftChannel);
-            string to = c != null ? SlackText.DisplayName(c) : string.IsNullOrEmpty(draftName) ? "this conversation" : draftName;
-            bannerLabel.text = SlackText.BoldOpen + "Albie drafted this" + SlackText.BoldClose + " for " + to + ". Edit it, then Send.";
+            var c = ChatStore.Find(draftChannel);
+            string to = c != null ? ChatText.DisplayName(c) : string.IsNullOrEmpty(draftName) ? "this conversation" : draftName;
+            bannerLabel.text = ChatText.BoldOpen + "Albie drafted this" + ChatText.BoldClose + " for " + to + ". Edit it, then Send.";
         }
     }
 
     void RefreshButtons()
     {
-        bool live = ForgeNet.Status == ForgeNetStatus.Live || SlackStore.Demo;
+        bool live = ForgeNet.Status == ForgeNetStatus.Live || ChatStore.Demo;
         bool can = live && !sending && (channel != null || draftId != null) && !string.IsNullOrWhiteSpace(field.text);
         if (can != canSend)
         {
             canSend = can;
-            send.SetLook(can ? (imessage ? SlackButton.IMessagePrimary : SlackButton.SendOn) : SlackButton.SendOff);
-            sendIcon.color = can ? Color.white : SlackUi.SkMuted;
+            send.SetLook(can ? (imessage ? ChatButton.IMessagePrimary : ChatButton.SendOn) : ChatButton.SendOff);
+            sendIcon.color = can ? Color.white : ChatUi.MsgMuted;
         }
         askAlbie.Interactable = live && channel != null;
         cancel.Interactable = live && !sending;

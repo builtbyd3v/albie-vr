@@ -9,7 +9,7 @@ using UnityEngine.UI;
 /// composer and the Mentions rows. Text colours from <see cref="ForgeTheme"/>, accent = ForgeTheme.Messages.
 /// 1 canvas unit = 1 mm; rects are placed from their parent's top left with y down.
 /// </summary>
-public static class SlackUi
+public static class ChatUi
 {
     // ---- Colours ----
 
@@ -38,32 +38,32 @@ public static class SlackUi
         new Color(0.25f, 0.55f, 1f), new Color(0.85f, 0.4f, 0.9f), new Color(0.3f, 0.8f, 0.45f),
         new Color(1f, 0.55f, 0.2f), new Color(0.95f, 0.35f, 0.4f), new Color(0.25f, 0.8f, 0.85f),
     };
-    public static Color BubbleColor(string key) => BubbleColors[SlackText.StableHash(key) % BubbleColors.Length];
+    public static Color BubbleColor(string key) => BubbleColors[ChatText.StableHash(key) % BubbleColors.Length];
 
     // ---- Messenger (the conversations panel inside the graphite frame: Forge's own look, graphite with the MSG violet) ----
 
-    public static readonly Color SkWindow = new Color(0.125f, 0.122f, 0.157f);      // graphite with a violet cast: sidebar and window
-    public static readonly Color SkSideText = new Color(0.88f, 0.87f, 0.93f, 0.74f); // read conversations
-    public static readonly Color SkSideHover = new Color(1f, 1f, 1f, 0.07f);
-    public static readonly Color SkSideOn = new Color(0.267f, 0.212f, 0.392f);      // the open conversation: MSG violet, dimmed
-    public static readonly Color SkSideOnHover = new Color(0.31f, 0.245f, 0.45f);
-    public static readonly Color SkBadge = new Color(0.655f, 0.482f, 1f);            // unread count pill: #A77BFF
-    public static readonly Color SkPane = new Color(0.082f, 0.086f, 0.102f);        // the conversation
-    public static readonly Color SkPaneHover = new Color(0.115f, 0.118f, 0.14f);    // a pointed-at message
-    public static readonly Color SkText = new Color(0.84f, 0.84f, 0.86f);
-    public static readonly Color SkName = new Color(0.973f, 0.973f, 0.973f);
-    public static readonly Color SkMuted = new Color(0.66f, 0.66f, 0.70f);
-    public static readonly Color SkLine = new Color(1f, 1f, 1f, 0.09f);
-    public static readonly Color SkLink = new Color(0.78f, 0.66f, 1f);              // #C7A8FF, links and #channels
-    public static readonly Color SkNew = new Color(1f, 0.48f, 0.42f);               // #FF7A6B, the "New" line
-    public static readonly Color SkGreen = new Color(0.50f, 0.34f, 0.90f);          // Send: deep MSG violet
-    public static readonly Color SkGreenHover = new Color(0.58f, 0.42f, 0.97f);
-    public static readonly Color SkBorder = new Color(1f, 1f, 1f, 0.16f);           // the composer's edge
-    public static readonly Color SkBorderFocus = new Color(0.655f, 0.482f, 1f, 0.75f);
-    public static readonly Color SkField = new Color(0.115f, 0.118f, 0.14f);
+    public static readonly Color MsgWindow = new Color(0.125f, 0.122f, 0.157f);      // graphite with a violet cast: sidebar and window
+    public static readonly Color MsgSideText = new Color(0.88f, 0.87f, 0.93f, 0.74f); // read conversations
+    public static readonly Color MsgSideHover = new Color(1f, 1f, 1f, 0.07f);
+    public static readonly Color MsgSideOn = new Color(0.267f, 0.212f, 0.392f);      // the open conversation: MSG violet, dimmed
+    public static readonly Color MsgSideOnHover = new Color(0.31f, 0.245f, 0.45f);
+    public static readonly Color MsgBadge = new Color(0.655f, 0.482f, 1f);            // unread count pill: #A77BFF
+    public static readonly Color MsgPane = new Color(0.082f, 0.086f, 0.102f);        // the conversation
+    public static readonly Color MsgPaneHover = new Color(0.115f, 0.118f, 0.14f);    // a pointed-at message
+    public static readonly Color MsgText = new Color(0.84f, 0.84f, 0.86f);
+    public static readonly Color MsgName = new Color(0.973f, 0.973f, 0.973f);
+    public static readonly Color MsgMuted = new Color(0.66f, 0.66f, 0.70f);
+    public static readonly Color MsgLine = new Color(1f, 1f, 1f, 0.09f);
+    public static readonly Color MsgLink = new Color(0.78f, 0.66f, 1f);              // #C7A8FF, links and #channels
+    public static readonly Color MsgNew = new Color(1f, 0.48f, 0.42f);               // #FF7A6B, the "New" line
+    public static readonly Color MsgSend = new Color(0.50f, 0.34f, 0.90f);          // Send: deep MSG violet
+    public static readonly Color MsgSendHover = new Color(0.58f, 0.42f, 0.97f);
+    public static readonly Color MsgBorder = new Color(1f, 1f, 1f, 0.16f);           // the composer's edge
+    public static readonly Color MsgBorderFocus = new Color(0.655f, 0.482f, 1f, 0.75f);
+    public static readonly Color MsgField = new Color(0.115f, 0.118f, 0.14f);
     public static Color Clear => new Color(1f, 1f, 1f, 0f);
 
-    // ---- Icons (Resources/SlackIcons/*.svg, imported as sprites; white, tinted by Image.color) ----
+    // ---- Icons (Resources/ChatIcons/*.svg, imported as sprites; white, tinted by Image.color) ----
 
     static readonly System.Collections.Generic.Dictionary<string, Sprite> icons = new System.Collections.Generic.Dictionary<string, Sprite>();
 
@@ -71,8 +71,8 @@ public static class SlackUi
     {
         if (!icons.TryGetValue(name, out var sprite))
         {
-            sprite = Resources.Load<Sprite>("SlackIcons/" + name);
-            if (sprite == null) Debug.LogWarning($"[SlackUi] Resources/SlackIcons/{name}.svg missing or not imported as a sprite.");
+            sprite = Resources.Load<Sprite>("ChatIcons/" + name);
+            if (sprite == null) Debug.LogWarning($"[ChatUi] Resources/ChatIcons/{name}.svg missing or not imported as a sprite.");
             icons[name] = sprite;
         }
         return sprite;
@@ -177,7 +177,7 @@ public static class SlackUi
 
     /// <summary>
     /// Bold, without most of TMP's faux-bold letter spacing: Inter ships one weight here, and TMP widens bold text by the
-    /// font asset's boldSpacing (7), which reads as tracked-out caps next to Slack's tight bold names.
+    /// font asset's boldSpacing (7), which reads as tracked-out caps next to tight bold names.
     /// For text that is bold as a whole; inline &lt;b&gt; keeps TMP's spacing.
     /// </summary>
     public static void SetBold(TMP_Text t, bool on)
@@ -252,10 +252,10 @@ public static class SlackUi
         return fill;
     }
 
-    public static SlackHitArea Hit(Transform parent, string name)
+    public static ChatHitArea Hit(Transform parent, string name)
     {
         var rt = Rect(parent, name);
-        var hit = rt.gameObject.AddComponent<SlackHitArea>();
+        var hit = rt.gameObject.AddComponent<ChatHitArea>();
         hit.raycastTarget = true;
         return hit;
     }

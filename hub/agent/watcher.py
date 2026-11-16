@@ -90,7 +90,7 @@ def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | No
         if not p.get("mentions_me"):
             return None
         who = p.get("user_name") or "Someone"
-        where = "messaged you" if p.get("is_dm") else f"mentioned you in {p.get('channel_name') or 'Slack'}"
+        where = "messaged you" if p.get("is_dm") else f"mentioned you in {p.get('channel_name') or 'a channel'}"
         said = f"{who} {where}: {text} Want me to reply?"
         return Line(f"slack:{p.get('channel')}", ts, said, panel="messages", context=reply_context(said, ts))
     if type_ == "cad.regen_failed":

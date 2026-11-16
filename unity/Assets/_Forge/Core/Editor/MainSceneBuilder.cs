@@ -35,7 +35,7 @@ public static class MainSceneBuilder
         ("cad-drawing", "Assets/_Forge/CAD/Prefabs/CadDrawingPanel.prefab"),
         ("cad-timeline", "Assets/_Forge/CAD/Prefabs/CadVersionsPanel.prefab"),
         ("screen-main", "Assets/_Forge/Code/Resources/CodePanel.prefab"),
-        ("messages", "Assets/_Forge/Messages/Resources/SlackPanel.prefab"),
+        ("messages", "Assets/_Forge/Messages/Resources/ChatPanel.prefab"),
         ("messages-mentions", "Assets/_Forge/Messages/Resources/MentionsPanel.prefab"),
         ("ml-datastack", "Assets/_Forge/ML/Prefabs/DataStack.prefab"),
         ("ml-model3d", "Assets/_Forge/ML/Prefabs/Model3D.prefab"),
