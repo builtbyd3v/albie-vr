@@ -40,6 +40,9 @@ Builds/
 unity/.utmp/
 *.apk
 *.aab
+# Release signing keys never go in git (docs/RELEASE.md)
+*.keystore
+*.jks
 *.unitypackage
 unity/sysinfo.txt
 unity/crashlytics-build.properties
