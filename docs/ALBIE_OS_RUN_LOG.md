@@ -721,3 +721,45 @@ Empty crew: "No agents yet." and Bring all home is off. `spawn_agent` builder an
 - `Pet/Scripts/Crew/AlbieCrewMember.cs` (+134 lines, nothing removed): `using System.Collections.Generic;`; public `Home`, `HomeSpot` (Vector3?), `BodyHidden`; `SetHome(bool home, Vector3? spot = null)`; private helpers `ParkAtHome`, `HomeTick` (every 0.3 s while home), `SettleHomeSpot`, `SetBodyHidden`, `ApplyBodyHidden`; one line at the top of `Update`: `if (Home && !Leaving) HomeTick();`. `GoHome`, `Init`, `Awake`, `OnPoked` are untouched. Why: Bring home must stop wandering without ending the task.
 - `Pet/Scripts/Crew/AlbieCrew.cs` (+10, -3): new `NotifyHomeChanged()` (re-split the areas, raise `Changed`); `ClearDeskForLead` skips a home member (`m == null || m.Home`) so the whistle neither dismisses nor lines it up; `AssignTerritories` leaves a home member out of the areas it hands out; `AssignLineup` skips a home member. Why: without these the crew's own bookkeeping would walk a home agent off its pad or dismiss it on a whistle.
 No Project Settings, scene or `manifest.json`. `Main.unity` was not touched.
+
+## settings-5.7 (integrator lane)
+
+Integrated the staged Settings window (`OS/Scripts/OSSettingsWindow.cs`, window id `settings`, registered under the strip's id `settings`) and wrote `OS/Editor/OSSettingsTest.cs` (menu: Forge/OS/Run Settings Test, `OSSettingsTest.LastResult`). The staged file compiled as written; the changes I made were layout and tests.
+
+### Done, with evidence
+- `PASS [OSSettingsTest] 102 passed, 0 failed` (first run 93/8: four were my test's wrong assumptions, see below; one was a real layout defect, fixed).
+- Every row persists in `os_settings.json` (the test reads the file after each change: `"tableButton": false`, `"cornerOnLeft": true`, `"flatLayout": true`, `"menuDistance": 0.6`, `"menuDropDegrees": 20.0`, `"gestureDisplay"`) and takes effect at once: the table button leaves the desk the frame after the switch is turned off; the workspace goes Flat/Curved; the gesture panel shows/hides; the menu then opens 0.600 m from the eyes and 20.0 degrees below level (measured). A reload of the file updates the open window (0.45 m).
+- Both resets ask first: Forget permissions (the artifact still needs no approval until "Forget them"; Cancel keeps it; confirm makes it ask again) and Bring windows here (window does not move before the confirm; moved 0.92 m after it). Note lines say what was done.
+- Hands-free row: an honest read-only line, not a toggle. `AlbieVoice` has no runtime switch (only the editor pref read at install), so a toggle would be fake. It reads "Voice is off in this session, so Albie is not listening." (test checks there is no switch for it); with voice on it says it is on and cannot be turned off here yet.
+- Screenshots (`unity/Logs/os/`, opened and looked at): `81_settings_page1.png` (Menu button: three switches, Corner side Left/Right, Voice line, pager "1 of 3"), `82_settings_page2.png` and `83_settings_page2_sliders.png` (Layout Curved/Flat, Gesture display, Distance "0.60 m", Height "20 degrees down"), `84_settings_page3.png` (both resets, About with version and credits), `85_settings_confirm_permissions.png` (confirm card over the window: question, Forget them, Cancel), `86_settings_page3_after_reset.png` (note "Artifact permissions cleared. Each one will ask again."). Text not clipped or overlapping (LayoutProblem on each page), no placeholder or brand names in UI strings (the Meta credit is the licence notice the spec asks for).
+
+### Every test, rerun after the change
+```
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS os check (OSCheck.Run)
+```
+
+### Decisions (one line of why each)
+- **Sections get `flexibleHeight = 0` and so does the pager row** (helper `Section` in the window). Why: the kit's controls report flexible height, so the page column spread the sections apart (a 160-unit gap) and stretched the pager to 171 units; found by dumping rect sizes in Play.
+- **The test scan counts a switch's whole row (a Button, 28 mm tall) as the target, not the 26 x 16 mm switch graphic.** Why: `OSUi.Toggle` makes the whole row tappable on purpose; the test presses the switch itself and it works.
+- **Gesture display test is relative to the panel's real state.** Why: the engine shows the display on start in desktop, so "starts off" was wrong; the window shows the real state, and the test checks that.
+- **File check uses `0.44999` for 0.45.** Why: `JsonUtility` writes the float as 0.44999998807907104.
+
+### Not working or not done
+- **Watch turn and Corner button rows save and persist but nothing reads them yet**: `OSWatch` and `OSCornerButton` (spec 5.11, 5.12) do not exist in the code. Only the table button, layout, gesture display and menu position have a visible effect today. They will take effect when those parts read `OSSettings.Current` each frame.
+- `OSSettings.gestureDisplay` is not applied at app start (staged HOOKS.md: optional, not done).
+- Slider ranges (0.35 to 0.7 m, 0 to 30 degrees) are narrower than `OSSettings` clamps (0.8, 35), as the task says.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses.
+- `OSCheck` has no Settings line (the registration happens at BeforeSceneLoad, Play mode only; `OSSettingsTest` asserts it).
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`. `Main.unity` was not saved (one test run left it dirty in memory; reopened it from disk, dirty=False, git clean).
