@@ -119,7 +119,7 @@ public static class FirstRunCheck
         foreach (var t in FirstRunGuide.Tries) { copy.Add(t.label); copy.Add(t.done); }
         foreach (string line in copy)
             foreach (string brand in Brands)
-                Expect(line.ToLowerInvariant().IndexOf(brand, StringComparison.Ordinal) < 0, $"\"{brand}\" in \"{line}\"");
+                Expect(!System.Text.RegularExpressions.Regex.IsMatch(line.ToLowerInvariant(), "\\b" + brand + "\\b"), $"\"{brand}\" in \"{line}\"");  // whole words: "quest" is not in "question"
         return $"{copy.Count} lines clean";
     }
 

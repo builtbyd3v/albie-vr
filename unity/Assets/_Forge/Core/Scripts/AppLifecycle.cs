@@ -63,7 +63,7 @@ public class AppLifecycle : MonoBehaviour
         OVRManager.HMDMounted -= OnMounted;
         OVRManager.TrackingOriginChangePending -= OnOriginChange;
         if (instance == this) instance = null;
-        if (IsAway) { IsAway = false; Time.timeScale = savedTimeScale; }  // never leave game time stopped
+        if (IsAway) { IsAway = false; Time.timeScale = savedTimeScale; AudioListener.pause = false; }  // never leave game time stopped
     }
 
     void OnApplicationPause(bool pause)
@@ -125,6 +125,7 @@ public class AppLifecycle : MonoBehaviour
 
         savedTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
         Time.timeScale = 0f;
+        AudioListener.pause = true;  // timeScale does not stop looping AudioSources
         Debug.Log($"[AppLifecycle] away ({why}): voice closed, mic released, game time stopped.");
     }
 
@@ -132,6 +133,7 @@ public class AppLifecycle : MonoBehaviour
     {
         IsAway = false;
         Time.timeScale = savedTimeScale;
+        AudioListener.pause = false;
         float secondsAway = Time.realtimeSinceStartup - awayAt;
         ResumedAt = Time.realtimeSinceStartup;
         if (ForgeNet.LocalPeer is AlbieVoice voice) voice.Resume();

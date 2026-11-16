@@ -275,7 +275,7 @@ public class FirstRunGuide : MonoBehaviour
             Say("That didn't work. " + (cut >= 0 ? error.Substring(cut + 2) : error), TapHint);
             return;
         }
-        if ((string)r["status"] == "awaiting_approval")
+        if (((string)r["status"] ?? (string)r["opened"]?["status"]) == "awaiting_approval")  // artifact_create nests it under "opened"
         {
             Say("It needs your OK the first time. Tap Allow and I'll build it.", TapHint);
             return;

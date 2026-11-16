@@ -553,6 +553,12 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             instructions = history.Count == 0 ? Instructions
                 : Instructions + " Earlier in this conversation, before a short pause: " + string.Join(" ", history);
             await Raw(socket, SessionUpdate().ToString(Formatting.None));
+            if (started != epoch)  // the headset came off during the send: never keep a billed session open while away
+            {
+                socket.Abort();
+                socket.Dispose();
+                return false;
+            }
             ws = socket;
             lastActivity = Time.realtimeSinceStartup;
             _ = Receive(socket);
