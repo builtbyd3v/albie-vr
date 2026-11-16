@@ -189,7 +189,7 @@ namespace Forge.ML
             heatHeight = Mathf.Max(heatHeight, Mathf.Min(10f + 18f + classes * MinRow, summary.rect.height - 46f));
             const float labelWidth = 112;
             float top = 10, rowHeight = (heatHeight - top - 18) / Mathf.Max(1, classes);
-            bool names = rowHeight >= 12f;
+            bool names = rowHeight >= 12f && columns > 0;
             MLUI.Well(summary, 0, 0, width, heatHeight);
             float cellWidth = Mathf.Min(40f, (width - labelWidth - 14) / Mathf.Max(1, columns));
             for (int c = 0; c < classes; c++)
@@ -216,12 +216,20 @@ namespace Forge.ML
                     label.color = MLUI.Faint;
                 }
             }
-            if (columns == 0) { var wait = MLUI.Text(summary, "Waiting for the first epoch", labelWidth + 12, heatHeight * 0.5f - 8, 300, 16, 12); wait.color = MLUI.Faint; }
+            if (columns == 0)
+            {
+                string note = session.HubData ? "Per-class results appear after the first epoch" : "Per-class results appear after you press Train";
+                var wait = MLUI.Text(summary, note, 12, heatHeight * 0.5f - 8, Mathf.Max(200, width - 24), 16, 12); wait.color = MLUI.Sub;
+            }
 
             float probeY = heatHeight + 8, probeHeight = summary.rect.height - probeY;
-            MLUI.Well(summary, 0, probeY, width, probeHeight);
-            MLUI.Caps(summary, "Probe strip  ·  16 fixed validation images", 12, probeY + 8, 400);
-            if (probes.Count == 0) { var wait = MLUI.Text(summary, "Waiting for ml.probe", 12, probeY + 30, 220, 16, 11); wait.color = MLUI.Faint; }
+            bool showProbeStrip = probes.Count > 0 || session.HubData;
+            if (showProbeStrip)
+            {
+                MLUI.Well(summary, 0, probeY, width, probeHeight);
+                MLUI.Caps(summary, "Probe strip  ·  16 fixed validation images", 12, probeY + 8, 400);
+            }
+            if (probes.Count == 0 && showProbeStrip) { var wait = MLUI.Text(summary, "Probe images show up here once training reports them", 12, probeY + 30, Mathf.Max(260, width - 24), 16, 11); wait.color = MLUI.Sub; }
             float slotWidth = (width - 16) / 16f, imageY = probeY + 26, photo = Mathf.Min(34f, slotWidth - 8);
             bool roomForPhotos = probeHeight >= 26f + photo + 26f;
             for (int i = 0; i < Mathf.Min(16, probes.Count) && roomForPhotos; i++)

@@ -16,6 +16,14 @@ public class ForgePill : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     bool on;
     int hovers;
 
+    /// <summary>Quiet pills (title-bar toggles) show their lit state as a tinted fill with light text, so the solid near-white look stays for primary actions.</summary>
+    public bool Quiet
+    {
+        get => quiet;
+        set { quiet = value; Refresh(); }
+    }
+    bool quiet;
+
     public Button Button { get; private set; }
     public RectTransform Rect => (RectTransform)transform;
 
@@ -82,8 +90,9 @@ public class ForgePill : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     void Refresh()
     {
         if (surface == null || label == null) return;
-        surface.color = on ? ForgeTheme.PillOn : hovers > 0 ? ForgeTheme.PillOffHover : ForgeTheme.PillOff;
-        label.color = on ? ForgeTheme.PillOnText : ForgeTheme.PillOffText;
-        ForgeTheme.DarkOnLight(label, on, ForgeTheme.DarkPillDilate);
+        bool solid = on && !quiet;
+        surface.color = solid ? ForgeTheme.PillOn : on ? new Color(1f, 1f, 1f, 0.30f) : hovers > 0 ? ForgeTheme.PillOffHover : ForgeTheme.PillOff;
+        label.color = solid ? ForgeTheme.PillOnText : ForgeTheme.PillOffText;
+        ForgeTheme.DarkOnLight(label, solid, ForgeTheme.DarkPillDilate);
     }
 }

@@ -410,8 +410,8 @@ namespace Forge.OS
         // ---------------------------------------------------------------- confirm
 
         /// <summary>
-        /// An inline two-button confirm laid over the given window (never a system dialog): the question, then the confirm
-        /// button and Cancel. Nothing happens until the confirm tap; Cancel or the dimmed area around it dismisses it.
+        /// An inline two-button confirm docked along the bottom of the given window (never a system dialog): the question, then the confirm
+        /// button and Cancel. Nothing happens until the confirm tap; Cancel closes it.
         /// </summary>
         public static void Confirm(Transform window, string question, string confirmLabel, Action onConfirm)
         {
@@ -422,48 +422,46 @@ namespace Forge.OS
             Transform old = host.Find("OSConfirm");
             if (old != null) UnityEngine.Object.Destroy(old.gameObject);
 
+            // A strip docked along the bottom edge of the window, solid so nothing shows through it: the rows and notes above
+            // it stay readable (nothing is dimmed or covered except the status line at the very bottom while it is open).
             var root = new GameObject("OSConfirm", typeof(RectTransform));
             root.transform.SetParent(host, false);
             var rootRect = (RectTransform)root.transform;
-            rootRect.anchorMin = Vector2.zero;
-            rootRect.anchorMax = Vector2.one;
-            rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
+            rootRect.anchorMin = new Vector2(0f, 0f);
+            rootRect.anchorMax = new Vector2(1f, 0f);
+            rootRect.pivot = new Vector2(0.5f, 0f);
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+            rootRect.sizeDelta = new Vector2(0f, 96f);
             root.AddComponent<LayoutElement>().ignoreLayout = true;
-            var dim = root.AddComponent<Image>();
-            dim.color = new Color(0f, 0f, 0f, 0.55f);
-            var dimButton = root.AddComponent<Button>();
-            dimButton.transition = Selectable.Transition.None;
-            dimButton.onClick.AddListener(() => UnityEngine.Object.Destroy(root));
+            // Above every control of the window, including ones that sort themselves (a pager at the bottom edge).
+            var sort = root.AddComponent<Canvas>();
+            sort.overrideSorting = true;
+            sort.sortingOrder = 50;
+            root.AddComponent<GraphicRaycaster>();
+            var bg = root.AddComponent<Image>();
+            bg.color = new Color(0.17f, 0.17f, 0.2f, 1f);
+            root.AddComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>().borderRadius = new Vector4(18f, 18f, 18f, 18f);
+            var strip = root.AddComponent<HorizontalLayoutGroup>();
+            strip.padding = new RectOffset(28, 20, 12, 12);
+            strip.spacing = 18f;
+            strip.childAlignment = TextAnchor.MiddleLeft;
+            strip.childControlWidth = strip.childControlHeight = true;
+            strip.childForceExpandWidth = false;
+            strip.childForceExpandHeight = false;
 
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(root.transform, false);
-            var cardRect = (RectTransform)card.transform;
-            cardRect.anchorMin = cardRect.anchorMax = cardRect.pivot = new Vector2(0.5f, 0.5f);
-            cardRect.sizeDelta = new Vector2(420f, 200f);
-            card.tag = "QDSUIBackplateGradient";
-            var cardImage = card.AddComponent<Image>();
-            cardImage.color = kit.theme != null ? kit.theme.backplateColor : new Color(0.13f, 0.13f, 0.15f, 1f);
-            if (kit.theme != null && kit.theme.backplateGradientMaterial != null) cardImage.material = kit.theme.backplateGradientMaterial;
-            card.AddComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>().borderRadius = new Vector4(24f, 24f, 24f, 24f);
-            var cardLayout = card.AddComponent<VerticalLayoutGroup>();
-            cardLayout.padding = new RectOffset(28, 28, 28, 28);
-            cardLayout.spacing = 22f;
-            cardLayout.childControlWidth = cardLayout.childControlHeight = true;
-            cardLayout.childForceExpandWidth = false;
-            cardLayout.childForceExpandHeight = false;
-            var fit = card.AddComponent<ContentSizeFitter>();
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            TMP_Text text = Text(card.transform, question, TitleText - 2f);
-            text.alignment = TextAlignmentOptions.Center;
-            RectTransform buttons = Row(card.transform, ButtonHeight, 20f);
-            buttons.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
-            Button(buttons, confirmLabel, () =>
+            TMP_Text text = Text(root.transform, question, BodyText);
+            text.alignment = TextAlignmentOptions.MidlineLeft;
+            var textLayout = text.GetComponent<LayoutElement>();
+            if (textLayout == null) textLayout = text.gameObject.AddComponent<LayoutElement>();
+            textLayout.flexibleWidth = 1f;
+            textLayout.minWidth = 120f;
+            Button(root.transform, confirmLabel, () =>
             {
                 UnityEngine.Object.Destroy(root);
                 onConfirm?.Invoke();
             }, OSButtonStyle.Primary);
-            Button(buttons, "Cancel", () => UnityEngine.Object.Destroy(root), OSButtonStyle.Secondary);
+            Button(root.transform, "Cancel", () => UnityEngine.Object.Destroy(root), OSButtonStyle.Secondary);
             Touch(host);
         }
 
