@@ -98,6 +98,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     int outRate = 48000;
     bool away;  // Suspend..Resume: nothing goes to Grok and no session opens
     int epoch;  // bumped by Suspend: a Connect that started before it gives up instead of opening a session
+    int connectingEpoch;
 
     // The turn and the reply in progress.
     int turnSeq, fed;
@@ -503,8 +504,10 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         {
             while (outbox.Count > 0)
             {
+                int at = epoch;
                 if (!await EnsureConnected())
                 {
+                    if (at != epoch && !away) continue;  // a connect from before a pause gave up: connect again for what came after
                     outbox.Clear();
                     break;
                 }
@@ -523,7 +526,11 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     Task<bool> EnsureConnected()
     {
         if (ws != null && ws.State == WebSocketState.Open) return Task.FromResult(true);
-        if (connecting == null || connecting.IsCompleted) connecting = Connect();
+        if (connecting == null || connecting.IsCompleted || connectingEpoch != epoch)
+        {
+            connectingEpoch = epoch;
+            connecting = Connect();
+        }
         return connecting;
     }
 
