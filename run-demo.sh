@@ -34,5 +34,5 @@ curl -sf -X POST "localhost:$port/ml/project" -H 'content-type: application/json
 [ "${NO_ADB:-0}" = "1" ] && exit 0
 if [ -z "$adb" ] || ! "$adb" devices | grep -q "	device$"; then echo "no headset on USB: plug it in, then rerun"; exit 0; fi
 "$adb" reverse tcp:8000 tcp:8000
-"$adb" shell monkey -p com.UnityTechnologies.com.unity.template.urpblank -c android.intent.category.LAUNCHER 1 >/dev/null
+"$adb" shell monkey -p com.albie.vr -c android.intent.category.LAUNCHER 1 >/dev/null
 echo "Quest: port reversed, app launched"

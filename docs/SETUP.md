@@ -102,7 +102,7 @@ Done-check: after `sh run-demo.sh`, `/health` shows `imessage.available: true` (
 ```sh
 $ADB install -r "$REPO/unity/Builds/Forge.apk"
 $ADB reverse tcp:8000 tcp:8000
-$ADB shell monkey -p com.UnityTechnologies.com.unity.template.urpblank -c android.intent.category.LAUNCHER 1
+$ADB shell monkey -p com.albie.vr -c android.intent.category.LAUNCHER 1
 ```
 Done-check: `$ADB devices` lists the headset as `device`; `$ADB reverse --list` shows the 3 ports.
 
