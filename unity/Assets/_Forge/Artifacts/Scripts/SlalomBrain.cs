@@ -44,8 +44,9 @@ namespace Forge.Artifacts
         public string Status { get; private set; } = "brain truck: open a slalom (2), then L to drive a lap by hand (WASD)";
         /// <summary>Who completed the last Autopilot run: "candidate 1", "the pretrained fallback" or "nothing".</summary>
         public string Drove { get; private set; }
-        /// <summary>A hand lap is driven with WASD, a Touch controller's thumbstick (<see cref="QuestStick"/>), or any
-        /// other source writing <see cref="ManualInputs"/> (the hands transmitter): none overwrites another every frame.
+        /// <summary>A hand lap is driven with WASD, a Touch controller's thumbstick (<see cref="QuestStick"/>), the hands
+        /// (<see cref="HandsTransmitter"/>: pinch to drive, tilt to steer), or any other source writing
+        /// <see cref="ManualInputs"/>: none overwrites another every frame.
         /// The keys: forward (W +1, S -1) and left (A +1, D -1). Read from the keyboard while
         /// <see cref="KeysFromKeyboard"/>; a check sets them itself.</summary>
         public float KeyForward, KeyLeft;
@@ -82,8 +83,8 @@ namespace Forge.Artifacts
         MockDriver script;
         MockTruckSim view;
         readonly int stickX = ManualInputs.IndexOf("stick.x"), stickY = ManualInputs.IndexOf("stick.y"), handRoll = ManualInputs.IndexOf("hand.roll");
-        // What the keys and the thumbstick last wrote: each writes only when it changes (see Keys).
-        float lastKeyForward, lastKeyLeft;
+        // What the keys, the thumbstick and the hands last wrote: each writes only when it changes (see Keys).
+        float lastKeyForward, lastKeyLeft, lastHandThrottle, lastHandRoll;
         Vector2 lastStick;
 
         /// <summary>Makes the brain truck and binds it to <paramref name="host"/>'s runs.</summary>
@@ -216,11 +217,12 @@ namespace Forge.Artifacts
             Thing.BeginLap();
             // The lap's own inputs start at rest (EndLap clears them): a source writes once it moves, so an untouched
             // stick never zeroes the keys (or the transmitter) at the start.
-            lastKeyForward = lastKeyLeft = 0f;
+            lastKeyForward = lastKeyLeft = lastHandThrottle = lastHandRoll = 0f;
             lastStick = Vector2.zero;
             State = Mode.Lap;
             Status = driver != null ? "scripted lap: recording"
-                : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)" : "lap: drive through the gates (recording)";
+                : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)"
+                : "lap: pinch to drive, tilt your hand to steer (recording)";
             return null;
         }
 
@@ -516,6 +518,15 @@ namespace Forge.Artifacts
                 lastStick = stick;
                 ManualInputs.Values[stickY] = Mathf.Clamp(stick.y, -1f, 1f) * keyThrottle;
                 ManualInputs.Values[stickX] = Mathf.Clamp(stick.x, -1f, 1f);
+            }
+            // Hands, with no controller paired (HandsTransmitter): a pinch drives at the keys' speed, the hand's tilt
+            // steers through truck_manual's hand.roll. Written on change only, like the rest.
+            HandsTransmitter.Read(out float handThrottle, out float roll);
+            if (handThrottle != lastHandThrottle || roll != lastHandRoll)
+            {
+                lastHandThrottle = handThrottle; lastHandRoll = roll;
+                ManualInputs.Values[stickY] = handThrottle * keyThrottle;
+                ManualInputs.Values[handRoll] = -roll;  // hand.roll's +1 is left (as the A key), the transmitter's +1 is right
             }
         }
 

@@ -474,6 +474,32 @@ public static class SlalomBrainCheck
         Expect(error == null && top > 0.1f, "another input writer (the hands transmitter) drives the lap: the keys and stick don't overwrite it",
             error ?? $"top speed {top:0.00} m/s with stick.y held at {half:0.00} by another writer");
 
+        // The hands transmitter itself (overridden: no headset): a full pinch holds the keys' speed, a tilt to the right
+        // turns the truck right through truck_manual's hand.roll (deadzone 0.08, expo 0.3).
+        HandsTransmitter.Override = () => (1f, 0f);
+        error = brain.RecordLap();
+        top = 0f; limit = Time.time + SlalomBrain.RunTimeoutS + 1f;
+        while (error == null && brain.State == SlalomBrain.Mode.Lap && Time.time < limit) { top = Mathf.Max(top, brain.Body.Speed); yield return null; }
+        laps = brain.Thing.Recorder.Set.Laps;
+        outcome = laps.Count > 0 ? laps[laps.Count - 1].Outcome : null;
+        Expect(error == null && brain.Body.Crashed && outcome == "crashed" && top > 0.3f && top <= SlalomBrain.KeySpeed + 0.01f,
+            "a lap by hands (full pinch) drives the manual controller into a cone",
+            $"{error ?? "lap " + outcome}, top speed {top:0.00} m/s (a full pinch holds {SlalomBrain.KeySpeed} m/s)");
+
+        HandsTransmitter.Override = () => (1f, 0.8f);
+        error = brain.RecordLap();
+        start = brain.transform.forward;
+        turned = 0f; until = Time.time + 1f;
+        while (error == null && brain.State == SlalomBrain.Mode.Lap && Time.time < until)
+        {
+            turned = Vector3.SignedAngle(start, brain.transform.forward, Vector3.up);
+            yield return null;
+        }
+        if (brain.State == SlalomBrain.Mode.Lap) brain.StopRecording();
+        HandsTransmitter.Override = null;
+        Expect(error == null && turned > 10f, "a hand tilted to the right (pinky side down) turns the truck right",
+            error ?? $"turned {turned:0} degrees in 1 s (+ is right)");
+
         brain.KeysFromKeyboard = true;
     }
 
