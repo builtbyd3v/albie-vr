@@ -20,7 +20,9 @@ using UnityEngine;
 /// one response.create. Not yet: name gating, the reply-length cut, delegate (the Claude runner).
 /// Cost: xAI bills every minute the session is open, so it opens only for a turn (lazy), room speech (WakeListener's
 /// wake, follow-up and barge-in turns) reaches it only while the user faces Albie, and it closes FollowUpS + IdleCloseS after his last word.
-/// A new session gets the last few lines in its instructions, so a reconnect keeps the thread.
+/// A new session gets the last few lines in its instructions, so a reconnect keeps the thread. Cold start: a turn's
+/// mic frames wait in the outbox while the session connects, then go out in order after session.update, so the first
+/// words aren't lost (the follow-up / wake pre-roll is in there too).
 /// Everything runs on the main thread (the socket's awaits resume on Unity's synchronization context).
 /// Installs itself; off in a build with no voice token server (<see cref="AlbieVoiceToken"/>).
 /// </summary>
