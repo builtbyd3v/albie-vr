@@ -533,7 +533,7 @@ namespace Forge.OS.Editor
             yield return 0.4f;
             text = TextOf(view.transform);
             Check(text.Contains("Window positions") && text.Contains("Artifact permissions") && text.Contains("About") && text.Contains("version") && text.Contains("3 of 3"), "page 3 shows both resets, About, the version and '3 of 3': " + text);
-            Check(text.Contains("Grab3D") && text.Contains("Quirky Series") && text.Contains("Fredoka") && text.Contains("Meta"), "About credits the CC0 models, the gator, the font and the UI Set");
+            Check(text.Contains("Grab3D") && text.Contains("Quirky Series") && text.Contains("Fredoka") && text.Contains("third-party UI kit") && !text.Contains("Meta") && !text.Contains("Oculus"), "About credits the CC0 models, the gator, the font and the UI kit, and names no brand");
             problem = OSToolsTest.LayoutProblem(Win(shell));
             Check(problem == null, "page 3 has no clipped or overlapping text" + (problem ?? ""));
             CheckTouchSizes(view, "page 3");

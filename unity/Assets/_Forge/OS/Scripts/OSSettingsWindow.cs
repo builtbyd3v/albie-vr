@@ -314,7 +314,7 @@ namespace Forge.OS
             OSUi.Text(section, "Albie, version " + Application.version, OSUi.BodyText);
             OSUi.Text(section, "Biology models in the artifacts (cell, plant cell, heart, brain, eye, DNA): Grab3D, public domain (CC0).", NoteSize, true);
             OSUi.Text(section, "Albie the gator: Quirky Series, used under its asset licence. Pet font: Fredoka, SIL Open Font License.", NoteSize, true);
-            OSUi.Text(section, "Menu and controls: Meta Horizon OS UI Set, Copyright (c) Meta Platforms, Inc. and affiliates, used under the Oculus SDK License Agreement. Full notice in OS/THIRD_PARTY_NOTICES.md.", NoteSize, true);
+            OSUi.Text(section, "Menu and controls: a third-party UI kit, used under its licence. Full notice in OS/THIRD_PARTY_NOTICES.md.", NoteSize, true);
         }
     }
 }

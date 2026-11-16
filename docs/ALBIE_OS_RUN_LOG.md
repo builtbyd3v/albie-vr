@@ -1152,3 +1152,20 @@ compile: 0 errors, 0 warnings
 - Core/Scripts/ForgeVolume.cs and Core/Prefabs/ForgeVolume.prefab, CAD/Prefabs/CadViewer.prefab (re-serialised by Unity with the new label offset): caption size, plate and position.
 - Core/Scripts/Workspace.cs: ShrinkToFit after the RoomFit pass.
 - Artifacts/Resources/ArtifactTemplates/{brain,cell,dna,eye,heart,plant_cell}/scene.json: label size, no second line.
+
+## look-fix-r2
+
+Fixed the round-2 look findings (kit, theme, shell, window manager; nothing hidden from the capture).
+
+- Greeting: OSShell dismisses the arrival greeting when the menu opens or any window is open (checked on open, on window changes and twice a second). It calls the new ArrivalDirector.DismissGreeting (fold, release the pet, let the dock in; unlike START it opens no mode and walks nobody). Why: a first version that pressed START opened Code mode and made the pet walk, which broke the Agents pad-walk check.
+- Classifier Project window: now visible and clear of the Train panels (alpha fix from round 1 plus the new corner-based cover); the capture's by-hand workaround and its finding were removed.
+- Settings About: the UI kit line names no brand ("a third-party UI kit, used under its licence"); OSSettingsTest now checks that and that no "Meta"/"Oculus" shows. Full notice stays in OS/THIRD_PARTY_NOTICES.md.
+- Train heat map: label column 96 -> 112 and a 12-character name limit, so "automobile" shows in full.
+- Mentions card header: ForgePanel keeps at least 120 units for the title on narrow panels (the Straight/Face me reserve shrinks), so "Mentions" and "4 unread" show.
+- Volume name: ForgeVolume draws it on a dark rounded plate (same colour as the hint plate), font 26, moved 2.5 cm further out so it clears the ring.
+- Allow sheet: Allow is the near-white primary pill (ArtifactWidgets.PillControl returns the ForgePill); Not now stays dim. "Face me" left as is.
+- Windows overlap: existing panels are covered by their real four corners seen from the eyes (CoverOfPanel), and GapDegrees 2.5 -> 4. In picture 52 the Project and Notebook windows no longer touch.
+
+Checks (all run after the changes): OSCheck PASS (27 ok); OSPlayTest PASS 140 passed, 0 failed; OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0, OSPlannerTest 101/0; GestureSelfTest 104/0; ArtifactChecks 97/0; voice rules PASS; NotebookCheck PASS; ML Main smoke PASS. Look capture: "OK look set: 59 pictures". (Counts are one or more above the earlier ones because each test now also counts its preferences-unchanged check.)
+
+Changes outside OS/: Pet/Scripts/Core/ArrivalDirector.cs (DismissGreeting, a small public hook); Core/Scripts/ForgePanel.cs (header reserve); Core/Scripts/ForgeVolume.cs and Core/Prefabs/ForgeVolume.prefab, CAD/Prefabs/CadViewer.prefab (label plate and offset, reserialised); ML/TrainingDash/TrainingDash.cs (heat map label); Artifacts/Scripts/ArtifactHost.cs and ArtifactWidgets.cs (Allow pill).

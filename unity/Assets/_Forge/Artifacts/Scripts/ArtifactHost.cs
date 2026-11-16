@@ -296,13 +296,15 @@ namespace Forge.Artifacts
             float y = ArtifactWidgets.Note(panel.Content, 0f, "This artifact would like to:", true) + 10f;
             foreach (var line in ArtifactApprovals.Lines(manifest)) y += ArtifactWidgets.Note(panel.Content, y, "•  " + line) + 6f;
             y += 12f;
-            float x = ArtifactWidgets.Pill(panel.Content, y, 0f, "Allow", () =>
+            var allow = ArtifactWidgets.PillControl(panel.Content, y, 0f, "Allow", () =>
             {
                 ArtifactApprovals.Approve(manifest);
                 string id = open.Id;
                 Close();
                 Open(id);
-            }) + 10f;
+            });
+            allow.On = true;   // the one bright control on the sheet
+            float x = allow.Rect.sizeDelta.x + 10f;
             ArtifactWidgets.Pill(panel.Content, y, x, "Not now", Close);
             panel.SizeMeters = new Vector2(ArtifactWidgets.PanelWidth, ArtifactWidgets.PanelHeight(y + 34f)) * ForgePanel.MetersPerUnit;
         }

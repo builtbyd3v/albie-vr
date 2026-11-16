@@ -28,6 +28,9 @@ namespace Forge.OS
 
         OSWindows windows;
         bool menuOpen;
+        ArrivalGreeting greeting;
+        ArrivalDirector director;
+        float nextGreetingLook;
 
         public bool MenuOpen => menuOpen;
         public OSTab Tab => lastTab;
@@ -99,6 +102,28 @@ namespace Forge.OS
             }
             Current = this;
             OSModes.Attach(this);
+            Windows.Changed += StepAsideGreeting;
+        }
+
+        // The first-arrival card and its START pill sit on the desk where windows open. Opening the menu or a window dismisses
+        // it: the greeting folds and the arrival director lets the pet and the dock go (nothing is opened, nobody walks). Checked on menu and
+        // window changes, and twice a second in case the greeting shows up while something is already open.
+        void Update()
+        {
+            if (!menuOpen && (windows == null || windows.Count == 0)) return;
+            if (Time.unscaledTime < nextGreetingLook) return;
+            nextGreetingLook = Time.unscaledTime + 0.5f;
+            StepAsideGreeting();
+        }
+
+        void StepAsideGreeting()
+        {
+            if (!menuOpen && (windows == null || windows.Count == 0)) return;
+            if (greeting == null) greeting = FindAnyObjectByType<ArrivalGreeting>(FindObjectsInactive.Include);
+            if (greeting == null || !greeting.IsShown) return;
+            if (director == null) director = FindAnyObjectByType<ArrivalDirector>();
+            if (director != null) director.DismissGreeting();
+            else greeting.Fold();
         }
 
         // The saved Gesture display setting is put into effect once, when the gesture engine has come up (it installs itself
@@ -115,6 +140,7 @@ namespace Forge.OS
 
         void OnDisable()
         {
+            if (windows != null) windows.Changed -= StepAsideGreeting;
             if (Current == this)
             {
                 Current = null;
@@ -128,6 +154,7 @@ namespace Forge.OS
             SummonPoint = summonPoint;
             if (menuOpen) return;
             menuOpen = true;
+            StepAsideGreeting();
             MenuChanged?.Invoke(true);
         }
 

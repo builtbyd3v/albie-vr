@@ -968,26 +968,11 @@ namespace Forge.OS.Editor
                 // Opening the classifier also opens the Train mode: the pair first, as the user sees them, then the window alone.
                 var pair = new List<Vector3>();
                 ModePoints(pair, true);
-                FrameFromHead("project_classifier_with_train", "What the user gets after tapping Image classifier: the Train mode opens and the Project window should be beside it (in this build the window stays invisible, a known bug: nothing of it shows).", pair);
-            }
-            // Known product bug, found by this capture: tapping Image classifier opens the Project window and the Train mode in the same
-            // moment, the window manager then glides the window clear of Train's panels and that glide cancels the window's open
-            // animation half way, so the window stays at alpha 0 (invisible). The picture above shows what the user gets; the window is
-            // finished by hand here so the next picture can show its content.
-            OSWindow classifier = shell.Windows.Find(OSProjectWindow.WindowId);
-            if (classifier != null && classifier.Panel != null)
-            {
-                var fade = classifier.Panel.GetComponent<CanvasGroup>();
-                if (fade != null && fade.alpha < 0.99f)
-                {
-                    Finding("after tapping Image classifier the Project window stays invisible (alpha " + fade.alpha.ToString("F2") + ", scale " + classifier.Panel.transform.lossyScale.x.ToString("F5") + "): the window glide that clears it of the Train panels cancels its open animation");
-                    fade.alpha = 1f;
-                    classifier.Panel.transform.localScale = Vector3.one * 0.001f;
-                }
+                FrameFromHead("project_classifier_with_train", "What the user gets after tapping Image classifier: the Train mode opens and the Project window is fully visible beside it, clear of the Training panel.", pair);
             }
             OSModes.Close();
             yield return 1.5f;
-            FrameWindow("project_classifier_offline", "The Image classifier Project window offline (its fade-in finished by hand, see the previous picture): its honest line 'Needs Albie's cloud to load the dataset. Not available offline.' and the Load dataset button switched off.", shell.Windows.Find(OSProjectWindow.WindowId));
+            FrameWindow("project_classifier_offline", "The Image classifier Project window offline (opened together with Train): its honest line 'Needs Albie's cloud to load the dataset. Not available offline.' and the Load dataset button switched off.", shell.Windows.Find(OSProjectWindow.WindowId));
             shell.Windows.CloseAll();
             OSModes.Close();
             yield return 0.8f;

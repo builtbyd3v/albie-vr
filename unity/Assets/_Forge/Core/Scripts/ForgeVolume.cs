@@ -50,12 +50,52 @@ public class ForgeVolume : MonoBehaviour
     public string Title
     {
         get => label != null ? label.text : "";
-        set { if (label != null) label.text = value; }
+        set
+        {
+            if (label == null) return;
+            label.text = value;
+            FitLabelPlate();
+        }
+    }
+
+    ForgeSurface labelPlate;  // dark backing behind the name, always shown, so it reads on the pale ring, the desk and the wall
+    const float LabelFont = 26f, LabelPlateHeight = 40f;
+
+    // The name sits on a dark rounded plate the same colour as the hint's, sized to the text, with a larger font. Built once,
+    // at runtime, so every volume variant gets it without a prefab rebuild.
+    void FitLabelPlate()
+    {
+        if (label == null) return;
+        if (label.fontSize < LabelFont) label.fontSize = LabelFont;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.overflowMode = TextOverflowModes.Overflow;
+        if (labelPlate == null)
+        {
+            var go = new GameObject("LabelPlate", typeof(RectTransform));
+            go.layer = label.gameObject.layer;
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(label.transform.parent, false);
+            rt.SetAsFirstSibling();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            labelPlate = go.AddComponent<ForgeSurface>();
+            labelPlate.Style = ForgeSurface.Kind.Fill;
+            labelPlate.Corner = LabelPlateHeight * 0.5f;
+            labelPlate.color = new Color(0.04f, 0.05f, 0.07f, 0.72f);
+            labelPlate.raycastTarget = false;
+        }
+        bool any = !string.IsNullOrEmpty(label.text);
+        labelPlate.gameObject.SetActive(any);
+        if (any) labelPlate.rectTransform.sizeDelta = new Vector2(label.GetPreferredValues(label.text).x + 40f, LabelPlateHeight);
     }
 
     void OnValidate() => ApplySize();
 
-    void Awake() => ApplySize();
+    void Awake()
+    {
+        ApplySize();
+        FitLabelPlate();
+    }
 
     void Update()
     {
@@ -236,7 +276,7 @@ public class ForgeVolume : MonoBehaviour
             basePool.transform.localScale = new Vector3(diameter + 0.06f, diameter + 0.06f, 1f);
         }
         // The label is a small world-space canvas lying flat in front of the base.
-        if (label != null) label.transform.parent.localPosition = new Vector3(0f, 0.01f, -diameter * 0.5f - BasePad - 0.02f);
+        if (label != null) label.transform.parent.localPosition = new Vector3(0f, 0.01f, -diameter * 0.5f - BasePad - 0.045f);
         ShowBase();
     }
 

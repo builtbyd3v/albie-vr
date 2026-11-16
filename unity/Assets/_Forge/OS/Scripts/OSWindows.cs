@@ -28,7 +28,7 @@ namespace Forge.OS
         // Where windows go: this far from the eyes (m), this far below them, the second tier this far above them.
         const float DeskDistance = 0.8f, AwayDistance = 0.95f, DropMeters = 0.05f, RaiseMeters = 0.42f, RingStep = 0.25f, DeskClear = 0.03f;
         // Search in yaw steps (degrees) out to MaxYaw, with this gap (degrees seen from the eyes) between neighbours.
-        const float YawStep = 3f, MaxYaw = 110f, GapDegrees = 2.5f;
+        const float YawStep = 3f, MaxYaw = 110f, GapDegrees = 4f;
         const int Tiers = 4;
         const int MaxAttempts = 40;
         const float OuterRingCost = 15f;  // degrees: a place on the further ring counts as this much further from straight ahead
@@ -573,6 +573,29 @@ namespace Forge.OS
             };
         }
 
+        static readonly Vector3[] cornerScratch = new Vector3[4];
+
+        // The same thing for a panel as it stands (turned, rolled, tilted): its four corners seen from the eyes. Falls back to the
+        // plain width and height when the corners say less.
+        static Cover CoverOfPanel(RectTransform rect, Vector3 center, Vector3 shift, Vector2 size, Vector3 eye, Vector3 forward)
+        {
+            Cover plain = CoverOf(center, size.x, size.y, eye, forward);
+            rect.GetWorldCorners(cornerScratch);
+            float yawMin = float.MaxValue, yawMax = float.MinValue, pitchMin = float.MaxValue, pitchMax = float.MinValue;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 offset = cornerScratch[i] + shift - eye;
+                Vector3 flat = new Vector3(offset.x, 0f, offset.z);
+                if (flat.sqrMagnitude < 1e-6f) return plain;
+                float yaw = plain.yaw + Mathf.DeltaAngle(plain.yaw, Vector3.SignedAngle(forward, flat, Vector3.up));
+                float pitch = Mathf.Atan2(offset.y, flat.magnitude) * Mathf.Rad2Deg;
+                yawMin = Mathf.Min(yawMin, yaw); yawMax = Mathf.Max(yawMax, yaw);
+                pitchMin = Mathf.Min(pitchMin, pitch); pitchMax = Mathf.Max(pitchMax, pitch);
+            }
+            float halfW = Mathf.Max(plain.halfWidth, (yawMax - yawMin) * 0.5f), halfH = Mathf.Max(plain.halfHeight, (pitchMax - pitchMin) * 0.5f);
+            return new Cover { yaw = (yawMin + yawMax) * 0.5f, pitch = (pitchMin + pitchMax) * 0.5f, halfWidth = halfW, halfHeight = halfH };
+        }
+
         static bool Overlap(Cover a, Cover b) =>
             Mathf.Abs(Mathf.DeltaAngle(a.yaw, b.yaw)) < a.halfWidth + b.halfWidth + GapDegrees &&
             Mathf.Abs(a.pitch - b.pitch) < a.halfHeight + b.halfHeight + GapDegrees;
@@ -753,8 +776,14 @@ namespace Forge.OS
                 Vector3 at = rect.TransformPoint(rect.rect.center);
                 var other = panel.GetComponent<OSWindow>();
                 if (other != null && closing.Contains(other)) continue;
-                if (other != null && other.Motion != null) at = other.TargetCenter;  // on its way: keep clear of where it lands
-                covers.Add(CoverOf(at, size.x, size.y, eye, forward));
+                Vector3 shift = Vector3.zero;
+                if (other != null && other.Motion != null)  // on its way: keep clear of where it lands
+                {
+                    shift = other.TargetCenter - at;
+                    at = other.TargetCenter;
+                }
+                // A window that is turned or rolled covers more than its width says: use its real corners as the eyes see them.
+                covers.Add(CoverOfPanel(rect, at, shift, size, eye, forward));
             }
             var volumes = FindObjectsByType<ForgeVolume>(FindObjectsSortMode.None);
             for (int i = 0; i < volumes.Length; i++)

@@ -187,7 +187,7 @@ namespace Forge.ML
             const float MinRow = 14f;
             float heatHeight = Mathf.Min(150f, summary.rect.height - 100f);
             heatHeight = Mathf.Max(heatHeight, Mathf.Min(10f + 18f + classes * MinRow, summary.rect.height - 46f));
-            const float labelWidth = 96;
+            const float labelWidth = 112;
             float top = 10, rowHeight = (heatHeight - top - 18) / Mathf.Max(1, classes);
             bool names = rowHeight >= 12f;
             MLUI.Well(summary, 0, 0, width, heatHeight);
@@ -196,7 +196,7 @@ namespace Forge.ML
             {
                 if (names)
                 {
-                    var name = MLUI.Text(summary, ShortName(session.Data.classes[c]), 6, top + c * rowHeight + rowHeight * 0.5f - 7, labelWidth - 12, 14, 11f);
+                    var name = MLUI.Text(summary, HeatName(session.Data.classes[c]), 6, top + c * rowHeight + rowHeight * 0.5f - 7, labelWidth - 12, 14, 11f);
                     name.color = MLUI.Sub; name.alignment = TextAlignmentOptions.TopRight;
                 }
                 for (int e = 0; e < columns; e++)
@@ -336,6 +336,7 @@ namespace Forge.ML
             for (int i = 0; i < session.Data.samples.Length; i++) if (session.Data.samples[i].id == id) return i;
             return -1;
         }
+        static string HeatName(string value) => string.IsNullOrEmpty(value) ? "?" : value.Length <= 12 ? value : value.Substring(0, 11) + "…";
         static string ShortName(string value) => string.IsNullOrEmpty(value) ? "?" : value.Length <= 9 ? value : value.Substring(0, 8) + "…";
         static float Confidence(MLProbeSample probe)
         {

@@ -137,6 +137,17 @@ namespace Forge.Artifacts
         public static float Pill(RectTransform parent, float y, float x, string label, Action onClick) =>
             Pill(parent, y, x, label, onClick, out _);
 
+        /// <summary>A pill at <paramref name="x"/> along a row, returned so the caller can switch it on (the near-white primary look).</summary>
+        public static ForgePill PillControl(RectTransform parent, float y, float x, string label, Action onClick)
+        {
+            var pill = ForgePill.Create(parent, label, () => onClick());
+            var rt = pill.Rect;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(x, -y);
+            return pill;
+        }
+
         static float Pill(RectTransform parent, float y, float x, string label, Action onClick, out RectTransform rt)
         {
             var pill = ForgePill.Create(parent, label, () => onClick());
