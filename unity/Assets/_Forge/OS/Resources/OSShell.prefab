@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 2671444111484812787}
   - component: {fileID: 3521266515885186444}
   - component: {fileID: 4784122047664204330}
+  - component: {fileID: 8888997474583706820}
   m_Layer: 0
   m_Name: OSShell
   m_TagString: Untagged
@@ -202,6 +203,33 @@ MonoBehaviour:
   recenterDegrees: 25
   recenterMeters: 0.3
   easeSeconds: 0.4
+--- !u!114 &8888997474583706820
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674179897030290944}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb9de7926c1803b4a93ec9c02c5cb825, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.OS.OSWatch
+  backFacingDot: 0.6
+  viewDegrees: 35
+  minDistance: 0.2
+  maxDistance: 0.7
+  maxBelowEyeMeters: 0.42
+  holdSeconds: 0.3
+  hideSeconds: 0.25
+  pinchBelow: 0.26
+  palmUpAbove: 0.45
+  quietSeconds: 0.8
+  keepBackFacingSlack: 0.15
+  keepViewSlackDegrees: 10
+  buttonMillimetres: 28
+  liftMillimetres: 45
+  followSharpness: 25
 --- !u!1001 &187986084119899713
 PrefabInstance:
   m_ObjectHideFlags: 0

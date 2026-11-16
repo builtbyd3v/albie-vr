@@ -217,6 +217,7 @@ namespace Forge.OS.Editor
             LastResult = result.ToString();
             try { File.WriteAllText(Path.Combine(OSShot.Dir, "play_test_result.txt"), LastResult); } catch (IOException) { }
 
+            SimulatedHandSource.LeftTestActive = false;
             OSSettings.SetPathForTests(null);
             Forge.Artifacts.ArtifactLibrary.RootOverride = null;
             Forge.Artifacts.ArtifactApprovals.FileOverride = null;
@@ -332,7 +333,7 @@ namespace Forge.OS.Editor
             new Step("3b corner button", StepCornerButton),
             new Step("3c menu with M, bring windows here", StepBringHere),
             new Step("3d menu over an open mode, away from a desk", StepMenuOverMode),
-            // 4 watch turn      (OSWatch part)
+            new Step("4 watch turn", StepWatch),
             // 6 truck project   (Course, Drive pad laps, Train, Autopilot)
             // 7 agents          (spawn, bring home, send out)
             // 8 settings        (corner button off, it is gone)
@@ -643,6 +644,61 @@ namespace Forge.OS.Editor
             if (shell.MenuOpen) shell.CloseMenu();
             yield return 0.4f;
             Check(corner.Shown, "the corner button is back once the menu has closed");
+        }
+
+        // 4. The wrist watch turn: the simulated left hand turns its wrist, the button shows above it, a real pointer press opens
+        // the menu from the wrist, turning away hides it. (The full matrix is OSWatchTest; this is the walk-through.)
+        static IEnumerator<float> StepWatch()
+        {
+            if (!Ready()) { Check(false, "the OS shell is in the scene"); yield break; }
+            var watch = shell.GetComponent<OSWatch>();
+            Check(watch != null, "the shell has the watch turn");
+            if (watch == null) yield break;
+            if (shell.MenuOpen) shell.CloseMenu();
+            yield return 0.5f;
+            Transform head = shell.Head;
+            try
+            {
+                SetLeftWrist(head, 0f);
+                foreach (float w in Until(() => watch.Shown, 3f)) yield return w;
+                Check(watch.Shown, "turning the left wrist shows the watch button (pose " + watch.LastPose + ")");
+                if (watch.Shown)
+                {
+                    yield return 0.3f;
+                    Shot("watch_button");
+                    Check(watch.ButtonMeters >= 0.022f, $"the watch button is at least 22 mm ({watch.ButtonMeters * 1000f:F0} mm)");
+                    bool pressed = PressButton(watch.Button.gameObject, "watch button");
+                    if (pressed)
+                    {
+                        foreach (float w in Until(() => shell.MenuOpen, 2f)) yield return w;
+                        Check(shell.MenuOpen && shell.LastSummon == OSSummon.Watch, "pressing the watch button opens the menu (" + shell.LastSummon + ")");
+                        yield return 0.3f;
+                        Check(!watch.Shown, "the watch button hides while the menu is open");
+                        Shot("watch_menu");
+                    }
+                }
+                if (shell.MenuOpen) shell.CloseMenu();
+                SetLeftWrist(head, 80f);
+                yield return 0.6f;
+                Check(!watch.Shown && watch.Armed, "turning the wrist away hides the button and re-arms it");
+            }
+            finally
+            {
+                SimulatedHandSource.LeftTestActive = false;
+            }
+            yield return 0.4f;
+        }
+
+        // The simulated left hand with its back to the eyes at the watch spot (tilted away by tilt degrees).
+        static void SetLeftWrist(Transform head, float tilt)
+        {
+            Vector3 wrist = head.TransformPoint(new Vector3(-0.08f, -0.12f, 0.40f));
+            Vector3 back = (head.position - wrist).normalized;
+            Vector3 fingers = Vector3.ProjectOnPlane(head.right, back).normalized;
+            SimulatedHandSource.LeftTestShape = HandShape.Relaxed;
+            SimulatedHandSource.LeftTestWrist = wrist;
+            SimulatedHandSource.LeftTestRotation = Quaternion.LookRotation(fingers, Quaternion.AngleAxis(tilt, fingers) * back);
+            SimulatedHandSource.LeftTestActive = true;
         }
 
         // 3c. Away: M opens the menu; Bring windows here puts every window within reach and in view.

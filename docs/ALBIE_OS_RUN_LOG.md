@@ -803,3 +803,60 @@ Screenshots (unity/Logs/os/): `91_corner_away.png` (button low right, icon centr
 
 ### Changes outside OS/
 None.
+
+## watch-5.11: the watch turn (spec 5.11)
+
+### What was done
+- Integrated the staged `OSWatch` (`OS/Scripts/OSWatch.cs`). It compiled with no changes (0 errors, 0 warnings). It sits on the shell prefab next to the table and corner buttons (`OSPrefabBuilder` adds it; the prefab was rebuilt, only `OSShell.prefab` changed). `OSCheck` gained a line for it on the shell prefab.
+- It reads the left hand from `GestureEngine.Current.Hands[0]` in `LateUpdate`: back of the hand toward the eyes (dot above 0.6), wrist within 35 degrees of the gaze and 0.2 to 0.7 m away, held 0.3 s, then a round 28 mm kit button (on a 38 mm plate) shows 45 mm above the wrist, facing the eyes. A press (mouse, ray or poke all end in `Button.onClick`) opens the menu with the Watch summon from the wrist. It hides 0.25 s after the pose is lost, stays away after a press until the wrist has turned away once, and keeps out of palm up, a pinch, an open menu, a dragged panel (`PanelManipulator.Grabbing`) and 0.8 s after a left-hand gesture. `OSSettings.watchTurn` switches it off at once.
+- The Gestures hook (the only change outside OS/): `SimulatedHandSource` got a left test hand, off by default (see "Changes outside OS/").
+- New `Editor/OSWatchTest.cs` (Forge/OS/Run Watch Test, `OSWatchTest.LastResult`), on a scratch settings file. `OSPlayTest` step "4 watch turn" is now a real step. Every thresholds is a public field on `OSWatch` with a tooltip: they need Hudson's headset tuning (`backFacingDot` first).
+
+### Check output (verbatim)
+```
+PASS [OSWatchTest] 107 passed, 0 failed
+measured: made-up relaxed left hand at the watch spot: Ok, back dot 0.99, 20 degrees off the gaze, 0.43 m, pinch 0.39, palm up -0.59
+measured: [at the desk] button shown 0.32 s after the pose was set (hold 0.3 s), back dot 0.99, 20 degrees off the gaze, 0.43 m
+measured: [at the desk] the pressable button measures 28.0 mm (28 mm set)
+measured: [at the desk] 10 s of resting hands: poses seen NoHand > TooLow > BackAway, left-hand gestures fired 0
+measured: [away from the desk] button shown 0.32 s after the pose was set (hold 0.3 s), back dot 0.99, 20 degrees off the gaze, 0.43 m
+measured: [away from the desk] 10 s of resting hands: poses seen NoHand > TooLow > BackAway, left-hand gestures fired 0
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSCornerTest] 55 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os play test: 79 passed, 0 failed
+PASS os check (Forge.OS.Editor.OSCheck.Run, 25 ok lines)
+```
+Screenshots (unity/Logs/os/): `101_watch_desk_wrist_button.png` (round button, icon centred, at the wrist spot, at the desk), `104_watch_away_wrist_button.png` (same away from the desk, the corner button low right), `105_watch_away_menu_open.png` (menu open after the press), `103_watch_desk_resting_tilted.png` (a tilted resting hand: no button), plus `15_watch_button.png` and `16_watch_menu.png` from the play test.
+
+### What the test proves (each at the desk and away from it)
+- Pose maths on made-up hands: Ok, BackAway (tilt 65), OutOfView, TooFar, TooClose, TooLow, PalmUp, Pinch gate.
+- Not shown at 0.1 s, shown 0.32 s after the pose; button 45 mm above the wrist along the hand's back normal (within 8 mm), faces the eyes (dot above 0.95), a live UI Set button, 28 mm, on screen, with its icon; follows the wrist.
+- A real EventSystem pointer press opens the menu (summon Watch) from where the button was; it hides, disarms and counts one press; stays away with the menu open and after it closes (debounce); turning away re-arms and hides; turning back shows it.
+- A menu opened another way hides it at once and it returns when that menu closes (nothing disarmed it); a raised `PanelManipulator.Grabbing` hides it and keeps it away, and it returns when the drag ends.
+- Settings off: gone at once, nothing shows, `LastPose` NoHand; on again: shows.
+- 10 s of resting left hands (5 s on the desk, 5 s tilted away, with 1 cm drift): the button never showed, no press, no menu, and the gesture engine fired nothing with the left hand (a `Fired` subscriber counted 0).
+- Palm up for 0.4 s (under the engine's 0.6 s): not the watch pose, no left-hand gesture fired. A pinching left hand: pose Pinch, nothing shown.
+
+### Decisions (one line of why each)
+- **Kept the writer's thresholds and the extra `maxBelowEyeMeters` 0.42 gate.** Why: they match the spec numbers and, with the hand on the desk, it is what said TooLow in the test; setting it to 0 gives exactly the spec's rule. All tune on the headset.
+- **The grab guard is tested by setting `PanelManipulator.Grabbing`'s backing field by reflection.** Why: a real grab needs a pointer on a panel handle; the property has a private setter and nothing else raises it. The test puts it back to 0 (and Cleanup does too).
+- **The pinch test uses its own `HandShape` (index 0.55, thumb 0.5).** Why: there is no Pinch shape; this one measures 0.19 on the pinch feature, under the gate's 0.26 and the engine's 0.22.
+- **A left hand placed by the test counts as a real hand for the engine**, so the gesture display opens the first time (engine behaviour, once). The test asserts no left-hand gesture fired.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses. Whether a 28 mm round button on a 38 mm plate is easy to hit with a real fingertip on a moving wrist is for the headset.
+- The left hand is not drawn in the desktop view (only the right-hand dots are), so screenshots show the button but no hand.
+- Allocation-freeness of `LateUpdate` checked by reading the code only.
+
+### Changes outside OS/
+- `unity/Assets/_Forge/Core/Scripts/Gestures/SimulatedHandSource.cs` (Gestures module, the Hudson-owned hand source): added four static test fields (`LeftTestActive` default false, `LeftTestWrist`, `LeftTestRotation`, `LeftTestShape`), a `SubsystemRegistration` reset that puts them back, and in `Read` replaced `if (hand != 1) return;` with `if (hand == 0) { if (LeftTestActive) SyntheticHand.Build(sample, LeftTestShape, LeftTestWrist, LeftTestRotation, true); return; } if (hand != 1) return;`. Why: on the desktop rig hand 0 was never tracked, so the watch could not be exercised. With `LeftTestActive` false (the default) hand 0 returns exactly as before, so `GestureSelfTest` (104/0, its own synthetic hands, idle test unchanged) and `GesturePlayTest` (32/0, drives hand 1 only) are unaffected, as the runs above show.
