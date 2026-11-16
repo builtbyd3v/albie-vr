@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Forge.Pet;
 using UnityEngine;
@@ -98,6 +99,18 @@ namespace Forge.OS
             }
             Current = this;
             OSModes.Attach(this);
+        }
+
+        // The saved Gesture display setting is put into effect once, when the gesture engine has come up (it installs itself
+        // a frame or two after the scene loads). Polls twice a second for ten seconds, then gives up quietly (no hands here).
+        IEnumerator Start()
+        {
+            var wait = new WaitForSecondsRealtime(0.5f);
+            for (int i = 0; i < 20; i++)
+            {
+                if (OSToolsCatalog.ApplySavedGestureDisplay()) yield break;
+                yield return wait;
+            }
         }
 
         void OnDisable()

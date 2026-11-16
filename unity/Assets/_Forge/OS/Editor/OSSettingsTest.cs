@@ -459,6 +459,40 @@ namespace Forge.OS.Editor
             }
             else Measure("no gesture engine in this scene: the Gesture display switch only saves the preference (skipped)");
 
+            // ---- a relaunch with the flag saved on and no gesture panel made yet: the switch tells the truth, then the saved flag takes effect
+            if (engine != null && engine.Actions != null)
+            {
+                GesturePanel old = UnityEngine.Object.FindAnyObjectByType<GesturePanel>(FindObjectsInactive.Include);
+                bool panelWas = old != null && old.gameObject.activeInHierarchy;
+                if (old != null) UnityEngine.Object.Destroy(old.gameObject);
+                yield return 0.4f;
+                OSSettings saved = OSSettings.Current;
+                saved.gestureDisplay = true;
+                saved.Save();
+                yield return 0.6f;  // the window sees the file change and rebuilds
+                Check(UnityEngine.Object.FindAnyObjectByType<GesturePanel>(FindObjectsInactive.Include) == null, "a fresh launch: there is no gesture panel yet");
+                view = View(shell);
+                Toggle fresh = ToggleRow(view, "Gesture display");
+                Check(OSSettings.Current.gestureDisplay && fresh != null && !fresh.isOn, "the flag is saved on and nothing is shown: the switch shows OFF, the real state");
+                Check(OSToolsCatalog.ApplySavedGestureDisplay(), "the saved flag is applied once the gesture engine exists");
+                yield return 0.5f;
+                GesturePanel made = UnityEngine.Object.FindAnyObjectByType<GesturePanel>(FindObjectsInactive.Include);
+                Check(made != null && made.gameObject.activeInHierarchy, "the saved flag put the gesture display on screen");
+                view = View(shell);
+                view.SetPage(0);
+                view.SetPage(1);
+                yield return 0.4f;
+                fresh = ToggleRow(View(shell), "Gesture display");
+                Check(fresh != null && fresh.isOn, "now the switch shows ON");
+                saved = OSSettings.Current;
+                saved.gestureDisplay = false;
+                saved.Save();
+                if (made != null && !panelWas) engine.Actions.ShowDisplay(false);
+                OSSettings.Current.gestureDisplay = false;
+                Check(OSToolsCatalog.ApplySavedGestureDisplay() && (made == null || made.gameObject.activeInHierarchy == panelWas), "with the flag off, applying it neither shows nor hides anything");
+                yield return 0.3f;
+            }
+
             view = View(shell);
             Slider distance = SliderOf(view, "Distance"), height = SliderOf(view, "Height");
             Check(distance != null && height != null, "both menu sliders exist");

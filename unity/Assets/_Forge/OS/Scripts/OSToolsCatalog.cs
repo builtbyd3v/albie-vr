@@ -203,6 +203,20 @@ namespace Forge.OS
             if (engine != null && engine.Actions != null) engine.Actions.ShowDisplay(false);
         }
 
+        /// <summary>
+        /// Puts the saved Gesture display setting into effect: with the flag on, shows the display (the same path as the Tools tile).
+        /// Returns false while the gesture engine isn't there yet, so the caller can try again; true once there is nothing left
+        /// to do (the flag is off, or the display was shown). It never hides a display something else showed.
+        /// </summary>
+        public static bool ApplySavedGestureDisplay()
+        {
+            if (!OSSettings.Current.gestureDisplay) return true;
+            GestureEngine engine = GestureEngine.Current;
+            if (engine == null || engine.Actions == null) return false;
+            OpenGestures();
+            return true;
+        }
+
         static void OpenGestures()
         {
             GestureEngine engine = GestureEngine.Current;

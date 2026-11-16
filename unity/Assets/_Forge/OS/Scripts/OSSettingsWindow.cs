@@ -216,7 +216,8 @@ namespace Forge.OS
             });
 
             GesturePanel display = FindAnyObjectByType<GesturePanel>(FindObjectsInactive.Include);
-            bool shown = display != null ? display.gameObject.activeInHierarchy : OSSettings.Current.gestureDisplay;
+            // The real state: a saved flag with no panel made yet (or one that was never shown) is not "on" until something is on screen.
+            bool shown = display != null && display.gameObject.activeInHierarchy;
             OSUi.Toggle(section, "Gesture display", shown, SetGestureDisplay);
         }
 
