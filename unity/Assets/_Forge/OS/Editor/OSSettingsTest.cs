@@ -496,8 +496,23 @@ namespace Forge.OS.Editor
             view = View(shell);
             Slider distance = SliderOf(view, "Distance"), height = SliderOf(view, "Height");
             Check(distance != null && height != null, "both menu sliders exist");
+            // A drag changes the value nearly every frame: the setting follows in memory, the file is written once after it rests.
+            int writes = 0;
+            Action countWrite = () => writes++;
+            OSSettings.Changed += countWrite;
+            for (int i = 0; i <= 10; i++)
+            {
+                distance.value = 0.4f + 0.02f * i;
+                yield return 0.03f;
+            }
+            Check(writes == 0 && View(shell).SavePending, "a slider drag writes nothing while it moves (writes " + writes + ", pending " + View(shell).SavePending + ")");
+            Check(Mathf.Approximately(OSSettings.Current.menuDistance, 0.6f), "the setting follows the drag in memory: " + OSSettings.Current.menuDistance);
+            yield return OSSettingsWindow.SliderSaveDelay + 0.3f;
+            OSSettings.Changed -= countWrite;
+            Check(writes == 1 && !View(shell).SavePending, "the drag was written once when it rested (writes " + writes + ")");
             distance.value = 0.6f;
             height.value = 20f;
+            Check(View(shell).SavePending, "a slider edit waits for the write");
             yield return 0.4f;
             Check(Mathf.Approximately(OSSettings.Current.menuDistance, 0.6f), "Distance 0.6: the setting is " + OSSettings.Current.menuDistance);
             Check(Mathf.Approximately(OSSettings.Current.menuDropDegrees, 20f), "Height 20: the setting is " + OSSettings.Current.menuDropDegrees);

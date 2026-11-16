@@ -30,6 +30,13 @@ namespace Forge.OS
         ForgePanel panel;
         int page;
         bool dirty, saving;
+        float saveAt = -1f;  // a slider edit is in memory and the write waits for the drag to settle (-1 = nothing waiting)
+
+        /// <summary>Seconds a slider drag must rest before the settings file is written (toggles and choices write at once).</summary>
+        public const float SliderSaveDelay = 0.25f;
+
+        /// <summary>True while a slider edit is held in memory and not yet written.</summary>
+        public bool SavePending => saveAt >= 0f;
         string resetNote = "";
 
         /// <summary>The page showing, 0 to 2.</summary>
@@ -66,7 +73,18 @@ namespace Forge.OS
             if (panel != null) dirty = true;  // back from being put away: the file may have changed
         }
 
-        void OnDisable() => OSSettings.Changed -= OnSettingsChanged;
+        void OnDisable()
+        {
+            OSSettings.Changed -= OnSettingsChanged;
+            FlushSave();  // a slider edit still waiting for its write is not lost when the window is put away
+        }
+
+        void OnDestroy() => FlushSave();
+
+        void OnApplicationPause(bool paused)
+        {
+            if (paused) FlushSave();  // the headset pauses or quits without a clean OnDisable
+        }
 
         void OnSettingsChanged()
         {
@@ -75,6 +93,7 @@ namespace Forge.OS
 
         void Update()
         {
+            if (saveAt >= 0f && Time.unscaledTime >= saveAt) FlushSave();
             if (dirty && panel != null) Rebuild();
         }
 
@@ -98,10 +117,30 @@ namespace Forge.OS
             finally { saving = false; }
         }
 
+        // A slider edit: the setting changes in memory now (the menu reads it on its next open) and the file is written once,
+        // SliderSaveDelay after the last change. A drag changes the value nearly every frame; writing the file each time
+        // would be three filesystem calls a frame on the headset's flash storage.
+        void ChangeLive(Action<OSSettings> edit)
+        {
+            edit(OSSettings.Current);
+            saveAt = Time.unscaledTime + SliderSaveDelay;
+        }
+
+        /// <summary>Writes a waiting slider edit now (a no-op when nothing waits).</summary>
+        public void FlushSave()
+        {
+            if (saveAt < 0f) return;
+            saveAt = -1f;
+            saving = true;
+            try { OSSettings.Current.Save(); }
+            finally { saving = false; }
+        }
+
         // ---------------------------------------------------------------- the pages
 
         void Rebuild()
         {
+            FlushSave();
             dirty = false;
             RectTransform body = OSUi.Body(panel);
             if (body == null) return;
@@ -239,12 +278,14 @@ namespace Forge.OS
             Slider distance = OSUi.Slider(section, "Distance", DistanceMin, DistanceMax, s.menuDistance, v =>
             {
                 float metres = Mathf.Round(v * 100f) / 100f;
-                Change(x => x.menuDistance = metres);
+                if (Mathf.Approximately(OSSettings.Current.menuDistance, metres)) return;  // same step as before: nothing to do
+                ChangeLive(x => x.menuDistance = metres);
             });
             Slider drop = OSUi.Slider(section, "Height", DropMin, DropMax, s.menuDropDegrees, v =>
             {
                 float degrees = Mathf.Round(v);
-                Change(x => x.menuDropDegrees = degrees);
+                if (Mathf.Approximately(OSSettings.Current.menuDropDegrees, degrees)) return;
+                ChangeLive(x => x.menuDropDegrees = degrees);
             });
             // The kit's readout shows the bare number; these show it with its unit.
             WireReadout(distance, v => (Mathf.Round(v * 100f) / 100f).ToString("0.00") + " m");
