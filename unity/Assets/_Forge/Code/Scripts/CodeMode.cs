@@ -1,16 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// Puts the headset's own code view (<see cref="CodePanel"/>, Resources/CodePanel.prefab) in the CODE mode's main slot,
-/// whatever prefab the scene had there (Main.unity still names the old streamed-screen panel until it is rebuilt).
-/// Installs itself; no scene change needed.
+/// Installs the code view prefab in the CODE mode's main slot. When the hub is live it uses
+/// <see cref="GitHubPanel"/> (GitHub file browser + PR diff viewer); otherwise the local
+/// <see cref="CodePanel"/> (bundled sample project).
 /// </summary>
 public class CodeMode : MonoBehaviour
 {
-    const string ModeId = "code", ItemId = "screen-main", Title = "Code";
+    const string ModeId = "code", ItemId = "screen-main";
 
     WorkspaceItem item;
-    GameObject local;
+    GameObject localPanel, githubPanel;
+    ForgeNetStatus lastStatus = ForgeNetStatus.Connecting;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
@@ -18,15 +19,19 @@ public class CodeMode : MonoBehaviour
         if (FindAnyObjectByType<CodeMode>() == null) new GameObject("CodeMode").AddComponent<CodeMode>();
     }
 
-    void Awake() => local = Resources.Load<GameObject>("CodePanel");
+    void Awake()
+    {
+        localPanel = Resources.Load<GameObject>("CodePanel");
+        githubPanel = Resources.Load<GameObject>("GitHubPanel");
+    }
+
+    void OnEnable() => ForgeNet.StatusChanged += OnStatus;
+    void OnDisable() => ForgeNet.StatusChanged -= OnStatus;
+    void OnStatus(ForgeNetStatus s) { lastStatus = s; Apply(); }
 
     void Update()
     {
-        if (local == null) return;
         if (item == null && !Bind()) return;
-        if (item.prefab == local) return;
-        item.prefab = local;
-        item.title = Title;
     }
 
     bool Bind()
@@ -35,6 +40,18 @@ public class CodeMode : MonoBehaviour
         if (ws == null) return false;
         var mode = ws.modes.Find(m => m.id == ModeId);
         item = mode?.items.Find(i => i.id == ItemId);
+        if (item != null) Apply();
         return item != null;
+    }
+
+    void Apply()
+    {
+        if (item == null) return;
+        bool useGitHub = lastStatus == ForgeNetStatus.Live && githubPanel != null;
+        var prefab = useGitHub ? githubPanel : localPanel;
+        string title = useGitHub ? "source control" : "Code";
+        if (item.prefab == prefab) return;
+        item.prefab = prefab;
+        item.title = title;
     }
 }
