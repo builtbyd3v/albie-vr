@@ -3,7 +3,8 @@
 Each tool reads GitHub through code_browser (so Albie can talk about what it found) and publishes ``code.view``,
 which the headset's code panel follows. The two writes, approve and merge, take two calls: the first only describes
 the pull request and tells Albie to ask; the second, with confirm true, acts, and only for the pull request that
-was just described. Registered from main.py.
+was just described. Registered from main.py (the hub) and cloud-py/app.py (one per headset), each passing its
+app's state, which holds the repo the code panel shows and the approve or merge waiting for a yes.
 """
 from __future__ import annotations
 
@@ -77,15 +78,12 @@ TOOLS: list[dict[str, Any]] = [
      "parameters": {"type": "object", "properties": {"repo": _REPO}}},
 ]
 
-_pending: tuple[str, str, int] | None = None  # (tool, repo, number) Albie was told to ask the user about
-
-
-async def _resolve(repo: str | None) -> tuple[str, str]:
+async def _resolve(repo: str | None, shown: str) -> tuple[str, str]:
     """(owner, name) of an owned repo, by full name or name; default: the one the code panel has open."""
     found = await cb.list_sources()
     if not found.sources:
         raise HTTPException(503, found.note or "The GitHub account has no repos.")
-    wanted = (repo or cb.current_repo or found.sources[0].id).strip().lower()
+    wanted = (repo or shown or found.sources[0].id).strip().lower()
     for s in found.sources:
         if wanted in (s.id.lower(), s.name.lower()):
             return s.owner, s.name
@@ -93,17 +91,19 @@ async def _resolve(repo: str | None) -> tuple[str, str]:
     raise HTTPException(404, f"There is no repo '{repo}'. The account has: {names}.")
 
 
-async def call_tool(name: str, args: dict[str, Any], bus: Any, show: Show | None = None) -> dict[str, Any]:
+async def call_tool(name: str, args: dict[str, Any], bus: Any, state: Any, show: Show | None = None) -> dict[str, Any]:
     """Run one tool. Errors come back as {"error": ...} so the model can say them."""
     try:
-        return await _call(name, args, bus, show)
+        return await _call(name, args, bus, state, show)
     except HTTPException as e:
         return {"error": str(e.detail)}
 
 
-async def _call(name: str, args: dict[str, Any], bus: Any, show: Show | None) -> dict[str, Any]:
-    global _pending
-    pending, _pending = _pending, None  # any other tool call in between cancels a pending approve or merge
+async def _call(name: str, args: dict[str, Any], bus: Any, state: Any, show: Show | None) -> dict[str, Any]:
+    # (tool, repo, number) Albie was told to ask the user about; any other tool call in between cancels it
+    pending = getattr(state, "code_pending", None)
+    state.code_pending = None
+    shown_repo = getattr(state, "code_repo", "")
 
     async def view(**fields: Any) -> None:
         if show is not None:
@@ -115,10 +115,11 @@ async def _call(name: str, args: dict[str, Any], bus: Any, show: Show | None) ->
         if found.note:
             return {"error": found.note}
         return {"repos": [{"name": s.name, "id": s.id, "description": s.description} for s in found.sources],
-                "open": cb.current_repo or None}
+                "open": shown_repo or None}
 
-    owner, repo = await _resolve(args.get("repo"))
+    owner, repo = await _resolve(args.get("repo"), shown_repo)
     full = f"{owner}/{repo}"
+    state.code_repo = full
 
     if name == "github_open_repo":
         tree = await cb.read_tree(owner, repo)
@@ -167,7 +168,7 @@ async def _call(name: str, args: dict[str, Any], bus: Any, show: Show | None) ->
         if args.get("confirm") is not True or pending != (name, full, number):
             pr = await cb.read_pr(owner, repo, number)
             await view(pr=number)
-            _pending = (name, full, number)
+            state.code_pending = (name, full, number)
             return {"status": "awaiting_confirmation", "repo": full, "number": pr.number, "title": pr.title,
                     "author": pr.author, "from": pr.head, "into": pr.base,
                     "next": f"Nothing was done. Say the number and title and ask the user whether to {verb} it. "

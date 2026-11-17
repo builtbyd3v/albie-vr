@@ -4,7 +4,8 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 # ponytail: GL/glib/Xrender are what OCP wheels usually want on slim images; drop them if the build proves otherwise.
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxrender1 \
+# git: ml_github clones the ML repos Albie pulls up.
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxrender1 git \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY cloud-py/requirements.txt cloud-py/requirements.txt
@@ -13,6 +14,7 @@ RUN pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu \
 
 COPY hub/cad hub/cad
 COPY hub/ml hub/ml
+COPY hub/code_browser hub/code_browser
 COPY hub/events.py hub/events.py
 COPY hub/agent/events.py hub/agent/events.py
 COPY forge-sdk/forge forge-sdk/forge
