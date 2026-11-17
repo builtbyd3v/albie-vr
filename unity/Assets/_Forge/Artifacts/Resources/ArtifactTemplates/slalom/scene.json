@@ -120,6 +120,11 @@
       "title": "Slalom",
       "widgets": [
         {
+          "type": "note",
+          "text": "Drive the truck through the gates to set a time.",
+          "after_run": "Drive the gates again to beat your time."
+        },
+        {
           "type": "stat",
           "metric": "completion_time_s",
           "label": "Time",
@@ -154,7 +159,7 @@
         {
           "type": "button",
           "id": "rerun",
-          "label": "Run again"
+          "label": "Start a run"
         }
       ]
     }

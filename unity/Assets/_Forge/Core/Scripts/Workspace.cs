@@ -117,6 +117,69 @@ public class Workspace : MonoBehaviour
     /// <summary>While held, arriving at the desk doesn't show the dock (<see cref="Open"/> still works). Cleared on Away.</summary>
     public bool DockHeld { get; private set; }
 
+    // ---- Hooks for the OS (Forge.OS). None of these changes anything until the OS sets it: without the OS the workspace
+    // works exactly as it always has (a mode opens only at a desk, folds when the user leaves it, and the dock shows). ----
+
+    /// <summary>The OS asks for a free place for a mode when the user isn't at a desk: where the frame goes (in front of the user) and which way it faces.</summary>
+    public delegate bool FreeFramePose(out Vector3 position, out Quaternion rotation);
+
+    /// <summary>Set by the OS. With it, <see cref="Open"/> works away from a desk, in a virtual desk frame at that pose.</summary>
+    public FreeFramePose FreeFrame { get; set; }
+
+    /// <summary>When true an open mode stays open, where it is, when the user leaves the desk (it stops following the desk).</summary>
+    public bool KeepOpenAway { get; set; }
+
+    /// <summary>When true the dock never shows (the OS's table button replaces it). Holding and releasing it still run.</summary>
+    public bool DockRetired { get; set; }
+
+    /// <summary>Whether <see cref="Open"/> can work now: at a desk, or away with a free frame from the OS.</summary>
+    public bool CanOpen => presence != null && (presence.AtDesk || FreeFrame != null);
+
+    /// <summary>True while the open mode is in a virtual frame (opened away from a desk, or kept open when the user left the desk).</summary>
+    public bool InFreeFrame => freeFrame != null;
+
+    const float FreeFrameWidth = 1.2f, FreeFrameDepth = 0.6f;
+    // The frame the open mode's items are parented to when it isn't the desk's: null = the desk frame, as always.
+    Transform freeFrame;
+
+    Transform ActiveFrame => freeFrame != null ? freeFrame : presence.Frame;
+    float ActiveWidth => freeFrame != null ? FreeFrameWidth : presence.FrameWidth;
+    float ActiveDepth => freeFrame != null ? FreeFrameDepth : presence.FrameDepth;
+    Vector3 ActiveEye() => freeFrame != null ? freeFrame.InverseTransformPoint(presence.head.position) : presence.EyeInFrame();
+
+    // A pose or point of the active frame in the desk frame, for what the desk extras lay out beside the mode.
+    Vector3 ToDesk(Vector3 p) => freeFrame != null ? presence.Frame.InverseTransformPoint(freeFrame.TransformPoint(p)) : p;
+    Quaternion ToDesk(Quaternion r) => freeFrame != null ? Quaternion.Inverse(presence.Frame.rotation) * freeFrame.rotation * r : r;
+
+    bool NewFreeFrame(out Transform frame)
+    {
+        frame = null;
+        if (FreeFrame == null || !FreeFrame(out Vector3 position, out Quaternion rotation)) return false;
+        var go = new GameObject("WorkspaceFreeFrame");
+        go.transform.SetPositionAndRotation(position, rotation);
+        frame = go.transform;
+        return true;
+    }
+
+    // The old frame stays until what was folding on it is gone.
+    static void Discard(Transform frame)
+    {
+        if (frame != null) Destroy(frame.gameObject, 2.5f);
+    }
+
+    // The user left the desk with a mode open and the OS wants it kept: a frame at the desk's pose takes it over, so
+    // it stays exactly where it is and doesn't follow the desk frame if that is later moved to another table.
+    void PinOpenMode()
+    {
+        if (freeFrame != null || openItems.Count == 0) return;
+        var go = new GameObject("WorkspacePinnedFrame");
+        go.transform.SetPositionAndRotation(presence.Frame.position, presence.Frame.rotation);
+        freeFrame = go.transform;
+        foreach (var o in openItems)
+            if (o.go != null) o.go.transform.SetParent(freeFrame, false);
+        presence.lockFrame = false;
+    }
+
     void Reset() => modes = DefaultModes();
 
     void Awake() => Current = this;
@@ -146,10 +209,11 @@ public class Workspace : MonoBehaviour
         if (state == DeskState.Away)
         {
             DockHeld = false;
-            Close();
-            dock.Hide();
+            if (KeepOpenAway && ActiveMode != null) PinOpenMode();
+            else Close();
+            if (!DockRetired) dock.Hide();
         }
-        else if (!dock.IsShown && !DockHeld)
+        else if (!DockRetired && !dock.IsShown && !DockHeld)
         {
             dock.Show(presence.Frame, presence.FrameWidth, presence.FrameDepth);
         }
@@ -171,7 +235,7 @@ public class Workspace : MonoBehaviour
         DockHeld = hold;
         // Taking hold in the same Near that just showed it (handler order): nothing has rendered yet, so no flash.
         if (hold && dock.IsShown && ActiveMode == null) dock.Hide(immediate: true);
-        if (!hold && presence.AtDesk && !dock.IsShown) dock.Show(presence.Frame, presence.FrameWidth, presence.FrameDepth);
+        if (!hold && presence.AtDesk && !dock.IsShown && !DockRetired) dock.Show(presence.Frame, presence.FrameWidth, presence.FrameDepth);
     }
 
     public void Toggle(string modeId)
@@ -188,7 +252,7 @@ public class Workspace : MonoBehaviour
             Debug.LogWarning($"[Workspace] No mode '{modeId}'.");
             return;
         }
-        if (!presence.AtDesk)
+        if (!CanOpen)
         {
             Debug.LogWarning($"[Workspace] Can't open '{modeId}': not at a desk.");
             return;
@@ -196,9 +260,15 @@ public class Workspace : MonoBehaviour
 
         // Switching modes: the old one folds into its ring while this one unfolds out of its own, a beat behind.
         float start = openItems.Count > 0 ? ForgeTheme.SwitchDelay : 0f;
+        // At a desk the mode lives in the desk frame, as ever; away (the OS) it gets a frame in front of the user. The new
+        // frame is made first: if the OS can't give one, the old mode stays exactly as it was (not folded, still active).
+        Transform newFrame = null;
+        if (!presence.AtDesk && !NewFreeFrame(out newFrame)) return;
         FoldAll();
+        Discard(freeFrame);
+        freeFrame = newFrame;
         foreach (var item in mode.items) openItems.Add(Spawn(item, mode));
-        Vector3 eye = ClampEye(presence.EyeInFrame());
+        Vector3 eye = ClampEye(ActiveEye());
         LayOut(eye);
         for (int i = 0; i < openItems.Count; i++)
         {
@@ -211,7 +281,7 @@ public class Workspace : MonoBehaviour
         }
 
         ActiveMode = modeId;
-        presence.lockFrame = true;
+        presence.lockFrame = freeFrame == null;
         dock.SetActiveMode(modeId);
         modeChanged?.Invoke(modeId);
         Debug.Log($"[Workspace] Opened {modeId}: {mode.items.Count} item(s).");
@@ -221,10 +291,32 @@ public class Workspace : MonoBehaviour
     {
         if (ActiveMode == null) return;
         FoldAll();
+        Discard(freeFrame);
+        freeFrame = null;
         ActiveMode = null;
         presence.lockFrame = false;
         dock.SetActiveMode(null);
         modeChanged?.Invoke(null);
+    }
+
+    /// <summary>
+    /// Lays the open mode out again around the user now, forgetting where the user had put its items: in the desk frame
+    /// when at a desk, else in a fresh free frame in front of them (the OS's Bring here). The items glide there.
+    /// </summary>
+    public void Reanchor()
+    {
+        if (ActiveMode == null) return;
+        Transform old = freeFrame, target = presence.Frame;
+        if (!presence.AtDesk)
+        {
+            if (!NewFreeFrame(out target)) return;
+        }
+        foreach (var o in openItems)
+            if (o.go != null) o.go.transform.SetParent(target, true);
+        freeFrame = presence.AtDesk ? null : target;
+        presence.lockFrame = freeFrame == null;
+        Rearrange(resetSizes: false);
+        Discard(old);
     }
 
     /// <summary>
@@ -241,6 +333,44 @@ public class Workspace : MonoBehaviour
             return true;
         }
         t = null;
+        return false;
+    }
+
+    /// <summary>Where one open item is laid out to be: its world centre and its width and height (m).</summary>
+    public struct ItemSlot
+    {
+        public Vector3 center;
+        public Vector2 size;
+    }
+
+    /// <summary>
+    /// Fills <paramref name="into"/> with where the open mode's items are laid out to be (not where an animation has them
+    /// right now), so the OS can keep its windows clear of them.
+    /// </summary>
+    public void GetSlots(List<ItemSlot> into)
+    {
+        into.Clear();
+        Transform frame = ActiveFrame;
+        foreach (var o in openItems)
+        {
+            if (o.go == null) continue;
+            Vector2 size = o.panel != null ? (o.motion != null ? o.restSize : o.panel.SizeMeters) : Vector2.zero;
+            Vector3 center = frame.TransformPoint(o.position);
+            if (o.panel == null && o.volume != null)
+            {
+                Vector3 box = Vector3.Scale(o.volume.size, o.motion != null ? o.restScale : o.go.transform.localScale);
+                size = new Vector2(box.x, box.y);
+                center += Vector3.up * (box.y * 0.5f);
+            }
+            into.Add(new ItemSlot { center = center, size = size });
+        }
+    }
+
+    /// <summary>Whether this object is one of the open mode's panels or volumes.</summary>
+    public bool IsOpenItem(GameObject go)
+    {
+        foreach (var o in openItems)
+            if (o.go == go) return true;
         return false;
     }
 
@@ -278,7 +408,7 @@ public class Workspace : MonoBehaviour
             if (resetSizes) o.restSize = o.defaultSize;
             o.panel.SizeMeters = o.restSize;
         }
-        Vector3 eye = ClampEye(presence.EyeInFrame());
+        Vector3 eye = ClampEye(ActiveEye());
         LayOut(eye);
         foreach (var o in openItems)
         {
@@ -357,7 +487,7 @@ public class Workspace : MonoBehaviour
     {
         if (openItems.Count == 0) return;
         string modeId = ActiveMode;
-        Vector3 eye = ClampEye(presence.EyeInFrame());
+        Vector3 eye = ClampEye(ActiveEye());
         foreach (var o in openItems)
         {
             if (o.go == null) continue;
@@ -470,7 +600,7 @@ public class Workspace : MonoBehaviour
     Vector3 RingPoint(string modeId, Vector3 fallback)
     {
         if (dock == null || modeId == null || !dock.TryGetRingPoint(modeId, out Vector3 world)) return fallback;
-        return presence.Frame.InverseTransformPoint(world);
+        return ActiveFrame.InverseTransformPoint(world);
     }
 
     // Where items come out of with no ring to use: the desk's front edge, toward their side.
@@ -560,7 +690,7 @@ public class Workspace : MonoBehaviour
             o.go = volume.gameObject;
         }
 
-        o.go.transform.SetParent(presence.Frame, false);
+        o.go.transform.SetParent(ActiveFrame, false);
         if (o.panel != null)
         {
             o.panel.SetBadge(mode.label, mode.color);
@@ -568,7 +698,7 @@ public class Workspace : MonoBehaviour
             o.defaultSize = o.panel.SizeMeters;
             o.handles = o.panel.GetComponent<PanelManipulator>();
             if (o.handles == null) o.handles = o.panel.gameObject.AddComponent<PanelManipulator>();
-            o.handles.Init(presence.head, presence.Frame);
+            o.handles.Init(presence.head, ActiveFrame);
         }
         else if (o.volume != null && o.volume.gameObject == o.go)
         {
@@ -576,7 +706,7 @@ public class Workspace : MonoBehaviour
             o.defaultScale = o.go.transform.localScale.x;
             o.grips = o.go.GetComponent<VolumeManipulator>();
             if (o.grips == null) o.grips = o.go.AddComponent<VolumeManipulator>();
-            o.grips.Init(presence.head, presence.Frame);
+            o.grips.Init(presence.head, ActiveFrame);
         }
         return o;
     }
@@ -632,12 +762,12 @@ public class Workspace : MonoBehaviour
             if (IsDeskSlot(o.item.slot))
             {
                 WorkspaceSlot slot = o.item.slot;
-                float x = Mathf.Min(0.3f, Mathf.Max(0f, presence.FrameWidth * 0.5f - 0.12f));
-                float z = Mathf.Clamp(presence.FrameDepth * 0.5f, 0.12f, 0.3f);
+                float x = Mathf.Min(0.3f, Mathf.Max(0f, ActiveWidth * 0.5f - 0.12f));
+                float z = Mathf.Clamp(ActiveDepth * 0.5f, 0.12f, 0.3f);
                 // Far enough back that the base and its label clear the dock, but still on the desk.
                 float depth = o.volume != null ? o.volume.size.z * o.go.transform.localScale.z : 0.3f;
                 float clear = dock.inset + ForgeTheme.DockHeight * 0.0005f + 0.06f + depth * 0.5f;
-                z = Mathf.Min(Mathf.Max(z, clear), Mathf.Max(0.12f, presence.FrameDepth - depth * 0.5f));
+                z = Mathf.Min(Mathf.Max(z, clear), Mathf.Max(0.12f, ActiveDepth - depth * 0.5f));
                 o.position = new Vector3(slot == WorkspaceSlot.DeskLeft ? -x : slot == WorkspaceSlot.DeskRight ? x : 0f, 0f, z);
                 o.rotation = Quaternion.LookRotation(Flat(o.position - eye), Vector3.up);
                 o.facing = PanelFacing.FaceMe;
@@ -663,7 +793,7 @@ public class Workspace : MonoBehaviour
 
         // Out of the room's walls (RoomFit): what fits keeps its place, and the rest come closer or toward the middle,
         // clear of those if they can.
-        if (RoomFit.Begin(presence.Frame, eye))
+        if (RoomFit.Begin(ActiveFrame, eye))
         {
             foreach (var o in openItems)
                 if (Floats(o) && !RoomFit.InWall(o.position, o.rotation, FitSize(o), o.panel == null))
@@ -671,6 +801,42 @@ public class Workspace : MonoBehaviour
             foreach (var o in openItems)
                 if (Floats(o) && RoomFit.InWall(o.position, o.rotation, FitSize(o), o.panel == null))
                     RoomFit.Fit(ref o.position, ref o.rotation, FitSize(o), o.panel == null, layout == WorkspaceLayout.Curved);
+        }
+        // A narrow room can pull a side panel in over its neighbour (RoomFit's second pass only keeps it out of the walls):
+        // it then gets narrower, to the room that is left, rather than sit on the panel beside it.
+        ShrinkToFit(eye, main, +1, WorkspaceSlot.Right, WorkspaceSlot.FarRight);
+        ShrinkToFit(eye, main, -1, WorkspaceSlot.Left, WorkspaceSlot.FarLeft);
+    }
+
+    const float MinShrink = 0.6f, ShrinkGapDegrees = 9f;
+
+    // Seen from the eyes, a side panel that reaches over the outer edge of the panel inside it is scaled down (keeping its
+    // proportions, never below MinShrink of its size) until it just clears it.
+    void ShrinkToFit(Vector3 eye, OpenItem main, int side, WorkspaceSlot near, WorkspaceSlot far)
+    {
+        OpenItem inner = main;
+        for (int i = 0; i < 2; i++)
+        {
+            OpenItem o = Find(i == 0 ? near : far);
+            if (o == null || o.panel == null) continue;
+            if (inner != null && inner.panel != null)
+            {
+                Vector3 a = inner.position - eye, b = o.position - eye;
+                float yawA = Mathf.Atan2(a.x, a.z) * Mathf.Rad2Deg, yawB = Mathf.Atan2(b.x, b.z) * Mathf.Rad2Deg;
+                float distA = Mathf.Max(new Vector2(a.x, a.z).magnitude, 0.05f), distB = Mathf.Max(new Vector2(b.x, b.z).magnitude, 0.05f);
+                float edgeA = yawA * side + Mathf.Atan2(Size(inner).x * 0.5f, distA) * Mathf.Rad2Deg;
+                Vector2 size = o.panel.SizeMeters;
+                float halfB = Mathf.Atan2(size.x * 0.5f, distB) * Mathf.Rad2Deg;
+                float room = yawB * side - edgeA - ShrinkGapDegrees;  // the half-width (deg) that just fits
+                if (room < halfB)
+                {
+                    float fit = Mathf.Tan(Mathf.Max(room, 0f) * Mathf.Deg2Rad) * distB * 2f;  // the width (m) that just fits
+                    float k = Mathf.Clamp(fit / size.x, MinShrink, 1f);
+                    o.panel.SizeMeters = size * k;
+                    o.restSize = o.panel.SizeMeters;
+                }
+            }
+            inner = o;
         }
     }
 
@@ -778,7 +944,7 @@ public class Workspace : MonoBehaviour
     // ---- For things laid out with the open mode that aren't in it (WorkspaceExtras) ----
 
     /// <summary>The eyes in the desk frame as the layout uses them (clamped to a sane seat).</summary>
-    public Vector3 LayoutEye => ClampEye(presence.EyeInFrame());
+    public Vector3 LayoutEye => ToDesk(ClampEye(ActiveEye()));
 
     /// <summary>
     /// The middle of the top edge of the open mode's highest middle panel (Above, else Main) and its rotation, in the
@@ -798,9 +964,11 @@ public class Workspace : MonoBehaviour
         else
         {
             size = PanelSize(WorkspaceSlot.Main);
-            RowPose(LayoutEye, 0f, -0.08f, size, true, 0f, out position, out rotation);
+            RowPose(ClampEye(ActiveEye()), 0f, -0.08f, size, true, 0f, out position, out rotation);
         }
         position += rotation * Vector3.up * (size.y * 0.5f);
+        position = ToDesk(position);
+        rotation = ToDesk(rotation);
     }
 
     /// <summary>
@@ -816,7 +984,9 @@ public class Workspace : MonoBehaviour
         float half = curved ? Mathf.Atan2(size.x * 0.5f, r) * Mathf.Rad2Deg : size.x * 0.5f;
         float along = edge + gap + half;
         if (curved) along = Mathf.Max(sideAngle, along);
-        RowPose(LayoutEye, along * (side > 0 ? 1f : -1f), -0.05f, size, true, 0f, out position, out rotation);
+        RowPose(ClampEye(ActiveEye()), along * (side > 0 ? 1f : -1f), -0.05f, size, true, 0f, out position, out rotation);
+        position = ToDesk(position);
+        rotation = ToDesk(rotation);
     }
 
     OpenItem Find(WorkspaceSlot slot)

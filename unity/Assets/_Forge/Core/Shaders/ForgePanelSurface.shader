@@ -10,8 +10,8 @@ Shader "Forge/PanelSurface"
     Properties
     {
         [PerRendererData] _MainTex ("Texture", 2D) = "white" {}
-        _Top ("Panel top", Color) = (0.129, 0.141, 0.165, 0.96)
-        _Bottom ("Panel bottom", Color) = (0.075, 0.082, 0.098, 0.96)
+        _Top ("Panel top", Color) = (0.227, 0.235, 0.251, 1)
+        _Bottom ("Panel bottom", Color) = (0.145, 0.149, 0.161, 1)
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0

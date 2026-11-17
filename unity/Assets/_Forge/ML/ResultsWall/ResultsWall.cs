@@ -24,7 +24,7 @@ namespace Forge.ML
     {
         public enum Tab { Overview, Classes, Confusion, Confidence, Images }
         static readonly string[] TabNames = { "Overview", "Classes", "Confusion", "Confidence", "Images" };
-        static readonly float[] TabWidths = { 92, 80, 94, 100, 80 };
+        const float TabMax = 96f, TabMin = 56f, TabGap = 6f, RunLabelMin = 90f;  // equal tabs, shrunk to fit the panel
 
         public MLSession session;
         public Material dotMaterialAsset;
@@ -70,16 +70,19 @@ namespace Forge.ML
             var r = root.rect;
 
             // Tabs, and the run they describe on the right.
+            int tabCount = TabNames.Length;
+            float tabW = Mathf.Clamp((r.width - (tabCount - 1) * TabGap) / tabCount, TabMin, TabMax);
             float x = 0;
             for (int i = 0; i < TabNames.Length; i++)
             {
                 var t = (Tab)i;
-                tabPills[i] = MLUI.Pill(root, TabNames[i], x, 0, TabWidths[i], TabBar, () => ShowTab(t));
+                tabPills[i] = MLUI.Pill(root, TabNames[i], x, 0, tabW, TabBar, () => ShowTab(t));
                 tabPills[i].name = "Tab " + TabNames[i];
-                x += TabWidths[i] + 4;
+                x += tabW + TabGap;
                 pages[i] = MLUI.Rect(TabNames[i] + " page", root, 0, BodyTop, r.width, r.height - BodyTop);
             }
-            runLabel = MLUI.Caps(root, "", x + 8, 9, r.width - x - 8, 14, 9); runLabel.alignment = TextAlignmentOptions.TopRight; runLabel.color = MLUI.Faint;
+            float runW = Mathf.Max(0f, r.width - x - 8);
+            runLabel = MLUI.Caps(root, "", x + 8, 9, runW, 14, 9); runLabel.gameObject.SetActive(runW >= 24f); runLabel.alignment = TextAlignmentOptions.TopRight; runLabel.color = MLUI.Faint; runLabel.overflowMode = TextOverflowModes.Ellipsis;
             images = pages[(int)Tab.Images];
             BuildImages();
 
