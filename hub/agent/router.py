@@ -6,6 +6,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 
+from pydantic import BaseModel, ConfigDict, Field
+
+from .build import builds
 from .config import ProjectNotFound, PublicProject, public_projects, resolve_project
 from .orchestration import WorkflowRequest, orchestrator
 
@@ -40,6 +43,46 @@ async def workflow_status(workflow_id: str) -> dict:
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found (history is in memory).")
     return workflow.public()
+
+
+class BuildRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    goal: str = Field(min_length=1, max_length=2000)
+
+
+# Builds (agent/build.py): start, watch and stop. Shipping (push + pull request) is not here on purpose: it only happens
+# through build_ship with confirm, or the Open pull request button on Albie's card, after the user says yes.
+@router.post("/builds", status_code=202)
+async def start_build(request: BuildRequest) -> dict:
+    try:
+        return builds.start(request.goal).public()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/builds")
+async def list_builds() -> list[dict]:
+    return [b.public() for b in reversed(list(builds.builds.values()))]
+
+
+@router.get("/builds/{build_id}")
+async def build_status(build_id: str) -> dict:
+    build = builds.builds.get(build_id)
+    if build is None:
+        raise HTTPException(status_code=404, detail="Build not found (builds are kept in memory).")
+    return build.public()
+
+
+@router.post("/builds/{build_id}/cancel")
+async def cancel_build(build_id: str) -> dict:
+    build = builds.builds.get(build_id)
+    if build is None:
+        raise HTTPException(status_code=404, detail="Build not found.")
+    if not await builds.cancel(build):
+        raise HTTPException(status_code=409, detail=f"The build is already {build.state}.")
+    return build.public()
 
 
 @router.post("/workflows/{workflow_id}/tasks/{task_id}/cancel")
