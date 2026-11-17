@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "beats": [
+    {
+      "id": "B0",
+      "title": "Headset on, leaning back. Quiet.",
+      "lines": [],
+      "cues": [],
+      "advance": "auto:5"
+    },
+    {
+      "id": "B1",
+      "title": "Palm summon: Albie lands on the left palm",
+      "lines": [
+        { "text": "Hey! What do you feel like building today?", "audio": "b1_hello", "after": "albie.on_hand", "delay": 0.35, "timeout": 60 }
+      ],
+      "cues": [
+        { "at": 0, "action": "albie.summon_hand", "args": { "hand": "left" } }
+      ],
+      "advance": "speech"
+    },
+    {
+      "id": "B2",
+      "title": "Open yesterday's quad, build it, take off",
+      "lead": 1.2,
+      "lines": [
+        { "text": "Here's yesterday's quad.", "audio": "b2_open", "at": 0.3 },
+        { "text": "She's flying. What should the camera do?", "audio": "b2_flying", "after": "drone.hovering", "delay": 0.4, "timeout": 14 }
+      ],
+      "cues": [
+        { "at": 0.3, "action": "drone.open" },
+        { "after": "drone.built", "delay": 0.5, "timeout": 8, "action": "drone.takeoff" }
+      ],
+      "advance": "speech",
+      "min": 6
+    },
+    {
+      "id": "B3",
+      "title": "Research: cameras on the left, models on the right",
+      "lead": 0.8,
+      "lines": [
+        { "text": "Got it. I'll find a camera that fits your battery, and a model that can track you.", "audio": "b3_search", "at": 0 }
+      ],
+      "cues": [
+        { "at": 0.4, "action": "research.open" },
+        { "at": 1.8, "action": "research.cameras" },
+        { "after": "research.cameras.done", "delay": 0.6, "timeout": 20, "action": "research.models" }
+      ],
+      "advance": "signal:research.models.done|auto:60",
+      "min": 6
+    },
+    {
+      "id": "B4",
+      "title": "Verdict card, Hudson pokes Add to parts list, the camera clicks onto the nose",
+      "lines": [
+        { "text": "This one. It runs off the five-volt rail your battery already powers, it's sharp enough to lock onto your face at ten meters, it's twenty-four dollars, and it can be here in three days.", "audio": "b4_verdict", "at": 1.0 }
+      ],
+      "cues": [
+        { "at": 0, "action": "research.verdict" },
+        { "after": "research.added", "delay": 0.3, "timeout": 45, "action": "drone.mount_camera", "args": { "from": "slot:Left" } }
+      ],
+      "advance": "signal:drone.mounted|auto:75"
+    },
+    {
+      "id": "B5",
+      "title": "Pipeline: pull the model, then train it",
+      "lines": [
+        { "text": "For the brain, this tracking model is a good start. I'll fine-tune it on you, then push it to your private repo.", "audio": "b5_brain", "at": 0.5 }
+      ],
+      "cues": [
+        { "at": 0.3, "action": "pipeline.open" },
+        { "at": 2.0, "action": "pipeline.pull" },
+        { "after": "pipeline.pulled", "delay": 0.4, "timeout": 20, "action": "pipeline.train" }
+      ],
+      "advance": "signal:pipeline.trained|auto:90",
+      "min": 6
+    },
+    {
+      "id": "B5b",
+      "title": "Push to the private repo, after Hudson confirms",
+      "lines": [
+        { "text": "Done. Version one is in your repo.", "audio": "b5_pushed", "after": "pipeline.pushed", "delay": 0.4, "timeout": 60 }
+      ],
+      "cues": [
+        { "at": 0.6, "action": "pipeline.push" }
+      ],
+      "advance": "speech"
+    },
+    {
+      "id": "B6",
+      "title": "Flight test in the real room, drone-cam at the wrist",
+      "lead": 1.0,
+      "lines": [
+        { "text": "Building a flight test in your room.", "audio": "b6_building", "at": 0 },
+        { "text": "Tracking you. I'll stay two meters back.", "audio": "b6_tracking", "after": "drone.following", "delay": 0.6, "timeout": 16 }
+      ],
+      "cues": [
+        { "at": 1.5, "action": "drone.follow_start", "args": { "distance": 2.0 } },
+        { "after": "drone.following", "delay": 0.3, "timeout": 16, "action": "dronecam.show" }
+      ],
+      "advance": "signal:hand.palm_up|auto:150",
+      "min": 12
+    },
+    {
+      "id": "B7",
+      "title": "Palm out again: the drone comes home over the hand",
+      "lines": [
+        { "text": "Nice flight. Want me to log this run?", "audio": "b7_done", "after": "drone.home", "delay": 0.5, "timeout": 12 }
+      ],
+      "cues": [
+        { "at": 0, "action": "drone.follow_stop" }
+      ],
+      "advance": "remote"
+    }
+  ]
+}
