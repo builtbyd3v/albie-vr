@@ -23,7 +23,7 @@ from typing import Any
 from agent import events as ev
 from agent import speech as agent_speech
 
-from . import github, github_publish, hf_data, improve, new_project
+from . import github, github_publish, hf_data, improve, new_project, repo_env
 from .router import _stop_tail, service, start_run, start_setup
 from .service import Conflict, NotFound
 from .setup.adapt import ROOT
@@ -47,9 +47,12 @@ TOOLS: list[dict[str, Any]] = [
                     "First call it with what the user said: it finds the repo but downloads nothing. Say its name "
                     "and owner and ask if that's the one. Only after a yes, call it again with confirm true and "
                     "query set to the full_name it returned: it downloads the repo, works out what kind of model "
-                    "it is, and that model's panels unfold. A new repo takes about a minute; say you're setting it up.",
+                    "it is, and that model's panels unfold. A new repo takes about a minute; say you're setting it up. "
+                    "Any PyTorch or scikit-learn repo works, notebooks too; a folder URL (github.com/owner/repo/tree/"
+                    "main/mnist) opens just that example. Once it's ready, offer to train it (ml_train).",
      "parameters": {"type": "object", "properties": {
-         "query": {"type": "string", "description": "the repo as the user said it, owner/repo, or a GitHub URL"},
+         "query": {"type": "string", "description": "the repo as the user said it, owner/repo, or a GitHub URL "
+                                                    "(a /tree/<branch>/<folder> URL for one folder of it)"},
          "confirm": {"type": "boolean", "description": "true only after the user said yes to the repo you found"}},
          "required": ["query"]}},
     {"name": "ml_new",
@@ -252,7 +255,21 @@ class MLTools:
             return {**found, "note": "Nothing downloaded yet. Ask the user if this is the repo; "
                                      "if yes, call ml_github again with confirm true."}
         path = await asyncio.to_thread(github.clone, found["full_name"], self.recent_path.parent / "github")
-        return {"repo": found["full_name"], **await self.open(str(path))}
+        if found.get("folder"):
+            inner = (path / found["folder"]).resolve()
+            if not inner.is_dir() or not inner.is_relative_to(path.resolve()):
+                raise NotFound(f"{found['full_name']} has no folder {found['folder']!r}")
+            path = inner
+        try:  # notebooks to scripts, the packages it imports, before any LLM call (repo_env)
+            env = await asyncio.to_thread(repo_env.prepare, path)
+        except repo_env.UnsupportedRepo as e:
+            return {"repo": found["full_name"], "error": f"I downloaded {found['full_name']}, but {e}."}
+        out = {"repo": found["full_name"], **await self.open(str(path))}
+        if env.get("installed"):
+            out["installed"] = env["installed"]
+        if env.get("notebooks"):
+            out["notebooks"] = env["notebooks"][:5]
+        return out
 
     # --- a new project from a sentence (ml_new) ---------------------------------------------------
     def new_root(self) -> Path:

@@ -61,6 +61,14 @@ Set optional `GITHUB_TOKEN` in the hub environment to raise GitHub API rate limi
 - **Adapter LLM:** Claude Opus 5.5 (`FORGE_LLM_MODEL` to override) via `anthropic` (`pip install -r ml/requirements.txt`): Jev can't write code. Needs `ANTHROPIC_API_KEY` in the hub's environment, never in git; without it, repos with a working `.forge/` still open, others stop after classifying with a clear error. Repo files are prompt-cached across the adapter rounds.
 - **Interpreter:** the repo's `.venv`/`venv`/`env`, else the active conda env, else the hub's own Python; stored as `profile.python`.
 - Tests (`ml/tests/test_setup.py`) use a fake LLM: no key, no cost.
+- **Any GitHub repo from the headset (`ml_github`, `repo_env.py`):** after the yes and the clone, before any LLM call:
+  notebooks get a plain-script copy (`<name>_nb.py`, code cells only, `!`/`%` lines dropped); the third-party
+  modules the repo imports (and its `requirements.txt`) that the host lacks are pip-installed, wheels only, into the
+  repo's own `.venv` made with `--system-site-packages` (on when `FORGE_ML_PIP=1`, the cloud); a TensorFlow/JAX-only
+  repo is named at once. A `/tree/<branch>/<folder>` URL opens just that folder. On the cloud the adapter also caps
+  the patched script's data at `FORGE_MAX_TRAIN`/`FORGE_MAX_VAL` so an epoch takes seconds on its CPU. Every
+  process that runs a repo's code (check, train, runner, pip) gets `repo_env.foreign_env()`: no keys or tokens.
+  The cloud's Claude: its own `ANTHROPIC_API_KEY` secret (CI: `ALBIE_ANTHROPIC_API_KEY`), else the Vercel proxy.
 
 ## Albie starts a new project (`ml_new`)
 

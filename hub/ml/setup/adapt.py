@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable
 
 from ..models import Profile
+from ..repo_env import foreign_env
 from .classify import files_block
 from .llm import LLMResult, complete_json
 
@@ -135,7 +136,7 @@ def write_outputs(repo: Path, data: dict) -> list[str]:
 
 def run_check(repo: Path, python: str) -> dict:
     """`<repo python> -m forge.check <repo>` with forge-sdk on PYTHONPATH; never trains (8 samples, 60 s)."""
-    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")]))}
+    env = foreign_env(PYTHONPATH=os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")])))
     check_file = repo / ".forge" / "check.json"
     check_file.unlink(missing_ok=True)
     try:

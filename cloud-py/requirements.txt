@@ -13,3 +13,8 @@ httpx==0.28.1  # forge SDK: training runs post their live events back
 aiohttp==3.14.5  # code browser: GitHub's REST API
 certifi==2026.10.23
 pyarrow==26.0.1  # ml_new reads Hugging Face Parquet exports (hub/ml/hf_data.py)
+anthropic==2.3.0  # repo setup with the Space's own ANTHROPIC_API_KEY (else the Vercel proxy)
+# What most GitHub ML repos import (ml_github); anything else goes into the repo's own venv (hub/ml/repo_env.py)
+pandas==3.1.1
+scikit-learn==1.9.1
+tqdm==4.70.1

@@ -23,6 +23,8 @@ from .service import NotFound
 
 BASE = "https://github.com/"
 NAME = re.compile(r"^(?:https?://)?(?:www\.)?(?:github\.com/)?([\w.-]+/[\w.-]+?)(?:\.git)?/?$")
+# a folder inside a repo: github.com/owner/repo/tree/<branch>/<path> (a monorepo's one example, e.g. pytorch/examples mnist)
+TREE = re.compile(r"^(?:https?://)?(?:www\.)?(?:github\.com/)?([\w.-]+/[\w.-]+)/(?:tree|blob)/[^/\s]+/([^\s?#]+?)/?$")
 
 
 def gh(path: str, params: dict[str, str] | None = None) -> dict[str, Any]:
@@ -67,10 +69,21 @@ def parse(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+def parse_folder(text: str) -> tuple[str, str] | None:
+    """("owner/repo", "folder/inside") from a GitHub tree or blob URL; None otherwise."""
+    m = TREE.match(text.strip())
+    if not m or ".." in m.group(2).split("/"):
+        return None
+    folder = m.group(2)
+    return m.group(1), (folder.rsplit("/", 1)[0] if folder.endswith((".py", ".ipynb", ".md")) and "/" in folder
+                        else "" if folder.endswith((".py", ".ipynb", ".md")) else folder)
+
+
 def find(query: str, api: Callable[..., dict[str, Any]] | None = None) -> dict[str, Any]:
     """The repo the user means: an exact owner/repo, else GitHub's best match for the words."""
     api = api or gh
-    name = parse(query)
+    folder = parse_folder(query)
+    name = folder[0] if folder else parse(query)
     if name:
         repo = api(f"repos/{name}")
     else:
@@ -79,8 +92,11 @@ def find(query: str, api: Callable[..., dict[str, Any]] | None = None) -> dict[s
         if not items:
             raise NotFound(f"no GitHub repo matches {query!r}")
         repo = items[0]
-    return {"full_name": repo["full_name"], "description": repo.get("description"),
-            "stars": repo.get("stargazers_count", 0)}
+    out = {"full_name": repo["full_name"], "description": repo.get("description"),
+           "stars": repo.get("stargazers_count", 0)}
+    if folder and folder[1]:
+        out["folder"] = folder[1]
+    return out
 
 
 def clone(full_name: str, root: Path, base: str | None = None) -> Path:

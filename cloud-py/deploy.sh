@@ -26,6 +26,10 @@ printf 'ALBIE_APP_KEY=%s\n' "$APP_KEY" | hf spaces secrets add "$SPACE" --secret
 if [ -n "${ALBIE_GITHUB_TOKEN:-}" ]; then
   printf 'GITHUB_TOKEN=%s\n' "$ALBIE_GITHUB_TOKEN" | hf spaces secrets add "$SPACE" --secrets-file -
 fi
+# Optional: a Claude API key for setting up the GitHub repos Albie pulls (ml_github) without the Vercel proxy.
+if [ -n "${ALBIE_ANTHROPIC_API_KEY:-}" ]; then
+  printf 'ANTHROPIC_API_KEY=%s\n' "$ALBIE_ANTHROPIC_API_KEY" | hf spaces secrets add "$SPACE" --secrets-file -
+fi
 
 git archive HEAD hub/cad hub/ml hub/code_browser hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
   | tar -x -C "$STAGE"

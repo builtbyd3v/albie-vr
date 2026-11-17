@@ -212,6 +212,15 @@ def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float
         raise LLMError("Claude's reply wasn't JSON") from e
 
 
+def cloud_llm():
+    """Claude for repo setup and 'improve it': the Space's own ANTHROPIC_API_KEY secret when it has one (direct, the
+    hub's ml/setup/llm.py), else the Vercel proxy, else none."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        from ml.setup.llm import complete_json
+        return complete_json
+    return proxy_llm if CLAUDE_PROXY_URL else no_llm
+
+
 # 'what can I do better?' for the text project with no Claude: improve.py's scripted path, pointed at this project.
 _golden_available = improve.scripted_available
 _golden_plan = improve.scripted
@@ -248,10 +257,10 @@ class Device:
         self.ml = DeviceML(root / "ml" / ML_TEMPLATE.name, device_id, root / "ml" / "new")
         app = FastAPI(title=f"Albie cloud device {device_id}")
         app.state.bus, app.state.cad, app.state.ml = self.bus, self.cad, self.ml
-        app.state.ml_llm = proxy_llm if CLAUDE_PROXY_URL else no_llm
-        # A repo cloned with ml_github is classified and adapted by Claude through the proxy; with no proxy, setup
-        # fails and says so (the template needs no setup).
-        app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if CLAUDE_PROXY_URL else "jev"
+        app.state.ml_llm = cloud_llm()
+        # A repo cloned with ml_github is classified and adapted by Claude (the Space's own ANTHROPIC_API_KEY, else
+        # the proxy); with neither, setup fails and says so (the template and ml_new's projects need no setup).
+        app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if app.state.ml_llm is not no_llm else "jev"
         self.ml_tools = DeviceMLTools(app.state, root, speak=lambda pet, text: asyncio.sleep(0, False))
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
