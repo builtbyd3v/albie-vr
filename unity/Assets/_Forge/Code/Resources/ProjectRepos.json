@@ -1,3 +1,4 @@
 {
-  "proj_truck": "rc-truck"
+  "proj_truck": "rc-truck",
+  "proj_classifier": "image-classifier"
 }
