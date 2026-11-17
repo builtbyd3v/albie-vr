@@ -121,3 +121,32 @@ def test_workflow_milestones_reach_the_registered_voice_bridge(monkeypatch):
     monkeypatch.setattr(speech, "speak", speak)
     asyncio.run(module.say("Tester is checking the project."))
     assert spoken == [("bit", "Tester is checking the project.")]
+
+
+def test_cloud_build_history_is_scoped_to_its_device(tmp_path, monkeypatch):
+    monkeypatch.setenv("BUILD_DIR", str(tmp_path / "hub"))
+
+    async def publish(event):
+        pass
+
+    first_root = tmp_path / "first-headset" / "builds"
+    second_root = tmp_path / "second-headset" / "builds"
+    first = module.Builds(publish=publish, root=first_root)
+    build = module.Build("first-build", "private project", state="ready", review_head="abc")
+    module.prepare_workspace(build, first_root)
+    first.save(build)
+
+    restored = module.Builds(publish=publish, root=first_root).get(build.id)
+    assert restored.workspace == build.workspace
+    assert restored.review_head == "abc"
+    assert module.Builds(publish=publish, root=second_root).get(build.id) is None
+    assert module.Builds().get(build.id) is None
+
+
+def test_cloud_app_key_and_openhands_key_are_hidden_from_runner(monkeypatch):
+    from agent.runner import agent_env
+    monkeypatch.setenv("ALBIE_APP_KEY", "headset-secret")
+    monkeypatch.setenv("OPENHANDS_API_KEY", "worker-secret")
+    env = agent_env()
+    assert env["ALBIE_APP_KEY"] == ""
+    assert env["OPENHANDS_API_KEY"] == ""

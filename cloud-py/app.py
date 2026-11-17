@@ -66,6 +66,9 @@ BLOCKED = ("/ml/project/rescan", "/ml/project/type", "/ml/github/", "/ml/project
 CAD_TOOLS = {t["name"] for t in cad_tools.TOOLS}
 ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
 CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
+# "Albie, build me a ..." (hub/agent/build.py): the crew writes a project on this machine and, after a yes, opens a
+# pull request on BUILD_REPO. Named here so the module (and the Claude CLI it drives) loads only when first used.
+BUILD_TOOLS = {"build_start", "build_approve", "build_review", "build_status", "build_ship", "build_cancel"}
 EVENT_LOG = 400
 
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
@@ -273,6 +276,7 @@ class Device:
         # the proxy); with neither, setup fails and says so (the template and ml_new's projects need no setup).
         app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if app.state.ml_llm is not no_llm else "jev"
         self.ml_tools = DeviceMLTools(app.state, root, speak=lambda pet, text: asyncio.sleep(0, False))
+        self.builds = None  # this headset's agent.build.Builds, made on its first build tool
         app.state.ml_tools = self.ml_tools  # GET /ml/projects lists this headset's projects
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
@@ -282,6 +286,36 @@ class Device:
 
     async def start(self) -> None:
         await self.cad.start()
+
+    # ---- builds: the crew on this machine, its events in this headset's log ----------------------------------
+
+    def building(self) -> bool:
+        return self.builds is not None and any(not b.done for b in self.builds.builds.values())
+
+    async def publish_event(self, event: Any) -> None:
+        await self.bus.publish(event.type, event.payload)  # the headset polls it from /events and acts as on the hub
+
+    async def build_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        try:
+            from agent import build as agent_build
+            from agent import events as agent_events
+        except Exception:  # noqa: BLE001 - say so; CAD and ML keep working
+            log.exception("builds aren't available on this cloud")
+            return {"error": "the crew isn't installed on Albie's cloud yet"}
+        if self.builds is None:
+            async def hatch(agent_type: str) -> dict[str, Any]:
+                await self.publish_event(agent_events.crew_spawn(agent_type))  # AlbieCrew hatches it
+                return {"status": "hatched"}
+
+            self.builds = agent_build.Builds(publish=self.publish_event, hatch=hatch,
+                                            root=DATA / "devices" / self.id / "builds")
+        if name == "build_start":
+            if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAKE_AGENT") != "1":
+                return {"error": "the crew can't think yet: Albie's cloud has no Claude key (the Space's "
+                                 "ANTHROPIC_API_KEY secret)"}
+            if any(d.building() for d in DEVICES.values() if d is not self):
+                return {"error": "the build machine is busy with someone else's project; try again in a few minutes"}
+        return await agent_build.call_tool(name, args, of=self.builds)
 
     def add_routes(self, app: FastAPI) -> None:
         @app.get("/events")
@@ -309,6 +343,8 @@ class Device:
                     shown.append("code")  # the new pull request, in the code panel
             elif name in CODE_TOOLS:
                 result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
+            elif name in BUILD_TOOLS:
+                result = await self.build_tool(name, args)
             else:
                 result = {"error": f"no cloud tool {name!r}"}
             return {"result": result, "show": shown[0] if shown else None, "seq": self.bus.seq}
