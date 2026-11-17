@@ -1,0 +1,125 @@
+{
+ "note": "Prototype fixture: the same seesaw with its board 6.5 cm above the fulcrum. Grounded, so floating is an error.",
+ "expect": {
+  "errors": [
+   "part_floating@nodes[2].pos"
+  ]
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_seesaw_gap",
+  "title": "Seesaw",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+   {
+    "name": "tilt",
+    "type": "number",
+    "min": -15,
+    "max": 15,
+    "default": 0
+   }
+  ],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "nodes": [
+   {
+    "id": "base",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     1.2,
+     0.04,
+     0.4
+    ],
+    "pos": [
+     0,
+     0.02,
+     0
+    ]
+   },
+   {
+    "id": "fulcrum",
+    "kind": "primitive",
+    "shape": "cone",
+    "size": [
+     0.16,
+     0.2,
+     0.16
+    ],
+    "pos": [
+     0,
+     0.14,
+     0
+    ]
+   },
+   {
+    "id": "board",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     1.0,
+     0.03,
+     0.2
+    ],
+    "pos": [
+     0,
+     0.32,
+     0
+    ],
+    "rot": [
+     0,
+     0,
+     "$tilt"
+    ]
+   },
+   {
+    "id": "ui",
+    "kind": "panel",
+    "title": "Seesaw",
+    "widgets": [
+     {
+      "type": "slider",
+      "input": "tilt"
+     }
+    ]
+   }
+  ],
+  "generators": [],
+  "rules": [],
+  "run": null
+ }
+}

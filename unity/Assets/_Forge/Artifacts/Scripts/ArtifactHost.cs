@@ -257,6 +257,12 @@ namespace Forge.Artifacts
 
         public ArtifactInputs Inputs => build?.Inputs;
 
+        /// <summary>The open scene's content root, or null. A room scene's is not under this host (it stands on the floor).</summary>
+        public Transform ContentRoot => build?.Root;
+
+        /// <summary>True while the open scene is still growing in (<see cref="ForgeTheme.UnfoldTime"/> after it was shown).</summary>
+        public bool Revealing => reveal != null;
+
         /// <summary>The open scene's rules, for nodes that act on them.</summary>
         public JToken Rules => open?.Scene["rules"];
 

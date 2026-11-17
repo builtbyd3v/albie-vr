@@ -1,0 +1,103 @@
+{
+ "note": "Review fixture: a slider moves a text node up through its pos. Text isn't a measured part, so the slider is taken on trust, not refused as control_invisible.",
+ "expect": {
+  "errors": []
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_textslide_ok",
+  "title": "Rising Sign",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+   {
+    "name": "h",
+    "type": "number",
+    "min": 0,
+    "max": 0.15,
+    "default": 0,
+    "label": "Height"
+   }
+  ],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.25
+  },
+  "nodes": [
+   {
+    "id": "base",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.3,
+     0.02,
+     0.1
+    ],
+    "pos": [
+     0,
+     -0.1,
+     0
+    ],
+    "color": "#333333"
+   },
+   {
+    "id": "sign",
+    "kind": "text",
+    "text": "HELLO",
+    "height": 0.03,
+    "pos": [
+     0,
+     "$h",
+     0
+    ],
+    "billboard": true
+   },
+   {
+    "id": "ui",
+    "kind": "panel",
+    "title": "Sign",
+    "widgets": [
+     {
+      "type": "slider",
+      "input": "h"
+     }
+    ]
+   }
+  ]
+ }
+}

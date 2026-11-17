@@ -1,0 +1,158 @@
+{
+ "note": "Prototype fixture: a windmill whose speed slider is bound to nothing and whose blade isn't on the hub.",
+ "expect": {
+  "errors": [
+   "control_unbound@nodes[4].widgets[0].input",
+   "part_floating@nodes[2].pos"
+  ]
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_windmill_bad",
+  "title": "Windmill",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+   {
+    "name": "speed",
+    "type": "number",
+    "min": 0,
+    "max": 5,
+    "default": 1
+   }
+  ],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "nodes": [
+   {
+    "id": "tower",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.1,
+     0.8,
+     0.1
+    ],
+    "pos": [
+     0,
+     0.4,
+     0
+    ]
+   },
+   {
+    "id": "hub",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.08,
+     0.06,
+     0.08
+    ],
+    "pos": [
+     0,
+     0.8,
+     -0.08
+    ],
+    "rot": [
+     90,
+     0,
+     0
+    ]
+   },
+   {
+    "id": "blade1",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.04,
+     0.4,
+     0.01
+    ],
+    "pos": [
+     0,
+     1.0,
+     -0.12
+    ]
+   },
+   {
+    "id": "spin",
+    "kind": "timeline",
+    "duration_s": 2,
+    "loop": true,
+    "autoplay": true
+   },
+   {
+    "id": "ui",
+    "kind": "panel",
+    "title": "Windmill",
+    "widgets": [
+     {
+      "type": "slider",
+      "input": "speed"
+     }
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "type": "animate",
+    "timeline": "spin",
+    "target": "hub",
+    "property": "rot",
+    "keys": [
+     [
+      0,
+      [
+       90,
+       0,
+       0
+      ]
+     ],
+     [
+      2,
+      [
+       90,
+       360,
+       0
+      ]
+     ]
+    ]
+   }
+  ],
+  "generators": [],
+  "run": null
+ }
+}

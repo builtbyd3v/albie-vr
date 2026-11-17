@@ -1,0 +1,115 @@
+{
+ "note": "Review fixture: two equal boxes crossed at +45 and -45 degrees about one centre make an X. Their bounding boxes match, their shapes don't, so they are not coincident.",
+ "expect": {
+  "errors": []
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_xsign_ok",
+  "title": "Crossing Sign",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.3
+  },
+  "nodes": [
+   {
+    "id": "post",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.03,
+     0.4,
+     0.03
+    ],
+    "pos": [
+     0,
+     -0.1,
+     0.02
+    ],
+    "color": "#9E9E9E"
+   },
+   {
+    "id": "bar_a",
+    "kind": "primitive",
+    "parent": "post",
+    "shape": "box",
+    "size": [
+     0.32,
+     0.05,
+     0.01
+    ],
+    "pos": [
+     0,
+     0.18,
+     -0.02
+    ],
+    "rot": [
+     0,
+     0,
+     45
+    ],
+    "color": "#FFFFFF"
+   },
+   {
+    "id": "bar_b",
+    "kind": "primitive",
+    "parent": "post",
+    "shape": "box",
+    "size": [
+     0.32,
+     0.05,
+     0.01
+    ],
+    "pos": [
+     0,
+     0.18,
+     -0.02
+    ],
+    "rot": [
+     0,
+     0,
+     -45
+    ],
+    "color": "#FFFFFF"
+   }
+  ]
+ }
+}
