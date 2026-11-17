@@ -10,6 +10,9 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
+// The checks (Assembly-CSharp-Editor) reach the internal seams below: Forge > Core > Check Voice / Check Lifecycle.
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Assembly-CSharp-Editor")]
+
 /// <summary>
 /// Albie's voice with the hub off: the headset talks to the realtime voice API (Grok) itself. It is ForgeNet's
 /// <see cref="ForgeNet.ILocalPeer"/>, so the pet scripts don't change: what they would send the hub (hello, stt.start,
@@ -95,7 +98,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         [""] = "The user closed the workspace views.",
     };
 
-    ClientWebSocket ws;
+    WebSocket ws;  // a ClientWebSocket in the app (OpenGrok)
     Task<bool> connecting;
     CancellationTokenSource life;
     readonly Queue<string> outbox = new Queue<string>();
@@ -108,6 +111,15 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     bool away;  // Suspend..Resume: nothing goes to Grok and no session opens
     int epoch;  // bumped by Suspend: a Connect that started before it gives up instead of opening a session
     int connectingEpoch;
+
+    // Seams for Forge > Core > Check Voice (Core/Editor/VoiceCheck.cs). The app keeps these defaults; the check swaps in
+    // a fake clock, token and socket, so the outbox, the idle close and a pause run with no network.
+    internal Func<float> clock = RealTime;
+    internal Func<Task<string>> fetchToken = AlbieVoiceToken.Fetch;
+    internal Func<string, CancellationToken, Task<WebSocket>> openSocket = OpenGrok;
+    /// <summary>Between <see cref="Suspend"/> and <see cref="Resume"/>.</summary>
+    internal bool Suspended => away;
+    static float RealTime() => Time.realtimeSinceStartup;
 
     // The turn and the reply in progress.
     int turnSeq, fed;
@@ -156,8 +168,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     void Update()
     {
-        if (ws != null && ws.State == WebSocketState.Open && !turnOpen && !responseActive && toolsRunning == 0
-            && Time.realtimeSinceStartup - Mathf.Max(lastActivity, speechEnd) > FollowUpS + IdleCloseS)
+        if (IdleCloseDue(ws != null && ws.State == WebSocketState.Open))
         {
             Debug.Log("[AlbieVoice] idle: closing the voice session (it reopens on the next turn).");
             var idle = ws;
@@ -166,6 +177,11 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             idle.Dispose();
         }
     }
+
+    /// <summary>Close the open session: no turn, reply or slow tool, and more than FollowUpS + IdleCloseS since Albie's
+    /// last word or the last turn / reply message (<see cref="CountsAsActivity"/>).</summary>
+    internal bool IdleCloseDue(bool open) =>
+        open && !turnOpen && !responseActive && toolsRunning == 0 && clock() - Mathf.Max(lastActivity, speechEnd) > FollowUpS + IdleCloseS;
 
     /// <summary>Headset off / app paused: end the turn and the reply, close the session (it bills per open minute and
     /// its socket doesn't survive a suspend) and send nothing until <see cref="Resume"/>. The history stays, so the
@@ -223,7 +239,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                     droppedTurn = !wake;  // PushToTalk waits for this turn's stt.final; WakeListener doesn't
                     break;
                 }
-                lastActivity = Time.realtimeSinceStartup;
+                lastActivity = clock();
                 if (responseActive || audioStarted) StopSpeech("barge_in");
                 turnSeq++;
                 turnOpen = true;
@@ -291,7 +307,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     {
         if (!turnOpen) return;
         fed += count;
-        lastActivity = Time.realtimeSinceStartup;
+        lastActivity = clock();
         Send(new JObject { ["type"] = "input_audio_buffer.append", ["audio"] = Convert.ToBase64String(data, offset, count) });
     }
 
@@ -326,7 +342,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     {
         if (responseActive) Send(new JObject { ["type"] = "response.cancel" });
         if (audioStarted) ForgeNet.Inject("tts.stop", new JObject { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["reason"] = reason });
-        speechEnd = Time.realtimeSinceStartup;
+        speechEnd = clock();
         responseActive = audioStarted = false;
         // The cancelled reply's tool results still go in, with no reply: the next turn then knows what was done (an artifact made).
         if (ws != null && ws.State == WebSocketState.Open) foreach (var output in pendingOutputs) Send(output);
@@ -350,9 +366,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     void Handle(JObject msg)
     {
         string type = (string)msg["type"] ?? "";
-        // Only a turn or a reply is activity: Grok also sends a message every ~10 s while idle, which kept the old
-        // 120 s idle close from ever firing (the session stayed open, and billed, as long as the app ran).
-        if (type.StartsWith("response.") || type.StartsWith("conversation.item.input_audio")) lastActivity = Time.realtimeSinceStartup;
+        if (CountsAsActivity(type)) lastActivity = clock();
         switch (type)
         {
             case "conversation.item.input_audio_transcription.updated":
@@ -383,7 +397,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                     { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["sample_rate"] = outRate, ["encoding"] = "pcm16", ["channels"] = 1 });
                 }
                 ForgeNet.InjectBinary(pcm, 0, pcm.Length);
-                speechEnd = Mathf.Max(speechEnd, Time.realtimeSinceStartup) + pcm.Length / (outRate * 2f);
+                speechEnd = Mathf.Max(speechEnd, clock()) + pcm.Length / (outRate * 2f);
                 break;
             case "response.output_audio_transcript.delta":
             case "response.audio_transcript.delta":
@@ -430,6 +444,10 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 break;
         }
     }
+
+    // Only a turn or a reply is activity: Grok also sends a message every ~10 s while idle, which kept the old
+    // 120 s idle close from ever firing (the session stayed open, and billed, as long as the app ran).
+    internal static bool CountsAsActivity(string type) => type.StartsWith("response.") || type.StartsWith("conversation.item.input_audio");
 
     void RunTool(string name, string callId, string arguments)
     {
@@ -554,15 +572,13 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     async Task<bool> Connect()
     {
-        ClientWebSocket socket = null;
+        WebSocket socket = null;
         int started = epoch;
         try
         {
-            string token = await AlbieVoiceToken.Fetch();
+            string token = await fetchToken();
             if (started != epoch) return false;  // the headset came off meanwhile
-            socket = new ClientWebSocket();
-            socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
-            await socket.ConnectAsync(new Uri(Url), life.Token);
+            socket = await openSocket(token, life.Token);
             if (started != epoch)
             {
                 socket.Dispose();
@@ -578,7 +594,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 return false;
             }
             ws = socket;
-            lastActivity = Time.realtimeSinceStartup;
+            lastActivity = clock();
             _ = Receive(socket);
             Debug.Log("[AlbieVoice] connected to the voice service from the device.");
             return true;
@@ -591,6 +607,22 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             if (turnOpen || committed) Final("");
             Emit("agent.error", new JObject { ["message"] = "Voice error: can't reach the voice service" }, "idle");
             return false;
+        }
+    }
+
+    static async Task<WebSocket> OpenGrok(string token, CancellationToken cancel)
+    {
+        var socket = new ClientWebSocket();
+        try
+        {
+            socket.Options.SetRequestHeader("Authorization", "Bearer " + token);
+            await socket.ConnectAsync(new Uri(Url), cancel);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
         }
     }
 
@@ -616,10 +648,10 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         },
     };
 
-    Task Raw(ClientWebSocket socket, string text) =>
+    Task Raw(WebSocket socket, string text) =>
         socket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(text)), WebSocketMessageType.Text, true, life.Token);
 
-    async Task Receive(ClientWebSocket socket)
+    async Task Receive(WebSocket socket)
     {
         var buffer = new byte[64 * 1024];
         var message = new MemoryStream();

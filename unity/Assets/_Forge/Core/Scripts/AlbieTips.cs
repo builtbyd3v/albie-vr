@@ -63,11 +63,14 @@ public class AlbieTips : MonoBehaviour
         busy = mode == "listening" || mode == "thinking" || mode == "working" || mode == "speaking";
     }
 
+    // Away, or back less than ResumeQuietS ago. Internal for Forge > Core > Check Lifecycle.
+    internal static bool HeldByLifecycle(bool away, float sinceReturn) => away || sinceReturn < ResumeQuietS;
+
     void Update()
     {
         if (pending == null || busy || Time.realtimeSinceStartup - lastTip < MinGapS) return;
         // Not while the headset is off, nor in the first seconds back (the welcome-back line goes first).
-        if (AppLifecycle.IsAway || Time.realtimeSinceStartup - AppLifecycle.ResumedAt < ResumeQuietS) return;
+        if (HeldByLifecycle(AppLifecycle.IsAway, Time.realtimeSinceStartup - AppLifecycle.ResumedAt)) return;
         if (caption == null)
         {
             var bridge = FindAnyObjectByType<Forge.Pet.AlbieAgentBridge>();
