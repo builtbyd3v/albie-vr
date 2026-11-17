@@ -51,19 +51,24 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
-        "'Make me a slalom' or an obstacle course is artifact_create with template slalom, 'a hoop course' is template hoop_course, " +
-        "'what shipped this week' is template repo_activity; never make up positions, and if the result has say, tell the user that. " +
+        "To make, build or show something, call artifact_create. Use a template when one fits: 'make me a slalom' or an obstacle course is template slalom, " +
+        "'a hoop course' is template hoop_course, 'what shipped this week' is template repo_activity, and the tool lists the others. For anything else, " +
+        "write the manifest and scene yourself in the same call, as the tool's guide says. You choose positions inside the artifact (pos in metres from its " +
+        "centre); you never choose room positions, so never use space room yourself. First say in under eight words what you're building. If the result " +
+        "is invalid, fix every error and call again without talking; when it says stop, say what went wrong and offer the closest template. " +
+        "If the result has say, tell the user that. " +
         "Keep the lab notebook with the notebook_ tools: 'that didn't work' is notebook_mark failed, then ask one question about why; " +
         "comparing versions, like v1 against v2, is notebook_compare, and speak its say line.";
     const string Brevity =
         " Most important rule: every reply is one or two short sentences, 20 words at most, under eight seconds out " +
         "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give " +
-        "only the key point, then offer to say more. If the user asks you to do something (open, close, set, add, " +
-        "remove, show), call the tool for it first and never say it is done without the tool call; then confirm in one " +
+        "only the key point, then offer to say more. If the user asks you to do something (make, build, create, show, open, " +
+        "close, set, add, remove), call the tool for it first and never say it is done without the tool call; then confirm in one " +
         "short sentence, under 10 words.";
     const string BrevityNow =
-        " If the user asked you to do something (open, close, set, add, remove, show), call the tool for it in this reply " +
-        "first; never say it is done without the tool call. Then confirm in one short sentence, under 10 words. A question: " +
+        " If the user asked you to do something (make, build, create, show, open, close, set, add, remove), call the tool for it in this reply " +
+        "first; never say it is done without the tool call, and never say you can't make something before calling artifact_create. " +
+        "Then confirm in one short sentence, under 10 words. A question: " +
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
     static readonly string[] Keyterms =
@@ -249,6 +254,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         if (responseActive) Send(new JObject { ["type"] = "response.cancel" });
         if (audioStarted) ForgeNet.Inject("tts.stop", new JObject { ["pet_id"] = PetId, ["utterance_id"] = utterance, ["reason"] = reason });
         responseActive = audioStarted = false;
+        // The cancelled reply's tool results still go in, with no reply: the next turn then knows what was done (an artifact made).
+        if (ws != null && ws.State == WebSocketState.Open) foreach (var output in pendingOutputs) Send(output);
         pendingOutputs.Clear();
     }
 
@@ -345,17 +352,23 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         catch (JsonException) { args = new JObject(); }
         Emit("agent.tool_call", new JObject { ["call_id"] = callId, ["name"] = name, ["args"] = args }, "thinking");
         int seq = turnSeq;
+        var socket = ws;
         toolsRunning++;
         AlbieTools.CallAsync(name, args, result =>
         {
             toolsRunning--;
-            Debug.Log($"[AlbieVoice] tool {name} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
-            if (seq != turnSeq) return;  // the user moved on to a new turn
-            pendingOutputs.Add(new JObject
+            Debug.Log($"[AlbieVoice] tool {name} call {callId} {args.ToString(Formatting.None)} -> {result.ToString(Formatting.None)}");
+            var output = new JObject
             {
                 ["type"] = "conversation.item.create",
                 ["item"] = new JObject { ["type"] = "function_call_output", ["call_id"] = callId, ["output"] = result.ToString(Formatting.None) },
-            });
+            };
+            if (seq != turnSeq)  // the user moved on to a new turn: the result still goes in (same session only), with no reply
+            {
+                if (socket != null && ws == socket && ws.State == WebSocketState.Open) Send(output);
+                return;
+            }
+            pendingOutputs.Add(output);
             if (!responseActive && toolsRunning == 0) SendToolOutputs();  // a slow tool, after its reply ended
         });
     }
@@ -389,6 +402,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         if (answerDone) return;
         answerDone = true;
         Emit("agent.answer_done", new JObject { ["text"] = text }, "speaking");
+        Debug.Log($"[AlbieVoice] said: {text}");
     }
 
     // An event for the pet, after the pet.state its mode implies (the hub's Emitter does this; only on a change).

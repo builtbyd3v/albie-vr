@@ -89,9 +89,24 @@ namespace Forge.Artifacts
         /// validator passes and this host can build every part; otherwise <paramref name="errors"/> says what to fix, as
         /// data (C-12 section 9). A project or code artifact made while a notebook is open is linked to that project.
         /// </summary>
-        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors)
+        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors) =>
+            FromScene(manifest, scene, out errors, out _, out _);
+
+        /// <summary>
+        /// As above, and then whether it makes physical sense (<see cref="ArtifactPlausibility"/>): its errors refuse the
+        /// save like any other; <paramref name="warnings"/> are saved anyway and go back to the agent; <paramref name="facts"/>
+        /// says what was measured. Only written artifacts are checked this way: templates and opens never are.
+        /// </summary>
+        public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors,
+            out List<ArtifactError> warnings, out string facts)
         {
+            warnings = new List<ArtifactError>();
+            facts = null;
             errors = ArtifactValidator.Validate(manifest, scene);
+            // The folder is the id, so a template's id would overwrite the copy made from that template.
+            if (manifest?["id"]?.Type == JTokenType.String && Array.IndexOf(Templates, (string)manifest["id"]) >= 0)
+                errors.Add(new ArtifactError("bad_value", "id", $"\"{manifest["id"]}\" is a template's id",
+                    $"use a new id, like \"my_{manifest["id"]}\"; to change a template's numbers, call artifact_create with template and inputs", Templates));
             if (errors.Count > 0) return null;
             var missing = ArtifactNodes.Missing(scene);
             if (missing.Count > 0)
@@ -99,8 +114,16 @@ namespace Forge.Artifacts
                 errors.Add(new ArtifactError("cant_build", "scene", "valid, but this version can't build: " + string.Join(", ", missing)));
                 return null;
             }
+            errors.AddRange(DryOpen(manifest, scene));
+            if (errors.Count > 0) return null;
+            var plausible = ArtifactPlausibility.Check(manifest, scene);
+            warnings.AddRange(plausible.Warnings);
+            facts = plausible.Facts;
+            errors.AddRange(plausible.Errors);
+            if (errors.Count > 0) return null;
             manifest = (JObject)manifest.DeepClone();
             scene = (JObject)scene.DeepClone();
+            manifest["scene"] = "scene.json";  // the only file Write saves, so the manifest has to name it
             if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone")
             {
                 if (!(manifest["links"] is JObject)) manifest["links"] = new JObject();
@@ -108,6 +131,77 @@ namespace Forge.Artifacts
                 manifest["links"]["project_version"] = NotebookStore.CurrentVersion();
             }
             return Write(manifest, scene);
+        }
+
+        /// <summary>
+        /// What opening it would refuse, found before it's saved (nothing broken is ever written): every data table must
+        /// load, every gltf asset must be bundled and match its hash, every table array must name real columns, and the
+        /// scene must stay within <see cref="ArtifactSchema.MaxSceneCopies"/> copies. Where a room course is placed is
+        /// left to the open, because it depends on the room. Runs only on a valid scene that this host can build.
+        /// </summary>
+        public static List<ArtifactError> DryOpen(JObject manifest, JObject scene)
+        {
+            var errors = new List<ArtifactError>();
+            var package = ArtifactPackage.InMemory(manifest.Value<string>("id"), manifest, scene);
+            var tables = ArtifactData.Resolve(package, out string dataProblem);
+            if (tables == null)
+                errors.Add(new ArtifactError("no_data", "data", dataProblem,
+                    "use a source that artifact_list names under data_sources; a written artifact can't bring its own data file"));
+            if (ArtifactAssets.Resolve(package, out var assetError) == null)
+            {
+                if (assetError.hint == null && (assetError.code == "asset_missing" || assetError.code == "asset_not_listed"))
+                    assetError.hint = "only models bundled on this headset load, and a written artifact can't bring a .glb: build the shape from primitives";
+                errors.Add(assetError);
+            }
+            if (!(scene["nodes"] is JArray nodes)) return errors;
+
+            int copies = 0;
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                if (!(nodes[i] is JObject node) || node.Value<string>("kind") != "array") continue;
+                if (node["source"] is JObject table)
+                {
+                    if (tables == null) continue;  // already refused above
+                    string problem = ArtifactArray.Problem(node, tables);
+                    if (problem != null) errors.Add(new ArtifactError("unknown_ref", $"nodes[{i}].source", problem, null, Names(tables.Keys)));
+                    else copies += Math.Min(tables[table.Value<string>("table")].Rows.Count, ArtifactSchema.MaxArrayCopies);
+                }
+                else copies += SlotCopies(manifest, scene, node.Value<string>("source"));
+            }
+            if (copies > ArtifactSchema.MaxSceneCopies)
+                errors.Add(new ArtifactError("too_big", "nodes", $"its arrays make up to {copies} copies, over the limit of {ArtifactSchema.MaxSceneCopies} in a scene",
+                    "use fewer rows, a lower max on the input that sets the count, or fewer arrays"));
+            return errors;
+        }
+
+        static string[] Names(IEnumerable<string> keys) => new List<string>(keys).ToArray();
+
+        // The most poses a generator slot can hold: one for start and finish; for a list, the count the generator is asked
+        // for, at the top of its input's range when a slider sets it (the slider can go there without a new layout check).
+        static int SlotCopies(JObject manifest, JObject scene, string source)
+        {
+            int dot = source?.IndexOf('.') ?? -1;
+            if (dot < 0) return 0;
+            if (ArtifactSchema.SingletonSlots.Contains(source.Substring(dot + 1))) return 1;
+            string id = source.Substring(0, dot);
+            if (!(scene["generators"] is JArray generators)) return 0;
+            foreach (var g in generators)
+            {
+                if (g.Value<string>("id") != id) continue;
+                string type = g.Value<string>("type");
+                string key = type == "room_hoops" ? "hoops" : "gates";
+                int fallback = type == "room_hoops" ? RoomHoops.Settings.Default.Hoops : FloorSlalom.Settings.Default.Gates;
+                var count = g["params"]?[key];
+                if (count == null) return fallback;
+                if (count.Type == JTokenType.Integer || count.Type == JTokenType.Float) return (int)Math.Round((double)count);
+                string name = count.Type == JTokenType.String ? ((string)count).TrimStart('$') : null;
+                if (manifest["inputs"] is JArray inputs)
+                    foreach (var input in inputs)
+                        if (input.Value<string>("name") == name)
+                            return (int)Math.Round(input.Value<double?>("max") ?? input.Value<double?>("default") ?? fallback);
+                return fallback;
+            }
+            return 0;
         }
 
         // Same artifact again: unchanged. Different: the next version. Links following a project don't count as different.

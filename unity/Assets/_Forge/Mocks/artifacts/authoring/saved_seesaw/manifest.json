@@ -1,0 +1,21 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "seesaw",
+  "title": "Seesaw",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "runtime": {
+    "type": "scene"
+  },
+  "permissions": {
+    "room": "read"
+  },
+  "scenarios": [
+    {
+      "id": "default",
+      "title": "Default"
+    }
+  ],
+  "scene": "scene.json"
+}

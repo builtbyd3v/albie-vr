@@ -53,6 +53,9 @@ namespace Forge.Artifacts
         /// <summary>Where <see cref="ComeToUser"/> put the host, for Albie to say ("It's on the table to your right."), or null
         /// when it stands straight ahead in the air as always and there's nothing to point out.</summary>
         public string PlacementNote { get; private set; }
+        /// <summary>In the app, where a room course starts from where the person stands ("The course starts behind you, about
+        /// 3 m away."), shown at the top of its scoreboard and said by Albie; null in the sandboxes and for other scenes.</summary>
+        public string CourseNote { get; private set; }
         /// <summary>Everything the open scene put in the world outside the host: its panel and any room course on the floor.</summary>
         public IReadOnlyList<GameObject> Spawned => spawned;
         /// <summary>The open artifact's data tables (C-12 section 7). Empty when it reads none.</summary>
@@ -257,6 +260,12 @@ namespace Forge.Artifacts
 
         public ArtifactInputs Inputs => build?.Inputs;
 
+        /// <summary>The open scene's content root, or null. A room scene's is not under this host (it stands on the floor).</summary>
+        public Transform ContentRoot => build?.Root;
+
+        /// <summary>True while the open scene is still growing in (<see cref="ForgeTheme.UnfoldTime"/> after it was shown).</summary>
+        public bool Revealing => reveal != null;
+
         /// <summary>The open scene's rules, for nodes that act on them.</summary>
         public JToken Rules => open?.Scene["rules"];
 
@@ -293,6 +302,7 @@ namespace Forge.Artifacts
             LastLayout = null;
             LayoutMessage = null;
             DataMessage = null;
+            CourseNote = null;
             LayoutReused = false;
             AwaitingApproval = false;
         }
@@ -362,9 +372,14 @@ namespace Forge.Artifacts
             PlacePanel(panel.transform, at);
         }
 
+        /// <summary>A panel button was pressed, by its id, before its rules run. The brain truck listens for the slalom's
+        /// "drive_lap" and "albie_drives", so the course works with no voice.</summary>
+        public event System.Action<string> Fired;
+
         /// <summary>A button was pressed: run its <c>on_input</c> rules.</summary>
         public void Fire(string input)
         {
+            Fired?.Invoke(input);
             if (!(open?.Scene["rules"] is JArray rules)) return;
             foreach (var rule in rules)
                 if (rule.Value<string>("type") == "on_input" && rule.Value<string>("input") == input && rule["do"] is JArray actions)
@@ -510,6 +525,7 @@ namespace Forge.Artifacts
                 LayoutReused = placement.Reused;
                 courseOrigin = placement.Origin;
                 slots = placement.Slots;
+                if (room && FollowsUser) CourseNote = WhereIsCourse(courseOrigin.position);
                 CollectInputs(generators[0]["params"], generatorInputs);
                 Emit("artifact.layout", new JObject
                 {
@@ -696,7 +712,17 @@ namespace Forge.Artifacts
                 }, ArtifactInputs.IsBound(pos) || ArtifactInputs.IsBound(rot) || ArtifactInputs.IsBound(scale));
             }
             else if (n["pos"] != null) PlacePanel(go.transform, build.Inputs.Vector(n["pos"], panelOffset));
-            else if (open.Scene.Value<string>("space") == "room") PlaceBesideCourse(go.transform);
+            else if (open.Scene.Value<string>("space") == "room")
+            {
+                // In the app the course goes where the floor is free, often beside or behind the person, so its
+                // scoreboard comes to them like any artifact's panel, and says where the course is (CourseNote).
+                if (FollowsUser && go.TryGetComponent<ForgePanel>(out var board))
+                {
+                    PlacePanel(go.transform, panelOffset);
+                    KeepAboveBase(board);
+                }
+                else PlaceBesideCourse(go.transform);
+            }
             if (n.Value<bool?>("visible") == false) go.SetActive(false);
         }
 
@@ -706,6 +732,23 @@ namespace Forge.Artifacts
             panel.localPosition = offset;
             var cam = Camera.main;
             if (cam != null) panel.rotation = Quaternion.LookRotation(panel.position - cam.transform.position);
+        }
+
+        // "The course starts behind you, about 3 m away." From the eyes, flat on the floor: ahead within 35 degrees,
+        // behind past 110, else to a side. Null with no camera.
+        static string WhereIsCourse(Vector3 start)
+        {
+            var cam = Camera.main;
+            if (cam == null) return null;
+            var eye = cam.transform;
+            var ahead = Vector3.ProjectOnPlane(eye.forward, Vector3.up);
+            var to = Vector3.ProjectOnPlane(start - eye.position, Vector3.up);
+            if (ahead.sqrMagnitude < 1e-4f || to.sqrMagnitude < 1e-4f) return null;
+            float angle = Vector3.SignedAngle(ahead, to, Vector3.up);  // + is to the right
+            float a = Mathf.Abs(angle);
+            string where = a <= 35f ? "in front of you" : a > 110f ? "behind you" : angle > 0f ? "to your right" : "to your left";
+            int metres = Mathf.Max(1, Mathf.RoundToInt(to.magnitude));
+            return $"The course starts {where}, about {metres} m away. The truck waits in the green box.";
         }
 
         // A course's scoreboard stands beside the start at chest height, on whichever side is free floor (never in a

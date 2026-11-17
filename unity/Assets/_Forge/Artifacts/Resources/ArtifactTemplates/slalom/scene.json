@@ -121,8 +121,8 @@
       "widgets": [
         {
           "type": "note",
-          "text": "Drive the truck through the gates to set a time.",
-          "after_run": "Drive the gates again to beat your time."
+          "text": "1. Drive the truck through the gates: pinch to go, tilt your hand to steer.\n2. Do two clean laps.\n3. Then let Albie learn from them and drive it himself.",
+          "after_run": "Two clean laps, then let Albie learn from them and drive it himself."
         },
         {
           "type": "stat",
@@ -158,8 +158,18 @@
         },
         {
           "type": "button",
+          "id": "drive_lap",
+          "label": "Drive a lap"
+        },
+        {
+          "type": "button",
+          "id": "albie_drives",
+          "label": "Let Albie drive"
+        },
+        {
+          "type": "button",
           "id": "rerun",
-          "label": "Start a run"
+          "label": "Reset"
         }
       ]
     }
@@ -196,6 +206,26 @@
         {
           "run": "reset"
         },
+        {
+          "set": "time_label.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "drive_lap",
+      "do": [
+        {
+          "set": "time_label.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "albie_drives",
+      "do": [
         {
           "set": "time_label.visible",
           "value": false

@@ -1,0 +1,216 @@
+{
+ "note": "Review fixture: a rope line drawn from a 2 mm hook sphere to the seat. The hook is the line's anchor, not a part too small to see.",
+ "expect": {
+  "errors": []
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_swing_ok",
+  "title": "Swing Set",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 6
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+   {
+    "name": "push",
+    "type": "number",
+    "min": 5,
+    "max": 60,
+    "default": 30,
+    "label": "Push"
+   }
+  ],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.3
+  },
+  "nodes": [
+   {
+    "id": "ground",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.5,
+     0.01,
+     0.2
+    ],
+    "pos": [
+     0,
+     -0.2,
+     0
+    ],
+    "color": "#6D8B3A"
+   },
+   {
+    "id": "leg_l",
+    "kind": "primitive",
+    "parent": "ground",
+    "shape": "box",
+    "size": [
+     0.02,
+     0.4,
+     0.02
+    ],
+    "pos": [
+     -0.2,
+     0.205,
+     0
+    ],
+    "color": "#795548"
+   },
+   {
+    "id": "leg_r",
+    "kind": "primitive",
+    "parent": "ground",
+    "shape": "box",
+    "size": [
+     0.02,
+     0.4,
+     0.02
+    ],
+    "pos": [
+     0.2,
+     0.205,
+     0
+    ],
+    "color": "#795548"
+   },
+   {
+    "id": "bar",
+    "kind": "primitive",
+    "parent": "ground",
+    "shape": "box",
+    "size": [
+     0.44,
+     0.02,
+     0.02
+    ],
+    "pos": [
+     0,
+     0.415,
+     0
+    ],
+    "color": "#795548"
+   },
+   {
+    "id": "swing",
+    "kind": "sim",
+    "parent": "bar",
+    "solver": "pendulum",
+    "pos": [
+     0,
+     0,
+     0
+    ],
+    "bodies": [
+     {
+      "node": "seat",
+      "length": 0.25,
+      "angle": "$push",
+      "mass": 1
+     }
+    ],
+    "params": {
+     "g": 9.81,
+     "damping": 0.02
+    }
+   },
+   {
+    "id": "seat",
+    "kind": "primitive",
+    "parent": "swing",
+    "shape": "box",
+    "size": [
+     0.08,
+     0.01,
+     0.05
+    ],
+    "color": "#F44336"
+   },
+   {
+    "id": "hook",
+    "kind": "primitive",
+    "parent": "swing",
+    "shape": "sphere",
+    "size": [
+     0.002,
+     0.002,
+     0.002
+    ]
+   },
+   {
+    "id": "rope",
+    "kind": "line",
+    "parent": "swing",
+    "through": [
+     "hook",
+     "seat"
+    ],
+    "width": 0.004,
+    "color": "#DDDDDD"
+   },
+   {
+    "id": "ui",
+    "kind": "panel",
+    "title": "Swing",
+    "widgets": [
+     {
+      "type": "slider",
+      "input": "push"
+     },
+     {
+      "type": "button",
+      "id": "go",
+      "label": "Restart"
+     }
+    ]
+   }
+  ],
+  "rules": [
+   {
+    "type": "on_input",
+    "input": "go",
+    "do": [
+     {
+      "sim": "swing",
+      "action": "restart"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -126,7 +126,23 @@ namespace Forge.Artifacts
             brain.Park();
             host.Shown += brain.OnHostShown;
             host.Closed += brain.OnHostClosed;
+            host.Fired += brain.OnHostButton;
             return brain;
+        }
+
+        // The slalom panel's own buttons, so the course works with no voice and no keys.
+        // "drive_lap": one lap by hand. "albie_drives": train on the laps there are and hand over to the Autopilot; with
+        // fewer than 2 completed laps it first asks for the ones still missing, then goes on by itself.
+        void OnHostButton(string input)
+        {
+            if (Hidden) return;
+            if (input == "drive_lap") RecordLap();
+            else if (input == "albie_drives")
+            {
+                if (State != Mode.Idle) { Status = "busy: " + State.ToString().ToLowerInvariant(); return; }
+                if (CompletedLaps < 2) Record(2 - CompletedLaps, true);
+                else chainAutopilot = Train() == null;
+            }
         }
 
         void OnEnable() => BrainLoops.Register(this);
@@ -138,6 +154,7 @@ namespace Forge.Artifacts
             if (host == null) return;
             host.Shown -= OnHostShown;
             host.Closed -= OnHostClosed;
+            host.Fired -= OnHostButton;
             if (ReferenceEquals(host.Thing, Scored)) host.Thing = null;
         }
 

@@ -27,6 +27,7 @@ from agent import ws as agent_ws
 from agent.app import health_fields as agent_health, load_env
 from agent.watcher import watcher as proactive
 from agent.workspace import workspace as views
+from artifacts import router as artifacts_router
 from cad import tools as cad_tools
 from cad.router import router as cad_router
 from cad.service import CadService, watch_script
@@ -146,6 +147,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.include_router(desk_router)
     app.include_router(demo_router)  # laptop remote for the scripted video demo: /demo
     app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
+    app.include_router(artifacts_router)  # POST /artifacts/review: advisory Jev review of a new artifact
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket):
