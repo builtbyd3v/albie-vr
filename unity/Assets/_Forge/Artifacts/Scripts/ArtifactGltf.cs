@@ -18,6 +18,7 @@ namespace Forge.Artifacts
     public sealed class ArtifactGltf : MonoBehaviour
     {
         public bool Loaded { get; private set; }
+        public ArtifactExplorer Explorer { get; private set; }
         /// <summary>Why the model didn't load, or null.</summary>
         public string Problem { get; private set; }
         public Task<bool> Loading { get; private set; }
@@ -59,6 +60,8 @@ namespace Forge.Artifacts
                 if (texture != null && Mathf.Max(texture.width, texture.height) > ArtifactSchema.MaxTextureSize)
                     Debug.LogWarning($"[Artifacts] {name}: a {texture.width}x{texture.height} texture is over {ArtifactSchema.MaxTextureSize} px");
             }
+            Explorer = holder.AddComponent<ArtifactExplorer>();
+            Explorer.Initialize();
             Loaded = true;
             if (host != null) host.ModelLoaded();
             return true;
