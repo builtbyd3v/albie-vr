@@ -12,9 +12,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import ssl
 from urllib.parse import quote
 
 import aiohttp
+import certifi
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -25,7 +27,6 @@ _MAX_FILE = 256_000
 _MAX_PATCH = 8_000
 
 _owned: dict[str, dict] = {}  # "owner/name" in lower case -> the repo as GitHub returned it
-current_repo = ""  # the repo the device last read: what "this repo" means to Albie's tools
 
 
 class Source(BaseModel):
@@ -108,6 +109,10 @@ class Done(BaseModel):
     note: str = ""
 
 
+# python.org's macOS builds ship no CA bundle, so verify against certifi's, as the Slack client does.
+_SSL = ssl.create_default_context(cafile=certifi.where())
+
+
 def _token() -> str:
     return os.environ.get("GITHUB_TOKEN", "")
 
@@ -153,6 +158,7 @@ def _session() -> aiohttp.ClientSession:
             "User-Agent": "albie-hub/1",
         },
         timeout=aiohttp.ClientTimeout(total=10),
+        connector=aiohttp.TCPConnector(ssl=_SSL),
     )
 
 
@@ -302,9 +308,9 @@ async def merge_pr(owner: str, repo: str, number: int) -> Done:
     return Done(ok=bool(data.get("merged")), note=str(data.get("message") or f"Pull request #{number} merged."))
 
 
-def _seen(owner: str, repo: str) -> None:
-    global current_repo
-    current_repo = f"{owner}/{repo}"
+def _seen(request: Request, owner: str, repo: str) -> None:
+    # Per app, not per process: the cloud runs one app per headset, and "this repo" is that headset's.
+    request.app.state.code_repo = f"{owner}/{repo}"
 
 
 def _confirmed(request: Request, body: Confirm) -> None:
@@ -323,9 +329,9 @@ async def sources() -> Sources:
 
 
 @router.get("/{owner}/{repo}/tree", response_model=Tree)
-async def tree(owner: str, repo: str, path: str = "") -> Tree:
+async def tree(request: Request, owner: str, repo: str, path: str = "") -> Tree:
     out = await read_tree(owner, repo, path)
-    _seen(owner, repo)
+    _seen(request, owner, repo)
     return out
 
 

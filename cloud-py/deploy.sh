@@ -22,7 +22,7 @@ hf repos create "$SPACE" --type space --sdk docker --flavor cpu-upgrade --sleep-
 # The key goes in on stdin, never on the command line or in the log.
 printf 'ALBIE_APP_KEY=%s\n' "$APP_KEY" | hf spaces secrets add "$SPACE" --secrets-file -
 
-git archive HEAD hub/cad hub/ml hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
+git archive HEAD hub/cad hub/ml hub/code_browser hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
   | tar -x -C "$STAGE"
 cp cloud-py/Dockerfile "$STAGE/Dockerfile"
 cat > "$STAGE/README.md" <<'EOF'
@@ -32,7 +32,7 @@ sdk: docker
 app_port: 8080
 pinned: false
 ---
-CAD and small ML training for the Albie headset app. Every request needs the app key.
+CAD, small ML training and the GitHub code browser for the Albie headset app. Every request needs the app key.
 EOF
 hf upload "$SPACE" "$STAGE" . --repo-type space --delete "*" --commit-message "Deploy $(git rev-parse --short HEAD)"
 
