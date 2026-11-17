@@ -21,6 +21,11 @@ hf repos create "$SPACE" --type space --sdk docker --flavor cpu-basic --no-priva
   || echo "create skipped (a token scoped to this Space can't create repos; fine when it exists)"
 # The key goes in on stdin, never on the command line or in the log.
 printf 'ALBIE_APP_KEY=%s\n' "$APP_KEY" | hf spaces secrets add "$SPACE" --secrets-file -
+# Optional: the demo GitHub account's token, for the code panel and ml_publish (a project's pull request).
+# CI passes ALBIE_GITHUB_TOKEN; unset leaves whatever the Space already has.
+if [ -n "${ALBIE_GITHUB_TOKEN:-}" ]; then
+  printf 'GITHUB_TOKEN=%s\n' "$ALBIE_GITHUB_TOKEN" | hf spaces secrets add "$SPACE" --secrets-file -
+fi
 
 git archive HEAD hub/cad hub/ml hub/code_browser hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
   | tar -x -C "$STAGE"

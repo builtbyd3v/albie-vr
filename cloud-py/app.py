@@ -284,6 +284,8 @@ class Device:
                 result = await self.ml_tools.call(name, args)
                 if name in ("ml_open", "ml_train", "ml_apply") or (name == "ml_github" and args.get("confirm") is True):
                     shown.append("ml")
+                elif name == "ml_publish" and result.get("status") == "opened":
+                    shown.append("code")  # the new pull request, in the code panel
             elif name in CODE_TOOLS:
                 result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
             else:

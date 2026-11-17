@@ -92,6 +92,16 @@ Fashion-MNIST 85% in 18 s; CNN on CIFAR-10 49% in 17 s; Transformer on AG News 7
 took that to 73%. Uncached, the Transformer on Yelp 5-star (downloaded live) was 44% in 60 s.
 Not yet: regression, time series, tabular data, object detection; Albie says so.
 
+**On GitHub (`ml_publish`):** "push it to GitHub" or "create a PR", or `publish: true` on `ml_new` ("start an RNN
+project and make a PR"), in which case Albie asks once training is done. The first call posts nothing; it says the
+repo and branch, and Albie asks. After a yes (`confirm: true`) `github_publish.py` makes one branch
+(`albie/<project folder>`), one commit with the project under `projects/<project folder>/`, and one pull request, then
+the code panel opens on it. The repo is `FORGE_ML_PUBLISH_REPO`, else `<token account>/albie-ml-projects` (created the
+first time). In: the code, `project.json`, `.forge/`, a README with the run's results epoch by epoch, the data if
+it's small (text), else `download_data.py` (with a copy of `hf_data.py`) fetches the same sample again. Needs
+`GITHUB_TOKEN` (the demo account's, as for the code panel): on the cloud, the `ALBIE_GITHUB_TOKEN` Actions secret,
+which the deploy sets as the Space's `GITHUB_TOKEN`.
+
 "What can I do better?" on one of these: Claude writes the change (the proxy on the cloud), and the cloud's free
 fallback (`cloud-py/text_improve.py`) regularizes an overfitting project or trains a close one twice as long.
 

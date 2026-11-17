@@ -126,6 +126,8 @@ def build(p: dict[str, Any], root: Path, progress: Callable[[str], None] = lambd
     dest = _folder(Path(root), p["slug"])
     template = TEMPLATES / ("text" if p["task"] == "text_classification" else "image")
     shutil.copytree(template, dest, ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copy2(TEMPLATES / "common" / "download_data.py", dest / "download_data.py")
+    shutil.copy2(Path(hf_data.__file__), dest / "hf_data.py")  # so download_data.py works in a clone of the PR
     try:
         got = hf_data.fetch(layout, dest, p["rows"]["train"], p["rows"]["val"], progress)
         classes = got["classes"]
@@ -134,7 +136,8 @@ def build(p: dict[str, Any], root: Path, progress: Callable[[str], None] = lambd
                    "columns": {"input": layout.input, "label": layout.label},
                    "splits": {"train": layout.train_split, "val": layout.val_split or f"{layout.train_split} (held out)"},
                    "rows": {"train": got["train"], "val": got["val"]}, "train_counts": got["counts"],
-                   "created_at": time.time(), "notes": layout.notes}
+                   "created_at": time.time(), "notes": layout.notes,
+                   "layout": layout.to_dict(), "sample": {**p["rows"], "seed": 7}}
         if p["task"] == "text_classification":
             project.update(max_len=128, lr=2e-3)
         else:
