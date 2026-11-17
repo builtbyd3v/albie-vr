@@ -207,8 +207,26 @@ namespace Forge.Demo.Editor
             yield return 1f;
             Shot("director_end");
 
-            // ---- the laptop remote
+            // ---- a recorded line: the clip plays and the mouth follows its loudness (no WAVs exist until the content station records them)
             d.forceAdvanceSeconds = 0f;
+            const int rate = 24000;
+            var tone = AudioClip.Create("demo_test_tone", rate * 2, 1, rate, false);
+            var data = new float[rate * 2];
+            for (int i = 0; i < data.Length; i++)
+                data[i] = Mathf.Sin(2f * Mathf.PI * 220f * i / rate) * 0.5f * Mathf.Abs(Mathf.Sin(i * Mathf.PI * 3f / rate));
+            tone.SetData(data, 0);
+            d.Voice.Say("A recorded line, with its audio.", tone, "demo_test_tone");
+            float peak = 0f;
+            double toneEnd = EditorApplication.timeSinceStartup + 4;
+            while (d.Voice.Speaking && EditorApplication.timeSinceStartup < toneEnd)
+            {
+                peak = Mathf.Max(peak, d.Voice.Level);
+                yield return 0.05f;
+            }
+            Check(!d.Voice.Speaking, "a recorded line ends when its clip does");
+            Check(peak > 0.05f, "a recorded line: the mouth follows the clip's loudness (peak " + peak.ToString("F2") + ")");
+
+            // ---- the laptop remote
             ForgeNet.Inject("demo.reset", new JObject());
             yield return 0.6f;
             Check(d.Armed, "demo.reset: armed at B0 again");
@@ -230,8 +248,10 @@ namespace Forge.Demo.Editor
             yield return 2.5f;
             d.PressPalm();
             double wait = EditorApplication.timeSinceStartup + 20;
-            while (EditorApplication.timeSinceStartup < wait && !(d.BeatId == "B1" && d.BeatRunning && d.Voice.EndedAt > 0f && !d.Voice.Speaking)) yield return 0.2f;
-            yield return 1.2f;   // past the echo guard
+            while (EditorApplication.timeSinceStartup < wait && !(d.BeatId == "B1" && d.LinesDone)) yield return 0.2f;
+            Check(d.BeatId == "B1" && d.LinesDone, "B1: Albie landed on the hand and said his line (albie.on_hand)");
+            Shot("director_B1_landed");
+            yield return 1.3f;   // past the echo guard
             ForgeNet.Inject("stt.final", new JObject { ["text"] = "Let's open up the drone we built yesterday.", ["voice"] = true });
             yield return 2.5f;
             Check(d.BeatId == "B2" && d.BeatRunning, "a final transcript after Albie's line moves B1 on to B2 (" + d.BeatId + ")");

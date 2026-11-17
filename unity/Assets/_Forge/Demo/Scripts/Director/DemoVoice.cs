@@ -80,12 +80,15 @@ namespace Forge.Demo
             }
         }
 
-        public void Say(string line, string clipName)
+        public void Say(string line, string clipName) =>
+            Say(line, string.IsNullOrEmpty(clipName) ? null : Resources.Load<AudioClip>("DemoAudio/" + clipName), clipName);
+
+        /// <summary>Says a line with a clip already in hand (null: caption only, a wait of SecondsPerChar per character).</summary>
+        public void Say(string line, AudioClip clip, string clipName = null)
         {
             Stop(false);
             text = line ?? "";
             LastText = text;
-            AudioClip clip = string.IsNullOrEmpty(clipName) ? null : Resources.Load<AudioClip>("DemoAudio/" + clipName);
             hasClip = clip != null;
             float pitch = Mathf.Clamp(VoicePitch, 0.75f, 1.6f);
             if (hasClip)

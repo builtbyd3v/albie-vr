@@ -95,6 +95,8 @@
         { "text": "Tracking you. I'll stay two meters back.", "audio": "b6_tracking", "after": "drone.following", "delay": 0.6, "timeout": 16 }
       ],
       "cues": [
+        { "at": 0.2, "action": "research.close" },
+        { "at": 0.2, "action": "pipeline.close" },
         { "at": 1.5, "action": "drone.follow_start", "args": { "distance": 2.0 } },
         { "after": "drone.following", "delay": 0.3, "timeout": 16, "action": "dronecam.show" }
       ],
