@@ -158,7 +158,7 @@ namespace Forge.OS
                 title = title,
                 icon = icon,
                 tab = OSTab.Projects,
-                status = () => statusById.TryGetValue(captured, out string s) ? s : "not started",
+                status = () => statusById.TryGetValue(captured, out string s) ? s : "Ready to start",
                 isOpen = () => NotebookStore.IsOpen && NotebookStore.ProjectId == captured,
                 open = () => OpenProject(captured),
             });
@@ -236,7 +236,7 @@ namespace Forge.OS
                     break;
                 }
             }
-            return parts.Count == 0 ? "not started" : string.Join(" · ", parts);
+            return parts.Count == 0 ? (FindStarter(id) != null ? "Ready to start" : "not started") : string.Join(" · ", parts);
         }
 
         /// <summary>A run record's outcome as a word for a status line.</summary>

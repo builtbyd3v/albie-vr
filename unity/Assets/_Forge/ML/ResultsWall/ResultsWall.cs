@@ -165,7 +165,7 @@ namespace Forge.ML
         void OnReloaded() { if (selected >= session.Data.samples.Length) selected = -1; report = MLReport.Build(session); Refresh(); if (tab != Tab.Images) DrawPage(); }
         void UpdateRunLabel()
         {
-            runLabel.text = $"{(string.IsNullOrEmpty(session.RunId) ? "Demo run" : "Run " + session.RunId)}  ·  {report.evaluated + report.pending:N0} images  ·  {report.classes} classes".ToUpperInvariant();
+            runLabel.text = $"{(string.IsNullOrEmpty(session.RunId) ? "Demo run" : session.RunId == "on-device" ? "On-device · held-out" : "Run " + session.RunId)}  ·  {report.evaluated:N0} scored  ·  {report.classes} classes".ToUpperInvariant();
         }
 
         // Open the Images tab on one class (from Overview, Classes or the Images card).
