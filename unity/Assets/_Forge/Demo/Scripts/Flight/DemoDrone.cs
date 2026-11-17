@@ -509,8 +509,18 @@ namespace Forge.Demo
                 steer = head + Quaternion.AngleAxis(sign * 60f, Vector3.up) * toPos.normalized * Mathf.Max(1.5f, Mathf.Min(followDistance, toPos.magnitude + 0.3f));
                 steer.y = goal.y;
             }
+            Vector3 before = pos;
             pos = Vector3.SmoothDamp(pos, steer, ref vel, smoothTime, speedLimit, dt);
             pos += repel * dt;
+            // Near something and in the clear: don't step into it, slide along it instead.
+            if (nearObstacle && freeHere && room != null && !room.Free(pos, 0.15f))
+            {
+                Vector3 tx = new Vector3(pos.x, pos.y, before.z), tz = new Vector3(before.x, pos.y, pos.z);
+                if (room.Free(tx, 0.15f)) pos = tx;
+                else if (room.Free(tz, 0.15f)) pos = tz;
+                else pos = new Vector3(before.x, pos.y, before.z);
+                vel *= 0.5f;
+            }
             // And never inside 1.1 m of the head, whatever else is going on.
             Vector3 away = pos - head; away.y = 0f;
             float flat = away.magnitude;
@@ -541,7 +551,7 @@ namespace Forge.Demo
             if (room != null) y = Mathf.Clamp(y, room.FloorY + minAltitude, Mathf.Max(room.FloorY + minAltitude, room.Ceiling - 0.3f));
             Vector3 ideal = head + forward * dist;
             ideal.y = y;
-            if (room == null || room.Free(ideal, wallClearance)) return ideal;
+            if (room == null || (room.Free(ideal, wallClearance) && LineClear(pos, ideal))) return ideal;
 
             Vector3 best = ideal;
             float bestCost = float.MaxValue;
@@ -556,23 +566,40 @@ namespace Forge.Demo
                     c.y = y;
                     if (!room.Free(c, wallClearance)) continue;
                     float cost = Mathf.Abs(ang) * 0.012f + ri * 1.2f + (c - pos).magnitude * 0.25f;
+                    if (!LineClear(pos, c)) cost += 4f;   // prefer a spot it can fly straight to: the way round furniture
                     if (cost < bestCost) { bestCost = cost; best = c; found = true; }
                 }
             }
             return found ? best : ideal;
         }
 
+        /// <summary>True when a straight flight from a to b stays clear of walls and furniture (tested every 0.3 m, 15 cm clearance).</summary>
+        bool LineClear(Vector3 a, Vector3 b)
+        {
+            if (room == null) return true;
+            Vector3 d = b - a; d.y = 0f;
+            float len = d.magnitude;
+            int n = Mathf.Min(14, Mathf.CeilToInt(len / 0.3f));
+            for (int i = 1; i < n; i++)
+                if (!room.Free(Vector3.Lerp(a, b, i / (float)n), 0.15f)) return false;
+            return true;
+        }
+
         /// <summary>Pushes away from walls and furniture within about 40 cm of the drone. Eight probes, ten times a second.</summary>
         Vector3 Avoid()
         {
+            nearObstacle = false;
             if (room == null) return Vector3.zero;
             Vector3 push = Vector3.zero;
             for (int i = 0; i < 8; i++)
-                if (!room.Free(pos + Probe[i] * 0.4f, 0.05f)) push -= Probe[i];
-            if (!room.Free(pos, 0.2f)) push += (goal - pos).normalized * 1.5f;
+                if (!room.Free(pos + Probe[i] * 0.45f, 0.05f)) { push -= Probe[i]; nearObstacle = true; }
+            freeHere = room.Free(pos, 0.15f);
+            if (!freeHere) { push += (goal - pos).normalized * 1.5f; nearObstacle = true; }
             if (push.sqrMagnitude < 1e-4f) return Vector3.zero;
-            return push.normalized * 0.7f;
+            return push.normalized * 1.4f;
         }
+
+        bool nearObstacle, freeHere = true;
 
         void TickReturn(float dt)
         {
