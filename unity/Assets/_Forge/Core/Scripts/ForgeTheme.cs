@@ -44,19 +44,26 @@ public static class ForgeTheme
     public const float UnfoldScale = 0.04f;  // a panel's scale as it leaves (and goes back into) the ring
 
     // Graphite panels.
-    public static readonly Color PanelTop = new Color32(33, 36, 42, 245);
-    public static readonly Color PanelBottom = new Color32(19, 21, 25, 245);
-    public static readonly Color PanelText = new Color(1f, 1f, 1f, 0.95f);
-    public static readonly Color PanelSubtext = new Color(1f, 1f, 1f, 0.5f);
+    // Matched to the Albie OS menu (the UI Set backplate as measured in a screenshot: top #3A3C40, bottom #252629, opaque),
+    // so the older windows and the new ones sit on the same plate. Was 33,36,42 / 19,21,25 at alpha 245, text 0.95, subtext 0.5, corner 26.
+    // Keep in step with Resources/ForgeLook/PanelSurface.mat (_Top, _Bottom), which draws the plate.
+    public static readonly Color PanelTop = new Color32(58, 60, 64, 255);
+    public static readonly Color PanelBottom = new Color32(37, 38, 41, 255);
+    public static readonly Color PanelText = new Color(1f, 1f, 1f, 1f);
+    public static readonly Color PanelSubtext = new Color(1f, 1f, 1f, 0.72f);
     public static readonly Color Hairline = new Color(1f, 1f, 1f, 0.07f);
-    public const float PanelCorner = 26f, PanelHeader = 64f, PanelInset = 18f;
+    public const float PanelCorner = 24f, PanelHeader = 64f, PanelInset = 18f;
 
     // Horizon-style pills: dim when off, near-white with dark text when on.
     public static readonly Color PillOff = new Color(1f, 1f, 1f, 0.10f);
     public static readonly Color PillOffHover = new Color(1f, 1f, 1f, 0.18f);
-    public static readonly Color PillOffText = new Color(1f, 1f, 1f, 0.85f);
-    public static readonly Color PillOn = new Color(1f, 1f, 1f, 0.92f);
-    public static readonly Color PillOnText = Hex(0x1C1E21);
+    // The on pill and its dark text are the OS primary button: solid white, dark text #272727 (the OS theme's inverted text colour).
+    // Was off text 0.85, on 0.92, on text #1C1E21.
+    public static readonly Color PillOffText = new Color(1f, 1f, 1f, 1f);
+    // Lit quiet pill (title bar): a dark-grey tint so the white label keeps >= 4.5:1 on the dark header.
+    public static readonly Color PillQuietOn = new Color(1f, 1f, 1f, 0.13f);
+    public static readonly Color PillOn = new Color(1f, 1f, 1f, 1f);
+    public static readonly Color PillOnText = new Color32(39, 39, 39, 255);
     public const float PillHeight = 30f, PillText = 13f;
 
     // Handles: white bars that glow brighter while pointed at or held.
@@ -81,6 +88,48 @@ public static class ForgeTheme
     public static Material RingLight => ring != null ? ring : ring = Load<Material>("NeonRing");
     /// <summary>UI material for graphite panel backgrounds (rounded, gradient, rim light).</summary>
     public static Material PanelSurface => panel != null ? panel : panel = Load<Material>("PanelSurface");
+
+    // ---- Dark text on a light fill ----
+    // An SDF font drawn dark on a light fill looks thinner than the same font drawn white on a dark one (the light fill bleeds
+    // into the strokes and anti-aliasing is blended in display space), so a dark label gets a font material with a little face
+    // dilation. One material per font, made on first use and shared by every label.
+    /// <summary>Face dilate added to a dark-on-light label of body size, 20 OS units or so (TextMeshPro units, -1 to 1). Measured in OSMenuTest.</summary>
+    public const float DarkLabelDilate = 0.4f;
+    /// <summary>The same for the small pill labels of the older windows (13 mm or so), where 0.4 would clog the letters.</summary>
+    public const float DarkPillDilate = 0.15f;
+
+    static readonly System.Collections.Generic.Dictionary<(TMP_FontAsset, int), Material> heavyMaterials =
+        new System.Collections.Generic.Dictionary<(TMP_FontAsset, int), Material>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetHeavy()
+    {
+        foreach (var m in heavyMaterials.Values) if (m != null) Object.Destroy(m);
+        heavyMaterials.Clear();
+    }
+
+    /// <summary>
+    /// Draws a label for a dark-on-light fill (<paramref name="dark"/> true) with a heavier face, or back with the font's own
+    /// material (false). Safe to call every time a button changes state; it only swaps a shared material.
+    /// </summary>
+    public static void DarkOnLight(TMP_Text label, bool dark, float dilate = DarkLabelDilate)
+    {
+        if (label == null || label.font == null) return;
+        TMP_FontAsset font = label.font;
+        if (!dark)
+        {
+            if (label.fontSharedMaterial != font.material) label.fontSharedMaterial = font.material;
+            return;
+        }
+        var key = (font, Mathf.RoundToInt(dilate * 1000f));
+        if (!heavyMaterials.TryGetValue(key, out Material heavy) || heavy == null)
+        {
+            heavy = new Material(font.material) { name = font.name + " Heavy " + dilate.ToString("0.00"), hideFlags = HideFlags.DontSave };
+            heavy.SetFloat(ShaderUtilities.ID_FaceDilate, dilate);
+            heavyMaterials[key] = heavy;
+        }
+        if (label.fontSharedMaterial != heavy) label.fontSharedMaterial = heavy;
+    }
 
     /// <summary>A mode's white dock icon (Resources/ForgeLook/DockIcons/{modeId}.svg, imported as a sprite), or null.</summary>
     public static Sprite DockIcon(string modeId) => Resources.Load<Sprite>("ForgeLook/DockIcons/" + modeId);

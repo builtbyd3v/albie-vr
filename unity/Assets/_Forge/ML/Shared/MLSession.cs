@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using Newtonsoft.Json;
 using UnityEngine;
 
@@ -95,7 +96,7 @@ namespace Forge.ML
         public string Notice { get; private set; }
         // POST /ml/train sent, no answer yet. Train ignores presses until it clears, or while a run trains.
         public bool TrainPending { get; private set; }
-        public bool TrainBusy => TrainPending || (IsLive && RunStatus == "training");
+        public bool TrainBusy => TrainPending || offlineTraining || (IsLive && RunStatus == "training");
         // Live hub with ML, but the open repo has no image dataset (no classes/atlas): the image panels sit out.
         public bool NoImageData { get; private set; }
         public event Action Changed;
@@ -113,7 +114,7 @@ namespace Forge.ML
         MLReplayEvent[] timeline;
         int[] atlasCells;
         int nextEvent;
-        bool ownsAtlas, loading, reloadQueued, importPending;  // importPending: POST /ml/github/import sent, no answer yet
+        bool ownsAtlas, loading, reloadQueued, importPending, offlineTraining;  // importPending: POST /ml/github/import sent, no answer yet
         string atlasUrl;
         IDisposable epochPreds, metricsEvents;
         IDisposable classAccEvents;
@@ -251,8 +252,7 @@ namespace Forge.ML
         {
             if (!IsLive)
             {
-                Notice = "Training needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
-                Changed?.Invoke();
+                if (!TrainBusy) StartCoroutine(TrainOffline(Mathf.Clamp(epochs, 1, 20)));
                 return;
             }
             if (TrainBusy) return;  // a second POST only gets the hub's 409 "still training"
@@ -273,6 +273,95 @@ namespace Forge.ML
             }
             ForgeNet.Post("/ml/train", new { epochs }, _ => { TrainPending = false; Changed?.Invoke(); },
                 e => { TrainPending = false; Notice = "Training didn't start: " + HubDetail(e); Changed?.Invoke(); Debug.LogWarning("[ML] Train failed: " + e); });
+        }
+
+        IEnumerator TrainOffline(int epochs)
+        {
+            TrainPending = true; offlineTraining = true; replay = false; RestartMock();
+            Notice = "Preparing the bundled images on this device."; Changed?.Invoke();
+            yield return null;
+            OfflineImageClassifier model = null;
+            string setupError = null;
+            try { model = MakeOfflineClassifier(); }
+            catch (Exception e) { setupError = e.Message; }
+            if (setupError != null)
+            {
+                TrainPending = false; offlineTraining = false; RunStatus = "failed"; Notice = "Couldn't prepare the offline images: " + setupError;
+                Changed?.Invoke(); yield break;
+            }
+            for (int i = 0; i < model.Count; i++)
+            {
+                Data.samples[i].split = model.IsValidation(i) ? "validation" : "train";
+                Data.samples[i].pred_idx = -1; Data.samples[i].probs = null; Data.samples[i].correct = false;
+            }
+            RunId = "on-device";
+            Data.metrics = new MLMetrics[epochs];
+            Data.layers = new[] { new MLLayer { name = "Offline image classifier", type = "Linear", in_shape = new[] { 8, 8, 3 }, out_shape = new[] { model.Classes }, @params = (OfflineImageClassifier.Features + 1) * model.Classes } };
+            Reloaded?.Invoke(); TrainPending = false;
+            Notice = "On-device image training: bundled images, with 20% held out for validation.";
+            SetRunState("training", epochs);
+            const float rate = 0.015f;
+            for (int epoch = 1; epoch <= epochs; epoch++)
+            {
+                // Rotate the order every epoch; work is spread over frames on the headset.
+                for (int n = 0; n < model.Count; n++)
+                {
+                    int i = (n + epoch * 97) % model.Count;
+                    model.TrainOne(i, rate);
+                    if (n % 32 == 31) yield return null;
+                }
+                int[] predictions = new int[model.Count]; var probabilities = new float[model.Count][];
+                float trainLoss = 0, valLoss = 0; int trainN = 0, valN = 0, trainCorrect = 0, valCorrect = 0;
+                for (int i = 0; i < model.Count; i++)
+                {
+                    if (!model.IsIncluded(i)) { predictions[i] = -1; continue; }
+                    int predicted = model.Predict(i, out float loss);
+                    if (model.IsValidation(i)) { predictions[i] = predicted; probabilities[i] = model.CopyProbabilities(); valN++; valLoss += loss; if (predicted == Data.samples[i].true_idx) valCorrect++; }
+                    else { predictions[i] = -1; trainN++; trainLoss += loss; if (predicted == Data.samples[i].true_idx) trainCorrect++; }
+                    if (i % 64 == 63) yield return null;
+                }
+                ApplyMetrics(new MLMetrics { epoch = epoch, train_loss = trainLoss / Mathf.Max(1, trainN), val_loss = valLoss / Mathf.Max(1, valN), train_acc = trainCorrect / (float)Mathf.Max(1, trainN), val_acc = valCorrect / (float)Mathf.Max(1, valN), lr = rate });
+                ApplyEpochPredictions(predictions, epoch, true, probabilities);
+                var probes = new List<MLProbeSample>();
+                for (int i = 0; i < model.Count && probes.Count < 16; i++) if (model.IsValidation(i))
+                    probes.Add(new MLProbeSample { id = Data.samples[i].id, label_idx = Data.samples[i].true_idx, pred_idx = predictions[i], probs = probabilities[i] });
+                ProbeUpdated?.Invoke(new MLProbePayload { run_id = RunId, epoch = epoch, samples = probes.ToArray() });
+                Changed?.Invoke();
+            }
+            Notice = "On-device image training complete; validation uses held-out bundled images.";
+            offlineTraining = false;
+            SetRunState("done", epochs);
+            Debug.Log($"[ML offline] PASS: trained on bundled images for {epochs} epochs; held-out accuracy {Data.metrics[epochs - 1].val_acc:0.0%}.");
+        }
+
+        OfflineImageClassifier MakeOfflineClassifier()
+        {
+            if (!UsesGeneratedMocks || Atlas == null || Data?.samples == null || Data.classes == null) throw new InvalidOperationException("bundled image samples are unavailable");
+            // The atlas importer is not CPU-readable. Downsample on the GPU first, then read only 256 x 256 pixels.
+            const int size = 256;
+            var target = RenderTexture.GetTemporary(size, size, 0, RenderTextureFormat.ARGB32);
+            var previous = RenderTexture.active;
+            var readable = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            try
+            {
+                Graphics.Blit(Atlas, target); RenderTexture.active = target;
+                readable.ReadPixels(new Rect(0, 0, size, size), 0, 0); readable.Apply();
+                var pixels = readable.GetPixels32();
+                var images = new float[Data.samples.Length][]; var labels = new int[images.Length]; var included = new bool[images.Length];
+                for (int i = 0; i < images.Length; i++)
+                {
+                    var uv = UV(i); images[i] = new float[OfflineImageClassifier.Features]; labels[i] = Data.samples[i].true_idx; included[i] = !Data.samples[i].removed;
+                    for (int y = 0; y < OfflineImageClassifier.Side; y++) for (int x = 0; x < OfflineImageClassifier.Side; x++)
+                    {
+                        int px = Mathf.Clamp((int)((uv.x + uv.width * (x + .5f) / OfflineImageClassifier.Side) * size), 0, size - 1);
+                        int py = Mathf.Clamp((int)((uv.y + uv.height * (y + .5f) / OfflineImageClassifier.Side) * size), 0, size - 1);
+                        Color32 color = pixels[py * size + px]; int f = (y * OfflineImageClassifier.Side + x) * 3;
+                        images[i][f] = color.r / 255f; images[i][f + 1] = color.g / 255f; images[i][f + 2] = color.b / 255f;
+                    }
+                }
+                return new OfflineImageClassifier(images, labels, Data.classes.Length, included);
+            }
+            finally { RenderTexture.active = previous; RenderTexture.ReleaseTemporary(target); Destroy(readable); }
         }
         public void ImportGitHub(string url)
         {
@@ -459,7 +548,7 @@ namespace Forge.ML
             ClassAccuracyUpdated?.Invoke(payload.epoch, values);
             Changed?.Invoke();
         }
-        public void ApplyEpochPredictions(int[] predictions, int epoch)
+        public void ApplyEpochPredictions(int[] predictions, int epoch, bool validationOnly = false, float[][] probabilities = null)
         {
             if (predictions == null || Data?.samples == null || Data.classes == null) return;
             int n = Mathf.Min(predictions.Length, Data.samples.Length);
@@ -467,7 +556,8 @@ namespace Forge.ML
             for (int i = 0; i < n; i++)
             {
                 var sample = Data.samples[i]; int predicted = predictions[i];
-                sample.pred_idx = predicted; sample.probs = null; sample.correct = predicted == sample.true_idx;
+                sample.pred_idx = predicted; sample.probs = probabilities != null && i < probabilities.Length ? probabilities[i] : null; sample.correct = predicted == sample.true_idx;
+                if (validationOnly && sample.split != "validation") continue;
                 if (sample.removed || sample.true_idx < 0 || sample.true_idx >= seen.Length) continue;
                 seen[sample.true_idx]++;
                 if (sample.correct) correct[sample.true_idx]++;

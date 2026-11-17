@@ -63,7 +63,7 @@ public static class SlackUi
     public static readonly Color SkField = new Color(0.115f, 0.118f, 0.14f);
     public static Color Clear => new Color(1f, 1f, 1f, 0f);
 
-    // ---- Icons (Resources/SlackIcons/*.svg, imported as sprites; white, tinted by Image.color) ----
+    // ---- Icons (Resources/SlackIcons/*.png, imported as sprites; white, tinted by Image.color) ----
 
     static readonly System.Collections.Generic.Dictionary<string, Sprite> icons = new System.Collections.Generic.Dictionary<string, Sprite>();
 
@@ -72,7 +72,7 @@ public static class SlackUi
         if (!icons.TryGetValue(name, out var sprite))
         {
             sprite = Resources.Load<Sprite>("SlackIcons/" + name);
-            if (sprite == null) Debug.LogWarning($"[SlackUi] Resources/SlackIcons/{name}.svg missing or not imported as a sprite.");
+            if (sprite == null) Debug.LogWarning($"[SlackUi] Resources/SlackIcons/{name}.png missing or not imported as a sprite.");
             icons[name] = sprite;
         }
         return sprite;
@@ -84,6 +84,7 @@ public static class SlackUi
         var rt = Rect(parent, name);
         var img = rt.gameObject.AddComponent<Image>();
         img.sprite = IconSprite(icon);
+        if (img.sprite == null) img.enabled = false;   // a missing icon draws nothing, never a flat coloured square
         img.preserveAspect = true;
         img.color = color;
         img.raycastTarget = false;

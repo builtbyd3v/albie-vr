@@ -45,9 +45,13 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
         "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
+        "The Albie menu holds the user's tools, projects and artifacts: os_menu opens or closes it and os_tab shows one tab. 'Open CAD' or 'open the notebook' is os_open with kind tool and its id (cad, code, train, notebook, drive, messages, gestures), which works away from the desk too; if os_open has no such tool, try ui_open_view. 'Open the truck project' is kind project, id proj_truck, and 'open settings' is kind system. 'Bring my windows here' is os_windows with action recenter, and 'close everything' is action close_all. " +
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
         "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
+        "To pull an ML repo from GitHub ('clone the pytorch cifar repo'), call ml_github: it finds the repo first, so say its name and ask, " +
+        "and only after a yes call it again with confirm true. The user's own repos and pull requests in the code view are the github_ tools; " +
+        "github_approve_pr and github_merge_pr first read the pull request back: ask 'approve it?' or 'merge it?' and only after a yes call again with confirm true. " +
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
         "Starting a new machine-learning project or model ('start an RNN project', 'build a CNN on handwritten digits') is one call, ml_new, never artifact_create; it downloads the data, writes the code, opens the ML desk and trains by itself. " +
@@ -72,7 +76,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
     static readonly string[] Keyterms =
-        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook" };
+        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts" };
     static readonly Dictionary<string, string> ViewNotes = new Dictionary<string, string>
     {
         ["code"] = "The user switched to the CODE view (the code editor on the main screen).",

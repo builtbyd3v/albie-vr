@@ -59,20 +59,30 @@ namespace Forge.Artifacts
 
             float lane = Lane(s), straight = StraightLane(s);
             s.TightSpacing = s.TightSpacing > 0f ? Mathf.Clamp(s.TightSpacing, 0.1f, s.MinSpacing) : s.MinSpacing;
-            var fit = FloorSlalom.Search(room, s.Hoops, s.MinHoops, s.Spacing, s.MinSpacing, lane, s.Clearance, null,
-                                         (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter));
+            var slots = (System.Func<int, float, Dictionary<string, List<Pose>>>)( (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter));
+            var fit = FloorSlalom.Search(room, s.Hoops, s.MinHoops, s.Spacing, s.MinSpacing, lane, s.Clearance, null, slots, true);
             if (!fit.Ok)
                 fit = FloorSlalom.Narrow(fit, FloorSlalom.Search(room, s.MinHoops, s.MinHoops, s.MinSpacing, s.TightSpacing, straight, s.Clearance, null,
-                                                                 (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter, true)));
+                                                                 (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter, true), true));
+            bool boundaryTooSmall = !fit.Ok && room.Boundary != null && FitsWithoutBoundary(room, s, id, lane, straight);
             if (!fit.Ok)
             {
-                fit.Message = string.Format(CultureInfo.InvariantCulture,
+                fit.Message = boundaryTooSmall ? "Your Quest boundary is too small for a hoop course here. Redraw it bigger, or ask for a slalom." : string.Format(CultureInfo.InvariantCulture,
                     "There isn't enough clear floor here for a hoop course. Even the smallest course ({0} hoops in a straight line, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
                     s.MinHoops, s.TightSpacing, FloorSlalom.Length(s.MinHoops, s.TightSpacing), 2f * straight, s.Clearance * 100f);
                 return fit;
             }
             fit.Message = Message(fit.Shrunk, fit.Narrow, fit.Gates, fit.Spacing, noCeiling, Top(s));
             return fit;
+        }
+
+        static bool FitsWithoutBoundary(IFloorPlan room, Settings s, string id, float lane, float straight)
+        {
+            var slots = (System.Func<int, float, Dictionary<string, List<Pose>>>)( (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter));
+            var fit = FloorSlalom.Search(room, s.Hoops, s.MinHoops, s.Spacing, s.MinSpacing, lane, s.Clearance, null, slots, false);
+            if (!fit.Ok) fit = FloorSlalom.Narrow(fit, FloorSlalom.Search(room, s.MinHoops, s.MinHoops, s.MinSpacing, s.TightSpacing, straight, s.Clearance, null,
+                                                                          (hoops, spacing) => Slots(id, hoops, spacing, s.Diameter, true), false));
+            return fit.Ok;
         }
 
         /// <summary>Whether a saved hoop course still has free floor and headroom.</summary>
@@ -83,6 +93,14 @@ namespace Forge.Artifacts
             float ceiling = room.CeilingHeight;
             if (!float.IsNaN(ceiling) && Top(s) + s.Clearance > ceiling + 0.001f) return false;
             return FloorSlalom.StillFits(room, origin, yaw, hoops, spacing, lane > 0f ? lane : Lane(s), s.Clearance);
+        }
+
+        internal static bool StillFitsWithoutBoundary(IFloorPlan room, Vector3 origin, float yaw, int hoops, float spacing, Settings s, float lane = 0f)
+        {
+            if (room == null || !room.HasFloor) return false;
+            float ceiling = room.CeilingHeight;
+            if (!float.IsNaN(ceiling) && Top(s) + s.Clearance > ceiling + 0.001f) return false;
+            return FloorSlalom.StillFitsWithoutBoundary(room, origin, yaw, hoops, spacing, lane > 0f ? lane : Lane(s), s.Clearance);
         }
 
         /// <summary>The slots, local to the course origin, all on the floor.</summary>

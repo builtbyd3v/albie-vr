@@ -131,6 +131,17 @@ namespace Forge.Artifacts
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.color = ArtifactLook.Color(n.Value<string>("color"), Color.white);
             text.rectTransform.sizeDelta = new Vector2(2f, 0.5f);
+            // "align": "left" or "right" puts the node's position at that edge of the text instead of its middle, so a label
+            // can stand beside a model with its first letter clear of it.
+            string align = n.Value<string>("align");
+            if (align == "left" || align == "right")
+            {
+                text.alignment = align == "left" ? TextAlignmentOptions.Left : TextAlignmentOptions.Right;
+                text.rectTransform.pivot = new Vector2(align == "left" ? 0f : 1f, 0.5f);
+            }
+            // A dark edge round every label, so it reads over any floor or wall the room has behind it.
+            text.outlineWidth = 0.22f;
+            text.outlineColor = new Color32(8, 10, 14, 235);
             var height = n["height"];
             build.Apply(() => text.fontSize = build.Inputs.Number(height, 0.05f) * 10f, ArtifactInputs.IsBound(height));
             string raw = n.Value<string>("text");

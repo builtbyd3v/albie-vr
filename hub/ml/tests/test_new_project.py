@@ -299,7 +299,7 @@ def test_the_headset_lists_the_cloud_ml_tools_exactly_as_the_hub_defines_them():
 
     cloud = json.loads((ROOT / "unity" / "Assets" / "_Forge" / "Core" / "Resources" / "AlbieTools" / "cloud.json").read_text())
     listed = {t["name"]: t for t in cloud if t["name"].startswith("ml_")}
-    hub = {t["name"]: t for t in TOOLS if t["name"] != "ml_github"}  # the cloud never clones repos
+    hub = {t["name"]: t for t in TOOLS}
     assert listed == hub
 
 

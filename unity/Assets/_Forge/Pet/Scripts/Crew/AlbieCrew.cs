@@ -211,13 +211,20 @@ namespace Forge.Pet
 
         public bool DismissLast() => _members.Count > 0 && Dismiss(_members[_members.Count - 1].PetId);
 
+        /// <summary>A member was brought home or sent out (AlbieCrewMember.SetHome): re-split the areas without it, and tell listeners.</summary>
+        public void NotifyHomeChanged()
+        {
+            _territoriesDirty = true;
+            Changed?.Invoke();
+        }
+
         /// <summary>Whistle: idle crew go home, busy crew line up at the back of the desk (Albie is untouched).</summary>
         public void ClearDeskForLead()
         {
             for (int i = _members.Count - 1; i >= 0; i--)
             {
                 AlbieCrewMember m = _members[i];
-                if (m == null) continue;
+                if (m == null || m.Home) continue;     // brought home on purpose: the whistle neither dismisses it nor lines it up
                 if (m.Bridge != null && m.Bridge.Busy) { if (!_lineup.Contains(m)) _lineup.Add(m); }
                 else Dismiss(m.PetId);
             }
@@ -350,7 +357,7 @@ namespace Forge.Pet
             _agents.Clear();
             if (lead != null) _agents.Add(lead);
             for (int i = 0; i < _members.Count; i++)
-                if (_members[i] != null && _members[i].Controller != null && !_lineup.Contains(_members[i])) _agents.Add(_members[i].Controller);
+                if (_members[i] != null && _members[i].Controller != null && !_lineup.Contains(_members[i]) && !_members[i].Home) _agents.Add(_members[i].Controller);
             if (_members.Count == 0)
             {
                 if (lead != null) lead.ClearTerritory();   // solo Albie: the whole desk / room, exactly as before
@@ -401,7 +408,7 @@ namespace Forge.Pet
             for (int k = 0; k < n; k++)
             {
                 AlbieCrewMember m = _lineup[k];
-                if (m == null || m.Controller == null) continue;
+                if (m == null || m.Controller == null || m.Home) continue;
                 float along = (k - (n - 1) * 0.5f) * spacing;
                 Vector3 local = _backAlongZ ? new Vector3(along, 0f, _backSign * depth) : new Vector3(_backSign * depth, 0f, along);
                 m.Controller.SetTerritory(desk, desk.TopCenter + desk.Rotation * local, desk.Rotation, new Vector2(0.1f, 0.1f));

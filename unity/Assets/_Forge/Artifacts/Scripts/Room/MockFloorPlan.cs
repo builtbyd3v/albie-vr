@@ -25,6 +25,7 @@ namespace Forge.Artifacts
         public readonly bool Scanned;
         public float Ceiling = 2.5f;           // floor to ceiling, metres; NaN when the scan has no ceiling
         public readonly List<Furniture> Items = new List<Furniture>();
+        Vector2[] boundary;
 
         public MockFloorPlan(string id, Vector2 size, bool scanned = true, Vector3 origin = default, float yaw = 0f)
         {
@@ -41,6 +42,12 @@ namespace Forge.Artifacts
             return this;
         }
 
+        public MockFloorPlan WithBoundary(params Vector2[] polygon)
+        {
+            boundary = polygon;
+            return this;
+        }
+
         public MockFloorPlan Add(string label, Vector2 at, Vector3 size, float yaw = 0f)
         {
             Items.Add(new Furniture { Label = label, Centre = new Vector3(at.x, size.y * 0.5f, at.y), Size = size, Yaw = yaw });
@@ -52,6 +59,7 @@ namespace Forge.Artifacts
         public bool HasFloor => Scanned;
         public float FloorY => Origin.y;
         public float CeilingHeight => Scanned ? Ceiling : float.NaN;
+        public Vector2[] Boundary => boundary;
         public float AxisYaw => Yaw;
         public Matrix4x4 RoomToWorld => Matrix4x4.TRS(Origin, Quaternion.Euler(0f, Yaw, 0f), Vector3.one);
 
