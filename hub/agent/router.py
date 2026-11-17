@@ -52,6 +52,12 @@ class BuildRequest(BaseModel):
 
 # Builds (agent/build.py): start, watch and stop. Shipping (push + pull request) is not here on purpose: it only happens
 # through build_ship with confirm, or the Open pull request button on Albie's card, after the user says yes.
+@router.get("/build", response_class=HTMLResponse)
+async def builds_page() -> str:
+    """A page for watching builds live (the plan, each crew member's step, commits); no shipping from here."""
+    return (Path(__file__).parent / "builds.html").read_text(encoding="utf-8")
+
+
 @router.post("/builds", status_code=202)
 async def start_build(request: BuildRequest) -> dict:
     try:

@@ -263,6 +263,12 @@ watching or testing without a headset: `POST /agent/builds {goal}`, `GET /agent/
 kept in memory (their workspaces stay on disk). Tests: `tests/agent/test_build.py` (a scripted crew, a local bare repo
 as the remote).
 
+**Watching a build:** open `http://<hub>/agent/build` (for example `http://127.0.0.1:8017/agent/build`). It starts a
+build from a goal and shows the live one: the plan, each crew member's step with its live progress line ("Editing
+tipcalc/cli.py"), how long it took, its commit, and the result; then the pull request link once it's open. It can stop a
+build, but not ship one: the pull request is opened from Albie's card in the headset, or by saying yes. With
+`FAKE_AGENT=1` the crew is simulated, which is handy for checking the page without spending Claude calls.
+
 ### Albie runs the workspace (views, CAD, files to Slack)
 
 From the desk with nothing open: "Albie, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the

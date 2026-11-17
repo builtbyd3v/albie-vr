@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Albie's crew builds</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #111722; color: #edf3fa;
+            --panel: #1d2938; --line: #3b4d63; --muted: #b9c8d9; --ok: #92dcca; --run: #ffd479; --bad: #ffb7ad; }
+    body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin: 0 0 .3rem; } h2 { margin: 0 0 .4rem; font-size: 1.3rem; } p { color: var(--muted); line-height: 1.5; margin: .3rem 0; }
+    section, .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+    textarea, button { font: inherit; border-radius: 6px; padding: .55rem; }
+    textarea { width: 100%; min-height: 3.6rem; resize: vertical; box-sizing: border-box; background: #0e1824; border: 1px solid #8194a8; color: #fff; }
+    button { background: var(--ok); color: #0a211b; border: 0; font-weight: 700; cursor: pointer; margin: .5rem .4rem 0 0; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .secondary { background: #d7e4f0; } .chip { background: #2a3a4f; color: #dbe7f3; font-weight: 500; padding: .35rem .6rem; }
+    .row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline; }
+    .pill { display: inline-block; border-radius: 999px; padding: .1rem .65rem; font-weight: 700; font-size: .85rem; text-transform: capitalize; background: #2a3a4f; }
+    .s-ready, .s-shipped, .s-done { background: var(--ok); color: #0a211b; }
+    .s-planning, .s-building, .s-running, .s-shipping { background: var(--run); color: #2b2100; }
+    .s-failed { background: var(--bad); color: #3a0d07; } .s-cancelled { background: #8194a8; color: #0e1824; }
+    .meta { color: var(--muted); font-size: .9rem; } code { background: #0e1824; border-radius: 4px; padding: .05rem .35rem; }
+    .steps { counter-reset: n; }
+    .step { display: grid; grid-template-columns: 3rem 1fr; gap: .2rem 1rem; margin: .7rem 0; }
+    .step.running { border-color: var(--run); } .step.done { border-color: #4e8f80; } .step.failed { border-color: var(--bad); }
+    .avatar { grid-row: span 3; width: 3rem; height: 3rem; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.2rem; color: #0a211b; }
+    .step h3 { margin: 0; font-size: 1.05rem; } .task { color: var(--muted); }
+    .live { color: var(--run); font-family: ui-monospace, monospace; font-size: .9rem; overflow-wrap: anywhere; }
+    .live::before { content: ""; display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: var(--run); margin-right: .45rem; animation: pulse 1s infinite alternate; }
+    @keyframes pulse { from { opacity: .25; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .live::before { animation: none; } }
+    .summary { white-space: pre-wrap; overflow-wrap: anywhere; margin: .2rem 0 0; }
+    .callout { border-left: 4px solid var(--ok); padding-left: .8rem; margin-top: .8rem; }
+    .error { color: var(--bad); } a { color: var(--ok); }
+    .history button { display: block; width: 100%; text-align: left; background: #16212e; color: #edf3fa; font-weight: 500; border: 1px solid var(--line); }
+    @media (max-width: 560px) { .step { grid-template-columns: 2.4rem 1fr; } .avatar { width: 2.4rem; height: 2.4rem; font-size: 1rem; } }
+  </style>
+</head>
+<body>
+  <h1>Albie's crew builds</h1>
+  <p>Ask for a small project and watch the crew build it: Albie plans it, then the Builder, Tester, Scribe and Reviewer each do their part in turn, committing as they go. This page watches the same builds as "Albie, build me a ..." in the headset.</p>
+
+  <section aria-labelledby="new-h">
+    <h2 id="new-h">New build</h2>
+    <label for="goal" class="meta">What should the crew build?</label>
+    <textarea id="goal" placeholder="a command-line tip calculator in Python"></textarea>
+    <div id="examples"></div>
+    <button id="start" type="button">Build it</button>
+    <p id="message" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="board" aria-live="polite" hidden>
+    <div class="row"><h2 id="title"></h2><span id="state" class="pill"></span><span id="clock" class="meta"></span></div>
+    <p id="goalline"></p>
+    <p id="summary"></p>
+    <p id="where" class="meta"></p>
+    <div id="steps" class="steps"></div>
+    <div id="end"></div>
+    <button id="cancel" type="button" class="secondary" hidden>Stop the build</button>
+  </section>
+
+  <section class="history" aria-labelledby="hist-h">
+    <h2 id="hist-h">Earlier builds</h2>
+    <div id="history"><p>None yet. Builds are kept in memory until the hub restarts.</p></div>
+  </section>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const COLORS = { builder: '#92dcca', tester: '#ffd479', scribe: '#c3b5ff', reviewer: '#8fc9ff', fixer: '#ffb7ad', sentinel: '#f5a3d2' };
+    const DONE = ['ready', 'shipped', 'failed', 'cancelled'];
+    const EXAMPLES = ['a command-line tip calculator in Python', 'a terminal snake game in Python', 'a to-do list app that saves to a JSON file'];
+    let current = null, timer = null, busy = false;
+
+    function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function seconds(from, to) { if (!from) return ''; const s = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000)); return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; }
+    async function request(url, options) {
+      const r = await fetch(url, options); const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'The hub said no (' + r.status + ').');
+      return data;
+    }
+
+    function stepCard(s, i) {
+      const card = el('article', 'step ' + s.state);
+      const avatar = el('div', 'avatar', s.agent[0]); avatar.style.background = COLORS[s.type] || '#d7e4f0'; avatar.setAttribute('aria-hidden', 'true');
+      const head = el('div', 'row'); head.append(el('h3', null, (i + 1) + '. ' + s.agent), el('span', 'pill s-' + s.state, s.state));
+      if (s.started_at) head.append(el('span', 'meta', seconds(s.started_at, s.finished_at)));
+      if (s.commit) { const c = el('code', null, s.commit); c.title = 'commit'; head.append(c); }
+      card.append(avatar, head, el('div', 'task', s.task));
+      if (s.state === 'running') card.append(el('div', 'live', s.progress || 'Thinking…'));
+      else if (s.summary) card.append(el('p', 'summary', s.summary));
+      else card.append(el('div', 'meta', s.state === 'queued' ? 'Waiting for the step before.' : ''));
+      return card;
+    }
+
+    function show(b) {
+      current = b.id; $('board').hidden = false;
+      $('title').textContent = b.title || 'Planning…';
+      $('state').textContent = b.state; $('state').className = 'pill s-' + b.state;
+      $('clock').textContent = seconds(b.created_at, b.finished_at);
+      $('goalline').textContent = 'Asked for: ' + b.goal;
+      $('summary').textContent = b.summary && b.summary !== b.goal ? b.summary : '';
+      const plan = b.planned_by === 'claude' ? 'Planned by Claude.' : b.planned_by === 'default' ? 'Default plan (no Claude key on the hub, or a simulated run).' : '';
+      $('where').textContent = [plan, b.repo ? `On ${b.repo}, branch ${b.branch}, in ${b.folder}/.` : 'Kept on the hub (no repo set, so no pull request).'].filter(Boolean).join(' ');
+      $('steps').replaceChildren(...b.steps.map(stepCard));
+      if (!b.steps.length && b.state === 'planning') $('steps').replaceChildren(el('p', 'live', 'Albie is planning the steps…'));
+      const end = $('end'); end.replaceChildren();
+      if (b.state === 'ready' && b.repo) end.append(el('p', 'callout', 'Ready. Open the pull request from Albie\'s card in the headset, or say "open the pull request". It isn\'t opened from this page.'));
+      if (b.state === 'ready' && !b.repo) end.append(el('p', 'callout', 'Ready. The project is saved on the hub.'));
+      if (b.state === 'shipped' && b.pr_url && b.pr_url.startsWith('https://github.com/')) {
+        const p = el('p', 'callout', 'Pull request #' + b.pr_number + ' is open: '); const a = el('a', null, b.pr_url); a.href = b.pr_url; a.target = '_blank'; a.rel = 'noopener'; p.append(a); end.append(p);
+      }
+      if (b.error) end.append(el('p', 'error', b.error));
+      $('cancel').hidden = DONE.includes(b.state);
+    }
+
+    async function refresh() {
+      if (busy) return; busy = true;
+      try {
+        const all = await request('/agent/builds');
+        const list = $('history'); list.replaceChildren();
+        if (!all.length) list.append(el('p', null, 'None yet. Builds are kept in memory until the hub restarts.'));
+        all.forEach(b => { const btn = el('button', null, `${b.title || b.goal} · ${b.state} · ${new Date(b.created_at).toLocaleTimeString()}`); btn.type = 'button'; btn.onclick = () => { current = b.id; refresh(); }; list.append(btn); });
+        const b = all.find(x => x.id === current) || all[0];
+        if (b) show(b);
+        const active = all.some(x => !DONE.includes(x.state));
+        $('start').disabled = active;
+        schedule(active ? 1000 : 5000);
+      } catch (e) { $('message').textContent = e.message; schedule(5000); }
+      finally { busy = false; }
+    }
+    function schedule(ms) { clearTimeout(timer); timer = setTimeout(refresh, ms); }
+
+    EXAMPLES.forEach(x => { const b = el('button', 'chip', x); b.type = 'button'; b.onclick = () => { $('goal').value = x; $('goal').focus(); }; $('examples').append(b); });
+    $('start').onclick = async () => {
+      const goal = $('goal').value.trim(); if (!goal) { $('message').textContent = 'Say what to build first.'; return; }
+      $('start').disabled = true; $('message').textContent = '';
+      try { const b = await request('/agent/builds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal }) }); current = b.id; $('goal').value = ''; }
+      catch (e) { $('message').textContent = e.message; }
+      refresh();
+    };
+    $('cancel').onclick = async () => {
+      if (!current) return; $('cancel').disabled = true;
+      try { await request('/agent/builds/' + encodeURIComponent(current) + '/cancel', { method: 'POST' }); }
+      catch (e) { $('message').textContent = e.message; }
+      finally { $('cancel').disabled = false; refresh(); }
+    };
+    refresh();
+  </script>
+</body>
+</html>
