@@ -843,7 +843,7 @@ class GrokVoiceSession(_Base):
             job = asyncio.create_task(self._run_delegate(str(args["task"]), mode))
             self._jobs.add(job)
             job.add_done_callback(self._jobs.discard)
-        elif tools.is_lead_only(name) and self.workspace_mode is not None and self.workspace_mode != "code":
+        elif tools.is_lead_only(name) and not name.startswith("workflow_") and self.workspace_mode is not None and self.workspace_mode != "code":
             result = CREW_OFF_CODE_SCREEN  # the crew lives on the CODE screen; Unity told us another view is open
         elif tools.has(name):
             # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s).

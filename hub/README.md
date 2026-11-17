@@ -208,6 +208,20 @@ only answers segments that name an agent ("Hey Albie, ...", "Tester, run the tes
 ("Hey Scout") comes back as `wake.listen` and that Albie takes the next sentence. Anything else is dropped
 without a caption (and deleted from the Grok conversation). In voice mode every segment is transcribed by xAI.
 
+### Parallel Claude workflows (no headset required)
+
+`/agent/orchestration` is a small local testing page for parallel read-only Claude tasks. Select a configured project, add up to six Scout, Reviewer, or Sentinel tasks, and start them together. Each task shows its own status, streamed text, result, and stop button; a workflow ID can be used to retrieve it while the hub process is running. **Simulated** means `FAKE_AGENT=1`: no Claude request was made. Workflow history is in memory and is lost when the process restarts.
+
+The page and `POST /agent/workflows`, `GET /agent/workflows/{id}`, and `POST /agent/workflows/{id}/tasks/{task_id}/cancel` are available on the regular hub. The lead agent also has `workflow_start`, `workflow_status`, and `workflow_cancel` tools, independent of the Unity character roster. This first slice is read-only repository research and review; it does not implement code edits, persistent history, task dependencies, or an in-Unity orchestration panel.
+
+For a lightweight local run without CAD or messaging, install the agent-only dependencies described above, then from `hub/`:
+
+```sh
+FAKE_AGENT=1 PROJECTS_FILE=/absolute/path/to/projects.yaml uvicorn agent.standalone:app --host 127.0.0.1 --port 8017
+```
+
+Open `http://127.0.0.1:8017/agent/orchestration`. The project file uses the same `projects:` format as `config/projects.yaml`; set its `path` to a local project and choose `default_mode: qa`. Store a local override outside the tracked repository, or use an ignored local file. For real Claude calls, put `ANTHROPIC_API_KEY` in the ignored `hub/.env` or a private environment variable, set `FAKE_AGENT=0`, and restart the server. Do not put a key in the project file or source control. The standalone server defaults to loopback in the command above; use the existing hub deployment's access controls if serving the API elsewhere.
+
 ### Crew (extra agents, one per agent type)
 
 The user hatches helper agents in Unity (the egg on the desk, the N key, or "Albie, hatch a tester"). Each one is
