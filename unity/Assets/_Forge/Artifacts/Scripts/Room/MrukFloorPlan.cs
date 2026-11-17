@@ -18,8 +18,9 @@ namespace Forge.Artifacts
         };
 
         public readonly MRUKRoom Room;
+        public Vector2[] Boundary { get; }
 
-        public MrukFloorPlan(MRUKRoom room) { Room = room; }
+        public MrukFloorPlan(MRUKRoom room) { Room = room; Boundary = PlayArea.WorldPolygon(); }
 
         /// <summary>The room the user is in (MRUK's current room), or null when MRUK has no room loaded.</summary>
         public static MrukFloorPlan Current()

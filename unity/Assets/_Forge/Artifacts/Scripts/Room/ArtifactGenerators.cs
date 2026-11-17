@@ -31,6 +31,7 @@ namespace Forge.Artifacts
             public JObject Requested;
             public Func<IFloorPlan, FloorSlalom.Result> Fit;
             public Func<IFloorPlan, Vector3, float, int, float, float, bool> StillFits;  // ..., count, spacing, lane (0: the full one)
+            public Func<IFloorPlan, Vector3, float, int, float, float, bool> StillFitsWithoutBoundary;
         }
 
         static Course Read(string type, string id, JObject p, ArtifactInputs inputs)
@@ -55,6 +56,7 @@ namespace Forge.Artifacts
                     Requested = new JObject { ["hoops"] = s.Hoops, ["spacing_m"] = Math.Round(s.Spacing, 2) },
                     Fit = room => RoomHoops.Fit(room, s, id),
                     StillFits = (room, origin, yaw, n, spacing, lane) => RoomHoops.StillFits(room, origin, yaw, n, spacing, s, lane),
+                    StillFitsWithoutBoundary = (room, origin, yaw, n, spacing, lane) => RoomHoops.StillFitsWithoutBoundary(room, origin, yaw, n, spacing, s, lane),
                 };
             }
             var sd = FloorSlalom.Settings.Default;
@@ -76,6 +78,7 @@ namespace Forge.Artifacts
                 Requested = new JObject { ["gates"] = settings.Gates, ["spacing_m"] = Math.Round(settings.Spacing, 2) },
                 Fit = room => FloorSlalom.Fit(room, settings, id),
                 StillFits = (room, origin, yaw, n, spacing, lane) => FloorSlalom.StillFits(room, origin, yaw, n, spacing, settings, lane),
+                StillFitsWithoutBoundary = (room, origin, yaw, n, spacing, lane) => FloorSlalom.StillFitsWithoutBoundary(room, origin, yaw, n, spacing, settings, lane),
             };
         }
 
@@ -95,7 +98,7 @@ namespace Forge.Artifacts
                 return new Placement { Code = none.Code, Message = none.Message };
             }
 
-            bool moved = false, lostAnchor = false;
+            bool moved = false, boundaryChanged = false, lostAnchor = false;
             if (!forceNew)
             {
                 var saved = ArtifactLayouts.Find(artifactId, version, scenarioId, room.Key, course.Requested);
@@ -116,6 +119,8 @@ namespace Forge.Artifacts
                                 Message = (string)saved["fit"]?["message"],
                             };
                         moved = true;
+                        boundaryChanged = room.Boundary != null && course.StillFitsWithoutBoundary(room, origin.position, yaw, ArtifactLayouts.Placed(saved, course.CountKey),
+                                                                                                    ArtifactLayouts.PlacedNumber(saved, "spacing_m"), ArtifactLayouts.PlacedNumber(saved, "lane_m"));
                     }
                 }
             }
@@ -124,7 +129,7 @@ namespace Forge.Artifacts
             if (!fit.Ok) return new Placement { Code = fit.Code, Message = fit.Message };
             string message = fit.Message;
             if (lostAnchor) message = "I can't find the saved course in this room, so I made a new one." + (message != null ? " " + message : "");
-            else if (moved) message = "Something in the room has moved since I made the course, so I made a new one." + (message != null ? " " + message : "");
+            else if (moved) message = (boundaryChanged ? "Your boundary has changed since I made the course, so I made a new one." : "Something in the room has moved since I made the course, so I made a new one.") + (message != null ? " " + message : "");
             var layout = ArtifactLayouts.Make(artifactId, version, scenarioId, seed, room, course.Requested, fit, message, course.CountKey);
             ArtifactLayouts.Save(layout);
             return new Placement
