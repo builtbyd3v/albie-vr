@@ -1,3 +1,4 @@
 # hub/ml extras on top of hub/requirements.txt (ask Person 5 to merge them in)
 anthropic>=2.3
 pyarrow>=20  # optional: ml_new reads Hugging Face Parquet exports; without it, the rows API (slower, rate-limited)
+transformers>=5.0  # ml_new fine-tuning: the pretrained encoder, its tokenizer and the weights cache (torch is the ML venv's)

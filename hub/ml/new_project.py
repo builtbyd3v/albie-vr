@@ -11,6 +11,7 @@ Albie never runs code it wrote: every model is one of the template's, picked by 
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import time
@@ -22,19 +23,34 @@ from . import hf_data
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 TASKS = ("text_classification", "image_classification")
-MODELS = ("rnn", "lstm", "gru", "transformer", "cnn", "mlp")
+MODELS = ("rnn", "lstm", "gru", "transformer", "cnn", "mlp", "hf")
 MODEL_WORDS = {  # what people call them -> the template's kind
     "rnn": "rnn", "recurrent": "rnn", "vanilla rnn": "rnn", "lstm": "lstm", "long short-term memory": "lstm",
     "gru": "gru", "transformer": "transformer", "attention": "transformer", "bert": "transformer", "vit": "transformer",
     "vision transformer": "transformer", "cnn": "cnn", "convolutional": "cnn", "convnet": "cnn", "conv": "cnn",
     "resnet": "cnn", "mlp": "mlp", "dense": "mlp", "feedforward": "mlp", "feed-forward": "mlp",
     "fully connected": "mlp", "perceptron": "mlp", "bag of words": "mlp",
+    # fine-tuning a pretrained encoder from the Hub (the `pretrained` template)
+    "pretrained": "hf", "pre-trained": "hf", "finetune": "hf", "fine-tune": "hf", "fine tune": "hf",
+    "finetuned": "hf", "fine-tuned": "hf", "fine tuned": "hf", "distilbert": "hf", "distil bert": "hf",
+    "roberta": "hf", "albert": "hf", "electra": "hf", "deberta": "hf", "minilm": "hf", "mini lm": "hf",
+    "xtremedistil": "hf", "extreme distil": "hf", "small bert": "hf", "bert tiny": "hf", "tiny bert": "hf",
 }
-MODEL_NAMES = {"rnn": "RNN", "lstm": "LSTM", "gru": "GRU", "transformer": "Transformer", "cnn": "CNN", "mlp": "MLP"}
+MODEL_NAMES = {"rnn": "RNN", "lstm": "LSTM", "gru": "GRU", "transformer": "Transformer", "cnn": "CNN", "mlp": "MLP",
+               "hf": "pretrained"}
+PRETTY_MODELS = {  # the base model's name as Albie says it
+    "microsoft/xtremedistil-l6-h256-uncased": "XTREMEDistil", "distilbert-base-uncased": "DistilBERT",
+    "roberta-base": "RoBERTa", "albert-base-v2": "ALBERT", "google/electra-small-discriminator": "ELECTRA",
+    "microsoft/deberta-v3-xsmall": "DeBERTa", "microsoft/MiniLM-L12-H384-uncased": "MiniLM",
+    "google/bert_uncased_L-2_H-128_A-2": "BERT-Tiny", "bert-base-uncased": "BERT",
+}
 ROWS = {"text_classification": (4000, 500), "image_classification": (2000, 400)}
+PRETRAINED_ROWS = (2000, 400)  # fine-tuning forwards and backwards through the encoder: fewer rows keep it a minute
+PRETRAINED_EPOCHS = 3  # a pretrained encoder needs a few epochs, not the eight a model from scratch does
 DEFAULT_MODEL = {"text_classification": "lstm", "image_classification": "cnn"}
 DEFAULT_EPOCHS = 8
 KEEP_PROJECTS = 4  # older projects Albie built in the same folder are deleted
+
 
 
 class NewProjectError(Exception):
@@ -55,17 +71,39 @@ def model_kind(said: str | None) -> str | None:
 
 
 def plan(model: str | None = None, dataset: str | None = None, task: str | None = None,
-         request: str = "") -> dict[str, Any]:
+         request: str = "", base_model: str | None = None) -> dict[str, Any]:
     """What ml_new will build: {task, model, dataset, config, classes, license, rows, title, ...}.
-    Raises NewProjectError (or hf_data.DatasetError) with a reason Albie can say."""
+    `base_model` fine-tunes that pretrained Hugging Face encoder (the `pretrained` template) instead of
+    training a model from scratch. Raises NewProjectError (or hf_data.DatasetError) with a reason Albie can say."""
     if task is not None and task not in TASKS:
         raise NewProjectError(f"I can build text or image classifiers, not {task!r} yet")
     named = model_kind(model)
-    kind = named or model_kind(request)
+    kind = named or model_kind(request) or ("hf" if base_model else None)
+    if base_model and kind not in (None, "hf"):
+        raise NewProjectError(f"I can fine-tune a Hugging Face model or train a {MODEL_NAMES.get(kind, kind)} from "
+                              "scratch, not both")
     if model and named is None and not re.search(r"auto|any|neural|network|model|classifier", model.lower()):
         raise NewProjectError(f"I don't have a {model} template; I can build an "
-                              + ", ".join(MODEL_NAMES[m] for m in MODELS[:-1]) + " or MLP")
+                              + ", ".join(MODEL_NAMES[m] for m in MODELS[:-1]) + " or fine-tune a pretrained model")
     words = topic(request)
+    if kind == "hf":
+        if task == "image_classification":
+            raise NewProjectError("I can fine-tune a pretrained model on text only right now; images train from "
+                                  "scratch with a CNN")
+        asked = base_model or (model if model and ("/" in model or hf_data.model_alias(model)) else None)
+        info = hf_data.find_model(request, asked)
+        layout = hf_data.find(words, dataset, "text_classification")
+        kind = "hf"
+        n_train, n_val = PRETRAINED_ROWS
+        n_train = min(n_train, layout.train_rows or n_train)
+        n_val = min(n_val, layout.val_rows or n_val) if layout.val_split else n_val
+        short = layout.dataset.split("/")[-1]
+        pretty = PRETTY_MODELS.get(info.model) or hf_data.model_name(info.model)
+        return {"task": "text_classification", "model": kind, "model_name": pretty, "base_model": info.model,
+                "base_license": info.license, "dataset": layout.dataset, "config": layout.config,
+                "classes": layout.classes, "license": layout.license, "rows": {"train": n_train, "val": n_val},
+                "layout": layout.to_dict(), "title": f"{pretty} fine-tuned on {short}",
+                "slug": slugify(f"hf-{short}"), "epochs": PRETRAINED_EPOCHS}
     if task is None and dataset is None and kind in ("cnn", "mlp") and not hf_data.alias(words):
         task = "image_classification"  # "a CNN" with no data named: images, the classic
     layout = hf_data.find(words, dataset, task)
@@ -80,6 +118,11 @@ def plan(model: str | None = None, dataset: str | None = None, task: str | None 
             "rows": {"train": n_train, "val": n_val}, "layout": layout.to_dict(),
             "title": f"{MODEL_NAMES[kind]} {what} classifier on {short}",
             "slug": slugify(f"{kind}-{short}")}
+
+
+def default_epochs(p: dict[str, Any]) -> int:
+    """How many epochs the project should train for when the user didn't say."""
+    return int(p.get("epochs") or DEFAULT_EPOCHS)
 
 
 FILLER = set("""a an the me my us our for on of in with using use about to from that this some new please albie hey
@@ -124,10 +167,19 @@ def build(p: dict[str, Any], root: Path, progress: Callable[[str], None] = lambd
     Nothing is written outside it except deleting this folder's oldest siblings that Albie built."""
     layout = hf_data.Layout(**p["layout"])
     dest = _folder(Path(root), p["slug"])
-    template = TEMPLATES / ("text" if p["task"] == "text_classification" else "image")
+    template = TEMPLATES / ("pretrained" if p["model"] == "hf" else
+                            "text" if p["task"] == "text_classification" else "image")
     shutil.copytree(template, dest, ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copy2(TEMPLATES / "common" / "download_data.py", dest / "download_data.py")
     shutil.copy2(Path(hf_data.__file__), dest / "hf_data.py")  # so download_data.py works in a clone of the PR
+    # Like ml_github: FORGE_ML_VENV (a venv with torch and transformers) becomes the project's .venv, so the project
+    # trains with those packages instead of the hub's bare python. Not published: the PR's file list is explicit.
+    venv = os.environ.get("FORGE_ML_VENV")
+    if venv and not any((dest / v).exists() for v in (".venv", "venv", "env")):
+        try:
+            (dest / ".venv").symlink_to(Path(venv).expanduser().resolve())
+        except OSError:
+            pass  # a venv that can't be linked is not a reason to lose the project; the profile falls back to python
     try:
         got = hf_data.fetch(layout, dest, p["rows"]["train"], p["rows"]["val"], progress)
         classes = got["classes"]
@@ -138,10 +190,14 @@ def build(p: dict[str, Any], root: Path, progress: Callable[[str], None] = lambd
                    "rows": {"train": got["train"], "val": got["val"]}, "train_counts": got["counts"],
                    "created_at": time.time(), "notes": layout.notes,
                    "layout": layout.to_dict(), "sample": {**p["rows"], "seed": 7}}
-        if p["task"] == "text_classification":
+        if p["model"] == "hf":
+            project.update(base_model=p["base_model"], model_name=p["model_name"], base_license=p.get("base_license"),
+                           max_len=128, lr=3e-5, batch_size=32)
+        elif p["task"] == "text_classification":
             project.update(max_len=128, lr=2e-3)
         else:
             project.update(image_size=32, lr=1e-3)  # measured on Fashion-MNIST: 80% at 1e-3 vs 77.5% at 2e-3
+
         (dest / "project.json").write_text(json.dumps(project, indent=1, ensure_ascii=False))
         (dest / ".forge").mkdir(exist_ok=True)
         (dest / ".forge" / "profile.json").write_text(json.dumps(profile(project, epochs), indent=1, ensure_ascii=False))
@@ -157,34 +213,52 @@ def profile(project: dict[str, Any], epochs: int) -> dict[str, Any]:
     """The hand-written .forge/profile.json: setup finds it (with the template's adapter), forge.check passes,
     and the project is ready with no LLM call."""
     text = project["task"] == "text_classification"
+    base = project.get("base_model")
+    name = project.get("model_name") or MODEL_NAMES[project["model"]]
+    summary = (f"{name} {'text' if text else 'image'} classifier, {len(project['classes'])} classes, on "
+               f"{project['dataset']} from Hugging Face.")
+    if base:
+        summary += f" Fine-tuned from {base}."
     return {"schema": 1, "archetype": project["task"], "confidence": 1.0, "framework": "pytorch", "python": "python",
             "entry_points": {"train": "train.py", "model": "model.py:build", "data": "data.py:get_loaders"},
             "train_cmd": f"python train.py --epochs {epochs}", "classes": project["classes"], "target": None,
             "input_shape": [project["max_len"]] if text else [3, project["image_size"], project["image_size"]],
-            "checkpoint": "checkpoints/best.pt", "existing_logs": [], "extra_viz": [],
-            "summary": f"{MODEL_NAMES[project['model']]} {'text' if text else 'image'} classifier, "
-                       f"{len(project['classes'])} classes, on {project['dataset']} from Hugging Face.",
-            "notes": "Built by Albie (ml_new) from hub/ml/templates; model.py has every model, project.json picks one."}
+            "checkpoint": "checkpoints/best.pt", "existing_logs": [], "extra_viz": [], "base_model": base,
+            "summary": summary,
+            "notes": ("Built by Albie (ml_new) from hub/ml/templates/pretrained; model.py fine-tunes the Hugging Face "
+                      f"model {base} with a new classification head." if base else
+                      "Built by Albie (ml_new) from hub/ml/templates; model.py has every model, project.json picks one.")}
 
 
 def readme(project: dict[str, Any], epochs: int) -> str:
     classes = ", ".join(project["classes"][:12]) + (" ..." if len(project["classes"]) > 12 else "")
+    base = project.get("base_model")
+    model_line = (f"- Model: {project.get('model_name') or MODEL_NAMES[project['model']]}, fine-tuned from "
+                  f"[{base}](https://huggingface.co/{base}) (license: {project.get('base_license') or 'not stated'}) "
+                  "with a new classification head (`model.py`)\n" if base else
+                  f"- Model: {MODEL_NAMES[project['model']]} (`model.py`, picked by `project.json`)\n")
     return (f"# {project['title']}\n\n"
             f"Built by Albie from the Hugging Face dataset [{project['dataset']}](https://huggingface.co/datasets/"
             f"{project['dataset']}) (config `{project['config']}`, license: {project['license'] or 'not stated'}).\n\n"
-            f"- Model: {MODEL_NAMES[project['model']]} (`model.py`, picked by `project.json`)\n"
+            f"{model_line}"
             f"- Data: {project['rows']['train']} training and {project['rows']['val']} validation rows, sampled from "
             f"`{project['splits']['train']}` and `{project['splits']['val']}` (`data/`)\n"
             f"- Classes ({len(project['classes'])}): {classes}\n\n"
-            f"Train it: `python train.py --epochs {epochs}` (CPU, about a minute).\n")
+            f"Train it: `python train.py --epochs {epochs}` (CPU, about a minute to a few minutes).\n")
 
 
 def describe(p: dict[str, Any]) -> dict[str, Any]:
     """What Albie says before it's built: the plan without the internals."""
     classes = p["classes"]
-    return {"building": p["title"], "model": p["model_name"], "dataset": p["dataset"],
-            "classes": classes[:10] + (["..."] if len(classes) > 10 else []) if classes else "named from the data",
-            "rows": p["rows"], "license": p["license"] or "not stated"}
+    out = {"building": p["title"], "model": p["model_name"], "dataset": p["dataset"],
+           "classes": classes[:10] + (["..."] if len(classes) > 10 else []) if classes else "named from the data",
+           "rows": p["rows"], "license": p["license"] or "not stated"}
+    if p.get("base_model"):
+        out["base_model"] = p["base_model"]
+        out["base_license"] = p.get("base_license") or "not stated"
+        out["finetune"] = True
+    return out
+
 
 
 # The datasets "start an RNN project", "a CNN on digits" and the like reach for (hf_data.ALIASES and DEFAULTS).
