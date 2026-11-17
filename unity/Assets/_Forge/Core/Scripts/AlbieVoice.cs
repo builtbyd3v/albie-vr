@@ -62,6 +62,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
         "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
+        "To pull an ML repo from GitHub ('clone the pytorch cifar repo'), call ml_github: it finds the repo first, so say its name and ask, " +
+        "and only after a yes call it again with confirm true. The user's own repos and pull requests in the code view are the github_ tools; " +
+        "github_approve_pr and github_merge_pr first read the pull request back: ask 'approve it?' or 'merge it?' and only after a yes call again with confirm true. " +
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
         "To make, build or show something, call artifact_create. Use a template when one fits: 'make me a slalom' or an obstacle course is template slalom, " +
