@@ -256,8 +256,6 @@ public class CodePanel : MonoBehaviour
 
         BuildScrollCues(codeBox);
 
-        BuildScrollCues(codeBox);
-
         scroll = codeBox.gameObject.AddComponent<ScrollRect>();
         scroll.viewport = viewport;
         scroll.content = content;
