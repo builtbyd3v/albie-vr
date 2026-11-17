@@ -30,6 +30,9 @@ public class AppLifecycle : MonoBehaviour
     public static float ResumedAt { get; private set; } = -1e6f;
 
     static AppLifecycle instance;
+    // Seam for Forge > Core > Check Lifecycle (a fake clock, so seconds away can be checked); the app keeps the default.
+    internal static Func<float> clock = RealTime;
+    static float RealTime() => Time.realtimeSinceStartup;
     bool paused, unmounted, simulated, originMoved;
     float awayAt, savedTimeScale = 1f, replaceAt = -1f;
     readonly List<Behaviour> held = new List<Behaviour>();
@@ -41,6 +44,7 @@ public class AppLifecycle : MonoBehaviour
         IsAway = false;
         ResumedAt = -1e6f;
         instance = null;
+        clock = RealTime;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -79,7 +83,7 @@ public class AppLifecycle : MonoBehaviour
     {
         Debug.Log($"[AppLifecycle] tracking origin change pending ({origin}), away={IsAway}");
         if (IsAway) originMoved = true;
-        else if (Time.realtimeSinceStartup - ResumedAt < LateRecenterS) { originMoved = true; replaceAt = Time.realtimeSinceStartup + SettleS; }
+        else if (clock() - ResumedAt < LateRecenterS) { originMoved = true; replaceAt = clock() + SettleS; }
     }
 
     void Update()
@@ -90,7 +94,7 @@ public class AppLifecycle : MonoBehaviour
             unmounted = false;
             Sync("headset on (polled)");
         }
-        if (replaceAt >= 0f && Time.realtimeSinceStartup >= replaceAt)
+        if (replaceAt >= 0f && clock() >= replaceAt)
         {
             replaceAt = -1f;
             Replace();
@@ -107,7 +111,7 @@ public class AppLifecycle : MonoBehaviour
     void GoAway(string why)
     {
         IsAway = true;
-        awayAt = Time.realtimeSinceStartup;
+        awayAt = clock();
         originMoved = false;
         replaceAt = -1f;
 
@@ -134,8 +138,8 @@ public class AppLifecycle : MonoBehaviour
         IsAway = false;
         Time.timeScale = savedTimeScale;
         AudioListener.pause = false;
-        float secondsAway = Time.realtimeSinceStartup - awayAt;
-        ResumedAt = Time.realtimeSinceStartup;
+        float secondsAway = clock() - awayAt;
+        ResumedAt = clock();
         if (ForgeNet.LocalPeer is AlbieVoice voice) voice.Resume();
         foreach (var b in held)
         {
@@ -144,7 +148,7 @@ public class AppLifecycle : MonoBehaviour
             b.enabled = true;
         }
         held.Clear();
-        replaceAt = Time.realtimeSinceStartup + SettleS;
+        replaceAt = clock() + SettleS;
         Debug.Log($"[AppLifecycle] back ({why}) after {secondsAway:F0} s.");
         try { Resumed?.Invoke(secondsAway); }
         catch (Exception e) { Debug.LogException(e); }
