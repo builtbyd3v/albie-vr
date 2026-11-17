@@ -1,4 +1,6 @@
 [
+{"name": "setup: hold the voice (the sweep spends nothing)", "setup": true, "cmd": "voice_guard", "cmd_args": {"on": true}, "wait_s": 0.5, "expect_state": {"voice.held": true}},
+{"name": "setup: seat the user at the desk (the views refuse when nobody is at it)", "setup": true, "cmd": "desk", "cmd_args": {"seated": true}, "wait_s": 0.5, "within_s": 3, "expect_state": {"desk.room_loaded": true, "desk.state": "Seated"}},
 {"name": "view cad", "tool": "ui_open_view", "args": {"view": "cad"}},
 {"name": "view code", "tool": "ui_open_view", "args": {"view": "code"}},
 {"name": "view ml", "tool": "ui_open_view", "args": {"view": "ml"}},
@@ -62,5 +64,7 @@
 {"name": "os: page agents", "tool": "os_open", "args": {"kind": "system", "id": "agents"}, "group": "feat/albie-os only"},
 {"name": "os: page settings", "tool": "os_open", "args": {"kind": "system", "id": "settings"}, "group": "feat/albie-os only"},
 {"name": "os: page build", "tool": "os_open", "args": {"kind": "system", "id": "build"}, "group": "feat/albie-os only"},
-{"name": "os: menu close", "tool": "os_menu", "args": {"open": false}, "group": "feat/albie-os only"}
+{"name": "os: menu close", "tool": "os_menu", "args": {"open": false}, "group": "feat/albie-os only"},
+{"name": "teardown: stand the user up", "teardown": true, "cmd": "desk", "cmd_args": {"seated": false}, "wait_s": 0.5, "expect_state": {"desk.force_seated": false}},
+{"name": "teardown: give the voice back", "teardown": true, "cmd": "voice_guard", "cmd_args": {"on": false}, "wait_s": 0.5, "expect_state": {"voice.held": false}}
 ]
