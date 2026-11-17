@@ -18,7 +18,7 @@ using UnityEngine.UI;
 public class DraftCard : MonoBehaviour
 {
     /// <summary>Panel size (m); the builder and the presenter's docking math both use it.</summary>
-    public static readonly Vector2 SizeMeters = new Vector2(0.42f, 0.26f);
+    public static readonly Vector2 SizeMeters = new Vector2(0.42f, 0.30f);
     const float LingerSeconds = 0.8f, SentLingerSeconds = 1.8f;  // "Sent to #x" stays long enough to read
     static readonly char[] LineBreaks = { '\n', '\r' };
 

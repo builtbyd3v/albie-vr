@@ -32,7 +32,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     public const float LiftMm = 10f;          // 1 cm toward the viewer (canvas -Z)
     const float HoverSeconds = 0.18f;
     // Thread geometry (mm).
-    const float PadX = 10f, BubbleT = 28f, NameX = 48f, NameY = 7f, LineH = 16f, BodyY = 25f, BodyBottom = 9f, MetaH = 15f, TimeW = 44f;
+    const float PadX = 10f, BubbleT = 28f, NameX = 48f, NameY = 7f, LineH = 18f, BodyY = 25f, BodyBottom = 9f, MetaH = 15f, TimeW = 44f;
     // Inbox geometry.
     const float BubbleI = 32f, NameXI = 52f;
 

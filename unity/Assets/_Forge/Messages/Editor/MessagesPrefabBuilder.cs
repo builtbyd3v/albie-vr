@@ -147,6 +147,9 @@ public static class MessagesPrefabBuilder
         ChatUi.AlbieSticker(bubble);
         var body = ChatUi.Text(bubble, "Body", ChatUi.Body, MessagesLook.Ink, wrap: true);
         body.overflowMode = TextOverflowModes.Ellipsis;
+        body.enableAutoSizing = true;  // a long draft shrinks before it is cut: the user reads all of it before Send
+        body.fontSizeMax = body.fontSize;
+        body.fontSizeMin = body.fontSize * 0.75f;
         body.text = "Yes, I'll ping you when it's pushed.";
         float pad = DraftCard.BodyPad;
         ChatUi.Stretch(body.rectTransform, pad + 2f, pad, pad + 2f, pad);

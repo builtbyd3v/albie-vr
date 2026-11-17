@@ -243,7 +243,7 @@ public static class ChatText
 
     // The panel look: links and other people's mentions blue on a faint blue, the user's own mentions and @here
     // as a lime sticker mark with ink text, inline code amber on a faint white.
-    const string LinkHex = "#C7A8FF", LinkBgHex = "#A77BFF26", MeHex = MessagesLook.MentionInkHex, MeBgHex = MessagesLook.MentionMarkHex;
+    const string LinkHex = "#C7A8FF", LinkBgHex = "#A77BFF26", MeHex = MessagesLook.MentionMarkHex, MeBgHex = MessagesLook.MentionMarkHex + "33";  // TMP draws a mark over the text, so it stays see-through: lime text on a faint lime
     const string CodeOpen = "<color=#E8912D><mark=#FFFFFF12>", CodeClose = "</mark></color>";
     // Bold without most of TMP's faux-bold letter spacing (ChatUi.SetBold does the same for whole texts).
     public const string BoldOpen = "<b><cspace=-0.055em>", BoldClose = "</cspace></b>";

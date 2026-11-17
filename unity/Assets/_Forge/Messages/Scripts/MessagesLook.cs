@@ -48,7 +48,16 @@ public static class MessagesLook
     /// Editor keep Core's Inter asset (a runtime font asset can't be saved into a prefab); the panels swap to Fredoka
     /// in Awake (<see cref="ChatUi.ApplyFontAll"/>).
     /// </summary>
-    public static TMP_FontAsset Font => Application.isPlaying ? Forge.Pet.AlbieCaption.DefaultFont() : null;
+    public static TMP_FontAsset Font
+    {
+        get
+        {
+            if (!Application.isPlaying) return null;
+            var font = Forge.Pet.AlbieCaption.DefaultFont();
+            if (font != null && !font.HasCharacter('\u2026')) font.TryAddCharacters("\u2026");  // TMP's overflow needs it in the atlas up front
+            return font;
+        }
+    }
 
     // ---- Albie's picture (Resources/AlbiePortrait.png: his render, trimmed, 1024 x 750, transparent) ----
 
