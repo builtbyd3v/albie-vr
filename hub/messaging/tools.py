@@ -192,7 +192,7 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, imessage
                             or bool(reply_to and reply_to.source == "imessage") or focused_imessage)
             if use_imessage:
                 if files:
-                    return {"error": "Files can only go on a Slack message, not an iMessage"}
+                    return {"error": "Files can only go on a team chat message, not a text message"}
                 if imessage is None or not imessage.available:
                     return {"error": "iMessage is unavailable on this Mac"}
                 if svc.open_draft is not None:
@@ -206,7 +206,7 @@ async def call_tool(name: str, args: dict[str, Any], svc: SlackService, imessage
             if not (reply_to_ts or args.get("thread_ts") or requested_channel) and svc.focused is not None:
                 reply_to_ts = svc.focused.ts  # reply from a message card: no target named -> the message in focus
             if not svc.enabled:
-                return {"error": "Slack is not configured on this hub"}
+                return {"error": "Team chat is not configured on this hub"}
             if imessage is not None and imessage.open_draft is not None:
                 await imessage.cancel_draft(imessage.open_draft.draft_id)
             draft = await svc.create_draft(text, requested_channel, args.get("thread_ts"), reply_to_ts,

@@ -13,9 +13,10 @@ using UnityEngine.Networking;
 /// events the hub would broadcast (cad.model_updated, ml.metrics, pet.say ...) are polled from <c>GET /events</c> and
 /// injected into ForgeNet as if the hub had sent them. The code panel's GitHub repos (/code/) come from here too.
 /// Everything else stays on MockRest and the mocks.
-/// <see cref="UrlPref"/> set to an empty string, or the cloud unreachable (no internet, asleep): nothing changes, the mocks keep
-/// working. Albie's CAD and ML voice tools (Resources/AlbieTools/cloud.json) then answer that they need the cloud.
-/// Installs itself.
+/// <see cref="UrlPref"/> set to an empty string, or the cloud unreachable (no internet, paused, asleep): the mocks keep
+/// working. <see cref="State"/> (<see cref="CloudHealth"/>) says which: a waking Space is re-probed every few seconds for
+/// up to 90 s. Albie's CAD and ML voice tools (Resources/AlbieTools/cloud.json) then answer that the cloud is waking or
+/// offline, and Albie says once when that changes. Installs itself.
 /// </summary>
 public class ForgeCloud : MonoBehaviour
 {
@@ -23,15 +24,24 @@ public class ForgeCloud : MonoBehaviour
     public const string UrlPref = "Albie.CloudUrl";      // e.g. http://192.168.1.20:8080 to test against a laptop
     public const string DevicePref = "Albie.DeviceId";
     static readonly string[] Prefixes = { "/cad/", "/ml/", "/code/", "/tools/", "/events" };
-    const float PollS = 1f, RetryS = 30f;
+    const float PollS = 1f, RetryS = 30f, WakeProbeS = 5f;
+    const int ProbeTimeoutS = 5;
+    const string PetId = "bit";
 
     static ForgeCloud instance;
     static string deviceId, appKey;
+    readonly CloudHealth health = new CloudHealth();
     int cursor, toolsRunning;
-    bool polling, probed, caughtUp;
+    bool polling, probed, caughtUp, probeNow;
 
     /// <summary>The cloud answered its health check (and the hub is off).</summary>
-    public static bool Available { get; private set; }
+    public static bool Available => State == CloudState.Online;
+    /// <summary>Online, Waking (a sleeping Space booting), Offline (paused, no network), or Unknown (not probed, or the hub serves it all).</summary>
+    public static CloudState State => instance != null ? instance.health.State : CloudState.Unknown;
+    /// <summary>One line for a panel that falls back to its mocks: the cloud is waking or offline; null otherwise.</summary>
+    public static string StatusLine => instance != null && Configured && ForgeNet.IsMock ? instance.health.Status : null;
+    /// <summary>The <see cref="State"/> changed.</summary>
+    public static event Action<CloudState> StateChanged;
     /// <summary>The first health check has finished, either way (at once with no cloud URL).</summary>
     public static bool Probed => !Configured || (instance != null && instance.probed);
 
@@ -99,11 +109,13 @@ public class ForgeCloud : MonoBehaviour
     /// {"error"} when the cloud can't be reached. Opens the view the tool asked for, and fetches its events at once.</summary>
     public static void CallTool(string name, JObject args, Action<JObject> done)
     {
-        if (instance == null || !Available)
+        if (instance == null || !Configured || !ForgeNet.IsMock)
         {
             done(AlbieTools.Error("That needs Albie's cloud, and it isn't reachable right now."));
             return;
         }
+        string notReady = Ask();
+        if (notReady != null) { done(AlbieTools.Error(notReady)); return; }
         instance.StartCoroutine(instance.Tool(name, args ?? new JObject(), done));
     }
 
@@ -122,12 +134,22 @@ public class ForgeCloud : MonoBehaviour
         AlbieTools.Register("cloud", handlers);
     }
 
+    /// <summary>The user wants a cloud feature (a voice tool, Train). Returns what to tell them when the cloud is waking
+    /// or offline (then Albie also says when it's back), or null when it's Online or the hub serves it.</summary>
+    public static string Ask()
+    {
+        if (instance == null || !Configured || !ForgeNet.IsMock) return null;
+        string line = instance.health.Ask();
+        if (line != null) instance.probeNow = true;  // check again now
+        return line;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
         instance = null;
-        Available = false;
         appKey = null;
+        StateChanged = null;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -143,27 +165,52 @@ public class ForgeCloud : MonoBehaviour
     {
         if (!Configured) yield break;  // today's mock behavior
         _ = ForgeNet.Instance;
+        var tick = new WaitForSecondsRealtime(0.5f);
         while (true)
         {
             while (ForgeNet.Status == ForgeNetStatus.Connecting) yield return null;
+            var before = health.State;
             if (ForgeNet.Status == ForgeNetStatus.Live)  // the hub does it all: stand by
             {
-                Available = false;
+                health.Standby();
                 probed = true;
+                if (before != health.State) StateChanged?.Invoke(health.State);
                 yield return new WaitForSecondsRealtime(RetryS);
                 continue;
             }
-            bool ok = false;
-            yield return Send("GET", "/health", null, 8, (_, __) => ok = true, _ => { });
-            if (ok != Available) Debug.Log(ok ? $"[ForgeCloud] CAD and ML from the cloud at {BaseUrl} (device {DeviceId})"
-                                              : $"[ForgeCloud] cloud at {BaseUrl} unreachable; CAD and ML use demo data");
-            Available = ok;
+            long code = 0;
+            string text = null;
+            probeNow = false;
+            yield return Send("GET", "/health", null, ProbeTimeoutS, (t, _) => { code = 200; text = t; }, (c, t) => { code = c; text = t; });
+            string say = health.Report(code, text, Time.realtimeSinceStartup);
             probed = true;
-            if (ok && !polling) StartCoroutine(Poll());
-            if (ok) ForgeNet.Inject("cloud.ready", new JObject { ["url"] = BaseUrl });
-            yield return new WaitForSecondsRealtime(RetryS);
-            while (Available && ForgeNet.IsMock) yield return new WaitForSecondsRealtime(RetryS);
+            if (health.State != before)
+            {
+                Debug.Log($"[ForgeCloud] {BaseUrl}: {health.State} ({code})" + (health.State == CloudState.Online
+                    ? $"; CAD and ML from the cloud (device {DeviceId})" : "; CAD and ML use demo data"));
+                if (health.State == CloudState.Online)
+                {
+                    if (!polling) StartCoroutine(Poll());
+                    ForgeNet.Inject("cloud.ready", new JObject { ["url"] = BaseUrl });
+                }
+                StateChanged?.Invoke(health.State);
+            }
+            if (say != null) Say(say);
+            if (health.State == CloudState.Online)
+                while (ForgeNet.IsMock && !probeNow) yield return tick;  // /events polling notices it dropping out
+            else
+                for (float waited = 0f, wait = health.State == CloudState.Waking ? WakeProbeS : RetryS;
+                     waited < wait && !probeNow && ForgeNet.IsMock; waited += 0.5f)
+                    yield return tick;
         }
+    }
+
+    // Albie says it: the on-device voice when it runs, else a caption (same path as AlbieTips).
+    static void Say(string line)
+    {
+        Debug.Log("[ForgeCloud] " + line);
+        if (ForgeNet.LocalPeer is AlbieVoice) ForgeNet.Send("albie.say", new JObject { ["text"] = line });
+        else ForgeNet.Inject("pet.say", new JObject { ["pet_id"] = PetId, ["text"] = line });
     }
 
     IEnumerator Poll()
@@ -200,21 +247,25 @@ public class ForgeCloud : MonoBehaviour
                 if (type == "pet.say" && toolsRunning == 0 && !string.IsNullOrEmpty((string)e["payload"]?["text"]))
                     ForgeNet.Send("pet.speak", e["payload"]);
             }
-        }, _ => failures++);
-        if (failures > 0) Available = false;  // Start() re-probes
+        }, (_, __) => failures++);
+        if (failures > 0) probeNow = true;  // Start() re-probes /health now
     }
 
     IEnumerator Tool(string name, JObject args, Action<JObject> done)
     {
         JObject answer = null;
         string error = null;
+        long failed = -1;
         toolsRunning++;
         yield return Send("POST", "/tools/" + name, args.ToString(Formatting.None), 120,
-            (text, _) => answer = JObject.Parse(text), e => error = e);
+            (text, _) => answer = JObject.Parse(text), (code, text) => { error = code + " " + text; failed = code; });
         if (answer == null)
         {
             toolsRunning--;
-            done(AlbieTools.Error("The cloud didn't answer: " + error));
+            bool dropped = failed == 0 || failed == 502 || failed == 503 || failed == 504;  // the Space, not the tool
+            if (dropped) probeNow = true;
+            done(AlbieTools.Error(dropped ? "Albie's cloud stopped answering. I'm checking on it; try again in a minute."
+                                          : "The cloud didn't answer: " + error));
             yield break;
         }
         string show = (string)answer["show"];
@@ -225,7 +276,8 @@ public class ForgeCloud : MonoBehaviour
         done(answer["result"] as JObject ?? new JObject { ["ok"] = true });
     }
 
-    static IEnumerator Send(string method, string path, string body, int timeout, Action<string, byte[]> ok, Action<string> fail)
+    // fail gets the HTTP status (0: no answer at all) and the error with the start of the answer's body.
+    static IEnumerator Send(string method, string path, string body, int timeout, Action<string, byte[]> ok, Action<long, string> fail)
     {
         using (var request = new UnityWebRequest(BaseUrl + path, method))
         {
@@ -240,7 +292,9 @@ public class ForgeCloud : MonoBehaviour
             yield return request.SendWebRequest();
             if (request.result != UnityWebRequest.Result.Success)
             {
-                fail($"{request.responseCode} {request.error}");
+                string answer = request.downloadHandler.text ?? "";
+                fail(request.responseCode, answer.Length == 0 ? request.error
+                    : request.error + ": " + (answer.Length > 200 ? answer.Substring(0, 200) : answer));
                 yield break;
             }
             try { ok(request.downloadHandler.text, request.downloadHandler.data); }

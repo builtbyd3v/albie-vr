@@ -13,6 +13,7 @@ using UnityEngine;
 public class AlbieTips : MonoBehaviour
 {
     public const float MinGapS = 120f;
+    const float ResumeQuietS = 20f;
     const string PetId = "bit";
 
     static AlbieTips instance;
@@ -65,6 +66,8 @@ public class AlbieTips : MonoBehaviour
     void Update()
     {
         if (pending == null || busy || Time.realtimeSinceStartup - lastTip < MinGapS) return;
+        // Not while the headset is off, nor in the first seconds back (the welcome-back line goes first).
+        if (AppLifecycle.IsAway || Time.realtimeSinceStartup - AppLifecycle.ResumedAt < ResumeQuietS) return;
         if (caption == null)
         {
             var bridge = FindAnyObjectByType<Forge.Pet.AlbieAgentBridge>();

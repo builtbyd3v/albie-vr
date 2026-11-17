@@ -3,14 +3,15 @@ using UnityEngine;
 
 /// <summary>
 /// Albie opens a conversation ("open my chat with Adrian", "pull up #general": the hub's messages_open tool). The hub's
-/// ws <c>messages.open {pet_id, request_id, channel, channel_name, kind}</c> shows it on its provider's panel (Slack, or
-/// iMessage for an <c>im:</c> chat; <see cref="SlackPanel.ForChannel"/>), opening MSG mode when it is closed (like tapping
+/// ws <c>messages.open {pet_id, request_id, channel, channel_name, kind}</c> shows it on the chat panel
+/// (<see cref="ChatPanel.ForChannel"/>), opening MSG mode when it is closed (like tapping
 /// a Mentions card does), and this answers <c>messages.opened {pet_id, request_id, channel, ok, reason?}</c> in the same frame, so Albie says what really happened. reason: <c>not_at_desk</c> (the
 /// Workspace only opens at a desk) or <c>no_workspace</c>. A conversation the list doesn't have yet (a DM the hub just
-/// opened) gets a row right away (<see cref="SlackStore.Provisional"/>). Installs itself on scene load into any scene
-/// with a DeskPresence, like <see cref="DraftPresenter"/>.
+/// opened) gets a row right away (<see cref="ChatStore.Provisional"/>). Installs itself on scene load into any scene
+/// with a DeskPresence, like <see cref="DraftPresenter"/>. A conversation the app does not show
+/// (<see cref="ChatStore.Unsupported"/>) gets no answer at all; the hub's own wait for the reply times out.
 /// </summary>
-public class SlackRemote : MonoBehaviour
+public class ChatRemote : MonoBehaviour
 {
     const string OpenType = "messages.open", OpenedType = "messages.opened", MessagesMode = "messages";
 
@@ -19,11 +20,11 @@ public class SlackRemote : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
     {
-        if (FindAnyObjectByType<SlackRemote>() != null || FindAnyObjectByType<DeskPresence>() == null) return;
-        new GameObject("MessagesRemote").AddComponent<SlackRemote>();
+        if (FindAnyObjectByType<ChatRemote>() != null || FindAnyObjectByType<DeskPresence>() == null) return;
+        new GameObject("MessagesRemote").AddComponent<ChatRemote>();
     }
 
-    void OnEnable() => subscription = ForgeNet.On<SlackOpenRequest>(OpenType, OnOpen);
+    void OnEnable() => subscription = ForgeNet.On<ChatOpenRequest>(OpenType, OnOpen);
 
     void OnDisable()
     {
@@ -31,11 +32,11 @@ public class SlackRemote : MonoBehaviour
         subscription = null;
     }
 
-    void OnOpen(SlackOpenRequest req)
+    void OnOpen(ChatOpenRequest req)
     {
-        if (req == null || string.IsNullOrEmpty(req.channel)) return;
+        if (req == null || string.IsNullOrEmpty(req.channel) || ChatStore.Unsupported(null, req.channel)) return;
         string reason = Show(req.channel, req.channelName, req.kind);
-        ForgeNet.Send(OpenedType, new SlackOpened
+        ForgeNet.Send(OpenedType, new ChatOpened
         {
             petId = string.IsNullOrEmpty(req.petId) ? "bit" : req.petId,
             requestId = req.requestId ?? "",
@@ -43,7 +44,7 @@ public class SlackRemote : MonoBehaviour
             ok = reason == null,
             reason = reason,
         });
-        Debug.Log($"[SlackRemote] Albie opened {req.channelName ?? req.channel}: {(reason ?? "ok")}.");
+        Debug.Log($"[ChatRemote] Albie opened {req.channelName ?? req.channel}: {(reason ?? "ok")}.");
     }
 
     /// <summary>
@@ -52,20 +53,20 @@ public class SlackRemote : MonoBehaviour
     /// </summary>
     public static string Show(string channel, string channelName, string kind)
     {
-        SlackStore.Provisional(channel, channelName, kind);
+        ChatStore.Provisional(channel, channelName, kind);
         string reason = null;
         var ws = Workspace.Current;
-        var panel = SlackPanel.ForChannel(channel);
+        var panel = ChatPanel.ForChannel(channel);
         if (panel != null) panel.Open(channel);
         else if (ws == null) reason = "no_workspace";
         else if (!ws.CanOpen) reason = "not_at_desk";
         else
         {
-            SlackPanel.PendingChannel = channel;  // the panel opens it as it comes up
+            ChatPanel.PendingChannel = channel;  // the panel opens it as it comes up
             ws.Open(MessagesMode);
             if (ws.ActiveMode != MessagesMode) reason = "not_at_desk";
         }
-        if (reason != null && panel == null) SlackPanel.PendingChannel = null;
+        if (reason != null && panel == null) ChatPanel.PendingChannel = null;
         return reason;
     }
 }
