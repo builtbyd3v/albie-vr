@@ -20,7 +20,8 @@ The Albie OS is the layer that gives Albie a menu, windows and a set of tools. T
 - **Strip:** Build something (the primary button), Agents, Settings, Bring windows here, and Close.
   - Agents, Settings and Build something open their system page and then close the menu.
   - Bring windows here lays out every open window again and closes the menu.
-- **Tools tab:** CAD, Code, Train, Notebook, Messages, Gestures, Drive. Train also opens the controller brain window when a brain truck is running.
+- **Tools tab:** CAD, Code, Train, Notebook, Messages, Gestures, Drive, Agents. Train also opens the controller brain window when a brain truck is running. **Tools → Agents → Project workflow** opens the coding orchestration panel.
+- **Drive:** when no truck is loaded, tap **Set up truck**, then **Allow** on the course card. The Drive window includes **Record laps**, **Train**, **Autopilot**, the steering pad and **Stop**. Record two clean laps with the pad before training. Setup uses the RC truck project and its existing course/permission flow.
 - **Projects tab:** RC truck, Quadcopter, Rocket, Image classifier, then each other folder under the notebook's `projects/` folder. A project's status line is read again every few seconds or when the notebook changes.
 - **Artifacts tab:** a "New" section with one tile per template in `ArtifactLibrary.Templates` (slalom, hoop course, What shipped?, cell, heart, brain, plant cell, eye, DNA, double pendulum, solar system). Three-body is listed only when it opens here; it opens, it is not created.
 - An empty tab shows a sentence that says what to do (`OSRegistry.EmptyText`).
@@ -92,6 +93,10 @@ public static void Register() => OSShell.RegisterSystem(WindowId, () => Open());
 (From `OSSettingsWindow.cs`.)
 
 ## Settings
+
+The Agents page also opens **Agent office**, a 3D viewport of Albie and the existing crew with workstations,
+live workflow states and role inspection. Its mesh-only portraits do not create agents or change the real crew.
+See `docs/AGENT_OFFICE.md` at the repository root.
 
 Settings are in `OSSettings` and saved to `os_settings.json` in the app's data folder (`Application.persistentDataPath`). A missing or damaged file gives the defaults, and values are clamped when read and saved. Settings are edited in the Settings window, and each change takes effect at once.
 

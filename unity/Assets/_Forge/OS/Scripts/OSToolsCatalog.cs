@@ -4,8 +4,8 @@ using UnityEngine;
 namespace Forge.OS
 {
     /// <summary>
-    /// The fixed entries of the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures and Drive. Drive's tile is made by
-    /// <see cref="OSDriveWindow.RegisterTool"/>, which <see cref="Register"/> calls last, so it comes after Gestures. The four
+    /// The fixed entries of the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures, Drive and Agents. Drive's tile is made by
+    /// <see cref="OSDriveWindow.RegisterTool"/> and comes after Gestures. The four
     /// Workspace modes open through <see cref="OSModes"/>, so they work at a desk and away from one; Train also opens the
     /// controller brain trainer when a brain truck is running; Notebook opens <see cref="OSNotebookWindow"/>; Gestures shows
     /// the gesture display the same way the gesture "display.toggle" does and hands it to the window manager, so Bring windows
@@ -77,6 +77,15 @@ namespace Forge.OS
                 open = OpenGestures,
             });
             OSDriveWindow.RegisterTool();  // Drive follows Gestures
+            OSRegistry.RegisterTool(new OSEntry
+            {
+                id = "agents",
+                title = "Agents",
+                icon = "agents",
+                status = () => "crew and project workflow",
+                isOpen = () => WindowOpen(OSAgentsWindow.WindowId),
+                open = () => OSAgentsWindow.Open(),
+            });
         }
 
         // ---------------------------------------------------------------- Workspace modes (CAD, Code, Messages)
