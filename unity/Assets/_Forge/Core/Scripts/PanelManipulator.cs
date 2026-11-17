@@ -494,6 +494,7 @@ public class PanelManipulator : MonoBehaviour
     ForgePill TitleButton(RectTransform parent, string label, float fromRight, UnityEngine.Events.UnityAction onClick)
     {
         var pill = ForgePill.Create(parent, label, onClick);
+        pill.Quiet = true;
         var rt = pill.Rect;
         rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(1f, 0.5f);

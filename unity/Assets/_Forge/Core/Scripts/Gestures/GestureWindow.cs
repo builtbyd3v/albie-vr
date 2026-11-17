@@ -30,6 +30,9 @@ public class GestureWindow : MonoBehaviour
     public bool IsNear => near;
     public bool IsMinimized => orb != null;
 
+    /// <summary>Set for a window the OS tracks: its dot stays when the user leaves the desk (such a window doesn't fold either).</summary>
+    public bool StaysAway { get; set; }
+
     public static GestureWindow Of(ForgePanel panel)
     {
         if (panel == null) return null;
@@ -74,6 +77,9 @@ public class GestureWindow : MonoBehaviour
     void OnDeskState(DeskState state)
     {
         if (state != DeskState.Away) return;
+        // The OS keeps its windows, and a mode it keeps open, where they are: their dots stay too.
+        var workspace = Workspace.Current;
+        if (StaysAway || (workspace != null && workspace.KeepOpenAway)) return;
         WatchDesk(false);
         DropOrb();
         if (group != null) group.blocksRaycasts = true;

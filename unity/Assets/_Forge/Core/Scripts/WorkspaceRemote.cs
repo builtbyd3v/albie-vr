@@ -59,7 +59,7 @@ public class WorkspaceRemote : MonoBehaviour
     {
         if (want.Length == 0) workspace.Close();
         else if (workspace.modes.Find(x => x.id == want) == null) return "unknown_mode";
-        else if (workspace.presence == null || !workspace.presence.AtDesk) return "not_at_desk";
+        else if (workspace.presence == null || !workspace.CanOpen) return "not_at_desk";
         else if (workspace.ActiveMode != want) workspace.Open(want);
         return null;
     }

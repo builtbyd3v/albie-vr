@@ -105,21 +105,31 @@ public class ForgePanel : MonoBehaviour
         bool hasBadge = badge != null && badge.gameObject.activeSelf;
         bool hasSubtitle = subtitleText != null && !string.IsNullOrEmpty(subtitleText.text);
         float left = HeaderLeft + (hasBadge ? ((RectTransform)badge.transform).sizeDelta.x + BadgeGap : 0f);
-        PlaceInHeader(titleText.rectTransform, left, hasSubtitle ? 25f : ForgeTheme.PanelHeader * 0.5f, 22f);
+        float right = HeaderReserve(left);
+        PlaceInHeader(titleText.rectTransform, left, right, hasSubtitle ? 25f : ForgeTheme.PanelHeader * 0.5f, 22f);
         if (subtitleText != null)
         {
             subtitleText.gameObject.SetActive(hasSubtitle);
-            PlaceInHeader(subtitleText.rectTransform, left, 44f, 16f);
+            PlaceInHeader(subtitleText.rectTransform, left, right, 44f, 16f);
         }
     }
 
-    static void PlaceInHeader(RectTransform rt, float left, float centerFromTop, float height)
+    // What the header keeps free on the right for the Straight / Face me pills: all of HeaderRight on a wide panel, less on
+    // a narrow one so the title always has at least MinHeaderText units (a card with no pills has nothing to clear).
+    float HeaderReserve(float left)
+    {
+        const float MinHeaderText = 120f;
+        float width = ((RectTransform)transform).sizeDelta.x;
+        return Mathf.Clamp(width - left - MinHeaderText, 20f, HeaderRight);
+    }
+
+    static void PlaceInHeader(RectTransform rt, float left, float right, float centerFromTop, float height)
     {
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(-(left + HeaderRight), height);
-        rt.anchoredPosition = new Vector2((left - HeaderRight) * 0.5f, -centerFromTop);
+        rt.sizeDelta = new Vector2(-(left + right), height);
+        rt.anchoredPosition = new Vector2((left - right) * 0.5f, -centerFromTop);
     }
 
     /// <summary>
@@ -222,8 +232,18 @@ public class ForgePanel : MonoBehaviour
 
     void Awake()
     {
+        FitPlate();
         SyncHitArea();
         LayoutHeader();
+    }
+
+    // The plate's corner comes from ForgeTheme.PanelCorner, not from what the prefab saved, so one constant restyles every
+    // window (the sandboxes too).
+    void FitPlate()
+    {
+        var background = transform.Find("Background");
+        var plate = background != null ? background.GetComponent<ForgeSurface>() : null;
+        if (plate != null && plate.Style == ForgeSurface.Kind.Panel) plate.Corner = ForgeTheme.PanelCorner;
     }
 
     // The Interaction SDK only lets rays and pokes hit inside its clippers' boxes, which the prefab saved at the

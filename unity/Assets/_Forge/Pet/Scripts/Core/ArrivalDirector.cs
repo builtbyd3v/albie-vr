@@ -286,6 +286,20 @@ namespace Forge.Pet
             if (_caption != null) _caption.Muted = up;
         }
 
+        /// <summary>
+        /// The greeting steps aside because something else took the desk (the OS opened its menu or a window): the card and START
+        /// fold, the pet is let go and the dock comes in. Unlike START, nothing is opened and the pet does not walk anywhere.
+        /// </summary>
+        public void DismissGreeting()
+        {
+            if (!_greetingUp) return;
+            Log("Greeting dismissed: something else opened.");
+            GreetingUp(false);
+            if (greeting != null) greeting.Fold();
+            if (controller != null) controller.ReleaseStation();
+            PetWorkspace.HoldDock(false);
+        }
+
         void OnStartPressed()
         {
             if (!_greetingUp && greeting != null) return;

@@ -29,13 +29,13 @@
     {
       "id": "label_iris",
       "kind": "text",
-      "text": "Iris\n<size=70%>coloured muscle ring that sizes the pupil</size>",
+      "text": "Iris",
       "pos": [
         -0.24,
         0.08,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -60,13 +60,13 @@
     {
       "id": "label_pupil",
       "kind": "text",
-      "text": "Pupil\n<size=70%>the opening that lets light in</size>",
+      "text": "Pupil",
       "pos": [
         -0.24,
         0.02,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -91,13 +91,13 @@
     {
       "id": "label_cornea",
       "kind": "text",
-      "text": "Cornea\n<size=70%>clear front window that bends light</size>",
+      "text": "Cornea",
       "pos": [
         -0.24,
         -0.04,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -122,13 +122,13 @@
     {
       "id": "label_sclera",
       "kind": "text",
-      "text": "Sclera\n<size=70%>the tough white outer coat</size>",
+      "text": "Sclera",
       "pos": [
         0.24,
         0.08,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -153,13 +153,13 @@
     {
       "id": "label_muscles",
       "kind": "text",
-      "text": "Eye muscles\n<size=70%>six of them turn the eye</size>",
+      "text": "Eye muscles",
       "pos": [
         0.24,
         0.02,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -184,13 +184,13 @@
     {
       "id": "label_optic_nerve",
       "kind": "text",
-      "text": "Optic nerve\n<size=70%>carries signals to the brain</size>",
+      "text": "Optic nerve",
       "pos": [
         0.24,
         -0.04,
         -0.2
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -228,7 +228,7 @@
         0.17,
         -0.2
       ],
-      "height": 0.0102,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -242,7 +242,7 @@
         0.17,
         -0.2
       ],
-      "height": 0.0102,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -256,7 +256,7 @@
         0.17,
         -0.2
       ],
-      "height": 0.0102,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -270,7 +270,7 @@
         0.17,
         -0.2
       ],
-      "height": 0.0102,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
