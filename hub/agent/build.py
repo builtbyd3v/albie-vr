@@ -106,10 +106,14 @@ class Step:
     state: str = "queued"  # queued, running, done, failed, cancelled
     summary: str = ""
     commit: str | None = None
+    progress: str = ""  # the member's latest progress line while it works ("Editing tipcalc/cli.py")
+    started_at: str | None = None
+    finished_at: str | None = None
 
     def public(self) -> dict[str, Any]:
         return {"agent": TYPES[self.agent].name, "type": self.agent, "task": self.task, "state": self.state,
-                "summary": self.summary, "commit": self.commit}
+                "summary": self.summary, "commit": self.commit, "progress": self.progress,
+                "started_at": self.started_at, "finished_at": self.finished_at}
 
 
 @dataclass
@@ -207,13 +211,14 @@ def commit_step(build: Build, step: Step, before: str | None) -> str | None:
     if _git(ws, "diff", "--cached", "--quiet").returncode != 0:
         _check(_git(ws, "commit", "-q", "-m", f"{TYPES[step.agent].name}: {step.task[:60]}",
                     "-m", "Built by Albie's crew."), "committing")
-    after = _git(ws, "rev-parse", "HEAD").stdout.strip() or None
+    after = head(build)  # None in a repo with no commits yet (git prints "HEAD" there, which is no commit)
     return after[:7] if after and after != before else None
 
 
 # ------------------------------------------------------------------ planning
 def default_plan(goal: str) -> tuple[str, str, list[Step]]:
-    return (goal[:40], goal, [
+    title = goal if len(goal) <= 40 else (goal[:41].rsplit(" ", 1)[0] or goal[:40]) + "…"  # cut at a word
+    return (title, goal, [
         Step("builder", f"Build this, complete and runnable: {goal}. Create the source files and a way to run it."),
         Step("tester", "Write tests for what the builder made and run them. Report what passed and what failed."),
         Step("scribe", "Write a README: what it is, how to run it, how to run the tests."),
@@ -344,27 +349,33 @@ class Builds:
     async def _step(self, build: Build, project: ProjectConfig, i: int) -> None:
         step = build.steps[i]
         agent = TYPES[step.agent]
-        step.state = "running"
-        emit = Emitter(agent.id, redact=[str(build.workspace)])
+        step.state, step.started_at = "running", now()
+        emitter = Emitter(agent.id, redact=[str(build.workspace)])
+
+        async def emit(event: ev.Event) -> None:  # to the headset as always, and the latest line for the build page
+            await emitter(event)
+            if event.type in ("agent.task_progress", "agent.partial_answer"):
+                step.progress = str(emitter._scrub(event).payload.get("text") or "")[:300]
+
         mode = "qa" if agent.read_only else "code"
         before = await asyncio.to_thread(head, build)
         try:
             result = await _runner()(project, step_prompt(build, i), mode, emit, pet_id=agent.id,
                                      control=build.control, agent=agent)
         except asyncio.CancelledError:
-            step.state = "cancelled"
+            step.state, step.finished_at = "cancelled", now()
             raise
         except Exception:
             log.exception("build %s step %d failed", build.id[:6], i + 1)
-            step.state, step.summary = "failed", "Something went wrong in this step."
+            step.state, step.summary, step.finished_at = "failed", "Something went wrong in this step.", now()
             return
         if self._cancelled(build):
-            step.state = "cancelled"
+            step.state, step.finished_at = "cancelled", now()
             return
         step.summary = (result or "").strip()[:600] or "Done."
         if not agent.read_only:
             step.commit = await asyncio.to_thread(commit_step, build, step, before)
-        step.state = "done"
+        step.state, step.finished_at = "done", now()
 
     @staticmethod
     def _cancelled(build: Build) -> bool:

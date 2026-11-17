@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from agent import build as build_mod
+from agent import events as ev
 from agent.build import MAX_STEPS, parse_plan
 
 FILES = {"builder": "app.py", "tester": "test_app.py", "scribe": "README.md", "fixer": "app.py"}
@@ -26,6 +27,7 @@ def scripted_runner(delay: float = 0.0, commits_itself: tuple[str, ...] = ()):
 
     async def run(project, text, mode, emit, *, pet_id, control=None, agent=None):
         seen.append((pet_id, mode))
+        await emit(ev.task_progress(pet_id, "t1", f"Editing {project.path}/out/{FILES.get(pet_id, 'x')}"))
         for _ in range(int(delay / 0.01)):
             if control is not None and control.cancelled.is_set():
                 return ""
@@ -87,6 +89,10 @@ def test_a_build_plans_runs_each_crew_member_in_turn_and_commits(builds_env, mon
     assert [bool(s["commit"]) for s in b["steps"]] == [True, True, True, False]  # the reviewer changes nothing
     assert runner.seen == [("builder", "code"), ("tester", "code"), ("scribe", "code"), ("reviewer", "qa")]
     assert "workspace" not in b and str(build_mod.build_dir()) not in str(b)  # no hub paths to clients
+    # The build page's live line and timings: the member's last progress line, with the workspace path scrubbed.
+    builder = b["steps"][0]
+    assert builder["progress"].startswith("Editing ") and builder["progress"].endswith("out/app.py")
+    assert builder["started_at"] <= builder["finished_at"] <= b["steps"][1]["started_at"]
 
     ws = build_mod.builds.builds[b["id"]].workspace
     log = git(ws, "log", "--format=%an|%s").splitlines()
@@ -187,6 +193,16 @@ def test_a_member_that_commits_its_own_work_still_gets_the_credit(builds_env, mo
     assert b["steps"][3]["commit"] is None
 
 
+def test_a_step_that_changes_nothing_in_a_new_repo_has_no_commit(builds_env, monkeypatch) -> None:
+    # Seen on the build page: in a repo with no commits yet, git answers "HEAD", which was shown as a commit.
+    async def idle(project, text, mode, emit, *, pet_id, control=None, agent=None):
+        return "Nothing to change."
+
+    monkeypatch.setattr(build_mod, "_runner", lambda: idle)
+    b = wait_for(builds_env, builds_env.post("/agent/builds", json={"goal": "empty"}).json()["id"])
+    assert b["state"] == "ready" and [s["commit"] for s in b["steps"]] == [None, None, None, None]
+
+
 def test_one_build_at_a_time_and_cancel_stops_it(builds_env, monkeypatch) -> None:
     monkeypatch.setattr(build_mod, "_runner", lambda: scripted_runner(delay=5.0))
     first = builds_env.post("/agent/builds", json={"goal": "slow thing"}).json()
@@ -210,6 +226,15 @@ def test_plans_are_kept_to_the_crew_with_the_reviewer_last() -> None:
     # No builder in the plan: the default plan instead of a build that writes nothing.
     assert [s.agent for s in parse_plan({"title": "T", "summary": "S", "steps": [
         {"agent": "tester", "task": "t"}]}, "goal")[2]] == ["builder", "tester", "scribe", "reviewer"]
+
+
+def test_the_build_page_is_served_and_has_no_ship_control(builds_env) -> None:
+    page = builds_env.get("/agent/build")
+    assert page.status_code == 200 and "text/html" in page.headers["content-type"]
+    html = page.text
+    assert "Albie's crew builds" in html and "/agent/builds" in html
+    assert "build_ship" not in html and "/ship" not in html  # shipping only from the headset, after a yes
+    assert "innerHTML" not in html  # build text is shown with textContent only
 
 
 def test_bad_goals_are_refused(builds_env) -> None:
