@@ -93,7 +93,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_tools.register(ML_TOOLS, ml_tools.call)
         agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
         agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (AlbieUiDirector)
-        agent_tools.register(code_tools.TOOLS, lambda name, args: code_tools.call_tool(name, args, bus, show=views.ensure))  # github_*: repos and pull requests in the code panel
+        agent_tools.register(code_tools.TOOLS, lambda name, args: code_tools.call_tool(name, args, bus, app.state, show=views.ensure))  # github_*: repos and pull requests in the code panel
         nn = nn_lab.lab(app.state, speech.speak, speech.note)  # Neural Net Lab: tools, its Apply card, the stall offer
         agent_tools.register(nn_lab.TOOLS, lambda name, args: nn_lab.call_tool(name, args, app.state))
 

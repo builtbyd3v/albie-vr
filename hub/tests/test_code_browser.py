@@ -182,6 +182,10 @@ class Bus:
         self.events.append((type_, payload.model_dump(exclude_none=True)))
 
 
+class State:
+    pass
+
+
 def run(coro: Any) -> Any:
     import asyncio
     return asyncio.run(coro)
@@ -198,22 +202,22 @@ def test_tools_show_things_in_the_panel(github) -> None:
     _, replies, _ = github
     with_pr(replies)
     replies["/repos/albie/rc-truck/contents/"] = [{"name": "src", "path": "src", "type": "dir"}]
-    bus, shown = Bus(), []
+    bus, shown, state = Bus(), [], State()
 
     async def show(view: str) -> dict:
         shown.append(view)
         return {"ok": True}
 
-    out = run(tools.call_tool("github_open_repo", {"repo": "RC-Truck"}, bus, show))
+    out = run(tools.call_tool("github_open_repo", {"repo": "RC-Truck"}, bus, state, show))
     assert out == {"opened": "albie/rc-truck", "top_folder": ["src/"]}
-    out = run(tools.call_tool("github_show_pr", {"number": 5}, bus, show))
+    out = run(tools.call_tool("github_show_pr", {"number": 5}, bus, state, show))
     assert out["title"] == "Clamp speed" and out["files"][0]["diff"].endswith("+b")
     assert bus.events == [
         ("code.view", {"repo": "albie/rc-truck", "view": "files", "path": "", "link_project": False}),
         ("code.view", {"repo": "albie/rc-truck", "pr": 5, "link_project": False}),
     ]
     assert shown == ["code", "code"]
-    assert "error" in run(tools.call_tool("github_open_repo", {"repo": "nope"}, bus, show))
+    assert "error" in run(tools.call_tool("github_open_repo", {"repo": "nope"}, bus, state, show))
 
 
 @pytest.mark.parametrize("tool, method", [("github_approve_pr", "POST"), ("github_merge_pr", "PUT")])
@@ -221,13 +225,13 @@ def test_tools_write_only_after_asking(github, writes, tool: str, method: str) -
     from code_browser import tools
     _, replies, _ = github
     with_pr(replies)
-    bus = Bus()
+    bus, state = Bus(), State()
     # confirm true on the first call is not enough: the pull request has to have been read back first
-    first = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))
+    first = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus, state))
     assert first["status"] == "awaiting_confirmation" and writes == []
     # another tool call in between cancels it
-    run(tools.call_tool("github_list_repos", {}, bus))
-    assert run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))["status"] == "awaiting_confirmation"
+    run(tools.call_tool("github_list_repos", {}, bus, state))
+    assert run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus, state))["status"] == "awaiting_confirmation"
     assert writes == []
-    done = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))
+    done = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus, state))
     assert done["ok"] and len(writes) == 1 and writes[0][0] == method

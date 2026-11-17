@@ -6,11 +6,11 @@ using UnityEngine;
 
 /// <summary>
 /// What the code panel shows from source control: the demo account's repos, one repo's folders and files, and its
-/// pull requests. Everything is read through the hub's /code routes (hub/code_browser); the hub holds the token and
-/// the device never sees it (D-04, D-30). The only writes are <see cref="ApprovePr"/> and <see cref="MergePr"/>;
-/// call them only after the user confirmed.
-/// It loads itself when the hub goes live, and follows the hub's <c>code.view</c> event (Albie's tools on the hub,
-/// hub/code_browser/tools.py). Main thread only. <see cref="Changed"/> fires on every change;
+/// pull requests. Everything is read through the /code routes (hub/code_browser), served by Albie's cloud with no
+/// laptop (cloud-py/app.py) or by the laptop hub; the server holds the token and the device never sees it
+/// (D-04, D-30). The only writes are <see cref="ApprovePr"/> and <see cref="MergePr"/>; call them only after the
+/// user confirmed. It loads itself when the cloud or hub becomes reachable, and follows the <c>code.view</c> event
+/// (Albie's github_ tools, hub/code_browser/tools.py). Main thread only. <see cref="Changed"/> fires on every change;
 /// <see cref="Version"/> goes up when what is on screen changed (not for a status line alone).
 /// </summary>
 public static class GitHubView
@@ -77,7 +77,7 @@ public static class GitHubView
     static readonly int[] tickets = new int[4];
     static int pending;
     static string appliedProject;
-    static IDisposable viewEvents;
+    static IDisposable viewEvents, cloudReady;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
@@ -107,12 +107,14 @@ public static class GitHubView
         ForgeNet.StatusChanged += OnStatus;
         viewEvents?.Dispose();
         viewEvents = ForgeNet.On("code.view", OnView);
-        if (ForgeNet.Status == ForgeNetStatus.Live) Refresh();
+        cloudReady?.Dispose();
+        cloudReady = ForgeNet.On("cloud.ready", _ => { if (sources.Count == 0 && pending == 0) Refresh(); });
+        if (Reachable) Refresh();
     }
 
     static void OnStatus(ForgeNetStatus status)
     {
-        if (status == ForgeNetStatus.Live) Refresh();
+        if (Reachable) Refresh();
         else Fire(false);
     }
 
@@ -144,7 +146,10 @@ public static class GitHubView
         }
     }
 
-    // ---------------------------------------------------------------- actions (the panel and GitHubTools)
+    /// <summary>Source control can be read now: through the laptop hub, or Albie's cloud with no hub.</summary>
+    public static bool Reachable => ForgeCloud.Serves("/code/sources");
+
+    // ---------------------------------------------------------------- actions (the panel)
     // Each takes an optional done(error): null = it worked.
 
     /// <summary>Load the account's repos. The first time, opens the project's linked repo, or the newest one.</summary>
@@ -326,9 +331,9 @@ public static class GitHubView
     static void Write(string action, string doing, Action<string> done)
     {
         if (!HasRepo(done)) return;
-        if (OpenPr == null || ForgeNet.Status != ForgeNetStatus.Live)
+        if (OpenPr == null || !Reachable)
         {
-            done?.Invoke(OpenPr == null ? "No pull request is open." : "Source control needs the hub, and the hub is off.");
+            done?.Invoke(OpenPr == null ? "No pull request is open." : "Source control needs Albie's cloud, and it isn't reachable right now.");
             return;
         }
         int number = OpenPr.number;
@@ -347,7 +352,7 @@ public static class GitHubView
         {
             pending--;
             Debug.LogWarning($"[GitHubView] {action} #{number}: {error}");
-            // The hub answers a refusal with {"detail": GitHub's reason}; ForgeNet puts that body at the end.
+            // The server answers a refusal with {"detail": GitHub's reason}; ForgeNet puts that body at the end.
             string reason = null;
             int brace = error.IndexOf('{');
             if (brace >= 0)
@@ -374,7 +379,7 @@ public static class GitHubView
     static bool HasRepo(Action<string> done)
     {
         if (CurrentSource != null) return true;
-        done?.Invoke(ForgeNet.Status == ForgeNetStatus.Live ? "No repo is open." : "Source control needs the hub, and the hub is off.");
+        done?.Invoke(Reachable ? "No repo is open." : "Source control needs Albie's cloud, and it isn't reachable right now.");
         return false;
     }
 
@@ -382,9 +387,9 @@ public static class GitHubView
 
     static void Fetch(int kind, string path, string busy, string failed, Action<JObject> apply, Action<string> done)
     {
-        if (ForgeNet.Status != ForgeNetStatus.Live)
+        if (!Reachable)
         {
-            done?.Invoke("Source control needs the hub, and the hub is off.");
+            done?.Invoke("Source control needs Albie's cloud, and it isn't reachable right now.");
             return;
         }
         int ticket = ++tickets[kind];
