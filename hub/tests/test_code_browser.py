@@ -137,3 +137,97 @@ def test_pull_request_detail_and_long_patch(github) -> None:
     assert short["patch"].endswith("+b") and not short["truncated"]
     assert long["truncated"] and len(long["patch"]) <= 8000 and long["patch"].splitlines()[-1].startswith("+line ")
     assert binary["patch"] == ""
+
+
+# ---- writes: approve and merge ---------------------------------------------------------------------------------
+
+@pytest.fixture
+def writes(github, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, dict]]:
+    sent: list[tuple[str, str, dict]] = []
+
+    async def fake_write(session: object, method: str, path: str, body: dict) -> dict:
+        sent.append((method, path, body))
+        return {"merged": True, "message": "Pull Request successfully merged"}
+
+    monkeypatch.setattr(code_browser, "_write", fake_write)
+    return sent
+
+
+def test_writes_need_confirm_and_refuse_browsers(github, writes) -> None:
+    client, _, _ = github
+    assert client.post("/code/albie/rc-truck/pr/5/approve", json={}).status_code == 400
+    assert client.post("/code/albie/rc-truck/pr/5/merge", json={"confirm": False}).status_code == 400
+    assert client.post("/code/albie/rc-truck/pr/5/merge", json={"confirm": True}, headers={"Origin": "http://evil.example"}).status_code == 403
+    assert client.post("/code/someone/else/pr/5/merge", json={"confirm": True}).status_code == 404
+    assert writes == []
+
+
+def test_confirmed_approve_and_merge(github, writes) -> None:
+    client, _, _ = github
+    assert client.post("/code/albie/rc-truck/pr/5/approve", json={"confirm": True}).json()["ok"]
+    assert client.post("/code/albie/rc-truck/pr/5/merge", json={"confirm": True}).json()["ok"]
+    assert writes == [
+        ("POST", "/repos/albie/rc-truck/pulls/5/reviews", {"event": "APPROVE"}),
+        ("PUT", "/repos/albie/rc-truck/pulls/5/merge", {}),
+    ]
+
+
+# ---- Albie's tools ---------------------------------------------------------------------------------------------
+
+class Bus:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, dict]] = []
+
+    async def publish(self, type_: str, payload: Any) -> None:
+        self.events.append((type_, payload.model_dump(exclude_none=True)))
+
+
+def run(coro: Any) -> Any:
+    import asyncio
+    return asyncio.run(coro)
+
+
+def with_pr(replies: dict[str, Any]) -> None:
+    replies["/repos/albie/rc-truck/pulls/5"] = pull(5)
+    replies["/repos/albie/rc-truck/pulls/5/files?per_page=100"] = [
+        {"filename": "truck.py", "status": "modified", "additions": 3, "deletions": 1, "patch": "@@ -1 +1 @@\n-a\n+b"}]
+
+
+def test_tools_show_things_in_the_panel(github) -> None:
+    from code_browser import tools
+    _, replies, _ = github
+    with_pr(replies)
+    replies["/repos/albie/rc-truck/contents/"] = [{"name": "src", "path": "src", "type": "dir"}]
+    bus, shown = Bus(), []
+
+    async def show(view: str) -> dict:
+        shown.append(view)
+        return {"ok": True}
+
+    out = run(tools.call_tool("github_open_repo", {"repo": "RC-Truck"}, bus, show))
+    assert out == {"opened": "albie/rc-truck", "top_folder": ["src/"]}
+    out = run(tools.call_tool("github_show_pr", {"number": 5}, bus, show))
+    assert out["title"] == "Clamp speed" and out["files"][0]["diff"].endswith("+b")
+    assert bus.events == [
+        ("code.view", {"repo": "albie/rc-truck", "view": "files", "path": "", "link_project": False}),
+        ("code.view", {"repo": "albie/rc-truck", "pr": 5, "link_project": False}),
+    ]
+    assert shown == ["code", "code"]
+    assert "error" in run(tools.call_tool("github_open_repo", {"repo": "nope"}, bus, show))
+
+
+@pytest.mark.parametrize("tool, method", [("github_approve_pr", "POST"), ("github_merge_pr", "PUT")])
+def test_tools_write_only_after_asking(github, writes, tool: str, method: str) -> None:
+    from code_browser import tools
+    _, replies, _ = github
+    with_pr(replies)
+    bus = Bus()
+    # confirm true on the first call is not enough: the pull request has to have been read back first
+    first = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))
+    assert first["status"] == "awaiting_confirmation" and writes == []
+    # another tool call in between cancels it
+    run(tools.call_tool("github_list_repos", {}, bus))
+    assert run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))["status"] == "awaiting_confirmation"
+    assert writes == []
+    done = run(tools.call_tool(tool, {"number": 5, "confirm": True}, bus))
+    assert done["ok"] and len(writes) == 1 and writes[0][0] == method

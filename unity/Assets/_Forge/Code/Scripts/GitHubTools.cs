@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 
 /// <summary>
-/// Albie's source control tools, on <see cref="GitHubView"/>: list and open the account's repos, open a file, show
-/// pull requests, and link a repo to the open project. Every one reads; none writes to a repo.
-/// Each answers when the hub has replied, so Albie speaks from what actually loaded.
+/// Source control tools for the headset's own voice (<see cref="AlbieVoice"/>, which runs with the hub off), on
+/// <see cref="GitHubView"/>: list and open the account's repos, open a file, show pull requests, link a repo to the
+/// open project. None writes to a repo. Source control is read through the hub, so today these answer "needs the
+/// hub"; with the hub on, Albie's voice runs on the hub and uses hub/code_browser/tools.py instead.
 /// Definitions: Resources/AlbieTools/github.json.
 /// </summary>
 public static class GitHubTools

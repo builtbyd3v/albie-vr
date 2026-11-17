@@ -37,7 +37,7 @@ public class CodePanel : MonoBehaviour
     TMP_Text code, note, status, listTitle;
     Image highlight;
     ScrollRect scroll;
-    ForgePill sampleTab, repoTab, prsTab, undo, reset;
+    ForgePill sampleTab, repoTab, prsTab, undo, reset, approve, merge;
     TMP_InputField controllerSpeed;
     TMP_Text controllerState;
     ForgePill controllerApply;
@@ -48,8 +48,11 @@ public class CodePanel : MonoBehaviour
     float shownSpeed = float.NaN;
     readonly List<(ForgePill pill, CodeProject.File file)> pills = new List<(ForgePill, CodeProject.File)>();
     readonly List<ForgePill> repoPills = new List<ForgePill>();
-    bool dirty = true, resetArmed, connected;
-    float resetArmedUntil;
+    bool dirty = true, connected;
+    // A pill that acts on the second tap (Reset, Approve, Merge) while it is armed.
+    ForgePill armed;
+    string armedLabel;
+    float armedUntil;
     string shownText, shownPath;
     int shownStart = -1;
     View view = View.Sample, shownView = View.None;
@@ -95,7 +98,7 @@ public class CodePanel : MonoBehaviour
 
     void LateUpdate()
     {
-        if (resetArmed && Time.unscaledTime > resetArmedUntil) ArmReset(false);
+        if (armed != null && Time.unscaledTime > armedUntil) Disarm();
         if (controllerState != null && Time.unscaledTime >= controllerPoll)
         {
             controllerPoll = Time.unscaledTime + 0.5f;
@@ -218,6 +221,14 @@ public class CodePanel : MonoBehaviour
         undo.Rect.anchorMin = undo.Rect.anchorMax = undo.Rect.pivot = new Vector2(1f, 0.5f);
         undo.Rect.anchoredPosition = new Vector2(-160f, 0f);
         undo.Rect.sizeDelta = new Vector2(80f, undo.Rect.sizeDelta.y);
+        approve = ForgePill.Create(bar, "Approve", OnApprove);
+        approve.Rect.anchorMin = approve.Rect.anchorMax = approve.Rect.pivot = new Vector2(1f, 0.5f);
+        approve.Rect.anchoredPosition = Vector2.zero;
+        approve.Rect.sizeDelta = new Vector2(125f, approve.Rect.sizeDelta.y);
+        merge = ForgePill.Create(bar, "Merge", OnMerge);
+        merge.Rect.anchorMin = merge.Rect.anchorMax = merge.Rect.pivot = new Vector2(1f, 0.5f);
+        merge.Rect.anchoredPosition = new Vector2(-133f, 0f);
+        merge.Rect.sizeDelta = new Vector2(125f, merge.Rect.sizeDelta.y);
         status = Text("Status", bar, 13f, ForgeTheme.PanelSubtext);
         status.alignment = TextAlignmentOptions.MidlineLeft;
         status.textWrappingMode = TextWrappingModes.NoWrap;
@@ -317,6 +328,9 @@ public class CodePanel : MonoBehaviour
         undo.Button.interactable = sample && open != null && open.undo.Count > 0;
         undo.Rect.gameObject.SetActive(undo.Button.interactable);
         reset.Rect.gameObject.SetActive(sample);
+        bool pullRequest = view == View.Prs && GitHubView.OpenPr != null;
+        approve.Rect.gameObject.SetActive(pullRequest);
+        merge.Rect.gameObject.SetActive(pullRequest);
         // With no repo on screen, a source control problem (no token, no repos) still has to be readable somewhere.
         string line = sample ? CodeProject.Status : GitHubView.StatusText;
         if (sample && !connected && string.IsNullOrEmpty(line) && ForgeNet.Status == ForgeNetStatus.Live) line = GitHubView.StatusText;
@@ -394,6 +408,7 @@ public class CodePanel : MonoBehaviour
         bool prs = view == View.Prs;
         string folder = prs ? null : GitHubView.CurrentPath;
         bool newList = view != shownView || folder != shownFolder || pr != shownPr;
+        Disarm();  // what an armed Approve or Merge would act on may have just changed
         shownFolder = folder;
         shownPr = pr;
 
@@ -585,10 +600,8 @@ public class CodePanel : MonoBehaviour
 
     void Say(string text)
     {
-        notice = text;
-        noticeUntil = Time.unscaledTime + 4f;
         CodeProject.SetStatus(text);
-        dirty = true;
+        Notice(text);
     }
 
     // ---------------------------------------------------------------- sample highlight, undo, reset
@@ -634,17 +647,50 @@ public class CodePanel : MonoBehaviour
 
     void OnReset()
     {
-        if (!resetArmed) { ArmReset(true); return; }
-        ArmReset(false);
-        CodeProject.Reset();
+        if (Confirmed(reset, "Reset", "Tap again to reset")) CodeProject.Reset();
     }
 
-    void ArmReset(bool on)
+    // Writes to the repo: the second tap is the user's confirmation.
+    void OnApprove()
     {
-        resetArmed = on;
-        resetArmedUntil = Time.unscaledTime + 3f;
-        reset.On = on;
-        reset.GetComponentInChildren<TMP_Text>().text = on ? "Tap again to reset" : "Reset";
+        if (Confirmed(approve, "Approve", "Tap again: approve")) GitHubView.ApprovePr(error => Notice(error ?? "Approved."));
+    }
+
+    void OnMerge()
+    {
+        if (Confirmed(merge, "Merge", "Tap again: merge")) GitHubView.MergePr(error => Notice(error ?? "Merged."));
+    }
+
+    /// <summary>True on the second tap within three seconds; the first tap arms the pill and relabels it.</summary>
+    bool Confirmed(ForgePill pill, string label, string ask)
+    {
+        if (armed == pill)
+        {
+            Disarm();
+            return true;
+        }
+        Disarm();
+        armed = pill;
+        armedLabel = label;
+        armedUntil = Time.unscaledTime + 3f;
+        pill.On = true;
+        SetLabel(pill, ask);
+        return false;
+    }
+
+    void Disarm()
+    {
+        if (armed == null) return;
+        armed.On = false;
+        SetLabel(armed, armedLabel);
+        armed = null;
+    }
+
+    void Notice(string text)
+    {
+        notice = text;
+        noticeUntil = Time.unscaledTime + 4f;
+        dirty = true;
     }
 
     // ---------------------------------------------------------------- Python syntax

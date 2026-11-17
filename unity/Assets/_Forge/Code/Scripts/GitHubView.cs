@@ -7,8 +7,10 @@ using UnityEngine;
 /// <summary>
 /// What the code panel shows from source control: the demo account's repos, one repo's folders and files, and its
 /// pull requests. Everything is read through the hub's /code routes (hub/code_browser); the hub holds the token and
-/// the device never sees it (D-04, D-30). Read-only: nothing here writes to a repo.
-/// It loads itself when the hub goes live. Main thread only. <see cref="Changed"/> fires on every change;
+/// the device never sees it (D-04, D-30). The only writes are <see cref="ApprovePr"/> and <see cref="MergePr"/>;
+/// call them only after the user confirmed.
+/// It loads itself when the hub goes live, and follows the hub's <c>code.view</c> event (Albie's tools on the hub,
+/// hub/code_browser/tools.py). Main thread only. <see cref="Changed"/> fires on every change;
 /// <see cref="Version"/> goes up when what is on screen changed (not for a status line alone).
 /// </summary>
 public static class GitHubView
@@ -75,6 +77,7 @@ public static class GitHubView
     static readonly int[] tickets = new int[4];
     static int pending;
     static string appliedProject;
+    static IDisposable viewEvents;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
@@ -102,6 +105,8 @@ public static class GitHubView
     {
         ForgeNet.StatusChanged -= OnStatus;
         ForgeNet.StatusChanged += OnStatus;
+        viewEvents?.Dispose();
+        viewEvents = ForgeNet.On("code.view", OnView);
         if (ForgeNet.Status == ForgeNetStatus.Live) Refresh();
     }
 
@@ -109,6 +114,34 @@ public static class GitHubView
     {
         if (status == ForgeNetStatus.Live) Refresh();
         else Fire(false);
+    }
+
+    // code.view {repo, view?, path?, file?, pr?, link_project?}: what Albie asked the panel to show.
+    static void OnView(JToken payload)
+    {
+        if (!(payload is JObject view)) return;
+        if (FindSource((string)view["repo"]) != null) Show(view);
+        else Refresh(error => { if (error == null) Show(view); });  // a repo made since the list was loaded
+    }
+
+    static void Show(JObject view)
+    {
+        Source source = FindSource((string)view["repo"]);
+        if (source == null) return;
+        if ((bool?)view["link_project"] == true) ProjectRepos.Link(ProjectRepos.CurrentProject, source.id);
+        bool switched = source != CurrentSource;
+        if (switched) SelectSource(source);
+
+        string file = (string)view["file"], path = (string)view["path"], tab = (string)view["view"];
+        int? pr = (int?)view["pr"];
+        if (pr != null) FetchPr(pr.Value, null, file);
+        else if (tab == "prs") ShowPrs();
+        else
+        {
+            if (path != null && !(switched && path.Length == 0)) OpenPath(path);
+            if (file != null) OpenFile(file);
+            else if (Mode != ViewMode.Files) ShowFiles();
+        }
     }
 
     // ---------------------------------------------------------------- actions (the panel and GitHubTools)
@@ -198,7 +231,6 @@ public static class GitHubView
             read.Sort((a, b) => a.IsDir != b.IsDir ? (a.IsDir ? -1 : 1) : string.Compare(a.name, b.name, StringComparison.OrdinalIgnoreCase));
             tree = read;
             CurrentPath = path;
-            Mode = ViewMode.Files;
         }, done);
     }
 
@@ -207,13 +239,17 @@ public static class GitHubView
     {
         if (!HasRepo(done)) return;
         path = (path ?? "").Trim('/');
+        if (Mode != ViewMode.Files)
+        {
+            Mode = ViewMode.Files;
+            Version++;
+        }
         Fetch(KFile, $"{Repo}/file?path={Uri.EscapeDataString(path)}", $"Opening {path}...", $"Could not open {path}.", json =>
         {
             string content = (string)json["content"] ?? "";
             FilePath = (string)json["path"] ?? path;
             FileContent = content;
             FileNote = (string)json["note"] ?? "";
-            Mode = ViewMode.Files;
             StatusText = FileNote;
         }, done);
     }
@@ -240,8 +276,8 @@ public static class GitHubView
         }, done);
     }
 
-    /// <summary>Show one pull request: its summary, then its changed files as diffs.</summary>
-    public static void FetchPr(int number, Action<string> done = null)
+    /// <summary>Show one pull request: its summary, or the diff of the changed file named <paramref name="file"/>.</summary>
+    public static void FetchPr(int number, Action<string> done = null, string file = null)
     {
         if (!HasRepo(done)) return;
         Fetch(KPr, $"{Repo}/pr/{number}", $"Loading pull request #{number}...", $"Could not load pull request #{number}.", json =>
@@ -259,7 +295,7 @@ public static class GitHubView
                     additions = (int?)f["additions"] ?? 0, deletions = (int?)f["deletions"] ?? 0, truncated = (bool?)f["truncated"] ?? false,
                 });
             OpenPr = pr;
-            OpenPrFile = null;
+            OpenPrFile = file == null ? null : pr.files.Find(f => f.filename == file);
             Mode = ViewMode.Prs;
             StatusText = $"Pull request #{pr.number}: +{pr.additions} -{pr.deletions} in {pr.files.Count} file{(pr.files.Count == 1 ? "" : "s")}.";
         }, done);
@@ -279,6 +315,48 @@ public static class GitHubView
         OpenPr = null;
         OpenPrFile = null;
         Fire();
+    }
+
+    /// <summary>Approve the open pull request as the demo account. Only after the user confirmed.</summary>
+    public static void ApprovePr(Action<string> done = null) => Write("approve", "Approving", done);
+
+    /// <summary>Merge the open pull request, then show the list again. Only after the user confirmed.</summary>
+    public static void MergePr(Action<string> done = null) => Write("merge", "Merging", done);
+
+    static void Write(string action, string doing, Action<string> done)
+    {
+        if (!HasRepo(done)) return;
+        if (OpenPr == null || ForgeNet.Status != ForgeNetStatus.Live)
+        {
+            done?.Invoke(OpenPr == null ? "No pull request is open." : "Source control needs the hub, and the hub is off.");
+            return;
+        }
+        int number = OpenPr.number;
+        pending++;
+        StatusText = $"{doing} pull request #{number}...";
+        Fire(false);
+        ForgeNet.Post($"{Repo}/pr/{number}/{action}", new JObject { ["confirm"] = true }, text =>
+        {
+            pending--;
+            StatusText = "";
+            Fire(false);
+            if (action == "merge") ShowPrs();
+            done?.Invoke(null);
+        },
+        error =>
+        {
+            pending--;
+            Debug.LogWarning($"[GitHubView] {action} #{number}: {error}");
+            // The hub answers a refusal with {"detail": GitHub's reason}; ForgeNet puts that body at the end.
+            string reason = null;
+            int brace = error.IndexOf('{');
+            if (brace >= 0)
+                try { reason = (string)JObject.Parse(error.Substring(brace))["detail"]; }
+                catch (Exception e) when (e is JsonException || e is ArgumentException || e is InvalidCastException) { }
+            StatusText = reason ?? $"Could not {action} pull request #{number}.";
+            Fire(false);
+            done?.Invoke(StatusText);
+        });
     }
 
     /// <summary>Back to the repo's folders and files.</summary>

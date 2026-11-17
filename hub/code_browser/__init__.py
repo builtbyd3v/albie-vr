@@ -1,6 +1,8 @@
 """GitHub proxy for the headset code browser (PROJECT_CONTEXT section 7.14 / C-21).
 
-Read-only: every route is a GET against api.github.com, limited to repos the demo account owns.
+Limited to repos the demo account owns. Reading is GET /code/...; the two writes (approve and merge a pull
+request) are POSTs that need {"confirm": true}, sent only after the user confirmed on the device or to Albie.
+Albie's tools on the same functions are in code_browser/tools.py.
 
 CODE_GITHUB_TOKEN: the demo account's token, set in hub/.env. It never ships in the APK (D-04, D-30) and never
 appears in a response. It is taken out of the process environment on first use, so child processes started
@@ -14,7 +16,7 @@ import os
 from urllib.parse import quote
 
 import aiohttp
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/code", tags=["code"])
@@ -25,6 +27,7 @@ _MAX_PATCH = 8_000
 
 _token_value: str | None = None
 _owned: dict[str, dict] = {}  # "owner/name" in lower case -> the repo as GitHub returned it
+current_repo = ""  # the repo the device last read: what "this repo" means to Albie's tools
 
 
 class Source(BaseModel):
@@ -98,6 +101,15 @@ class PullDetail(PullSummary):
     files: list[PullFile] = []
 
 
+class Confirm(BaseModel):
+    confirm: bool = False
+
+
+class Done(BaseModel):
+    ok: bool = True
+    note: str = ""
+
+
 def _token() -> str:
     global _token_value
     if _token_value is None:
@@ -115,6 +127,22 @@ async def _get(session: aiohttp.ClientSession, path: str) -> dict | list:
             return await r.json()
     except (aiohttp.ClientError, asyncio.TimeoutError):
         # No exception text: an aiohttp error can carry the request headers.
+        raise HTTPException(502, "GitHub unreachable") from None
+
+
+async def _write(session: aiohttp.ClientSession, method: str, path: str, body: dict) -> dict:
+    """A write to GitHub. A refusal comes back as 409 with GitHub's own reason, so the user hears why."""
+    try:
+        async with session.request(method, _BASE + path, json=body) as r:
+            data = await r.json(content_type=None)
+            if r.status >= 400:
+                reason = data.get("message") if isinstance(data, dict) else None
+                errors = data.get("errors") if isinstance(data, dict) else None
+                if errors and isinstance(errors[0], str):
+                    reason = errors[0]
+                raise HTTPException(409, str(reason or f"GitHub API {r.status}")[:200])
+            return data if isinstance(data, dict) else {}
+    except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
         raise HTTPException(502, "GitHub unreachable") from None
 
 
@@ -176,9 +204,7 @@ def _patch(text: str) -> tuple[str, bool]:
     return text[: text.rfind("\n", 0, _MAX_PATCH)], True
 
 
-@router.get("/sources", response_model=Sources)
-async def sources() -> Sources:
-    """Repos the demo account owns, most recently updated first."""
+async def list_sources() -> Sources:
     if not _token():
         return Sources(note="CODE_GITHUB_TOKEN not set in hub/.env")
     async with _session() as s:
@@ -201,8 +227,7 @@ async def sources() -> Sources:
     )
 
 
-@router.get("/{owner}/{repo}/tree", response_model=Tree)
-async def tree(owner: str, repo: str, path: str = "") -> Tree:
+async def read_tree(owner: str, repo: str, path: str = "") -> Tree:
     async with _session() as s:
         data = await _get(s, await _repo(s, owner, repo) + _contents_path(path))
     items = data if isinstance(data, list) else [data]
@@ -212,8 +237,7 @@ async def tree(owner: str, repo: str, path: str = "") -> Tree:
     )
 
 
-@router.get("/{owner}/{repo}/file", response_model=FileContent)
-async def file(owner: str, repo: str, path: str) -> FileContent:
+async def read_file(owner: str, repo: str, path: str) -> FileContent:
     async with _session() as s:
         data = await _get(s, await _repo(s, owner, repo) + _contents_path(path))
     if isinstance(data, list) or data.get("type") == "dir":
@@ -238,15 +262,13 @@ async def file(owner: str, repo: str, path: str) -> FileContent:
     return out
 
 
-@router.get("/{owner}/{repo}/prs", response_model=Pulls)
-async def prs(owner: str, repo: str) -> Pulls:
+async def list_prs(owner: str, repo: str) -> Pulls:
     async with _session() as s:
         data = await _get(s, await _repo(s, owner, repo) + "/pulls?state=open&per_page=20")
     return Pulls(prs=[PullSummary(**_summary(pr, 400)) for pr in data])
 
 
-@router.get("/{owner}/{repo}/pr/{number}", response_model=PullDetail)
-async def pr_detail(owner: str, repo: str, number: int) -> PullDetail:
+async def read_pr(owner: str, repo: str, number: int) -> PullDetail:
     async with _session() as s:
         base = f"{await _repo(s, owner, repo)}/pulls/{number}"
         pr, files = await asyncio.gather(_get(s, base), _get(s, base + "/files?per_page=100"))
@@ -270,3 +292,70 @@ async def pr_detail(owner: str, repo: str, number: int) -> PullDetail:
             )
         )
     return out
+
+
+async def approve_pr(owner: str, repo: str, number: int) -> Done:
+    """Approve a pull request as the demo account. GitHub refuses an account approving its own pull request."""
+    async with _session() as s:
+        await _write(s, "POST", f"{await _repo(s, owner, repo)}/pulls/{number}/reviews", {"event": "APPROVE"})
+    return Done(note=f"Pull request #{number} approved.")
+
+
+async def merge_pr(owner: str, repo: str, number: int) -> Done:
+    async with _session() as s:
+        data = await _write(s, "PUT", f"{await _repo(s, owner, repo)}/pulls/{number}/merge", {})
+    return Done(ok=bool(data.get("merged")), note=str(data.get("message") or f"Pull request #{number} merged."))
+
+
+def _seen(owner: str, repo: str) -> None:
+    global current_repo
+    current_repo = f"{owner}/{repo}"
+
+
+def _confirmed(request: Request, body: Confirm) -> None:
+    # The headset never sends Origin; a browser always does on a cross-site POST. The hub allows any CORS origin,
+    # so without this a web page open on the same network could approve or merge.
+    if request.headers.get("origin"):
+        raise HTTPException(403, "writes are not accepted from a browser")
+    if not body.confirm:
+        raise HTTPException(400, "confirm must be true: ask the user first")
+
+
+@router.get("/sources", response_model=Sources)
+async def sources() -> Sources:
+    """Repos the demo account owns, most recently updated first."""
+    return await list_sources()
+
+
+@router.get("/{owner}/{repo}/tree", response_model=Tree)
+async def tree(owner: str, repo: str, path: str = "") -> Tree:
+    out = await read_tree(owner, repo, path)
+    _seen(owner, repo)
+    return out
+
+
+@router.get("/{owner}/{repo}/file", response_model=FileContent)
+async def file(owner: str, repo: str, path: str) -> FileContent:
+    return await read_file(owner, repo, path)
+
+
+@router.get("/{owner}/{repo}/prs", response_model=Pulls)
+async def prs(owner: str, repo: str) -> Pulls:
+    return await list_prs(owner, repo)
+
+
+@router.get("/{owner}/{repo}/pr/{number}", response_model=PullDetail)
+async def pr_detail(owner: str, repo: str, number: int) -> PullDetail:
+    return await read_pr(owner, repo, number)
+
+
+@router.post("/{owner}/{repo}/pr/{number}/approve", response_model=Done)
+async def approve(owner: str, repo: str, number: int, body: Confirm, request: Request) -> Done:
+    _confirmed(request, body)
+    return await approve_pr(owner, repo, number)
+
+
+@router.post("/{owner}/{repo}/pr/{number}/merge", response_model=Done)
+async def merge(owner: str, repo: str, number: int, body: Confirm, request: Request) -> Done:
+    _confirmed(request, body)
+    return await merge_pr(owner, repo, number)
