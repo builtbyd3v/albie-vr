@@ -30,7 +30,8 @@ namespace Forge.ML
         readonly Image[] inputBars = new Image[8];
         TMP_Text steerValue, throttleValue;
         TMP_Text controllerStatus;
-        TMP_InputField maxSpeedInput;
+        TMP_Text maxSpeedValue;
+        float maxSpeed = 1.5f;
         Image steerBar, throttleBar, trainProgress;
         MLCurve sparkline;
         readonly List<float> lossHistory = new List<float>();
@@ -141,9 +142,11 @@ namespace Forge.ML
             throttleValue = Output(outputX + 14, 164, "THROTTLE", "drive.throttle", MLUI.Good, out throttleBar);
             MLUI.Caps(root, "CONTROLLER FILE", outputX + 14, 214, 150);
             MLUI.Text(root, "truck_autopilot  ·  max_speed", outputX + 14, 231, 170, 18, 9).color = MLUI.Sub;
-            maxSpeedInput = MLUI.Input(root, "max_speed", "1.5", outputX + 184, 224, 54, 26);
-            maxSpeedInput.text = "1.5";
-            MLUI.Button(root, "Apply", outputX + 244, 224, 58, 26, ApplyMaxSpeed);
+            MLUI.Button(root, "−", outputX + 170, 224, 34, 26, () => ChangeMaxSpeed(-0.1f));
+            maxSpeedValue = MLUI.Text(root, "1.5", outputX + 208, 226, 43, 22, 12);
+            maxSpeedValue.alignment = TextAlignmentOptions.Center;
+            MLUI.Button(root, "+", outputX + 254, 224, 34, 26, () => ChangeMaxSpeed(0.1f));
+            MLUI.Button(root, "Apply", outputX + 292, 224, 58, 26, ApplyMaxSpeed);
             controllerStatus = MLUI.Text(root, "ML A hot reload when the Thing runtime is open", outputX + 14, 252, width * .52f - 28, 14, 8.5f);
             controllerStatus.color = MLUI.Faint;
 
@@ -225,14 +228,15 @@ namespace Forge.ML
             SetAutopilotPreview(mode != BrainMode.Autopilot);
         }
 
+        void ChangeMaxSpeed(float delta)
+        {
+            maxSpeed = Mathf.Clamp(Mathf.Round((maxSpeed + delta) * 10f) / 10f, 0.1f, 5f);
+            if (maxSpeedValue != null) maxSpeedValue.text = maxSpeed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         void ApplyMaxSpeed()
         {
-            if (maxSpeedInput == null || !float.TryParse(maxSpeedInput.text, System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out float value))
-            {
-                if (controllerStatus != null) controllerStatus.text = "Enter a numeric max_speed in m/s";
-                return;
-            }
+            float value = maxSpeed;
             // The running truck, wherever it runs: the Thing runtime, the controllers sandbox or the slalom's brain truck
             // all register it with ThingHosts. FindAnyObjectByType<ControllersSandbox> only ever found the sandbox scene.
             var host = ThingHosts.Find(TemplateTools.DefaultThing);

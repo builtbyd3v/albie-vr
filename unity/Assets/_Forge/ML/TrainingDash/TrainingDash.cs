@@ -32,6 +32,16 @@ namespace Forge.ML
         int firstHistoryEpoch = 1;
         public int AccuracyEpochCount => classHistory.Count;
         public int ProbeCount => probes.Count;
+        // The live-graph area needs room for nine readable class rows and the probe strip under them: the panel is at least
+        // this tall (set in Awake, before the workspace reads the size it resets to).
+        const float MinPanelHeightMeters = 0.68f;
+        void Awake()
+        {
+            var panel = GetComponent<ForgePanel>();
+            if (panel == null) return;
+            Vector2 size = panel.SizeMeters;
+            if (size.y < MinPanelHeightMeters) panel.SizeMeters = new Vector2(size.x, MinPanelHeightMeters);
+        }
         void Start()
         {
             session = MLSession.Resolve(session); root = GetComponent<ForgePanel>().Content; width = root.rect.width;
@@ -124,7 +134,7 @@ namespace Forge.ML
             else if (session.Overfit)
                 Banner(MLUI.Warn, "Overfitting", (string.IsNullOrEmpty(session.OverfitReason) ? "validation loss rose twice while training loss fell" : session.OverfitReason)
                     + (best >= 0 ? $"  ·  best epoch {best + 1}" : ""));
-            else if (!string.IsNullOrEmpty(session.Notice)) Banner(MLUI.Accent, "Hub", session.Notice);
+            else if (!string.IsNullOrEmpty(session.Notice)) Banner(MLUI.Accent, session.IsLive ? "Hub" : "On device", session.Notice);
             else if (session.Done && best >= 0 && !float.IsNaN(session.Data.metrics[best].val_acc))
                 Banner(MLUI.Good, "Finished", $"best val accuracy {session.Data.metrics[best].val_acc:0.0%} at epoch {best + 1}  ·  full evaluation on the Results panel");
             else banner.gameObject.SetActive(false);
@@ -169,18 +179,26 @@ namespace Forge.ML
         }
         void DrawLiveGraphs()
         {
-            sectionTitle.text = session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  DEMO REPLAY";
+            sectionTitle.text = session.RunId == "on-device" ? "PER-CLASS ACCURACY  ·  HELD-OUT IMAGES" : session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  DEMO REPLAY";
             int classes = session.Data.classes.Length;
             int columns = classHistory.Count;
+            // The heat map keeps every class name readable: a row is never under MinRow units, even when that leaves the
+            // probe strip less room (it then drops its photos and keeps only its caption).
+            const float MinRow = 14f;
             float heatHeight = Mathf.Min(150f, summary.rect.height - 100f);
-            const float labelWidth = 82;
+            heatHeight = Mathf.Max(heatHeight, Mathf.Min(10f + 18f + classes * MinRow, summary.rect.height - 46f));
+            const float labelWidth = 112;
             float top = 10, rowHeight = (heatHeight - top - 18) / Mathf.Max(1, classes);
+            bool names = rowHeight >= 12f && columns > 0;
             MLUI.Well(summary, 0, 0, width, heatHeight);
             float cellWidth = Mathf.Min(40f, (width - labelWidth - 14) / Mathf.Max(1, columns));
             for (int c = 0; c < classes; c++)
             {
-                var name = MLUI.Text(summary, ShortName(session.Data.classes[c]), 10, top + c * rowHeight + rowHeight * 0.5f - 6, labelWidth - 16, 12, 8.5f);
-                name.color = MLUI.Sub; name.alignment = TextAlignmentOptions.TopRight;
+                if (names)
+                {
+                    var name = MLUI.Text(summary, HeatName(session.Data.classes[c]), 6, top + c * rowHeight + rowHeight * 0.5f - 7, labelWidth - 12, 14, 11f);
+                    name.color = MLUI.Sub; name.alignment = TextAlignmentOptions.TopRight;
+                }
                 for (int e = 0; e < columns; e++)
                 {
                     float value = classHistory[e].Length > c ? classHistory[e][c] : -1;
@@ -194,18 +212,27 @@ namespace Forge.ML
                 int epoch = firstHistoryEpoch + e;
                 if (e == columns - 1 || epoch % 5 == 0)
                 {
-                    var label = MLUI.Text(summary, epoch.ToString(), labelWidth + e * cellWidth, top + classes * rowHeight + 2, Mathf.Max(16, cellWidth), 11, 8);
+                    var label = MLUI.Text(summary, epoch.ToString(), labelWidth + e * cellWidth, top + classes * rowHeight + 2, Mathf.Max(16, cellWidth), 13, 10f);
                     label.color = MLUI.Faint;
                 }
             }
-            if (columns == 0) { var wait = MLUI.Text(summary, "Waiting for the first epoch", labelWidth, heatHeight * 0.5f - 8, 300, 16, 11); wait.color = MLUI.Faint; }
+            if (columns == 0)
+            {
+                string note = session.HubData ? "Per-class results appear after the first epoch" : "Per-class results appear after you press Train";
+                var wait = MLUI.Text(summary, note, 12, heatHeight * 0.5f - 8, Mathf.Max(200, width - 24), 16, 12); wait.color = MLUI.Sub;
+            }
 
             float probeY = heatHeight + 8, probeHeight = summary.rect.height - probeY;
-            MLUI.Well(summary, 0, probeY, width, probeHeight);
-            MLUI.Caps(summary, "Probe strip  ·  16 fixed validation images", 12, probeY + 8, 400);
-            if (probes.Count == 0) { var wait = MLUI.Text(summary, "Waiting for ml.probe", 12, probeY + 30, 220, 16, 11); wait.color = MLUI.Faint; }
+            bool showProbeStrip = probes.Count > 0 || session.HubData;
+            if (showProbeStrip)
+            {
+                MLUI.Well(summary, 0, probeY, width, probeHeight);
+                MLUI.Caps(summary, "Probe strip  ·  16 fixed validation images", 12, probeY + 8, 400);
+            }
+            if (probes.Count == 0 && showProbeStrip) { var wait = MLUI.Text(summary, "Probe images show up here once training reports them", 12, probeY + 30, Mathf.Max(260, width - 24), 16, 11); wait.color = MLUI.Sub; }
             float slotWidth = (width - 16) / 16f, imageY = probeY + 26, photo = Mathf.Min(34f, slotWidth - 8);
-            for (int i = 0; i < Mathf.Min(16, probes.Count); i++)
+            bool roomForPhotos = probeHeight >= 26f + photo + 26f;
+            for (int i = 0; i < Mathf.Min(16, probes.Count) && roomForPhotos; i++)
             {
                 var probe = probes[i];
                 int sampleIndex = FindSampleIndex(probe.id);
@@ -317,6 +344,7 @@ namespace Forge.ML
             for (int i = 0; i < session.Data.samples.Length; i++) if (session.Data.samples[i].id == id) return i;
             return -1;
         }
+        static string HeatName(string value) => string.IsNullOrEmpty(value) ? "?" : value.Length <= 12 ? value : value.Substring(0, 11) + "…";
         static string ShortName(string value) => string.IsNullOrEmpty(value) ? "?" : value.Length <= 9 ? value : value.Substring(0, 8) + "…";
         static float Confidence(MLProbeSample probe)
         {

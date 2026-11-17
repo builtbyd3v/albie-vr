@@ -1,0 +1,1470 @@
+# Albie OS run log
+
+Run of `docs/ALBIE_OS_SPEC.md`. Orchestrator: Fable. Workers: Sonnet and Haiku through the Workflow tool. Newest entries at the bottom. Times are local (2026-11-12 unless a date is given).
+
+## 0. Setup (§3.1)
+
+- `git fetch`. `origin/main` is at `e69b8db` (PR #62), the commit the spec's integration map was verified on.
+- Created `feat/albie-os` from `origin/main`. Removed the auto-set upstream (`origin/main`) so a bare `git push` can never target `main`.
+- Merged `origin/chore/remove-movie-rename-albie` (D-41, 11 commits) with `--no-ff`: clean, merge commit `3bb20ef`.
+- Disk at start: 21 GB free on `C:`.
+- No Unity editor was running. Opened one editor on `albie-vr/unity` with `unity open .`.
+- Left untouched (not mine, untracked before the run): `.nodeterm/`, `docs/CONVERSATION_HANDS_3D_RESEARCH.md`, `docs/EXECUTION_PLAN.md`, `docs/OPERATING_MODEL.md`, `unity/Assets/Resources/OVRBuildConfig.asset`, `unity/Assets/StreamingAssets/RuntimeActionBindings.json`, `unity/Assets/_Forge/Pet/Models/`, `unity/RuntimeActionBindings.json`. They are not committed on this branch.
+
+### Decisions
+- **Unset the branch upstream.** `git checkout -b … origin/main` made `origin/main` the upstream; with it unset, pushes must name `origin feat/albie-os`. Why: rule "never push to main".
+
+## 1. Baseline after the D-41 merge (§3.1 step 3, §6.2)
+
+Unity 6000.6.7f1 opened on `albie-vr/unity`; the merged code compiled with **0 errors** (48 warnings, all pre-existing: 41 CS0618, 1 CS0252, 6 UAC). No fix was needed for the merge.
+
+Every existing check was run once in the live editor through `unity command eval` (workflow `albie-os-baseline`, one integrator agent). All passed:
+
+| Check | Result (verbatim) |
+|---|---|
+| Gestures: Run Self-Test | `[GestureSelfTest] 104 passed, 0 failed` |
+| Gestures: Run Play Test (Play) | `[GesturePlayTest] 32 passed, 0 failed` |
+| Check Artifacts (suite) | `[ArtifactChecks] 97 passed, 0 failed` |
+| Artifacts: Runs | `PASS run check` |
+| Artifacts: Biology Templates | `PASS biology templates check` |
+| Artifacts: glTF and Timelines | `PASS glTF and timeline check` |
+| Artifacts: Hoops | `PASS hoop check` |
+| Artifacts: Repo Activity | `PASS repo activity check` |
+| Artifacts: Repo Connector | `PASS repo connector check` |
+| Artifacts: Physics Templates | `PASS physics templates check` |
+| Artifacts: Slalom | `PASS slalom check` |
+| Artifacts: Voice Rules | `PASS voice rules check` |
+| Artifacts: Brain Loop (Play) | `PASS slalom brain check (Play mode, the brain truck on its colliders)` |
+| Controllers: Autopilot | `PASS autopilot check` |
+| Controllers: Behaviour Cloning | `PASS behaviour cloning check` |
+| Controllers: Runner | `PASS controller runner check` |
+| Controllers: Five In A Row | `PASS five in a row check (mock truck, Editor): live training worked 5 times in a row (4 on the first candidate)` |
+| Controllers: Hot Reload | `PASS hot reload check` |
+| Controllers: ML Template | `PASS ML template check` |
+| Controllers: Room Slalom | `PASS room slalom check (mock truck, Editor)` |
+| Controllers: Thing Runtime | `PASS thing runtime check (example truck on Unity physics, Editor)` |
+| Notebook: Check Notebook | `PASS notebook check` |
+| ML: Validate Main (Play) | `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, …` |
+
+Main.unity was not modified. Pre-existing console noise, not from this run: 5 "Scaling mismatch (1.5)" asserts (Windows display scale), no-headset XR errors in Play, a deliberate "approvals.json is damaged" warning from the artifact checks.
+
+### Where the code differs from spec §4 (the code wins)
+- **Crew class names:** the code is `AlbieCrew` / `AlbieCrewMember` / `AlbieAgentTypes` (D-41 rename), not `Gator*`.
+- **`screen-main` is still there after D-41:** in `Workspace.DefaultModes`, `MainSceneBuilder`, `CodeMode.ItemId`, and Main.unity's `code` and `ml` modes (with a prefab guid that no longer resolves; `CodeMode` loads the code panel from Resources itself). Left alone: not OS work.
+- **The M key is not free:** `CadViewer.cs:447` binds M to "measure" whenever a CAD session exists.
+- **No hands-free voice toggle exists** in `AlbieVoice` (only the editor-only `Albie.VoiceOffInEditor` pref).
+- **`three_body` is a mock fixture, not a template.** `cad_*` and `ml_open` tools exist only in the cloud tool list and fail offline.
+- **`ControllerBrainView`** has no creator and nothing in Main shows it (prefab `MLPanels/ControllerBrain`).
+- **UI Set canvases are 0.5 mm per unit** (ForgePanel is 1 mm per unit). All 21 `QDSUI*` tags are already in `TagManager.asset`, so no Project Settings change is needed for the theme.
+- **Gesture tests return void** and report through the console line, not a PASS string. `SimulatedHandSource` never tracks the left hand.
+- **`GestureFeedback` has no sounds** and `_Forge` has no audio files; UI sounds come from the Interaction SDK sample audio.
+
+### Decisions
+- **Workspace modes stay Workspace modes (one at a time), opened through a small Workspace hook; everything else is a free OS window (many at once).** Why: eleven call sites in CAD, ML, Messages, Code and the pet depend on `Workspace.ActiveMode`; re-hosting their prefabs as loose windows would break them. The hook gives a virtual desk frame in front of the user when away, and stops the fold on Away.
+- **The dock is hidden, not deleted, when the OS is present.** The table button is held back while `Workspace.DockHeld` is true, so the pet's greeting → START → code-mode arrival is unchanged.
+- **OS UI unit is the UI Set canvas unit scaled to about 0.65 mm** (UI Set ships at 0.5 mm). Why: 16-unit body text then measures about 10 mm, which meets the Quest 3S legibility line in §6.3, and a 4-column tile menu comes out about 0.52 m wide (inside 70° at 0.5 m). It is one parameter on the kit, so Hudson can tune it.
+- **Icons: the UI Set's own 24 px filled icon atlas only.** Why: one consistent set that ships with the SDK; no mixed styles.
+- **M stays the menu key; CAD's desktop "measure" shortcut moves to Shift+M.** Why: the spec names M and the Done check uses it; the CAD shortcut is a desktop-only convenience. Listed as a change outside `OS/`.
+- **Writers stage files outside `Assets/`** (`.os-run/staging/`, ignored locally) and the single integrator lane moves them in. Why: half-written files from a parallel writer must not break the one editor's compile.
+- **At most 3 agents run at once** (the lane plus 2 writers). Why: see the disk note below.
+
+### Disk (§3.3)
+Free space on `C:` went from 21 GB at the start to **5.8 GB** after the baseline. Unity's `Library` is unchanged at 13.0 GB. The space went to Windows' page file, which grew to 27 GB because memory commit reached 55 GB of a 58.5 GB limit (34 `claude` processes at 11.7 GB, 4 Unity processes at 6.9 GB, plus browsers and editors from other sessions). The page file does not shrink until a restart. The run continues above the 5 GB line with fewer agents at once; every lane step checks free space first and stops under 5 GB.
+
+### Other notes
+- `unity/RuntimeActionBindings.json` and `unity/Assets/StreamingAssets/RuntimeActionBindings.json` (untracked before the run) disappeared when the editor opened; the XR package generates them. Not restored.
+- `unity/ProjectSettings/Packages/com.unity.pipeline/EditorPipelineConfig.json` shows as modified with a line-ending-only diff after the baseline agent toggled and restored a CLI setting. Not committed.
+
+## Part core-5.1: shell, bootstrap, tools, keys and a first window manager
+
+Done in `unity/Assets/_Forge/OS/` (namespace `Forge.OS`, no asmdef). Everything below was run in the live editor (Unity 6000.6.7f1).
+
+### What was built
+- `Scripts/OSBootstrap.cs`: AfterSceneLoad + sceneLoaded; skips scenes with no `Workspace`; loads `Resources/OSShell`; sets `shell.workspace` while the instance sits under an inactive holder (the `DeskBootstrap` trick), then moves it to the scene root. The shell is a root object of the workspace's scene.
+- `Scripts/OSShell.cs`, `OSEntry.cs` (also holds `OSTab` and `OSSummon`), `OSRegistry.cs`, `OSSettings.cs` per the contract. `OSShell` holds state and raises `MenuChanged` / `TabChanged`; it needs no menu view. `OpenItem` sends tool, project and artifact to `OSRegistry.Find(...).open` and system to a handler table filled by `OSShell.RegisterSystem(id, open)`. An unregistered system id gives "The 'agents' page isn't available yet." (and "There is no system page called ..." for an unknown one).
+- `Scripts/OSWindows.cs`, `OSWindow.cs`: `Open` (a `ForgePanel` from `Workspace.Current.panelPrefab` at the scene root, `PanelManipulator.Init(head, desk frame or head)`, GraphicRaycaster ensured, same id again brings the existing window forward), `Adopt` (a root, or null for a group such as a Workspace mode), `Find`, `IsOpen`, `Close`, `CloseAll`, `All`, `Count`, `Changed`, `BringHere`. Placement is only in `PlaceNew` (nearest free spot in front of the user) and `PlaceRow` (`BringHere`: one row, edge to edge, centred; the distance grows from 0.95 m to 1.8 m if the row would be wider than 150 degrees).
+- `Scripts/OSTools.cs` + `Resources/AlbieTools/os.json`: `os_menu{open}`, `os_tab{tab}`, `os_open{kind,id}`, `os_windows{action}`; registered at BeforeSceneLoad; with no shell each answers `{"error":"The Albie menu isn't available in this scene."}`.
+- `Scripts/OSKeys.cs`: M (no Shift) toggles the menu through the Input System; the left controller menu button (`OVRInput.Button.Start`, LTouch) too. It is the same one-line `OVRInput.GetDown` that `DeskDock` already uses every frame, so it is safe on the desktop rig. A key typed into a TMP input field is ignored.
+- `Editor/OSPrefabBuilder.cs` (`Forge/OS/Build OS Prefabs`, `Build()`; builds `Resources/OSShell.prefab` with OSShell, OSWindows, OSKeys; safe to re-run, `Ensure<T>` helper for later parts), `Editor/OSCheck.cs` (`Forge/OS/Check OS`, `Run()`, `RunBatch()`), and two helpers for play tests: `Editor/OSShot.cs` (head-camera screenshot to `unity/Logs/os/NAME.png`) and `Editor/OSInput.cs` (`OSInput.Tap(keys)`: a keyboard state event on a virtual keyboard, queued from inside the player loop; `Busy`).
+
+### Checks (verbatim)
+Compile: `unity recompile` gave `"errors": 0, "warnings": 0`; the console buffer holds no warning from `_Forge/OS` (baseline warnings are the old CS0618 ones).
+
+`Forge.OS.Editor.OSCheck.Run()`:
+```
+PASS os check
+  ok   the OSShell prefab has the shell, the windows and the keys
+  ok   os.json parses and its four tools have handlers (4 tools)
+  ok   the tools answer an error, not an exception, with no shell
+  ok   the registry fills, finds, replaces and orders
+  ok   every tab has an empty-state sentence
+  ok   settings round-trip, clamp, and survive a damaged file (file 211 bytes)
+  ok   the voice rules still pass
+```
+`VoiceRulesCheck.Run()` (after the OS rules were added): `PASS voice rules check` / `ok   28 tool names and prefixes in the rules, all real (85 tools on the headset); every demo beat is routed`.
+`GestureSelfTest.RunMenu()`: `[GestureSelfTest] 104 passed, 0 failed`. Also run, as a bonus: `GesturePlayTest.Run()` gave `[GesturePlayTest] 32 passed, 0 failed` (same as baseline).
+
+Play mode, Main, desktop rig, voice off (`Forge.ForceDesktop` and `Albie.VoiceOffInEditor` set true, restored to false afterwards):
+- `OSShell.Current != null`, `FindObjectsByType<OSShell>(Include).Length == 1`; console line `[OS] Albie OS shell added to Main`; no error and no warning from OS code (only the old Ellipsis / MRUK / WakeListener noise).
+- A real M key: `OSInput.Tap(Key.M)` then `OSShell.Current.MenuOpen`: `after M: menu=True summon=Key`; Shift+M: `after Shift+M: menu=True` (unchanged); M again: `after second M: menu=False`.
+- `AlbieTools.Call("os_menu", {open:true})` -> `{"ok":true,"open":true}`, summon Voice; no `open` toggles it back (`{"ok":true,"open":false}`). `os_tab` -> `{"ok":true,"tab":"artifacts","open":true}`; bad tab -> `{"error":"The tabs are tools, projects and artifacts."}`; `os_open tool cad` -> `{"error":"There is no tool called 'cad' in the menu."}` (no tools are registered yet; later parts add them); `os_open system settings` -> `{"error":"The 'settings' page isn't available yet."}`; `os_windows close_all` -> `{"ok":true,"windows":0}`.
+- Two windows: `shells=1 w1=True w2=True samePanelOnReopen=True count=2`, each `active=True handles=True raycaster=True parent=root dist=0.95`. After `BringHere` they sit at yaw -16.2 and +16.2 degrees, side by side. Screenshot `unity/Logs/os/04_windows_final.png`: two dark panels "First window" / "Window A" and "Second window" / "Window B" side by side in front of the camera, not overlapping, text readable. (`01_two_windows.png` is the first try, where the gesture display hid window B: it showed that placement must see every panel, fixed.) Also run live: `Adopt` of a group and of the gesture display panel, `BringHere` with three windows (yaw -38.5, -6.0, 32.5 for widths 0.50, 0.50, 0.72 m, gaps 3 degrees), `Close` of a group (action ran, `Closed` fired once, count dropped at once), `Close` of an opened window (gone from `All` in the same frame, GameObject gone), `os_windows close_all`.
+- Sandbox: opened `Artifacts/ArtifactsSandbox.unity`, Play: `scene=ArtifactsSandbox workspace=False OSShell.Current=False shellsInScene=0 osToolsRegistered=True osMenuToolResult={"error":"The Albie menu isn't available in this scene."} artifactHost=True`; 10 log lines, no warning, no error. Back to Main, not saved (`dirty=False`).
+
+### Decisions (one line of why each)
+- **ViewNotes: no entry added.** `ViewNotes` is keyed by Workspace mode and fires only on `workspace.mode`, which the hub also reads (it gates the crew tools on it); the menu is not a mode, so a note would never fire. ToolRules and Keyterms got the OS lines ("Albie menu", "projects", "artifacts").
+- **`os_open` is preferred over `ui_open_view` in the rules, with `ui_open_view` as the fallback** if `os_open` has no such tool. Why: until the Tools are registered (a later part) "open CAD" should still work at the desk.
+- **`os_tab` also opens the menu if it is closed.** Why: "show my projects" by voice means "show me", and the tab alone changes nothing visible.
+- **`OSShell.OpenItem` leaves the menu as it is.** Why: whether a tap closes the menu is the menu view's call (next part).
+- **Added `OSShell.LastSummon` / `SummonPoint`, `OSShell.SystemIds`, `OSShell.HasSystem`, `OSShell.FindHead()`, `OSRegistry.UnregisterTool/UnregisterSource`, `OSSettings.SetPathForTests`, `OSTools.Names/Register` (public).** Why: the menu view needs the summon, the check needs to clean up after itself and to point settings at a temp file, and the editor assembly can only call public members.
+- **Panel width for placement is `SizeMeters.x`, not times the scale.** Why: the canvas root carries the 0.001 scale, so `SizeMeters` already is metres (my first version multiplied again and put windows on top of each other).
+- **`Open` of an id that is already in view (within 40 degrees, 0.4 to 1.6 m) leaves it where it is**; out of view it moves it to the nearest free spot. Why: "bring forward" should not shuffle a window the user is looking at.
+- **Placement avoids every `ForgePanel` in the scene, not only OS windows.** Why: the gesture display and desk windows were being covered.
+- **`Close` removes a window from the lists immediately** and deactivates it, then destroys it. Why: `Destroy` only lands at the end of the frame, so `Count` right after `close_all` was stale.
+- **Desktop key test needs a virtual keyboard and a player-loop queue (`OSInput`).** Why: with the editor window unfocused the real keyboard drops queued events, and an event queued from editor code can be applied in an editor update, where `wasPressedThisFrame` never sees it.
+- **No close button yet** (the task says a later part adds it).
+
+### Changes outside `OS/`
+- `Core/Scripts/AlbieVoice.cs`: one added sentence in the `ToolRules` const (the OS tools and "open CAD", "bring my windows here", "close everything") and three added `Keyterms` ("Albie menu", "projects", "artifacts"). Still a `const string ToolRules`; `VoiceRulesCheck` passes.
+- `CAD/Scripts/CadViewer.cs`: "measure" moves from M to Shift+M (`keys.mKey.wasPressedThisFrame && keys.shiftKey.isPressed`), because M is now the menu key. Comment lines in `CadViewer.cs` and `CadSandboxKeys.cs` and two lines of `CAD/README.md` say Shift+M. There is no on-screen hint for it (grep of `_Forge` for "M measure", "key M" etc. finds only those comments and the README).
+- No Project Settings, no manifest, no `.unity` change. `Main.unity` clean (`git status`).
+
+### Not done / not working
+- No menu view, no close button, no table button: later parts.
+- `os_open` has nothing to open yet (no tool, project or artifact registers an entry in this part).
+- Left controller menu button: coded, not tested (no headset, no controller in the desktop rig).
+- `Resources/OSShell.prefab` is the only prefab; no `README.md` or `THIRD_PARTY_NOTICES.md` yet.
+
+## Part menu-5.2: the menu and the look foundation
+
+Done in `unity/Assets/_Forge/OS/` (Unity 6000.6.7f1, the live editor). Every control is an instance of a Meta UI Set prefab, referenced from the package through `Resources/OSKit.asset`.
+
+### What was built
+- `Scripts/OSKit.cs` + `Resources/OSKit.asset`: references to the package's backplate, Primary / Secondary / Borderless / Destructive buttons (the `UnityUIButton` family), the TextTile (button form), the ButtonShelf toggle (tabs), the switch, the Large slider; the Albie theme; the font; 35 icons by friendly name from the 24 px Filled atlas; five sounds from the Interaction SDK samples (press = `BasicPoke_ButtonPress`, release, open = `Object_Reappear_01`, close = `UIRelease_01`, error = `Locomotion_Declined`); `unitMeters = 0.00065`. Nothing is copied except the theme.
+- `Themes/AlbieDark.asset`: a copy of `UIThemeQuest_Dark` (keeps the package's animators, materials and font), tuned in two places: `backplateColor` a touch cooler, `textPrimaryColor` fully opaque (the package's 90 % white read thin). Secondary text alpha 0.72. No per-tab accent: the one accent is the white Primary pill.
+- `Scripts/OSUi.cs`: `Icon`, `Body(panel)`, `Text`, `Button`, `Toggle`, `Slider`, `Row`, `Column`, `Section`, `Clear`, `Confirm` per the contract, plus `Tab`, `Tile`, `Select`, `Size`, `OutlineSprite`. Handlers go through `Button.onClick`; every control adds the press sound. `Scripts/OSBody.cs` is the window body root (scale 0.65 under a ForgePanel's Content, resizes with the panel, adds a `UIThemeManager` with the Albie theme and applies it once after controls are added). `Scripts/OSToggleSync.cs` keeps a UI Set toggle's lit look right (see decisions). `Scripts/OSTileView.cs` is one pooled tile. `Scripts/OSSounds.cs` plays the kit clips through one `AudioSource` on the shell (silent with no shell, kit or clip).
+- `Scripts/OSMenu.cs` + `Prefabs/OSMenu.prefab` (nested inside `Resources/OSShell.prefab`): the UI Set backplate (poke, ray, mouse as shipped, a `UIThemeManager` with the Albie theme), a tab bar (Tools, Projects, Artifacts as a toggle group, paging, Close X), a 4 x 2 tile grid from `OSRegistry.Fill`, the empty-state sentence, and the strip (Build something primary, Agents, Settings, Bring windows here, Close). The contents are built from the kit on the first open; tiles are pooled (two pools: plain and outline). It refreshes when the menu opens, the tab changes, and on `OSRegistry.Changed` and `OSShell.Windows.Changed`.
+- Placement and motion: world-locked where summoned (`menuDistance` from the eyes, `menuDropDegrees` below eye level, facing the eyes), grows from `SummonPoint` over 220 ms (scale 0.3 to 1, ease-out cubic, fade), fades out in 120 ms, open and close sounds. No `Update` in the menu.
+- `Scripts/OSTableButton.cs`: a UI Set backplate disc with an icon-only Primary button, lying flat on the desk frame at the dock's centre (local `(0, 0.012, min(0.09, depth/2))`, rotated like the dock), shown while `AtDesk && !Held && tableButton`, repositioned on `presence.frameChanged`, toggles the menu with `OSSummon.TableButton` and its own position.
+- `Editor/OSPrefabBuilder.cs`: builds theme, kit, menu prefab and the shell prefab (adds the menu, the table button, an `AudioSource`). `Editor/OSCheck.cs`: seven new checks. `Editor/OSMenuTest.cs` (`Forge/OS/Run Menu Test`, `OSMenuTest.Run()`, `LastResult`, `Measurements`; `RunAndStay()` / `Stop()` for looking around by hand): the Play test below. `OS/README.md` (the icon table only) and `OS/THIRD_PARTY_NOTICES.md`.
+
+### Checks (verbatim)
+Compile: `"errors": 0, "warnings": 0`; no warning or error from `_Forge/OS` in the console after the Play runs.
+
+`Forge.OS.Editor.OSCheck.Run()`:
+```
+PASS os check
+  ok   the OSShell prefab has the shell, the windows and the keys
+  ok   os.json parses and its four tools have handlers (4 tools)
+  ok   the tools answer an error, not an exception, with no shell
+  ok   the registry fills, finds, replaces and orders
+  ok   every tab has an empty-state sentence
+  ok   settings round-trip, clamp, and survive a damaged file (file 211 bytes)
+  ok   the kit asset loads and every UI Set reference resolves (9 prefabs, theme, font, 5 clips)
+  ok   every friendly icon name resolves to the Filled atlas, and the builder maps them all (35 icons)
+  ok   the Albie theme is derived from the UI Set dark theme
+  ok   the menu prefab and the shell's menu and table button exist
+  ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap)
+  ok   OSUi builds each control from the kit and a press runs its handler (4 buttons, icon button, switch, slider, tab, tile, text, row, column, section)
+  ok   sounds are silent and safe with no shell
+  ok   the voice rules still pass
+```
+`GesturePlayTest.Run()` (the menu and table button now live in Main): `[GesturePlayTest] 32 passed, 0 failed`.
+
+`OSMenuTest.Run()` (Main, desktop rig, voice off, throwaway sample entries registered for the run only): `[OSMenuTest] 57 passed, 0 failed`. Every press goes through the EventSystem: a raycast on the real canvases, then pointer enter, down, up and click on what was on top (the test fails if something else is on top). It covers: sit at the desk (`presence.forceSeated` + `DesktopRig.Current.ToggleSeat()`); the table button shows and a pointer press opens the menu (summon TableButton); distance, drop and field of view; tab presses; paging; a tile press runs its action and closes the menu; M opens it; the strip Close and the tab bar's close X close it; Agents with no page registered presses without throwing (one log line `[OS] The 'agents' page isn't available yet.`); the empty tab; then walking away (the table button goes), M, tabs, a tile and Close again away from the desk.
+
+Measurements (`OSMenuTest.Measurements`, first run; only the strip buttons and the table button changed by a few mm afterwards):
+```
+table button: plate 47 mm, button 34 mm   (grown to 55 / 40 mm after the first screenshot review)
+menu: 0.564 m wide, 0.311 m tall, 0.50 m from the eyes, 15.0 degrees below eye level, 58.9 degrees of horizontal view
+tile: 122 x 70 mm
+gap between tiles: 13.0 mm
+Button Build something: 121 x 31 mm
+Button Agents: 79 x 31 mm
+Button Settings: 84 x 31 mm
+Button Bring windows here: 138 x 31 mm
+Button Close: 73 x 31 mm
+Tab Tools: 98 x 42 mm
+```
+The close X and the paging buttons are 56 x 56 units = 36 mm.
+
+Screenshots (in `unity/Logs/os/`, ignored by git), each opened and graded against spec 6.3:
+- `00_table_button.png`: the white round button with a grid icon at the front-edge centre of the desk, inside the old dock's frame (expected until the dock is retired). Reads as a button; small from the seat because it is 55 mm.
+- `01_menu_desk_tools.png`, `02_menu_desk_projects.png` (a "New" section with an outline tile), `03_menu_desk_artifacts.png` (nine entries: page 1 of 2 with the page controls), `04_menu_desk_artifacts_page2.png` (one tile; a long title ends in an ellipsis), `05_menu_desk_empty.png` ("No artifacts yet. Tap Build something or ask Albie."), `06_menu_away.png` (Tools, away from the desk, seen from off-axis).
+- Grades: polish pass (Meta's backplate, tiles, pills and shelf tabs, one radius and type scale); hierarchy pass (the white Build something is the only primary, the lit tab and the grid read at a glance); legibility pass (labels 16, titles 18, status 14 units; white on dark about 10:1; the lit tab's and Primary's dark labels are bold because dark-on-white SDF text reads thin); touch targets pass (numbers above; hover and press come from the UI Set animators, which a still can't show); honest content pass (sample entries exist only in the test, shipped empty states say what to do, no brand names); comfort pass (58.9 degrees, nothing clipped). Integration with the older windows was not graded (this part leaves them alone).
+- Fixes the screenshots forced: tile and tab labels were invisible (the shelf toggle ships its main label off and a small italic one on; the tile's text boxes were too short and silently truncated); the strip's last two buttons overlapped; the lit tab stayed half-dark; the pet's greeting START pill sat over the menu (the test now ends the greeting quietly); the build icon (`concepts`) looked like a logo and became `add-circle`; selected-tab and Primary labels were thin.
+
+### Decisions (one line of why each)
+- **Font: keep the UI Set's LiberationSans SDF (the theme's font), not Inter.** Why: it is the font the UI Set's materials and animators were built and tested with, it has 250 glyphs (accents in names) where `ForgeLook/Inter SDF` is a static atlas of 115 glyphs, and using Inter would need fallback assets. The old ForgePanel headers stay Inter; a window's own text is LiberationSans.
+- **Icons: only the Filled 24 px atlas, one name table (`IconMap` in the builder, copied in `README.md`).** Why: one style, and `OSCheck` fails if a name stops resolving.
+- **The menu's contents are built from the kit on first open, not baked into the prefab.** Why: baking 30 nested instances with overrides is fragile; the prefab holds the backplate, theme and wiring, and the kit is the single source of the look.
+- **The tab bar uses the ButtonShelf toggle (icon over label), 150 x 64 units.** Why: it is the UI Set's tab-like toggle with a lit state.
+- **Toggles get `OSToggleSync`.** Why: the UI Set only moves a toggle's "Selected Layer" when the value changes while running; a toggle built on, set from code or re-enabled looked half lit. The component applies the state a frame after start and snaps it after the UI Set's 0.2 s transition.
+- **The outline ("new") tile is a Borderless-animated TextTile with a procedural rounded outline sprite** (a 64 px texture made once, 9-sliced). Why: the UI Set has no outline tile; the outline is not a Meta asset and uses no file.
+- **Section headings: a heading starts a new row, a page holds two rows and at most one heading, and a heading repeats at the top of a page its section carries onto.** Why: keeps the plate a fixed size.
+- **A tile press clears the EventSystem selection, and the menu clears it on close.** Why: a pressed UI Set control keeps its "selected" highlight otherwise.
+- **The strip's Agents, Settings and Build something close the menu only if their page is registered.** Why: with nothing registered the button should press, log one line, and leave the menu where it is. Bring windows here closes the menu after the windows move.
+- **The backplate's own poke-sound wrapper is switched off on the menu and the table button.** Why: every control plays the press sound itself; the wrapper would double it.
+- **The table button is a Primary (white) circle on a dark backplate disc.** Why: dark-on-dark vanished next to the dock.
+- **The menu plate is 868 x 478 units (0.564 x 0.311 m).** Why: four 188-unit tiles with 20-unit gaps; 58.9 degrees at 0.5 m is inside the 70 degrees limit.
+- **No Project Settings change, no tags** (all 21 `QDSUI*` tags already exist).
+
+### Changes outside `OS/`
+None. `git status` shows no `.unity` file modified; `Main.unity` untouched.
+
+### Not done / not working
+- Real hand poke and ray on the menu were not exercised (no headset): the backplate is the package's own, its poke surface's `BoundsClipper` was read in Play and matches the plate (868 x 478 units), and every press in the test is a mouse-style EventSystem press. Hover lift and press depress come from the UI Set animators and were not captured in stills.
+- The 220 ms grow-in and 120 ms fade-out were not captured mid-way; the end states are what the screenshots show.
+- Menu entries are empty until the Tools, Projects and Artifacts parts register theirs; the screenshots use test-only sample entries.
+- `OSTableButton` and the old dock both show until the dock is retired (next part).
+- On the real first arrival the pet's greeting holds the desk (`DockHeld`), so the table button stays hidden until START is pressed, as the contract says. The test ends the greeting itself.
+- `OSKit` caches its icon lookup per load; a rebuilt asset is picked up on the next Play or reload.
+
+## Part windows-5.3: window manager, modes with and without a desk, the dock retired
+
+### What was built
+- **`OSWindows` / `OSWindow` (placement replaced, API kept).** A window is a free root `ForgePanel` with a `PanelManipulator` (`Init(head, desk frame)`), a `GestureWindow` (so the flick in, the flick out and the minimise dot work) and a UI Set close button (48 units = 31 mm) at the right end of its header; the panel's own Face me / Straight pills and the title make room for it. Opening animates scale 0.92 to 1 and fade over 200 ms (`Busy` until it lands); closing shrinks and fades over 180 ms, then destroys. `Adopt` is as before, and a group entry (no object) tracks the open Workspace mode.
+- **Placement is in angles seen from the eyes.** Each candidate place is a yaw (3 degree steps out to 110) on one of four rows (0.8 m at a desk / 0.95 m away, a little below eye level; the same row raised 0.42 m; and both again 0.25 m further out, at a 15 degree cost). The window takes the free place nearest to straight ahead. "Free" means clear (with a 2.5 degree gap) of every other `ForgePanel` and `ForgeVolume` in the scene, of the open mode's laid-out slots (`Workspace.GetSlots`, so a mode that is still unfolding counts where it will be), of windows that are still gliding (their landing place), and of the room's walls (`RoomFit`, in a yaw-only frame at the user's head; a place the walls would move is only used if none is clear of them, and only if it is still clear after the move). At a desk the window's bottom stays above the desk top. If the view is full the window goes straight ahead on the second ring rather than not at all.
+- **Nothing moves by itself.** Walking away or up to a desk moves no window. When a Workspace mode opens where windows already are, only the windows its panels would cover move aside (`ClearModeSlots`).
+- **`BringHere()`** lays the open mode out again around the user (`Workspace.Reanchor`), then takes a free place for each window in the order they were opened, each gliding there over 550 ms (`ForgeTween.SpringDamped`), staggered 50 ms. The menu's Bring windows here button and the `os_windows recenter` tool already called it; `CloseAll()` closes windows, runs the adopted ones' close actions and closes the open mode (`os_windows close_all`).
+- **`Workspace` hook** (`Core/Scripts/Workspace.cs`, nothing changes until the OS sets it): `FreeFrame` (a delegate giving the pose of a virtual desk frame), `KeepOpenAway`, `DockRetired`, `CanOpen`, `InFreeFrame`, `Reanchor()`, `GetSlots()`, `IsOpenItem()`. Inside `Workspace`, the frame, its width and depth and the eye now come from an "active frame": the desk's, as ever, unless the open mode is in a virtual one. Away from a desk `Open` makes a frame in front of the user whose eye relation is a seated user's (eyes 0.5 m above and 0.5 m behind its front edge), so `LayOut` and `ClampEye` run unchanged. On Away with `KeepOpenAway` the open mode is moved onto a pinned copy of the desk frame (same pose, so nothing moves) instead of folding, so it doesn't jump if the desk frame later goes to another table. `LayoutEye`, `TopEdge` and `BesidePose` (used by the desk extras) return desk-frame values even when the mode is in a virtual frame.
+- **`OSModes`** (`Open`, `IsOpen`, `Close`, `Title`, `ModeIds`) plus `Attach` / `Detach`, called from `OSShell.OnEnable` / `OnDisable`: they set the hook, and apply `OSSettings.flatLayout` to `Workspace.SetLayout` now and on every settings change. The open mode is one group entry in `OSWindows` (id `mode:<id>`), kept in step with `Workspace.modeChanged`, so a mode opened by the menu, a voice tool, the pet or another module shows up and replaces the old entry.
+- **Dock retired.** With the OS the dock never shows (`DockRetired`); hold and release still run (`DockHeld`), so the table button stays hidden through the greeting and appears on release. The whistle and the crew egg fall back to their desk corners (seen in `21_arrival_after_start.png`); no error from `AlbieMrukAdapter`.
+- **`OSCheck`** gained two edit-mode checks (the Workspace hook is inert until set, in a preview scene; `OSModes` is quiet with no scene) and **`OSWindowsTest`** (`Forge/OS/Run Windows Test`, Play in Main) was added.
+
+### Checks (verbatim)
+`Forge.OS.Editor.OSCheck.Run()`:
+```
+PASS os check
+  ok   the OSShell prefab has the shell, the windows and the keys
+  ok   os.json parses and its four tools have handlers (4 tools)
+  ok   the tools answer an error, not an exception, with no shell
+  ok   the registry fills, finds, replaces and orders
+  ok   every tab has an empty-state sentence
+  ok   settings round-trip, clamp, and survive a damaged file (file 211 bytes)
+  ok   the kit asset loads and every UI Set reference resolves (9 prefabs, theme, font, 5 clips)
+  ok   every friendly icon name resolves to the Filled atlas, and the builder maps them all (35 icons)
+  ok   the Albie theme is derived from the UI Set dark theme
+  ok   the menu prefab and the shell's menu and table button exist
+  ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap)
+  ok   OSUi builds each control from the kit and a press runs its handler (4 buttons, icon button, switch, slider, tab, tile, text, row, column, section)
+  ok   sounds are silent and safe with no shell
+  ok   the voice rules still pass
+  ok   the workspace hook is inert until the OS sets it, and the OS names resolve
+  ok   OSModes is quiet with no scene and the OS window pieces are in place
+```
+`OSWindowsTest.Run()` (Main, desktop rig, voice off): `[OSWindowsTest] 58 passed, 0 failed`. In order: the OS hooked the workspace and the dock isn't showing; the first arrival (the greeting holds the desk, the table button and the dock stay hidden, START opens the code view and releases the desk, the table button then shows, the open code view is a window group); at the desk (`forceSeated` + `ToggleSeat`) two OS windows and CAD open at once, three entries in the list, handles set and not Busy, free root objects, no overlap measured by the corners of each panel seen from the eyes; the close button (31 x 31 mm) is pressed through the EventSystem and closes its window; a flick away minimises a window into a dot; forced Away: all three are still there and active, at the same world positions (0.000 m), the dot stays, no dock and no table button; the dot's window comes back when opened; Bring here: every window and CAD panel within 1.3 m and within 100 degrees of where the user faces, window 1 moved 4.5 m, nothing overlaps; `OSModes.Open("ml")` away: ML replaces CAD as the mode and as the group entry, its panels are around the user and not at the old desk; `ui_open_view` returns ok for messages and cad away from the desk (no `not_at_desk`); `os_windows recenter` and `close_all` return ok; the flat layout setting reaches the workspace and back; Close all leaves no windows, no mode and no panels; at the desk again a mode opens in the desk frame; no error or exception was logged during the run.
+```
+at the desk: window 1 0.80 m / 86 deg, window 2 0.90 m / 48 deg from the eyes
+close button: 31 x 31 mm
+after Bring here: farthest 1.04 m, widest 87 deg from where the user faces (mode panels: 3)
+the room is known at the user's place (walls are fitted against): True
+ML away: 4 panels, farthest 0.80 m from the head
+```
+Existing checks, unchanged expectations: `[GestureSelfTest] 104 passed, 0 failed`; `[GesturePlayTest] 32 passed, 0 failed`; `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.`
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened:
+- `20_arrival_greeting.png`, `21_arrival_after_start.png`: the first arrival at the desk. After START the code view is open, the small round table button sits at the front-edge centre, the whistle (orange puck) is on the right and the crew egg on the left; nothing overlaps and there is no dock.
+- `10_desk_three.png`: CAD's drawing, versions and parameters panels around the desk, the rocket on the desk; the two OS windows are out of this narrow desk view, to the sides.
+- `11_close_button.png`: a window with the TEST badge, title, the close X at the right end of its header, a text and a Primary button.
+- `12_away_same_place.png`: from 2 m away, CAD still open at the desk with the same panels, and the two windows (one a minimised dot) where they were.
+- `13_after_bring_here.png`: after Bring here, CAD's panels and a window around the user, none overlapping.
+- `14_ml_away.png`: away from the desk, ML's training, dataset and results panels in front of the user, not at the old desk.
+
+### Decisions (one line of why each)
+- **Workspace modes stay Workspace modes (contract decisions 1 to 3).** Why: eleven call sites depend on `ActiveMode`; the OS only gives the workspace a way to open in a virtual frame.
+- **The workspace creates and owns the virtual frame; the OS only supplies its pose (`FreeFrame` delegate).** Why: the workspace parents and animates the items, so it must also create, replace and later destroy the frame (2.5 s after a close, so folding items finish).
+- **At a desk nothing changes: the mode lives on the desk's own frame.** Why: desk behaviour stays exactly as it was; the virtual frame exists only away from a desk or after leaving one.
+- **Away with `KeepOpenAway` the mode moves onto a pinned copy of the desk frame instead of staying on the desk frame.** Why: the desk frame is rewritten when the user later uses another table, which would have moved the items.
+- **The group entry follows `Workspace.modeChanged`, and a replaced entry is detached, not closed.** Why: any opener works, and closing the old entry would close the new mode.
+- **Windows keep out of the walls by `RoomFit`, but a place clear of the walls is preferred to one the walls move.** Why: fitting each candidate moved several windows onto the same spot.
+- **Yaw widths use the horizontal distance.** Why: a window high above the eyes covers more yaw than its slant distance says; a first version let two windows touch.
+- **A mode that opens over windows moves only the windows it covers.** Why: the done list wants none overlapping whichever opens first, and unrelated windows shouldn't move.
+- **`GestureWindow.StaysAway`, also true for every window while `KeepOpenAway`.** Why: its dot was dropped on Away, which left an OS window hidden for ever.
+- **`Workspace.CanOpen` replaces the desk check in `WorkspaceRemote`, `CodeTools.OpenView` and `SlackRemote.Show`.** Why: the same rule everywhere; without the OS it is exactly `AtDesk`.
+- **The test measures overlap by each panel's corners seen from the eyes.** Why: it is what a user sees, and independent of the placement code's own estimate.
+
+### Changes outside `OS/`
+- `Core/Scripts/Workspace.cs`: the OS hook above (properties, `Reanchor`, `GetSlots`, `IsOpenItem`, the active frame, Away keeps the mode when asked, dock retired). Desk behaviour is unchanged when the hook is not set (`GesturePlayTest` and `Validate Main` pass with the same expectations).
+- `Core/Scripts/WorkspaceRemote.cs`, `Code/Scripts/CodeTools.cs`, `Messages/Scripts/SlackRemote.cs`: the `AtDesk` guard became `Workspace.CanOpen` (one line each).
+- `Core/Scripts/Gestures/GestureWindow.cs`: `StaysAway` (6 lines).
+No Project Settings, no scene, no `manifest.json`.
+
+### Other users of the desk frame (looked at, what was left)
+- Fixed: `WorkspaceExtras` (desk-frame values from `LayoutEye`, `TopEdge`, `BesidePose` now convert when the mode is in a virtual frame); `WorkspaceRemote`, `CodeTools`, `SlackRemote` (guards).
+- Left, desk-only on purpose: the desk extras (timers, notes: hidden away, as before); `DigestTrigger` and `DraftPresenter` (spawn on the desk); `ArrivalDirector.OpenAfterDock` (arrival is a desk event); `ArrivalGreeting`, `DesktopRig.ToggleSeat`, `AlbieMrukAdapter` (desk nav mesh; the dock keep-out never applies with the dock retired).
+- Left, not checked: the pet walking to a mode's panel (`AlbieController` work target via `TryGetItemTransform`) when the mode is in a virtual frame away from a desk; a minimised dot of a Workspace panel stays parented to the desk frame when the mode is pinned.
+- Not affected: `CodeMode`, `CadViewer`, `MessagesLayout`, `MentionsPanel` (they use mode items or `modeChanged` only).
+
+### Not done / not working
+- With a wide mode open (CAD) a third panel goes beside it, at the edge of view (86 degrees from straight ahead for one window at the seat in the test). The raised row is blocked by the mode's tall side panels. Bring here and the next open pick the nearest free place again.
+- The Interaction SDK ray and poke on the window close button and handles were not exercised (no headset); the mouse-style EventSystem press was.
+- The first-arrival greeting did not come up in one of the runs of the test (the arrival checks are then skipped with a log line); it did in the verified run. Cause not found.
+- `OSCheck.Run()` marks the open scene as changed (an older check creates scene objects); running any Play test reloads it clean.
+- The open and close animations were not captured mid-way.
+
+## Part 5.4: Tools tab (tools-5.4)
+
+### What was done
+- Integrated the staged `OSToolsCatalog` (cad, code, train, notebook, messages, gestures tiles) and `OSNotebookWindow`. Both compiled first time against the real API; 0 errors, 0 new warnings.
+- `OSNotebookWindow`: added a fit step. There is no scrolling, so after each rebuild `LateUpdate` checks the page against the window and steps down the number of rows shown (milestones, attempts, versions, lessons) until it fits. Why: a long plan or long attempt text would otherwise run past the window.
+- New `Editor/OSToolsTest.cs` (`Forge/OS/Run Tools Test`, `Forge.OS.Editor.OSToolsTest.Run()`, result in `LastResult`): Main in Play, desktop rig, voice off. Opens the real menu, presses each Tools tile with a pointer through the EventSystem, at the desk and away, checks the result, then the notebook against proj_truck, Train with a brain truck, Bring windows here and Close all.
+- `Editor/OSMenuTest.cs`: the real Tools entries step aside while that test runs (it counts and presses its own sample tiles) and `OSToolsCatalog.Register` puts them back.
+
+### Check output (verbatim)
+```
+PASS [OSToolsTest] 94 passed, 0 failed
+PASS os check (16 ok lines)
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+```
+OSToolsTest, in order: the Tools tab lists cad;code;train;notebook;messages;gestures; each tile has title, kit icon, status, open flag and action; at the desk and away, a pointer press on each of the six tiles opens it (CAD, Code, Messages as mode groups with panels; Train opens the ML desk with 4 panels and, with no truck, no brain window and status `open · no truck yet`; Notebook and Gestures as tracked windows); notebook shows the plan, the new attempt under "Waiting for your verdict", the new version, the project name; Mark worked writes `outcome=worked by person` to the store and the window says "worked (you marked it)" with no reopen; Mark failed likewise; text stays inside the window with no overlap; Mark worked is 88 x 31 mm; with a brain truck Train opens the ML desk and the "brain" window and the tile says `open · brain ready` (desk and away); Bring windows here brings notebook, brain and gestures within 1.6 m; Close all closes the gesture display too and leaves no windows or mode; no error, exception or `[OS]` warning logged.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened:
+- `30_tools_tab_desk.png`: the Tools tab at the desk, six tiles (CAD, Code, Train "no truck yet", Notebook "RC truck", Messages, Gestures "open"), strip below; nothing clipped.
+- `43_tools_tab_away.png`: the same tab away with a truck: Train says "brain ready", Gestures "5 gestures".
+- `31_notebook_desk.png`, `32_notebook_marked.png`, `33_notebook_after_fail.png`: the notebook window with proj_truck data (plan v2, attempts, versions, lessons, the two verdict buttons) and after Mark worked / Mark failed.
+- `41_notebook_away.png`: the notebook away from the desk.
+- `34_gestures_desk.png`: the gesture display adopted as a window with Teach a gesture.
+- `35_brain_window.png`, `45_brain_window_away.png`: the controller brain trainer window.
+
+### Decisions (one line of why each)
+- **The test opens proj_truck from a scratch folder and fills it with `NotebookStore.SeedFixtures`.** Why: no notebook existed on this machine, and the test must never write into a real one; it is the real store and the real project id.
+- **The test lays the slalom out in `MockFloorPlan.LivingRoom()` through `ArtifactHost.Room`.** Why: the desktop rig's simulated living room has no clear 4.6 x 0.8 m strip (`no_free_floor` from every standing place and facing), so a truck can't spawn there otherwise.
+- **The test removes the `projects`, `artifacts` and `user` folders under persistentDataPath only if it found them missing.** Why: it created them (slalom layout, lessons) and must leave the machine as it found it.
+- **The gesture display is adopted by the window manager when the menu first asks whether Gestures is open, or when the tile is pressed.** Why: it is the cheap place to do it; the display is made by the gesture engine, not the OS.
+- **Tile order cad, code, train, notebook, messages, gestures (Drive appends).** Why: as the writer registered it; reorder in `OSRegistry` if wanted.
+
+### Not working or not done
+- With the ML desk open away from a desk, its large panels sit in front of the menu (the menu opens 0.5 m away, the panels reach nearer) and a pointer press on a tile hits the panel instead (`99_press_failed_notebook.png`). So with Train open, a second tool can't be opened from the menu until the mode is closed. The test opens Train last for that reason. A fix belongs in menu placement or mode layout (5.2/5.3), not here.
+- The controller brain view (ML module, `ControllerBrainView`) has layout flaws of its own at this size: the steer/throttle values wrap ("+0.2" over "0"), the controller file note is clipped by its card, the text is small, and it says "Mock lap fixture" whatever the truck does. It is the same view as the `MLPanels/ControllerBrain` prefab; not changed (not the OS's module).
+- The notebook window has a blank gap of about 40 units above "Versions" (layout estimates a taller attempts section than it renders). Not clipped, not overlapping; left.
+- Ray and poke on the tiles were not exercised (no headset); the EventSystem pointer press was.
+- `M` is dropped by the Input System when the editor window is unfocused; the test then opens the menu with `OSShell.OpenMenu` (it logs this). The M key itself is covered by OSMenuTest.
+- Free disk fell from 9.4 to 5.4 GB during this part, from files under `AppData\Local\Microsoft` (not Unity, not the repo); 5.8 GB at the end.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Orchestrator note: disk stop and restart (2026-11-12 night to 2026-11-13)
+
+- **Stopped.** The Projects part (5.5) checked the disk before starting and found 4.92 GB, then 4.48 GB, so it stopped without changing anything, as the 5 GB rule says. The parts after it (Artifacts, the P0 play test, the rules review) did not run. Free space reached 3.5 GB a few minutes later.
+- **Cause.** Not this repo: `unity/Library` stayed at 13.05 GB and `unity/Temp` plus `unity/Logs` are 0.03 GB. The Windows page file is 29 GB allocated with under 3 GB in use (commit 54 of 60.6 GB with about 30 other `claude` processes running), and the Outlook cache (`.ost`, 4.9 GB) was being written during the run. Free space has swung between 3.5 and 9.5 GB all day without the repo changing.
+- **Restart.** Hudson said to continue (2026-11-13); free space was 5.76 GB at that point. Decision: for the rest of P0 a part stops only if free space is under 3 GB on two checks two minutes apart, and between 3 and 5 GB it works but does nothing disk-heavy (no player build, no reimport). Why: the figure swings by several GB from other programs, so a single reading under 5 GB stopped a part that would have used almost no disk. The APK build at the end still needs real headroom and will not start under 5 GB.
+- **Added to the P0 play-test part:** fix the menu being unreachable behind a mode's panels away from a desk (found in 5.4), with a play-test step for it.
+
+---
+
+## Part 5.5: Projects tab and the Project window
+
+Integrated from `.os-run/staging/projects/` (`OSProjects.cs`, `OSProjectWindow.cs`). The writer's code compiled on the first try against the real `OSUi`, `OSWindows`, `NotebookStore`, `ArtifactHost` and `BrainLoops` (0 errors, 0 warnings from `OS/`). The writer's HOOKS.md asked for no edit outside `OS/`, so none was made.
+
+### What was done
+- `OSProjects` registers the Projects source at BeforeSceneLoad: four starters (RC truck, Quadcopter, Rocket, Image classifier) plus every other folder under `<notebook root>/projects/`. The list and each status line are cached (re-read on a notebook or registry change, or after 4 s, never per frame). Status lines are real: `v<version>` plus `<artifact> passed|failed|stopped` from the newest run record of an artifact linked to the project, else the last judged attempt, else "not started".
+- `OSProjectWindow` (window id `project`, 0.74 x 0.66 m): Plan card (goal, test, up to 4 milestones as [x]/[ ]), Versions (newest 3 with each version's outcome), Artifacts (linked, with the last run), Continue (Course, Drive, Train, Autopilot, Code, Send, Notebook in one row; other projects get what fits them), a live brain line for the truck, and a status line that shows each action's real result or error in plain words.
+- Truck Course: makes the project the open notebook first (so `links.thing == "truck"` survives `FromTemplate`), then `artifact_create{template:"slalom"}` or `artifact_open` through `AlbieTools.Call`, the same path as voice. The first press on a machine with nothing approved says "The slalom asks first. ... Tap Allow on the card in front of you."; after Allow it opens the slalom with the brain truck.
+- Starters: Quadcopter and Rocket open CAD and then the design from the stored mocks (`CadSession.OpenPart`); Image classifier opens Train and says "Needs Albie's cloud to load the dataset. Not available offline." (Load dataset is off until `ForgeCloud.Serves("/ml/")`). A bad id leaves the previous project open and throws nothing.
+- Added `OSProjectsTest` (`Forge/OS/Run Projects Test`, `Forge.OS.Editor.OSProjectsTest.Run()`, result in `LastResult`). It runs on a scratch root (notebook root, `ArtifactLibrary.RootOverride`, `ArtifactApprovals.FileOverride`), so it simulates a fresh install with no projects folder and never touches the machine's own notebook or artifacts; it deletes the scratch folder after.
+
+### Check output (verbatim)
+```
+[OSProjectsTest] 87 passed, 0 failed
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+```
+`OSCheck.Run()` still `PASS os check` (16 ok lines). Key lines of OSProjectsTest:
+```
+fresh: proj_truck=not started (open) | proj_quadcopter=not started | proj_rocket=not started | proj_classifier=not started |
+course, first press: The slalom asks first. Uses your room's layout. Reads your Thing's position and speed. Tap Allow on the card in front of you.
+course, second press: The slalom is open. The brain truck is at the start. This room is tight, so I made a shorter course: 5 gates, 1.0 m apart.
+ok   Course gives a slalom with the brain truck (BrainLoops.Active != null)
+ok   the open manifest has links.thing == "truck" (truck)
+ok   the open manifest links to proj_truck (proj_truck)
+with data: proj_truck=v1 · slalom passed (open) | proj_quadcopter=not started | ... | proj_demo_folder=not started |
+ok   Image classifier shows the honest offline line (Needs Albie's cloud to load the dataset. Not available offline.)
+ok   quadcopter: CAD opened on the quadcopter design (quadcopter)
+ok   rocket: CAD opened on the rocket design (rocket)
+ok   a bad id leaves the previous project open (proj_rocket)
+```
+Screenshots (`unity/Logs/os/`, ignored by git), each opened: `50_projects_tab_fresh.png` and `54_projects_tab.png` (the Projects tab: four starters with true status lines, then a folder tile "Demo folder"); `51_truck_window_fresh.png`, `52_truck_window_course.png`, `53_truck_window_run.png`, `58_truck_window_full.png` (the truck Project window fresh, after Course, with a run, and with a full plan, 4 versions and a run: nothing clipped or overlapping); `55_generic_window.png`, `56_classifier_window.png`, `57_quadcopter_window.png` (a folder project, the classifier with its offline line, the quadcopter with CAD open beside it).
+
+### Decisions (one line of why each)
+- **Icon names from the kit's table, not the writer's guesses** (`quadcopter`, `classifier`, `projects` for folders). Why: `drone`, `image` and `folder` are not kit icons.
+- **Notebook button in the same row, Secondary style.** Why: Borderless on a second row read as a label, not a button.
+- **Text sizes 22 / 20 / 18 units, lists capped at 4 milestones, 3 versions, 3 artifacts, window height 0.66 m.** Why: the fullest case (long plan, many versions, a run) fits with room left; bigger text is easier to read from the desk.
+- **Send stays off with the reason shown.** Why: nothing on the device can send the model (the only offline send writes a text draft to the demo chat); the window says so instead of faking it.
+- **The test opens the menu, then sets the tab.** Why: `OSShell.SetTab` before the menu's first build is overwritten with Tools by the menu's tab bar build (see below).
+- **`OSProjects.Unregister()` added; `OSMenuTest` now unregisters the real Projects list for its run and puts it back.** Why: the test counts its own five sample Projects tiles and the real list added four more.
+- **`OSToolsTest` helpers `Press`, `FindDeep`, `CenterOf`, `Mm`, `LayoutProblem`, `AllText` made `internal`.** Why: `OSProjectsTest` reuses them instead of copying them.
+
+### Not working or not done
+- `OSShell.SetTab(x)` called before the menu has ever been built is lost: the first build of the tab bar selects Tools. Affects a voice `os_tab` on a session that never opened the menu. Not fixed here (menu code belongs to the menu part); the test works around it.
+- After the slalom is closed the brain truck stays (`BrainLoops.Active` is still set); that is the artifact module's behaviour. The window then reads "Course: not open · brain truck ready".
+- Drive: disabled with "Coming with the Drive pad." until the Drive part registers a `drive` tool. When it does, the Drive button opens it and starts a 2-lap brain recording if the brain is idle (remove that in `OSProjectWindow.DoDrive` if the Drive window owns recording).
+- Train for the truck calls `brain_train` and Autopilot calls `autopilot_on/off`; both were only exercised with no laps recorded ("Train first."), not through a full train. Ray and poke were not exercised (no headset); the EventSystem pointer press was.
+- The permission ask text comes from the artifact module and says "Thing" ("Reads your Thing's position and speed."); not changed here.
+- Free disk was 4.2 to 3.1 GB during this part (page file); nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Part 5.6: Artifacts tab and movable artifact panels
+
+Integrated from `.os-run/staging/artifacts/` (`OSArtifacts.cs`, `OSArtifactWatcher.cs`). The writer's code compiled on the first try against the real `ArtifactHost`, `ArtifactLibrary`, `AlbieTools`, `PanelManipulator` and `VolumeManipulator` (0 errors, 0 warnings from `OS/`). Nothing under `Artifacts/` was changed: the panels and volumes are made movable from the OS side.
+
+### What was done
+- `OSArtifacts` registers the Artifacts source at BeforeSceneLoad: every artifact in `ArtifactLibrary.List()` (sorted by title), then a **New** section (outline tiles) with one tile per template plus Three-body (a bundled simulation: it opens, it is never created). Cached, rebuilt only when something changed.
+- A tap goes through the Albie tools (`artifact_open`, `artifact_close`, `artifact_create`), so placement, the first-time Allow sheet and `FollowsUser` are the same as by voice. A tap on the artifact that is open closes it. A New tile makes it (`artifact_create` with `open:false`, then `artifact_open`), keeps the open project open so the library links it (`links.project`, `links.thing`), and shows the real reason under the tile when it fails.
+- Status line: `open`, `for RC truck` (the project's name from the Projects tab), the last run (`passed`/`failed`/`stopped`), `on your floor` for room artifacts; New tiles say `on your floor` or `opens as a window`; while the Allow sheet waits the tile says `tap Allow on the sheet`.
+- `OSArtifactWatcher` (one per scene with a Workspace) notices the host opening, closing or rebuilding and adopts every `ForgePanel` and `ForgeVolume` under it: `PanelManipulator` / `VolumeManipulator` added and Init'd as the Workspace does, and a window `artifact:<id>:<n>` in the window manager whose close runs `artifact_close`. So the Allow sheet, panels and volumes can be moved (Straight / Face me and resize brackets appear), and Bring windows here and Close all reach them.
+- Added `OSArtifactsTest` (`Forge/OS/Run Artifacts Test`, `Forge.OS.Editor.OSArtifactsTest.Run()`, result in `LastResult`). It runs on a scratch root (`ArtifactLibrary.RootOverride`, `ArtifactApprovals.FileOverride`, notebook root), so this machine's own notebook and artifacts are never touched, and lays room artifacts out in `MockFloorPlan.LivingRoom()` through `ArtifactHost.Room` as `OSToolsTest` does.
+
+### Check output (verbatim)
+```
+[OSArtifactsTest] 68 passed, 0 failed
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+PASS os check (16 ok lines)
+[ArtifactChecks] 97 passed, 0 failed
+PASS run check
+PASS slalom check
+PASS hoop check
+PASS biology templates check
+PASS physics templates check
+PASS repo activity check
+PASS voice rules check
+PASS slalom brain check (Play mode, the brain truck on its colliders)   (25 ok lines, no FAIL)
+```
+Key lines of OSArtifactsTest: tapping New Heart makes and opens the heart (volume window, movable); the Heart tile closes and reopens it; New Solar system opens and closes from its tile; New What shipped? asks first (`tap Allow on the sheet`), the Allow pill pressed with a pointer opens it with a movable panel and volume; New Slalom with the truck project open asks first, then `BrainLoops.Active != null`, `links.thing == "truck"`, `links.project == "proj_truck"`, and the Slalom tile reads `open · for RC truck`; Bring windows here moves an artifact window from 6 m to under 2 m; Close all closes the open artifact and leaves no artifact window; opening an id that does not exist answers with the reason and opens nothing.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `60_artifacts_tab_new.png` (the tab fresh: a "New" heading and eight outline tiles, page 1 of 2), `66_artifacts_tab_page1.png` (four made artifacts first, each "for RC truck", the open slalom "open · for RC truck", then the New heading and its first four tiles), `67_artifacts_tab_page2.png` (page 2: the rest of the New tiles, ending with Three-body), `61_heart_open.png` (the heart volume on the desk with its labels and its panel), `63_allow_sheet.png` (the Allow sheet with Straight / Face me and the corner brackets), `64_repo_activity_open.png` (repo activity's panel), `65_slalom_open.png` (the slalom scoreboard panel: Time, Gates, Cones hit, Runs, Versions, Spacing slider, Run again; nothing clipped).
+
+### Decisions (one line of why each)
+- **No edit under `Artifacts/`.** Why: the adoption can be done from the OS side (the host parents every panel and volume under itself), so there is nothing to list for Satyabrata. His module's rebuild still resets a moved panel to its default place (a slalom input change destroys and recreates the panels); the window is adopted again and is movable again.
+- **New tile ids are `new_<template>`.** Why: the artifact id and the template id are the same string, so the New tile cannot reuse it. `os_open{kind:"artifact", id:"heart"}` works once a heart exists; a tap on an open artifact closes it.
+- **The status line keeps to 24 characters, taking the parts in order of importance (for project, open, last run, floor).** Why: the tile shows about 24 characters and "open · for RC truck · on your floor" clipped; a linked slalom now reads `open · for RC truck`.
+- **The repo activity New tile is titled "What shipped?"** Why: "What shipped this week?" is cut to "What shipped this..." by the tile. The panel itself keeps its own title.
+- **Every template made while a project is open is linked to it, not only the slalom.** Why: that is `ArtifactLibrary.FromTemplate`'s rule (spec 5.6 "an artifact made while a project is open links to that project"); the heart tile also says `for RC truck`.
+- **`OSArtifacts.Unregister()` added; `OSMenuTest` now unregisters the real Artifacts list for its run and puts it back.** Why: the test counts its own sample Artifacts tiles and the real list added more.
+- **`OSInput` reuses its virtual keyboard instead of adding one per run.** Why: Play-mode devices outlive Play mode; 32 "OSTestKeyboard" devices had piled up from the test runs and the Input System began logging "Control count per binding cannot exceed byte.MaxValue=255" during `OSToolsTest`. The 32 stale devices were removed from the open editor.
+- **The test brings the windows here before taking screenshots.** Why: where the host puts an artifact in the desktop rig's simulated room can lie inside a wall of that room, which cuts the panel off in the picture.
+
+### Not working or not done
+- Only the desktop pointer was exercised (the EventSystem press), not a headset ray or poke or a real hand drag; the manipulator is the same component Workspace panels use.
+- A panel the user has moved goes back to its default place if the artifact rebuilds (see above). Resizing an artifact panel smaller can clip its widgets, which are laid out in fixed millimetres (the artifact module's `ArtifactWidgets`); not changed.
+- Artifact panel pills (Allow, Run again, ...) are sized by the artifact module, not by the OS kit; the 22 mm rule was not enforced on them.
+- Away from a desk the volume manipulator is Init'd with the desk frame as the writer wrote it; if a volume can't be dragged below a table's height on the headset, pass `null` as the frame in `OSArtifacts.AdoptPanels`.
+- The Allow tap text comes from the artifact module.
+- `Main.unity` was left dirty in memory after the play tests once; discarded by re-opening it, never saved. Free disk was 3.1 to 6.9 GB during this part; nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
+
+---
+
+## Part 6.1: OSPlayTest, OSCheck additions, and the menu in front of every panel
+
+Integrated from `.os-run/staging/playtest/` (`OSPlayTest.cs`, the `OSCheck.additions.md` snippets). The writer's code compiled on the first try (0 errors); two `CS0618` warnings (`FindObjectsSortMode`) were fixed. The writer's HOOKS.md asked for no edit outside `OS/`, so none was made. The `.md` was not copied into `Assets/`.
+
+### What was done
+- **OSCheck:** the eight new checks (kit complete, every entry has id/title/kit icon/open action, unique ids and titles, status lines never throw and read like the UI, the tabs hold the tools/projects/artifact templates, `os_open`'s description names every tool, the table button is a finger-sized target, the planner tree) and two more lines in the shell-prefab check were pasted into `OSCheck.cs`. `drive` is only required once `OSDriveWindow` exists (spec 5.8 is its own part); until then the check says "Drive is not built yet".
+- **OSPlayTest** (`Forge/OS/Run Play Test`): steps 1, 2a, 2b, 3a, 3b (corner button: reports skipped, not failed), 3c, the new 3d, and 9. Every press is a pointer press: the control is projected to the screen, the EventSystem is asked what is under that point, the test fails with the path of what it hit if that is not the control, and then pointer enter/down/up/click/exit are sent. It never calls `onClick` or an OS method for a user action; where a press fails it records the failure and calls the API only so later steps have something to work on.
+- **The menu in front of every panel (found in 5.4):** `OSMenu.Pose` now looks for a place where nothing is in front of any of 28 points on the plate (windows, a mode's panels and volumes, with a margin of 5 cm behind the menu). It tries the settings' place first, then nearer (down to 0.35 m, 2 cm steps), then turning (10 degree steps, up to 30) and tilting down (10 degree steps, up to 40 more), cheapest first (nearer costs 1 per cm, turning 2 per degree). With no clear place it takes the one with the least in front of it. `OSMenu.Blocked(...)` is public so the play test can assert it. Step 3d opens Train away from a desk (its panels reach 0.46 m from the eyes), opens the menu, asserts 0 of 28 plate points are behind a panel, and presses the Notebook tile.
+- `OSMenu.LastRotation` added (the menu's facing at its last opening) for the assertion.
+
+### Check output (verbatim)
+```
+PASS os check   (26 lines: every check ok; the planner check says "skipped: OSPlanner is not built yet", the tabs check says "Drive is not built yet")
+[OSPlayTest] 54 passed, 0 failed (1 skipped)       -> False|PASS os play test: 54 passed, 0 failed (1 skipped)
+[OSMenuTest] 57 passed, 0 failed
+[OSWindowsTest] 50 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+Key lines of the play test: `[OSPlayTest] info at the default place (0.50 m, straight ahead) 24 of 28 plate points would be behind a panel; the menu sits at 0.36 m with 0 behind one` (the bug and the fix in one line); `ok   a second tool opened from the menu while Train was open (Notebook)`; `ok   no panel is in front of any part of the menu (0 of 28 plate points are behind one)`; `skip corner button: skipped: corner button not built yet`.
+
+Screenshots (`unity/Logs/os/`, ignored by git), each opened and looked at: `01_table_button.png` (the table button on the desk, the code mode behind), `02_menu_opened.png` (the menu opened by pressing it: tabs, six Tools tiles, the strip), `03` to `05` (each tab), `06_three_open.png` (notebook, project and heart open at once), `07_away_windows_stay.png` (the user 2 m from the desk, the windows still around it), `08_menu_away.png` (the menu opened with M away from the desk), `09_brought_here.png` (after Bring windows here: code, heart panel and Hands in front), `10_train_open_away.png` (Train open away, four panels around the user), `11_menu_over_train.png` (the menu in front of the Train panels, tabs, tiles and strip readable), `12_train_still_open.png`, `13_notebook_opened.png` (the Notebook that the menu opened; half of it is hidden by a wall of the desktop rig's small simulated room, the window itself is complete), `14_closed_all.png` (the desk with nothing left).
+
+### Decisions (one line of why each)
+- **"In view" after Bring windows here is measured in the horizontal plane against the 110 degrees the window manager fans to (limit 112), not 80 degrees in 3D.** Why: the writer's 80 degrees was a guess; `OSWindows` fans to 110 degrees on purpose when the rows in front are full (5 big windows), and the picture shows the main ones in front. Hudson may want fewer degrees: `MaxYaw` in `OSWindows`.
+- **The menu comes nearer before it turns, down to 0.35 m.** Why: turning and tilting put it out of view (an earlier try landed 65 degrees below the view and the user would see nothing); nearer keeps it in the middle of the view. 0.35 m is `OSSettings.MinDistance`, so a user who set a larger distance sees no change when nothing is in the way.
+- **Only panels and volumes block the menu, not loose 3D content.** Why: counting every mesh under a panel (the ML model slabs float in front of their panel) left no clear place within reach, so the menu landed out of view with 2 points still blocked.
+- **Old pictures are cleared by a manifest (`play_test_shots.txt`), not by pattern.** Why: the writer deleted every `NN_*.png`, which also deleted the 5.x tests' pictures (including `99_press_failed_notebook.png`) on the first run. Those pictures were not kept; the tests that made them write them again when run, and 99 is replaced by `11_menu_over_train.png`.
+- **The 3a picture looks back at the desk and the 9 picture looks at the empty desk.** Why: with the user facing away the picture was a blank wall and proved nothing.
+
+### Not working or not done
+- **3D content that floats in front of its panel (the ML model slabs and the dataset's card stack) still draws over parts of the menu on Train.** The menu is in front of every panel plane and a pointer press reaches its tiles; the picture shows the slabs over the CAD and Code tiles. A fix needs either the ML module to keep that content behind the menu or the menu to draw over 3D content; left for Hudson to judge on the headset.
+- The menu at 0.35 m is about 77 degrees wide, a little over the rubric's 70. It only goes that near when a panel is in the way.
+- Corner button (3b) is a skip; steps 4 to 8 are not written (their parts are not built).
+- Ray and poke were not exercised (no headset); the EventSystem pointer press was.
+- `Main.unity` was dirty in memory after some Play runs; it was re-opened (never saved) each time. Free disk was 6.85 to 6.87 GB through this part; nothing disk-heavy was run.
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`.
+
+## Part fixes-p0: what P0's review and tests found
+
+Eight fixes, each with a check that sees it. Free disk on C: 6.15 GB at the start, 5.8 GB at the end; nothing disk-heavy was run.
+
+1. **`OSTableButton`**: a failed build (kit or its prefabs missing, or the backplate without its `CanvasRoot`/`UIBackplate`) is remembered in `buildFailed` and not retried every frame (reset in `OnEnable`); `Build` is now `TryBuild` plus the bookkeeping, so on a failure path the half-made root is destroyed and `built` is never set.
+2. **`Workspace.Open`** (in `Core/`): the new free frame is made first; if the OS can't give one, `Open` returns with the old mode untouched (not folded, still `ActiveMode`). `start` (the switch delay) is still taken before anything folds. Check: `OSWindowsTest` makes `FreeFrame` fail, calls `Open("cad")` over open ML and sees `ml` still active in its free frame with 4 of 4 panels.
+3. **CAD measure key**: `OSKeys.Active` (public static, set in `OnEnable`, cleared in `OnDisable`, reset at `SubsystemRegistration`). `CadViewer` takes M alone for measure unless `OSKeys.Active`, then Shift+M. The CAD README (two lines), the `CadViewer` header comment and the `CadSandboxKeys` comment say exactly that.
+4. **Tab at first build**: the cause was the toggle group lighting its first toggle (Tools) when the tab bar came alive, which the tab handler took for the user choosing Tools. `OSMenu` now ignores tab callbacks while it shows itself (`syncingTabs`), so the shell's tab is the truth. `OSMenuTest`: `SetTab(Projects)` before the menu was ever built, press the table button, the Projects toggle is on and Tools is off, then back to Tools.
+5. **Menu covered by 3D content (Train)**. Cause, found with a list of renderers over the plate (`info over the menu` lines): two things. (a) The dataset card stack was transparent and drawn after the menu although it lies behind it (a canvas writes no depth, so a transparent thing sorted later paints over it): the menu's canvases now have sorting order 100 (`OSBody.RaiseAboveScene`). (b) Train's layer slabs are really nearer than the menu: they are a 3D stage inside the Model panel (`WorkspaceFreeFrame/Model3D(Clone)/Content/Model stage/Tower`, 0.19 to 0.32 m from the eyes, the menu at 0.36 m, the nearest it may come), not a `ForgeVolume`, so placement never saw them. Fix: placement now counts the meshes under every volume and every panel (their world box); when no place is clear of them it takes the place clear of panels and volumes as before (second pass), and the open menu switches off (`Renderer.forceRenderingOff`, restored when it closes) the mesh parts still in front of the plate. Not `Renderer.enabled`: Train re-enables its slabs every frame (first try, seen failing). `OSPlayTest` step 3d: renders the head camera twice in one frame, normal and with every scene renderer off, and compares the middle of each tile; fails if a tile differs (`nothing is drawn over the menu: 0 of 6 tiles are covered`), and asserts the hidden parts are back after the menu closes. `unity/Logs/os/11_menu_over_train.png` was looked at: all six tiles are whole, the slabs are gone while the menu is open.
+6. **Statics**: `OSMenu` (volumes, and the new content lists) and `OSArtifacts` (`line.Length = 0`) reset at `SubsystemRegistration`.
+7. **Artifact panel over the Code window**: the artifact host puts its panels at an offset from itself without knowing the open mode's slots; the OS adopted them where they stood. `OSWindows.ClearOf(window, ownRoot)` (called from `OSArtifacts.AdoptPanels` for each newly adopted panel) measures from the eyes against windows, the mode's laid-out slots and volumes, ignoring the artifact's own panels and model, and glides the panel to the nearest free place if it overlaps. `OSPlayTest` 2b asserts it with the yaw/pitch rectangles `OSWindowsTest` uses (artifact panels against every other showing panel). With the call taken out the assertion fails with `Panel Human heart x CodePanel(Clone)` (run and seen), with it it passes; `06_three_open.png` shows the heart panel gone from behind the Code window.
+8. **Selected tab label**: three causes, found in the UI Set. The label's colour is animated by the toggle's animator (to 0.15 grey but with the text 10% transparent), the theme manager repaints every untagged text white on `ApplyCurrentTheme`, and TMP draws thin dark strokes on a light plate at partial coverage. Fix in the kit, not the menu: `OSUi.Tab` renames the title (`OSUi.TabTitleName`, so the animation no longer finds it) and tags it `QDSUISharedThemeColor` (the theme manager leaves it alone), and `OSToggleSync` sets its colour from the theme: `textPrimaryInvertedColor` when lit, `textPrimaryColor` when not, solid. Checks in `OSMenuTest`: label 12.4:1 and icon 12.8:1 by colour (needs 4.5), and the darkest drawn pixel of the label in a head-camera picture against the fill (was 5.0:1 with the pale label, now 6.0 to 8.1:1; the check needs 5.5).
+
+### Check output (verbatim)
+```
+PASS os check   (24 ok lines, the planner one "skipped: OSPlanner is not built yet")
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 94 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 59 passed, 0 failed (1 skipped)
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+```
+There are no CAD checks (nothing under `Forge/CAD` but the builders). `unity recompile`: 0 errors, 0 warnings.
+
+### Decisions (one line of why each)
+- **Hide, not fade, the model parts in front of the open menu.** Why: Forge's shaders have no common alpha, and `forceRenderingOff` is one flag that nothing else touches; they come back when the menu closes.
+- **Placement counts meshes first, panels alone second.** Why: counting meshes alone left no clear place (the finding of part 6.1) and broke the panel-clear guarantee on the first try (5 of 28 points behind a panel); two passes keep it.
+- **Sorting order 100 on the menu canvases stays although the hide is what fixes Train.** Why: it fixes the transparent cards that lie behind the menu.
+- **The drawn-label contrast limit is 5.5:1, the colour one 4.5:1.** Why: the drawn value moves between 6 and 8 with sub-pixel position; the pale label measured 5.0.
+- **`OSMenu.Blocked` has a `meshes` parameter (default true).** Why: the play test's "no panel in front" must not count the solids the menu switches off.
+
+### Not working or not done
+- The real M key was dropped in one run in about ten (OSPlayTest 3c once, OSMenuTest once, each passed on the next run); the cause was not found (a key press that lands in the same input update as its release is one guess), the same press passes on the next run.
+- Primary button labels ("Build something") are dark on white and still look thin; the tab title was the one asked for.
+- `OSWindowsTest` counted 50 checks in P0, 52 to 60 now (the count varies with the run); no check was removed.
+
+### Changes outside `OS/`
+- `Core/Scripts/Workspace.cs`, `Open()`: the new free frame is made before anything folds; on failure it returns with the old mode untouched (fix 2).
+- `CAD/Scripts/CadViewer.cs`: measure is M, or Shift+M while `OSKeys.Active` (fix 3); `CAD/Scripts/CadSandboxKeys.cs` (comment) and `CAD/README.md` (two lines) say so.
+No Project Settings, scene or `manifest.json`.
+
+## Part drive-5.8: the hand transmitter
+
+Free disk on C: 5.81 GB at the start, 5.79 GB at the end (above the 5 GB line; no player build, no Reimport All). One integrator lane, no staged files.
+
+### What was done
+- `OSDrivePad` (new): a 169 mm square pad with a knob built from the UI Set's rounded box (the material of a stock button plate) and the kit's chevrons. It handles `IPointerDown/IDrag/IPointerUp/IEndDrag` (so the mouse through the EventSystem, and the Interaction SDK's ray and poke through the same canvas events). While held it writes `stick.x` and `stick.y` every frame; it writes zero once on release, on disable and (through `Release`) on Stop; the knob springs back in about 0.12 s on unscaled time. No allocation per frame.
+- `OSDriveWindow` (new): says which Thing it drives (the brain truck on the slalom, another running truck, or "No truck to drive yet. Open the RC truck project and tap Course."), the pad, a Stop button 195 x 49 mm (a stock UI Set button inside a scaling holder), and the state line (`Recording lap 1 of 2`, `Idle`, `Idle · 2 laps recorded`, `Training the brain`, `Autopilot driving`). `Stop()` releases the pad, clears the manual channels, aborts a lap being recorded (`StopRecording`) or stops the Autopilot (`StopAutopilot`), found through `IBrainLoop.ToolState()["mode"]`. The Drive tile registers from `OSDriveWindow.RegisterTool`, called last by `OSToolsCatalog.Register`, so it follows Gestures; its status is `no truck yet`, `truck ready`, `recording a lap`, `brain training`, `autopilot driving`. The truck project's Drive action (unchanged code) now finds the tool: it opens Drive and starts a two-lap recording when the brain is idle.
+- `OSDriveTest` (new, `Forge/OS/Run Drive Test`, `OSDriveTest.LastResult`, `OSDriveTest.Level`): scratch root, MockFloorPlan room, proj_truck, Course (with the Allow step), the Drive tile and the project's Drive action pressed with real pointer events; then the truck is driven only through synthetic `PointerEventData` sent to the pad's handlers (the screen position of a point on the pad, from the same raycast the mouse uses). Checks: knob up moves the truck forward, left and right turn it, release writes zero and the truck stops, the knob springs back, Stop with the knob still held, Stop on a recording and on the Autopilot; then the full flow with a pursuit controller in the test that turns the next gate into pad positions.
+- `OSCheck`'s tabs check now requires Drive (the window exists); `OSMenuTest` steps the real Drive tile aside with the other real tools.
+
+### Level reached: FULL
+Two laps of the slalom were completed by driving the pad (pursuit controller through `PointerEventData`), Train ran on those laps, and the Autopilot completed the slalom on a scored run (`Drove: candidate 1` in the last run; `candidate 2` in the run before, after a first candidate timed out; never the pretrained fallback). No fallback level was used.
+
+### Check output (verbatim)
+```
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS os check   (the tabs line: "the tabs hold the seven tools, the four starter projects and every artifact template")
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 95 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 59 passed, 0 failed (1 skipped)
+PASS slalom brain check (Play mode, the brain truck on its colliders)      (Forge/Artifacts/Check Brain Loop (Play), every ok line)
+PASS room slalom check (mock truck, Editor)
+PASS autopilot check
+PASS behaviour cloning check
+PASS slalom check
+PASS voice rules check
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements of the Drive test (the last run): `pad 169 x 169 mm, Stop 195 x 49 mm`; `knob up for 1 s: moved 0.38 m forward, speed 0.49 m/s`; `after the release the speed fell from 0.49 to 0.05 m/s in 2.1 s`; `the knob took 0.14 s to spring back`; `knob up-left for 0.8 s: heading changed -26 degrees`; `knob up-right for 1.0 s: heading changed 65 degrees`; `pad laps: 2 completed, state Idle`; `slalom run records: 2, the last was completed`; `training: trained 3 candidates in 530 frames (2082 ms compute); in rehearsal the best finished 9 of 9 starts`; `autopilot: drove candidate 1; attempts candidate 1 completed; last run completed`.
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `70_tools_seven_tiles.png` (the menu on the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures, Drive, seven tiles, Drive says "no truck yet"), `72_drive_idle_truck.png` (the Drive window with the truck at the start: "Drives: the truck (the brain truck on the slalom)", knob in the middle, red Stop, "Idle"), `73_drive_driving.png` (the knob pushed up and left, "Recording lap 1 of 2"), `74_drive_truck_moved.png` (the orange truck 1 m down the slalom among the cones and gate outlines after the pad run). Also written, not all opened: `71_drive_no_truck.png`, `75_drive_after_stop.png`, `76_autopilot_done.png`.
+
+### Decisions (one line of why each)
+- **The pad writes `stick.y` times `SlalomBrain.KeySpeed * Drag / MaxAccel` (0.267) on the brain truck, full range on another truck.** Why: `SlalomBrain.Keys` scales a Touch stick and W the same way ("hand laps train like keyboard laps"); a full 1.0 would be 2 m/s, too fast to weave 1 m gates.
+- **The pad reads the pointer with the camera of the raycast module (`ScreenPointToLocalPointInRectangle`), not `ManualInputs` or a custom raycast.** Why: it is what uGUI sliders do, and the Interaction SDK's pointer module sets that camera and the position for a ray and a poke.
+- **Opening the Drive tool starts no recording; the truck project's Drive action does.** Why: the existing `OSProjectWindow.DoDrive` already starts the two-lap recording when the brain is idle; the tool itself stays a window.
+- **No "record" button in the Drive window.** Why: the spec lists title, Thing, pad, Stop and state line; a recording starts from the project's Drive action or by voice.
+- **Stop is the stock button scaled up in a holder, not a bigger box.** Why: the UI Set button draws its plate at 48 units whatever its box, and its animator owns the button's own scale (setting either left a 31 mm pill).
+- **`flexibleHeight = 0` on the Drive window's rows and Stop holder.** Why: the UI Set button reports flexible height and the column handed all spare height to the Stop row (it measured 160 mm).
+- **The test switches the simulated room's `*_EffectMesh` colliders off while the truck drives and restores them.** Why: the mock living room's strip of floor lies inside the desktop rig room's wall and storage colliders, so the truck crashed at the start (`touching WALL_FACE_EffectMesh, STORAGE_EffectMesh`); the slalom's own cones stay. On a headset the real room's colliders and the real floor are the course's room.
+- **`OSMenu.Refresh` runs again after a pass instead of inside one.** Why: the Gestures tile's status line hands the gesture display to the window manager the first time it is seen, which fires `OSRegistry.Changed` and refreshed the menu from inside its own pass: 9 entries in `ActiveTiles` (the last two twice). The tiles on screen were right; the list the tests and any code read was not.
+- **Wrist-roll steering (`hand.roll`) is not built.** Why: it was optional and the pad is the transmitter.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset): the pad is driven by the EventSystem pointer path only, the same one the other OS tests use. The Interaction SDK's pointer module sets the event camera and position the pad reads, but whether a poke feels right (the finger must stay in the surface while dragging) needs the headset.
+- The Autopilot in the Drive test drives a different candidate from run to run (candidate 1 or 2); a candidate that times out falls to the next, as the brain loop is designed to.
+- The pad has no dead zone of its own: the truck's `truck_manual` file already has one (0.05 on throttle, 0.1 on steer).
+
+### Changes outside `OS/`
+- `Artifacts/Scripts/SlalomBrain.cs`: new `public int LapTarget => lapTarget;` (the Drive window reads it for "lap n of m").
+- `Artifacts/Scripts/SlalomBrain.cs`, `EndLap`: the status line no longer reads `lap.Seconds` when `Thing.EndLap` returns no lap. Why: stopping a lap in which nothing was recorded (Stop pressed right after the recording starts, before the pad moves the truck) threw a NullReferenceException (`LapRecorder.EndLap` returns null when no frame was kept); found by the Drive test.
+No Project Settings, scene or `manifest.json`.
+
+## planner-5.9: Build something (OSPlanner, OSBuildFlow, os_answer)
+
+Integrated the staged `planner` part. It compiled on the first try (0 errors, 0 warnings); the logic then ran live for the first time through the new play test.
+
+### What was done
+- Copied `OSPlanner.cs` (pure question tree, 45 paths), `OSBuildFlow.cs` (the card flow, registers the `"build"` system page), `OSBuildTools.cs` and `Resources/AlbieTools/os_build.json` (the `os_answer` voice tool) into `unity/Assets/_Forge/OS/`.
+- Applied the three staged hooks (see "Changes outside OS/": none; the three below are edits to other OS files): `OSProjectWindow.Suggest(string)`, the real `OSCheck.PlannerTree` walk (replaces the stub), and an `OSCheck` line for `os_build.json`.
+- New `Editor/OSPlannerTest.cs` (menu `Forge/OS/Run Planner Test`, `LastResult`, 91 checks) and a new step "5 build something" in `OSPlayTest` (8 checks).
+- Layout fixes after looking at the screenshots: the stock button reports flexible height, so the card spread its buttons over the whole panel; every answer button and row now has `flexibleHeight = 0` (same cause and fix as the Drive window). Card size 0.66 x 0.64 m became 0.66 x 0.56 m, answer width 460 became 520 units.
+
+### Check output (verbatim)
+```
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os check   (ok   the planner tree ends in a plan within three questions (45 paths); ok   os_build.json defines os_answer and it has a handler (os_answer))
+OSPlanner.Validate(): 0 problems, 45 paths
+[OSMenuTest] 63 passed, 0 failed
+[OSWindowsTest] 52 passed, 0 failed
+[OSToolsTest] 95 passed, 0 failed
+[OSProjectsTest] 87 passed, 0 failed
+[OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS autopilot check
+PASS voice rules check
+PASS slalom check
+PASS notebook check
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements: `question 1: smallest button Face me 30.0 mm tall, narrowest 31.2 mm wide` (the answers are 31 mm tall; "Face me" is the window's own button); `Albie: Wandering parked 1.22 m from the user, four seconds after opening Build something Wandering at 0.84 m, moved 0.40 m` (the test parks Albie to the side with `StationAt` first, so the walk is real).
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `60_build_q1.png` (five answers, Cancel, nothing clipped), `60_build_q2.png` (the truck size question, three compact answers), `61_build_plan.png` (the plan card: goal, parts, test, four milestones, Start, Change, Cancel and "Nothing is saved until you tap Start."), `62_build_started.png` (the Project window on the truck: Plan v1, goal, test, four unchecked milestones, "Next step: tap Course to make the course for the truck."), `63_build_voice_row.png` (voice forced live: "Something else" row and the "You can say an answer, or tap it." hint), `64_build_plan_free_words.png` (the plan card with the user's own words in the goal), `65_build_plan_model.png` (the longest parts line, one line, fits).
+
+### What the test proves
+Menu strip button -> RC truck -> Small and quick -> Slalom around my couch -> plan card (nothing on disk) -> Change (back to question 1, nothing kept) -> again -> Start: `proj_truck` open, Project window on it showing Plan v1, `plan_v0001.json` on disk with schema `albie.plan/1`, three answers, four parts or more, four milestones, a postmortem entry holding the answers. Cancel from a question, from the plan card and with the window's X each leave the scratch root byte-identical (file list with lengths). A drone makes `proj_my_drone`, a second `proj_my_drone_2`, both listed on the Projects tab. With the voice forced live: the "Something else" row on question 2, spoken answers (`Choose`, `os_answer`), a refused answer names the choices, free words reach the plan, "start" starts `proj_my_rocket`. Voice off: no row.
+
+### Decisions (one line of why each)
+- **Kept the writer's tree, three questions per path, five answers on the first.** Why: it matches spec 5.9 and `Validate()` passes every path.
+- **The voice tool lives in its own `os_build.json`, not `os.json`.** Why: `OSCheck.ToolDefinitions` pins `os.json` at exactly the four menu tools.
+- **`StartBuild` adds `parts` and `answers` to the plan record and writes the same file again.** Why: `RevisePlan` has no parts argument and keeps old parts; the second write keeps its order behind the first (queued writes), and `LoadFolder` only reads `schema` and `version`.
+- **The OSPlayTest step runs on a scratch notebook, the rest of that test still uses the real one.** Why: Start writes a plan and this machine's own notebook must never be written by a test.
+- **The brand-name check matches whole words.** Why: "Question 1 of 3" contains "Quest".
+
+### Not working or not done
+- The mic is not opened by the flow after Albie asks a question (push to talk as usual), and with the hub live and no on-device voice nothing is spoken and `os_answer` is not offered. Both are as the writer documented; the voice path was exercised with `VoiceLiveOverride = true` (`ForgeNet.Send` goes nowhere with no hub), so Albie actually speaking the question was not heard.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses as in the other OS tests.
+- The Albie walk check proves he moved closer from a parked spot at the desk; on a headset with the user standing in the room the path is the lead gator's `ComeToUser` and needs a real run.
+
+### Changes outside `OS/`
+None. Edits to other OS files: `Scripts/OSProjectWindow.cs` gets `public void Suggest(string line) => SetStatus(line);`; `Editor/OSCheck.cs` gets the `PlannerTree` walk and `BuildToolDefinition`; `Editor/OSPlayTest.cs` gets step 5. No Project Settings, scene or `manifest.json`.
+
+## agents-5.10: Agents window, Bring home, Send out, Dismiss behind a confirm
+
+Integrated the staged `agents` part. It compiled on the first try (0 errors, 0 warnings). Logic that had never run needed three real fixes, all found by the new play test (below).
+
+### What was done
+- Copied `OSAgentsWindow.cs` (window id `agents`, registers under the strip button's id), `OSAgentHome.cs` (pad spot, bring home, send out, all) and `OSHomePad.cs` (the disc on the desk under a home agent) into `unity/Assets/_Forge/OS/Scripts/`.
+- Applied the staged Pet hook by hand (`HOOKS.md`, sections 1 and 2a to 2d), plus one addition of mine (`SettleHomeSpot`, see Decisions). Listed precisely under "Changes outside OS/".
+- New `Editor/OSAgentsTest.cs` (menu `Forge/OS/Run Agents Test`, `LastResult`, 98 checks) and an `OSCheck` line for the page and the hook.
+- `OSMenuTest`: after the strip's Agents press the test now closes the real window (HOOKS.md section 5).
+
+### Check output (verbatim)
+```
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS os check   (ok   the Agents page registers under the strip's id and the crew's Bring home hook is in place)
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+[GestureSelfTest] 104 passed, 0 failed
+```
+Measurements from the Agents test: `desk surface built: True, at desk: True, crew allowed (Code mode): False`; the builder reached its pad in 2.0 to 3.0 s, the scout in 7.5 to 8.0 s (an agent walks about 15 cm a second); the builder stood 0.000 m from its (settled) pad and moved 0.0000 m in a second; the smallest button in the window is 30 mm tall (the panel's own "Face me"; the window's own buttons are larger).
+
+Screenshots (`unity/Logs/os/`, each opened and looked at): `71_agents_two_rows.png` (Albie as lead, Builder with its real task "Read the sample project and say what it does" and Scout "Idle", both Walking, Bring home and Dismiss on each row, Bring all home and Send all out above, the type buttons under them), `72_agents_home_pad.png` (the window put away; the builder with its hat standing on its coloured pad on the desk), `73_agents_both_home.png` (both rows say Home with the home icon, buttons flipped to Send out, "2 agents are home."), `74_agents_dismiss_confirm.png` (the card "Dismiss Scout? It goes away and its task stops." with Dismiss and Cancel, nothing dismissed yet), `75_agents_page_one_of_three.png` (nine agents, page 1 of 3 with the pager). The test checks that no text is clipped or overlapping (`OSToolsTest.LayoutProblem`), no placeholder text, and that every button is at least 22 x 22 mm; I also looked at each picture for brand names and found none.
+
+### What the test proves
+Empty crew: "No agents yet." and Bring all home is off. `spawn_agent` builder and scout (crew egg gate shut), `assign_task` to the builder (the request goes to a local socket that never answers, so the task stays running offline). The menu strip's Agents button opens the window and closes the menu. Two rows; the builder's row shows its real task. Bring home on the builder: it walks to a pad on the desk, stands still on it, its task is still listed in `crew_status`, its bridge is still busy, its controller is still Working, no result arrived, the window's row still shows the task. Send out: back to walking, pad gone, task still there. The scout wanders again after Send out (moves at least 8 cm). Bring all home and Send all out with the right buttons on and off, the two pads at least 7 cm apart. Dismiss opens a confirm that names the agent and says its task stops; Cancel keeps the agent; Dismiss removes it. The `dismiss_agent` tool path stops the task (`stopped_task: true`); Bring home never did. Fixer hatched from the window with `CrewAllowed` false. Nine agents take three pages and the pager works. All agents dismissed: no pad left behind.
+
+### Decisions (one line of why each)
+- **The hatching gate stays as it is (the decision spec 5.10 asks for).** `AlbieCrew.CrewAllowed` (gate mode `code`) gates only the egg and picker, the N and X keys and the captions' mute; `AlbieCrew.Spawn`, the hub's `crew.spawn`, `spawn_agent` and `assign_task` never read it. The Agents window hatches through `spawn_agent`, so a user in the OS who never opens Code still gets agents. Why: it needs no Pet change, keeps the egg a desk prop tied to the code view, and the test hatches a Fixer with `CrewAllowed == false` to prove the window does not depend on it. If Hudson wants the egg and keys everywhere: set `gateModeId` to empty on the `AlbieCrew` in Main.unity (Core owner only); nothing here depends on it.
+- **Bring home never calls `GoHome`.** Why: `GoHome` destroys the member and `dismiss_agent` drops its task; Bring home only stops wandering (a 6 cm territory on the pad plus the controller's own `StationAt`), so the task, bridge and hub state keep running. Away from a desk, or with no free pad, the body is hidden (`forceRenderingOff`, colliders off) and it keeps working out of sight.
+- **Dismiss is the only thing that stops a task, and it asks first.** Why: spec says so. The row button is labelled "Dismiss" (a row has no room for "(stops its task)"); the card says "Dismiss Scout? It goes away and its task stops." before anything happens, and a hint line under the rows says it too.
+- **The window reads each agent's task through the `crew_status` tool twice a second.** Why: `CrewTools.running` is private and one small allocation per half second was not worth a change outside OS/; the staged HOOKS.md section 3 has the zero-allocation accessor if it ever matters.
+- **`SettleHomeSpot` (my addition to the Pet hook).** Why: the controller stops walking about 15 cm short of the point it was sent to (`NavMeshAgent.stoppingDistance` 0.1 plus its 0.05 arrival slack), and a working agent stands at the front of its territory about 13 cm from the centre, so the agent stood beside its pad. Once a home agent has not moved 1 cm over a 0.3 s tick and is within 30 cm of its pad, the pad's spot becomes where it stands (the pad follows; `Taken` still keeps two pads 7 cm apart).
+- **The test waits for an agent to arrive instead of a fixed 8 s, and waits one second between `spawn_agent` and `assign_task`.** Why: a walk of 1.3 m takes 9 s; and a crew member hooks onto the event source in its first `Update`, so a task injected in the very frame it hatched is missed (the bridge never goes busy). That second one is a real, pre-existing race in the Pet module (the voice path and the hub are slower than a frame, so it does not show there); I left it alone and am logging it here.
+- **`OSInput.Tap` puts the Game view in front first, and `OSMenuTest` waits for the menu up to 4 s after M.** Why: with the editor focused on another window the Input System drops the key event (found by running `OSMenuTest` first: "M opens the menu" failed, 55 passed and 8 failed; with the Game view focused it is 63 and 0). Tests that already had a fallback are unchanged.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset): presses are EventSystem pointer presses as in the other OS tests.
+- The Agents step in `OSPlayTest` (spec 6.1 step 7) was not added; `OSAgentsTest` covers it in full and the placeholder comment in `OSPlayTest` is still there.
+- Away from a desk, the hidden branch (body hidden, no pad) is implemented but did not run in the live test: the test always sits at the desk, so `SetHome(true, null)` and the hidden-body checks were not exercised.
+- Agents walk to their pad at about 15 cm a second, so Bring all home with agents on the far side of a 2 m desk takes up to 13 s before they stand on their pads. The pads show at once.
+- One run of `OSMenuTest` printed the failure `the selected tab's label ... contrast ... 5.5:1, at least 5.5`: a rounding edge in an existing check, not seen on the other runs.
+
+### Changes outside `OS/`
+- `Pet/Scripts/Crew/AlbieCrewMember.cs` (+134 lines, nothing removed): `using System.Collections.Generic;`; public `Home`, `HomeSpot` (Vector3?), `BodyHidden`; `SetHome(bool home, Vector3? spot = null)`; private helpers `ParkAtHome`, `HomeTick` (every 0.3 s while home), `SettleHomeSpot`, `SetBodyHidden`, `ApplyBodyHidden`; one line at the top of `Update`: `if (Home && !Leaving) HomeTick();`. `GoHome`, `Init`, `Awake`, `OnPoked` are untouched. Why: Bring home must stop wandering without ending the task.
+- `Pet/Scripts/Crew/AlbieCrew.cs` (+10, -3): new `NotifyHomeChanged()` (re-split the areas, raise `Changed`); `ClearDeskForLead` skips a home member (`m == null || m.Home`) so the whistle neither dismisses nor lines it up; `AssignTerritories` leaves a home member out of the areas it hands out; `AssignLineup` skips a home member. Why: without these the crew's own bookkeeping would walk a home agent off its pad or dismiss it on a whistle.
+No Project Settings, scene or `manifest.json`. `Main.unity` was not touched.
+
+## settings-5.7 (integrator lane)
+
+Integrated the staged Settings window (`OS/Scripts/OSSettingsWindow.cs`, window id `settings`, registered under the strip's id `settings`) and wrote `OS/Editor/OSSettingsTest.cs` (menu: Forge/OS/Run Settings Test, `OSSettingsTest.LastResult`). The staged file compiled as written; the changes I made were layout and tests.
+
+### Done, with evidence
+- `PASS [OSSettingsTest] 102 passed, 0 failed` (first run 93/8: four were my test's wrong assumptions, see below; one was a real layout defect, fixed).
+- Every row persists in `os_settings.json` (the test reads the file after each change: `"tableButton": false`, `"cornerOnLeft": true`, `"flatLayout": true`, `"menuDistance": 0.6`, `"menuDropDegrees": 20.0`, `"gestureDisplay"`) and takes effect at once: the table button leaves the desk the frame after the switch is turned off; the workspace goes Flat/Curved; the gesture panel shows/hides; the menu then opens 0.600 m from the eyes and 20.0 degrees below level (measured). A reload of the file updates the open window (0.45 m).
+- Both resets ask first: Forget permissions (the artifact still needs no approval until "Forget them"; Cancel keeps it; confirm makes it ask again) and Bring windows here (window does not move before the confirm; moved 0.92 m after it). Note lines say what was done.
+- Hands-free row: an honest read-only line, not a toggle. `AlbieVoice` has no runtime switch (only the editor pref read at install), so a toggle would be fake. It reads "Voice is off in this session, so Albie is not listening." (test checks there is no switch for it); with voice on it says it is on and cannot be turned off here yet.
+- Screenshots (`unity/Logs/os/`, opened and looked at): `81_settings_page1.png` (Menu button: three switches, Corner side Left/Right, Voice line, pager "1 of 3"), `82_settings_page2.png` and `83_settings_page2_sliders.png` (Layout Curved/Flat, Gesture display, Distance "0.60 m", Height "20 degrees down"), `84_settings_page3.png` (both resets, About with version and credits), `85_settings_confirm_permissions.png` (confirm card over the window: question, Forget them, Cancel), `86_settings_page3_after_reset.png` (note "Artifact permissions cleared. Each one will ask again."). Text not clipped or overlapping (LayoutProblem on each page), no placeholder or brand names in UI strings (the Meta credit is the licence notice the spec asks for).
+
+### Every test, rerun after the change
+```
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS os play test: 67 passed, 0 failed (1 skipped)
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS os check (OSCheck.Run)
+```
+
+### Decisions (one line of why each)
+- **Sections get `flexibleHeight = 0` and so does the pager row** (helper `Section` in the window). Why: the kit's controls report flexible height, so the page column spread the sections apart (a 160-unit gap) and stretched the pager to 171 units; found by dumping rect sizes in Play.
+- **The test scan counts a switch's whole row (a Button, 28 mm tall) as the target, not the 26 x 16 mm switch graphic.** Why: `OSUi.Toggle` makes the whole row tappable on purpose; the test presses the switch itself and it works.
+- **Gesture display test is relative to the panel's real state.** Why: the engine shows the display on start in desktop, so "starts off" was wrong; the window shows the real state, and the test checks that.
+- **File check uses `0.44999` for 0.45.** Why: `JsonUtility` writes the float as 0.44999998807907104.
+
+### Not working or not done
+- **Watch turn and Corner button rows save and persist but nothing reads them yet**: `OSWatch` and `OSCornerButton` (spec 5.11, 5.12) do not exist in the code. Only the table button, layout, gesture display and menu position have a visible effect today. They will take effect when those parts read `OSSettings.Current` each frame.
+- `OSSettings.gestureDisplay` is not applied at app start (staged HOOKS.md: optional, not done).
+- Slider ranges (0.35 to 0.7 m, 0 to 30 degrees) are narrower than `OSSettings` clamps (0.8, 35), as the task says.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses.
+- `OSCheck` has no Settings line (the registration happens at BeforeSceneLoad, Play mode only; `OSSettingsTest` asserts it).
+
+### Changes outside `OS/`
+None. No Project Settings, scene or `manifest.json`. `Main.unity` was not saved (one test run left it dirty in memory; reopened it from disk, dirty=False, git clean).
+
+## corner-5.12: the corner button (spec 5.12)
+
+### What was done
+- Integrated the staged `OSCornerButton` (`OS/Scripts/OSCornerButton.cs`). It compiled with no changes. It sits on the shell prefab next to the table button (`OSPrefabBuilder` now adds it; the prefab was rebuilt, only `OSShell.prefab` changed).
+- Shown only away from a desk, with no dock hold, no open menu, Settings on. 0.45 m out, 28 degrees to the chosen side, 22 degrees down, in the head's roll-free frame. Re-anchors with a 0.4 s smooth-step ease when the head turns more than 25 degrees or moves more than 0.3 m, and when Settings flips the side. First show does not fly in. Press opens the menu (summon Corner); it hides while the menu is open.
+- Fix found in the live editor: the icon sat left of centre because the empty label box stayed in the button's row. The corner button now hides that `Text` box.
+- New `Editor/OSCornerTest.cs` (Forge/OS/Run Corner Test, `OSCornerTest.LastResult`), on a scratch settings file. `OSPlayTest.StepCornerButton` is now a real step (it was a skip). `OSCheck` gained a corner-button line on the shell prefab.
+
+### Check output (verbatim)
+```
+PASS [OSCornerTest] 55 passed, 0 failed
+measured: corner button at 0.450 m, 28.0 degrees right, 22.0 degrees down
+measured: the pressable button measures 37.7 mm
+measured: the ease took 0.40 s (set 0.4), it moved 0.35 m
+measured: left corner: -28.0 degrees, 22.0 down, 0.45 m
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os play test: 73 passed, 0 failed
+PASS os check (Forge.OS.Editor.OSCheck.Run, 25 ok lines)
+```
+Screenshots (unity/Logs/os/): `91_corner_away.png` (button low right, icon centred), `92_corner_menu_open_corner_hidden.png` (menu open, button gone), `94_corner_left.png` (left corner with the Settings window), `93_corner_settings_off.png`.
+
+### Decisions
+- Corner and side are measured in the head's roll-free gaze frame, not against the horizon: that is how the code places it ("low in the corner of the view"); the first test run measured against the horizon and failed only when the head was pitched.
+- Kept distance, angles, recenter limits and ease time as the writer chose: they match the spec numbers; to be tuned on the headset (public fields on the shell prefab).
+- Button looks slightly oval at the screen edge in the desktop camera: wide-FOV perspective at 35 degrees off axis, the button itself faces the head (asserted within 5 degrees).
+
+### Not done
+- Ray and poke not exercised (no headset); presses are EventSystem pointer presses. Allocation-freeness in LateUpdate checked by reading the code only.
+
+### Changes outside OS/
+None.
+
+## watch-5.11: the watch turn (spec 5.11)
+
+### What was done
+- Integrated the staged `OSWatch` (`OS/Scripts/OSWatch.cs`). It compiled with no changes (0 errors, 0 warnings). It sits on the shell prefab next to the table and corner buttons (`OSPrefabBuilder` adds it; the prefab was rebuilt, only `OSShell.prefab` changed). `OSCheck` gained a line for it on the shell prefab.
+- It reads the left hand from `GestureEngine.Current.Hands[0]` in `LateUpdate`: back of the hand toward the eyes (dot above 0.6), wrist within 35 degrees of the gaze and 0.2 to 0.7 m away, held 0.3 s, then a round 28 mm kit button (on a 38 mm plate) shows 45 mm above the wrist, facing the eyes. A press (mouse, ray or poke all end in `Button.onClick`) opens the menu with the Watch summon from the wrist. It hides 0.25 s after the pose is lost, stays away after a press until the wrist has turned away once, and keeps out of palm up, a pinch, an open menu, a dragged panel (`PanelManipulator.Grabbing`) and 0.8 s after a left-hand gesture. `OSSettings.watchTurn` switches it off at once.
+- The Gestures hook (the only change outside OS/): `SimulatedHandSource` got a left test hand, off by default (see "Changes outside OS/").
+- New `Editor/OSWatchTest.cs` (Forge/OS/Run Watch Test, `OSWatchTest.LastResult`), on a scratch settings file. `OSPlayTest` step "4 watch turn" is now a real step. Every thresholds is a public field on `OSWatch` with a tooltip: they need Hudson's headset tuning (`backFacingDot` first).
+
+### Check output (verbatim)
+```
+PASS [OSWatchTest] 107 passed, 0 failed
+measured: made-up relaxed left hand at the watch spot: Ok, back dot 0.99, 20 degrees off the gaze, 0.43 m, pinch 0.39, palm up -0.59
+measured: [at the desk] button shown 0.32 s after the pose was set (hold 0.3 s), back dot 0.99, 20 degrees off the gaze, 0.43 m
+measured: [at the desk] the pressable button measures 28.0 mm (28 mm set)
+measured: [at the desk] 10 s of resting hands: poses seen NoHand > TooLow > BackAway, left-hand gestures fired 0
+measured: [away from the desk] button shown 0.32 s after the pose was set (hold 0.3 s), back dot 0.99, 20 degrees off the gaze, 0.43 m
+measured: [away from the desk] 10 s of resting hands: poses seen NoHand > TooLow > BackAway, left-hand gestures fired 0
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSCornerTest] 55 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+PASS os play test: 79 passed, 0 failed
+PASS os check (Forge.OS.Editor.OSCheck.Run, 25 ok lines)
+```
+Screenshots (unity/Logs/os/): `101_watch_desk_wrist_button.png` (round button, icon centred, at the wrist spot, at the desk), `104_watch_away_wrist_button.png` (same away from the desk, the corner button low right), `105_watch_away_menu_open.png` (menu open after the press), `103_watch_desk_resting_tilted.png` (a tilted resting hand: no button), plus `15_watch_button.png` and `16_watch_menu.png` from the play test.
+
+### What the test proves (each at the desk and away from it)
+- Pose maths on made-up hands: Ok, BackAway (tilt 65), OutOfView, TooFar, TooClose, TooLow, PalmUp, Pinch gate.
+- Not shown at 0.1 s, shown 0.32 s after the pose; button 45 mm above the wrist along the hand's back normal (within 8 mm), faces the eyes (dot above 0.95), a live UI Set button, 28 mm, on screen, with its icon; follows the wrist.
+- A real EventSystem pointer press opens the menu (summon Watch) from where the button was; it hides, disarms and counts one press; stays away with the menu open and after it closes (debounce); turning away re-arms and hides; turning back shows it.
+- A menu opened another way hides it at once and it returns when that menu closes (nothing disarmed it); a raised `PanelManipulator.Grabbing` hides it and keeps it away, and it returns when the drag ends.
+- Settings off: gone at once, nothing shows, `LastPose` NoHand; on again: shows.
+- 10 s of resting left hands (5 s on the desk, 5 s tilted away, with 1 cm drift): the button never showed, no press, no menu, and the gesture engine fired nothing with the left hand (a `Fired` subscriber counted 0).
+- Palm up for 0.4 s (under the engine's 0.6 s): not the watch pose, no left-hand gesture fired. A pinching left hand: pose Pinch, nothing shown.
+
+### Decisions (one line of why each)
+- **Kept the writer's thresholds and the extra `maxBelowEyeMeters` 0.42 gate.** Why: they match the spec numbers and, with the hand on the desk, it is what said TooLow in the test; setting it to 0 gives exactly the spec's rule. All tune on the headset.
+- **The grab guard is tested by setting `PanelManipulator.Grabbing`'s backing field by reflection.** Why: a real grab needs a pointer on a panel handle; the property has a private setter and nothing else raises it. The test puts it back to 0 (and Cleanup does too).
+- **The pinch test uses its own `HandShape` (index 0.55, thumb 0.5).** Why: there is no Pinch shape; this one measures 0.19 on the pinch feature, under the gate's 0.26 and the engine's 0.22.
+- **A left hand placed by the test counts as a real hand for the engine**, so the gesture display opens the first time (engine behaviour, once). The test asserts no left-hand gesture fired.
+
+### Not working or not done
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses. Whether a 28 mm round button on a 38 mm plate is easy to hit with a real fingertip on a moving wrist is for the headset.
+- The left hand is not drawn in the desktop view (only the right-hand dots are), so screenshots show the button but no hand.
+- Allocation-freeness of `LateUpdate` checked by reading the code only.
+
+### Changes outside OS/
+- `unity/Assets/_Forge/Core/Scripts/Gestures/SimulatedHandSource.cs` (Gestures module, the Hudson-owned hand source): added four static test fields (`LeftTestActive` default false, `LeftTestWrist`, `LeftTestRotation`, `LeftTestShape`), a `SubsystemRegistration` reset that puts them back, and in `Read` replaced `if (hand != 1) return;` with `if (hand == 0) { if (LeftTestActive) SyntheticHand.Build(sample, LeftTestShape, LeftTestWrist, LeftTestRotation, true); return; } if (hand != 1) return;`. Why: on the desktop rig hand 0 was never tracked, so the watch could not be exercised. With `LeftTestActive` false (the default) hand 0 returns exactly as before, so `GestureSelfTest` (104/0, its own synthetic hands, idle test unchanged) and `GesturePlayTest` (32/0, drives hand 1 only) are unaffected, as the runs above show.
+
+## playtest-p1: OSPlayTest steps 6 to 8 and the P1 checks in OSCheck (spec 6.1)
+
+### What was done
+- `OSPlayTest` now walks all nine steps of spec 6.1 in order (1, 2a, 2b, 3a corner button was already a real step, 3b, 3c, 3d, 4 watch turn, 5 build something were already in). New: **6** the RC truck project from the Projects tab, then the project window's own buttons by real pointer presses: Course (asks first, Allow on the scratch approvals, gives the slalom and the brain truck, linked to the truck), Drive (opens the pad, starts a two-lap recording), a knob-up press on the pad (the truck moves, letting go writes zero), Stop, Drive again and two laps driven through the pad by the same pursuit `OSDriveTest` uses, the laps are scored runs, Train, Autopilot completes the slalom. **7** Agents: `spawn_agent` builder and scout, a task that stays running offline, the Agents window from the menu strip, Bring home (task kept: crew_status, bridge busy, still Working), Send out. **8** Settings from the strip: the corner button shows, its switch goes off and the button is gone (setting, file, `Shown`, button inactive), on again and it is back. **9** Close all (unchanged, now with the truck, pad, Train and agents' leftovers to close).
+- 29 screenshots in the manifest (`Logs/os/play_test_shots.txt`), 18 to 29 are new: `18_truck_course`, `19_truck_pad_knob_up`, `20_truck_pad_driving`, `21_truck_laps_recorded`, `22_truck_training`, `23_truck_autopilot_done`, `24_agents_two_rows`, `25_agents_builder_home`, `26_agents_builder_out`, `27_settings_corner_on`, `28_settings_corner_off`, `29_closed_all`.
+- **Level and fallback:** step 6 reports the level the way `OSDriveTest` does ("full", or "pad laps, pretrained brain" when `brain.Drove` is the pretrained fallback) in its Autopilot output line. A fallback sets a note and the final result then starts `PASS with fallback os play test`, never a plain PASS. `OSDriveTest.Level` is logged next to it (an info line) when that test ran in the same session.
+- **Time:** the whole run takes about 2.3 minutes (step 6 about 1 minute: the laps take 20 to 30 s, training about 1.5 s of compute, the Autopilot 10 to 30 s). That is well under 6 minutes, so the long part is not behind a flag by need. `RunQuick()` exists anyway (skips the two laps, Train and the Autopilot, about 1.5 min) and its result says `PASS with fallback ... Quick run: ... skipped`, so it can never read as a full PASS. `Run()` sets `Full`, `RunQuick()` clears it. It was run once: `PASS with fallback os play test: 128 passed, 0 failed (1 skipped). Quick run: step 6: two laps through the pad, Train and the Autopilot skipped (quick run)`.
+- `OSCheck` gained: the planner tree check now also needs 5 or more paths, `MaxQuestions` 3, and walks "answer 1 every time" to "answer 5 every time" and each must end in a plan within 3 questions (on top of `OSPlanner.Validate()` returning no problems); the tabs check requires the Drive tile (it was skipped when Drive was not built); new line "every system page the strip opens is registered (Build something, Agents, Settings)" which runs each page's `Register()`, then checks `OSShell.HasSystem` and reads `OSMenu.cs` for every `OpenSystem("...")` the strip calls; settings round-trip sets every field away from its default (including `watchTurn`, `cornerButton`, `cornerOnLeft`, `gestureDisplay`, `flatLayout`), checks they come back and are named in the file, ResetToDefaults restores all of them, and fails if a field is added to `OSSettings` that the check does not know.
+
+### Check output (verbatim, last runs)
+```
+PASS os check (OSCheck.Run, 27 ok lines)
+PASS os play test: 136 passed, 0 failed
+PASS [OSMenuTest] 63 passed, 0 failed
+PASS [OSWindowsTest] 52 passed, 0 failed
+PASS [OSToolsTest] 95 passed, 0 failed
+PASS [OSProjectsTest] 87 passed, 0 failed
+PASS [OSArtifactsTest] 68 passed, 0 failed
+PASS [OSSettingsTest] 102 passed, 0 failed
+PASS [OSAgentsTest] 98 passed, 0 failed
+PASS [OSCornerTest] 55 passed, 0 failed
+PASS [OSWatchTest] 107 passed, 0 failed
+PASS [OSDriveTest] 82 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 91 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression ...
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+The play test's step 6 line in the last run: `the Autopilot completed the slalom (1 tap, drove: candidate 1, attempts: candidate 1 completed, last run completed; level: full)`. Compile: 0 errors, 0 warnings.
+
+### Flaky Autopilot at step 6 (said plainly)
+Of 12 full runs of the final play test, 2 failed at the Autopilot (the second also logged a step 8 line, "the menu opened when asked (recovering with OpenMenu)", a knock-on of the same stalled run): all three trained candidates and the pretrained fallback crashed (`attempts: candidate 1 crashed, candidate 2 crashed, candidate 3 crashed, the pretrained fallback crashed`), the second time even after a second tap. Both were the first run right after a recompile and domain reload; the other 10 runs (and run 3 of the loop, where candidates 1 and 2 crashed and candidate 3 completed) passed. I could not reproduce it with the diagnostic line in (it prints what the truck touches and how many room colliders are back on), so the cause is not found. Candidate guess: an editor stall just after the reload (the log of the first failure has `IPCStream ... Timed out`) while the truck is placed on the slalom start. The step now taps Autopilot a second time if every candidate failed (the output line says "2 taps"), the way a user would. `OSDriveTest` takes the same route and passed in its one run in this session (it was not looped).
+
+### Decisions (one line of why each)
+- **Step 6 copies the pad-driving helpers (a real press, drags, a release) into `OSPlayTest` and shares only the pursuit (`OSDriveTest.Pursuit`, now internal).** Why: the helpers hold statics tied to `OSDriveTest`'s own run; the pursuit is the part worth sharing.
+- **Step 6 leaves the project, Drive and slalom open and step 9 closes them.** Why: Close all is then tested on a real pile (a project, a pad, the slalom with its brain truck), not on nothing.
+- **Agents step skips waiting for the agent to walk to its pad.** Why: the test is away from the desk where Bring home hides the body (`Home, hidden`); the pad walk is `OSAgentsTest`'s.
+- **`OSSettingsWindow.Register()` made public.** Why: `OSCheck` runs it, as it does for the other two pages.
+- **`PASS with fallback` for a fallback or quick run.** Why: the brief: never a plain PASS.
+
+### Not working or not done
+- The Autopilot flake above.
+- Ray and poke were not exercised (no headset); presses are EventSystem pointer presses.
+- The Main scene was left dirty by some of the other checks (ML smoke, Check Artifacts); it was reopened from disk (never saved) before the play test. `Main.unity` is not modified in git.
+
+### Changes outside OS/
+None. (`OSDriveTest.Pursuit` and `OSSettingsWindow.Register` are inside `OS/`.)
+
+## fixes-p1: what the P1 review and the P1 play test found
+
+### Owner: re-enter your Claude address if you had one set (read this first)
+Before this fix, `OSPlayTest` (step 7) and `OSAgentsTest` pointed the editor PlayerPrefs key `Albie.ClaudeUrl` (`ClaudeClient.UrlPref`) at a loopback socket and then deleted the key. Editor PlayerPrefs are the user's own, so every run of those two tests erased a Claude address that may have been set. The key was absent in the registry when this was found, and there is no way to know whether one existed before the first run. **If you had set a Claude proxy address in the editor (PlayerPrefs `Albie.ClaudeUrl`), it is gone: set it again.** Nothing else of the user's was written by the tests: `os_settings.json` in the data folder has the same size and modification time (Nov 16 01:43) before and after this session's runs, and the data folder holds only `mruk_config.dat` and `os_settings.json`. From now on every OS test saves the key (present or absent, and its value) before it touches it and puts exactly that back (see item 1).
+
+### What was done
+1. **Tests no longer touch the user's state (`OS/Editor/OSTestEnv.cs`, `OSTestEnvCheck.cs`).** One shared helper for all 12 OS tests (the 11 part tests and the play test), replacing a copy per test.
+   - `OSTestEnv.Enter(name)` saves `Forge.ForceDesktop`, `Albie.VoiceOffInEditor` (EditorPrefs) and `Albie.ClaudeUrl` (PlayerPrefs), each as "was there?" plus the value, into EditorPrefs (so an interrupted run or a closed editor keeps them), takes a "before" picture of the user's state, and only then forces desktop on and voice off. If a saved copy is still pending from an interrupted run it is the user's real original: it is put back first, so a second run can never save the forced value as the original. `OSTestEnv.Leave()` puts every value back exactly (a key that was absent is deleted again), clears the pending marker, compares the picture, and returns the differences. Every test's `Finish` calls it before the summary and adds one check: "the user's own preferences and files are exactly as they were before the run" (so each test has one more check than before).
+   - The picture is: ForceDesktop, VoiceOff, the Claude address, every player pref in the registry key of this project (except Unity's own session keys), every editor pref starting `Forge.` or `Albie.`, and every file in the data folder (`persistentDataPath`, path, size, MD5; Unity's analytics folder left out).
+   - Safety net: `[InitializeOnLoad]` restores a pending copy when no run is marked in progress (editor reopened), and when Play mode ends while a run is marked (stopped by hand). The twelve old `<Test>.ForceDesktopWas` / `VoiceOffWas` keys are deleted on load (their values were the same as the real ones).
+   - Agents test and play test set and clear the loopback address through `OSTestEnv.SetClaudeUrl` / `ClearClaudeUrl` (which refuse to run without `Enter`, so they can never delete a key they did not save).
+   - `OSTestEnv.UseScratch(name)` sends os_settings.json, the artifact library, the approvals file and the notebook (truck project open) to a folder of their own, and every one of the 12 tests calls it as the first thing in its script (the part tests that already had their own scratch still move on to it). **The whole play test now runs on a scratch root** (it was step 5 only; the notebook, projects, library, approvals and settings of all nine steps), and its "the app's own notebook again" now means the run's own, never the real one.
+   - `OSTestEnvCheck.Run()` (menu `Forge > OS > Check Test Environment`, also one line in `OSCheck`): proves with the user's own values in place that a Claude address set and cleared comes back, that an interrupted run's saved originals are what the next run saves, and that a new pref or file left by a run is reported; and then FAILS if the last run of any OS test in this editor session left a user pref or file different. Run it after a play test to see.
+   - **Not fixed (outside OS, not mine):** `GesturePlayTest` (Core/Editor) has the same save-and-force pattern with its own `Was` keys. Owner: Hudson (Core). It should call the same save-only-if-nothing-pending logic.
+2. **CAD no longer references the OS.** `CadViewer.MenuOwnsM` (public static bool, default false, reset at SubsystemRegistration) replaces `Forge.OS.OSKeys.Active` in CAD's measure key; `OSKeys` sets it true in `OnEnable` and false in `OnDisable`. Plain M measures unless something owns M as its menu, then Shift+M. The three comment/README lines (CadViewer class comment, the key line, `CAD/README.md`) say so. Nothing outside `OS/` mentions `Forge.OS` any more (one comment in `Core/Workspace.cs` aside, which is only text).
+3. **Settings, Gesture display.** The switch now shows the real state (a gesture panel exists and is active), not the saved flag. `OSToolsCatalog.ApplySavedGestureDisplay()` applies the saved flag once; `OSShell.Start` calls it (polling twice a second for 10 s until the gesture engine exists, then stopping). `OSSettingsTest` got a fresh-launch block (flag saved on, panel destroyed: the switch shows OFF; apply; the panel shows; the switch shows ON; with the flag off, apply does nothing) in place of the lines that assumed the flag.
+4. **Corner and table buttons are taken down with the shell** (`OnDestroy` destroys their root, as `OSWatch` does). `OSTableButton` keeps the presence it subscribed to in `hooked`, so `Hook(false)` removes the listener from that same object even if the workspace has been given another one (or none) since. `OSCornerTest` checks: one of each exists, the listener is let go of with the workspace's presence null, and destroying the components takes the buttons down.
+5. **Drive step text.** `OSProjectWindow.DriveMissing` = "The Drive pad couldn't be found." replaces "Coming with the Drive pad." (the only case left). The notebook button's "isn't available yet" became "couldn't be found" for the same reason. `OSProjectsTest` now requires the Drive tool to be registered and no "coming" line.
+6. **Build something, failed Start.** `OSBuildFlow.StartBuild` remembers whether the project folder existed, and on any failure (the notebook refusing the plan, or an exception) reopens the previous project and deletes the folder only if this Start created it. Today `NotebookStore.Open` does not create the folder (it appears on the first write), so on the current notebook nothing was left behind; the code now holds whatever the notebook does later. A test seam (`OSBuildFlow.OpenedForTests`) lets `OSPlannerTest` create the folder before the plan fails. Test lines: a plan with no reason fails with a sentence, nothing kept, the truck project open again, the card still open; with the folder made first it is removed; with the truck plan (folder already there) the folder and files are untouched; Cancel afterwards leaves the scratch root as it was.
+7. **Drive pad guard.** While held, the pad keeps the pressing pointer's event data and lets go (writes zero) when `pointerPress` is no longer the pad (cleared by a module on release or cancel, or given to another object) or the pad's canvas (or its root) is no longer enabled; the check starts the frame after the press (a module sets `pointerPress` just after our handler returns) and reads four fields, no allocation. What the Interaction SDK's `PointableCanvasModule` does: a lost pointer (Cancel, Unhover, canvas unregistered) clears `pointerPress`; Unhover-while-pressed marks the pointer for deletion and processes it with `forceRelease`, which does not send pointer-up. `OSDriveTest` presses, then clears `ped.pointerPress` with no up (pad lets go, channels zero), presses and hides the canvas (lets go, zero), and checks a healthy press is not released by the guard (held through a 0.85 s hold) and a normal up still lets go at once.
+8. **The Autopilot flake: found.** See the next section.
+9. **`OSCheck` leaves a clean open scene clean.** Some of its checks build and tear down objects in the open scene (marking it unsaved), which made the next Play-mode test refuse with "save or discard the open scene first" (this happened once in this session). If the scene was clean when `Run()` started and is dirty at the end, it is opened again from disk (never saved).
+
+### The Autopilot flake at step 6: cause found
+Earlier note: 2 of 12 runs failed at the Autopilot, all three trained candidates and the pretrained fallback "crashed", both times the first run after a recompile. Four tries to reproduce (none reproduced, ruled out): the first run after a code recompile; after a forced domain reload (`EditorUtility.RequestScriptReload`); after a clean-cache full recompile; and with the editor main thread blocked four times for 3 s each while the Autopilot ran (the frame delta is capped, the Autopilot is frame-rate independent). Then a fifth run, after I added a log line that says where and against what each attempt ended, failed in the same way, and the log said:
+
+```
+'candidate 1 crashed' at (-1.07, 0.00, 0.41), 1.95 m from the start; touching: AlbieAssistant (PetRuntime)
+'candidate 2 crashed' at (-1.49, 0.00, 0.07), 1.52 m from the start; touching: AlbieAssistant (PetRuntime), DesktopRig (root)
+'candidate 3 crashed' at (-1.40, 0.00, 0.15), 1.60 m from the start; touching: DesktopRig (root)
+(second tap) 'candidate 1 crashed' ... touching: AlbieAssistant (PetRuntime)   'candidate 2 crashed' ... touching: DesktopRig (root)
+```
+**Cause:** the brain truck's body (`ExampleTruckBody.obstacles`, a `LayerMask` of `~0`: every layer) treats every enabled non-trigger collider as a wall. The desktop user's body (a `CharacterController` on `DesktopRig`) and Albie (`AlbieAssistant`, who follows the user) stand on the slalom's line in this simulated room (the mock living room's floor strip is laid over the desktop rig's room), 1.5 to 2 m from the start. Whether a run touches them depends on how far a candidate's weave swings at that spot, which is why most runs pass; a candidate that clips either one is a crash, and when every candidate and the fallback clip them, the run fails. It was not the reload: the two earlier failures only happened to follow one. The room's own colliders were already switched off by the test; these two were not.
+**Where it lives:** the test environment (the desktop rig and the pet are in the path), and a property of the Controllers module (`ExampleTruckBody.obstacles = ~0`, nothing is excluded by layer). For the Artifacts/Controllers owner: on a headset the user's body is not a collider, but Albie is, so a pet standing on the course would fail a run the same way; consider a layer for the pet (and the desktop rig) that the body's `obstacles` leaves out, or a "ignore these colliders" list on `SlalomBrain`. I did not touch that module.
+**Fix in the OS tests:** `OSPlayTest` switches off the user's body and Albie's colliders together with the room's (restored at the end of step 6; the switch-off is repeated before each Autopilot tap in case something came late); the user is moved onto the course during the Autopilot (at gate 2, Albie follows) and back after, so the run now passes through exactly what used to fail it, and the log says what it switched off. The step also logs the room, the slowest frame and, per failed attempt, where and against what. **Guard in the OS:** the Project window refuses to start the Autopilot when something solid sits on the truck's start spot (`OSProjects.StartBlocked`, which asks the physics scene exactly what the truck's crash test asks): every brain would crash at once, so it says "Something is in the truck's way at the start. Move it, then tap Autopilot again." instead of burning through all of them. The play test checks the refusal with a cube on the start spot and waits for a clear start before the real tap. Results after the fix: 4 full runs, all a plain PASS (the one that showed the rig and Albie on the course, then the 3 of the final sequence).
+
+### Check output (verbatim, final sequence, after a forced clean recompile and a forced script reload)
+```
+unity recompile: completed {'errors': 0, 'warnings': 0}   (and up_to_date on the second call)
+PASS os check (OSCheck.Run, 28 ok lines)
+PASS os play test: 140 passed, 0 failed     (run 1, right after a script reload)
+PASS os play test: 140 passed, 0 failed     (run 2)
+PASS os play test: 140 passed, 0 failed     (run 3)
+PASS [OSMenuTest] 64 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 96 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 69 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os test environment check (4 own checks and "last run ...: unchanged" for all 12 OS tests)
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS voice rules check
+PASS room slalom check (mock truck, Editor)
+```
+Counts are the old ones plus: +1 each for the new "user's own preferences and files are exactly as they were" check, and the new lines (Settings +6, Corner +7, Planner +9, Drive +10, play test +2 for the refusal and +1 for the body switch-off). Free disk 33 to 37 GB throughout.
+
+### Decisions (one line of why each)
+- **Restore with "was it there" (delete a key that was absent) rather than writing false.** Why: writing false creates a key the user never had.
+- **The saved originals live in EditorPrefs and the "run in progress" marker in SessionState.** Why: a domain reload keeps SessionState and EditorPrefs survive an editor restart; a static does not.
+- **Every test, not only the leaky ones, gets the scratch root and the before/after picture.** Why: the audit found 6 of the 12 tests with no scratch for the notebook at all; the picture tells what a run really touches rather than what I think it touches.
+- **The Autopilot guard refuses only a start that would crash at once.** Why: it asks the physics scene the same question the truck's own crash test asks, so it can never refuse a run that would have worked.
+- **The test moves the user onto the course instead of only switching colliders off.** Why: it makes the old failure deterministic as a scenario (the rig and the pet standing in the truck's way) and the run still passes.
+- **`OSCheck` reopens a scene it dirtied.** Why: without it a clean `Check OS` blocked the next Play-mode test.
+
+### Not working or not done
+- `GesturePlayTest` (Core) still has the old unsafe save-and-force prefs pattern (Hudson). Not touched.
+- The Artifacts/Controllers obstacle mask (`~0`) is for their owner (above).
+- Ray and poke are still not exercised (no headset): the pad guard is tested with event data, not with the Interaction SDK's own pointer.
+- Whether the user had a Claude address set before the earlier runs deleted it cannot be known (see the first heading).
+
+### Changes outside OS/
+- `unity/Assets/_Forge/CAD/Scripts/CadViewer.cs`: added `public static bool MenuOwnsM` with a `SubsystemRegistration` reset, and the measure key reads it instead of `Forge.OS.OSKeys.Active`; two comment lines say so. Why: deleting the OS folder must not break CAD's compile.
+- `unity/Assets/_Forge/CAD/README.md`: the line on the Dimensions key names `CadViewer.MenuOwnsM` instead of `OSKeys.Active`. Why: same.
+
+## restyle-5.13: old windows next to the new UI, and the typography of the new UI
+
+### What was done
+- **(A) One plate for every window and the menu.** The older windows (CAD, Code, Train, Messages, Gestures, artifact sheets, notes, timers) and the OS windows are all `ForgePanel`s, so the cheapest wide change is in Core's shared look. The menu's backplate was measured in a screenshot (top #3A3C40, bottom #252629, opaque) and the plate was matched to it. Pictures: `unity/Logs/os/restyle_before_*.png` and `restyle_after_*.png` (an old window beside the Settings window, on a plain backdrop with only the two windows drawn), plus `restyle_*_text.txt` (every text of the OS windows and the menu with its size in units, em and cap height in mm).
+- **(B) Typography.** Dark-on-light labels (selected tab, primary buttons such as Build something and Start, the old windows' "Face me" pill) get a heavier face (TextMeshPro face dilate, one shared material per font). Body text raised to 20 units.
+- Tool for the pictures: `Forge.OS.Editor.OSRestyleShots.Run("before"|"after")` (Editor/OSRestyleShots.cs, no menu item). It keeps the machine's `notes.json` and puts it back. Its first versions added 16 notes to the real file; they were removed by hand again (the 3 sample notes were left).
+
+### What the before and after pictures show
+Before: the older windows and the OS windows shared the frame shape but sat on a much darker plate (#212429 to #131519, 96 percent) than the menu (#3A3C40 to #252629), with a 26 mm corner against the menu's 23 mm, text at 95 and 50 percent white, the on pill at 92 percent with #1C1E21 text. After: the same plate, 24 mm corner, text at 100 and 72 percent white, the on pill solid white with #272727 text (the OS primary button). Header height, title size and weight were already identical (both come from the same prefab); old windows have no close button (they close through the workspace), OS windows keep theirs. Module colours inside windows (Messages purple, the CAD peach badge, charts) are left alone on purpose.
+
+### Changed constants (Core, the owner's module)
+| File | Constant | Old | New |
+|---|---|---|---|
+| ForgeTheme.cs | PanelTop | 33,36,42 a245 | 58,60,64 a255 |
+| ForgeTheme.cs | PanelBottom | 19,21,25 a245 | 37,38,41 a255 |
+| ForgeTheme.cs | PanelText | white a0.95 | white a1 |
+| ForgeTheme.cs | PanelSubtext | white a0.5 | white a0.72 |
+| ForgeTheme.cs | PanelCorner | 26 | 24 |
+| ForgeTheme.cs | PillOffText | white a0.85 | white a1 |
+| ForgeTheme.cs | PillOn | white a0.92 | white a1 |
+| ForgeTheme.cs | PillOnText | #1C1E21 | #272727 |
+| PanelSurface.mat | _Top / _Bottom | 0.129,0.141,0.165,0.96 / 0.075,0.082,0.098,0.96 | 0.227,0.235,0.251,1 / 0.145,0.149,0.161,1 |
+| ForgePanelSurface.shader | defaults of _Top, _Bottom | the old material values | the new material values |
+
+Also new in ForgeTheme: `DarkOnLight(TMP_Text, bool, float)`, `DarkLabelDilate` 0.4, `DarkPillDilate` 0.15. `ForgePanel.Awake` sets the plate's corner from `ForgeTheme.PanelCorner` (the prefab still says 26, so the constant now rules every window and sandbox). `ForgePill.Refresh` calls `DarkOnLight` for its on state. No layout size of any module changed.
+
+### Measurements
+- Dark labels, drawn ink (average coverage of the label's text box in the camera picture, `OSMenuTest.LabelWeights`): with only the bold style, dark on light 0.158 against white on dark 0.330 (ratio 0.48, about half as solid). With face dilate 0.25: 0.269 (0.81). With 0.4: dark 0.347 against white 0.320, ratio 1.08, kept and now a check in OSMenuTest. Selected tab label as drawn: darkest pixel luminance 0.019 on a 0.905 fill, contrast 13.8:1 (it was 10.2:1).
+- Body text: Inter cap height is 0.444 of the OS unit size, so 16 units was 7.1 mm cap (10.4 mm em), short of the spec's 9 to 10 mm. Now `OSUi.BodyText` 20 units = 8.9 mm cap; secondary text (hints, empty states) 19 units = 8.4 mm; the caption under a tile title 17 units = 7.6 mm (the one size below the rubric, kept so tiles fit); window titles 26 units = 12.5 mm. Before: 60 of 109 texts under 8.9 mm cap. After: lowest 7.6 mm (4 tile captions). `OSUi.Text` lifts anything smaller to the floor, so no window needed its own edit.
+- Layout follow-ups: menu tiles 188 to 220 units wide and tabs 156 x 72 so the strip of 20 unit buttons fits (menu 0.647 m wide, 65.8 degrees of view at 0.5 m, under the 70 limit).
+
+### Check output
+```
+PASS os check
+PASS [OSMenuTest] 65 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 96 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 69 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 140 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+PASS notebook check
+PASS voice rules check
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+```
+One earlier OSAgentsTest run failed once ("the builder stands still on its pad (0.0105 m in 1 s)", a pet movement flake); it passed on the rerun and in the later full run. Room slalom was not re-run: nothing it touches changed.
+
+### Decisions (one line of why each)
+- **Change the shared Core constants and material, not each module.** Why: every window is a ForgePanel; one change reaches all of them and the sandboxes.
+- **Plate opaque.** Why: the menu's backplate measured opaque; 96 percent let the room show through.
+- **Two dilate strengths (0.4 body labels, 0.15 small pills).** Why: 0.4 clogged the old small pills in a picture.
+- **Dilate on top of Bold.** Why: Bold alone measured half as solid as the white labels.
+- **Tile caption stays 17.** Why: a bigger one would not fit the 108 unit tile.
+
+### Not done
+- Old windows keep their own internal colours and small module text (9 to 11 unit captions in Code and Train); those are module UIs.
+- Pictures are from the desktop rig; a headset check is still needed.
+
+### Changes outside OS/
+- Core: the constants, material, shader defaults, `ForgePanel.Awake`/`FitPlate` and `ForgePill.Refresh` above (this run is the Core owner's).
+
+## look-capture (the picture set for the grading loop)
+
+### What was done
+- New editor tool `unity/Assets/_Forge/OS/Editor/OSLookShots.cs`, menu `Forge/OS/Capture Look Set`, `public static Run()`, `RunOnly("settings,agents")` for one section, static `LastResult` and `Running` (both survive the domain reload through SessionState), modelled on OSPlayTest: Main in Play on the desktop rig, voice off, the shared scratch environment (OSTestEnv.UseScratch, so the user's notebook, projects, artifacts, approvals and settings are never read or written; OSTestEnv.Leave compares the user's state afterwards), the MockFloorPlan living room for the slalom.
+- It walks the product in 14 sections (table, menu, states, windows, settings, agents, build, drive, modes, artifacts, truck, three, away, closed) and writes `unity/Logs/os/look/NN_name.png` (1600 x 1000) plus `unity/Logs/os/look/index.json` (file, path, screen, what, distance, fov, zoomed) and `result.txt`. Only that folder is cleared at the start.
+- 59 pictures: the table button (seated view and straight down), the menu on all three tabs with page 2, hover and pressed on a tile and on a strip button (each with a full-menu and a close picture), Notebook (attempts, one waiting for a verdict), the truck Project window with a full plan, the classifier Project window (offline line), the gesture display, Settings pages 1 to 3 and the Forget permissions confirm card, Agents (empty, two rows, one home, home with the desk, Dismiss confirm), Build something (questions 1, 2, 3 and the plan card), Drive idle and recording, CAD with Notebook, Code with the project window, Train with the menu, Messages with Settings (each with a wide and a square-on picture), the heart, repo activity (Allow sheet, then open), the slalom scoreboard and course, three windows at the desk, windows still there after walking away, the menu away, the corner button, the watch button, windows after Bring windows here away, the empty desk after Close all.
+- Result of the last run: `OK look set: 59 pictures` with one product finding (below). Every picture was opened and looked at.
+
+### How the pictures are framed (decisions, one line of why each)
+- **The head camera itself renders each picture from a pose set for that one call, then goes back.** Why: it is the user's camera (same pipeline, same UI sorting), and nothing in the scene moves, so no window re-flows and the desk state is untouched.
+- **A surface is framed square on, along its own normal, at the distance where it fills about 88 percent of the picture at the head camera's field of view, kept between 0.45 and 0.9 m.** Why: the grader judges size from the picture and the reported distance. A surface too small to fill the picture at 0.45 m (a button) is shown with a narrower field of view from 0.45 m ("zoomed": true in index.json); one too big at 0.9 m with a wider one.
+- **Where context matters (old window beside new, windows around the user) a second picture is taken from the real head position**, at the widest field of view that is needed (up to 95 degrees), not from across the room.
+- **For the one render only, `forceRenderingOff` hides**: the desktop rig's own hand dots and ray beam, Albie's speech caption ("I can't hear you right now" appears whenever Albie asks something with voice off), and room furniture or props that stand between the camera and the surface (a window placed into a sofa). Panels and windows are never hidden. Undone right after the render.
+- **Hover and pressed states are driven with real EventSystem pointer events on the control (enter, then down held), released without a click.** Why: the UI Set buttons take their look from the Selectable state, so this is what a hovering or pressing hand produces, and no action runs.
+- **The classifier project window is finished by hand for its own picture** (see the finding), and the previous picture shows what the user gets.
+
+### Finding in the product (not fixed: not this part's job)
+- **Tapping Image classifier opens the Project window and the Train mode in the same moment; the window manager then glides the window clear of Train's panels and that glide cancels the window's fade-in half way, so the window stays at alpha 0, invisible.** Seen in `17_project_classifier_with_train.png` (only Train shows) and probed over 3 seconds (alpha 0.00 at every step, scale 0.00092). The OSProjectsTest check does not see it because it reads text, not pixels. Probable fix: AnimateIn must not be stopped by Glide (restart the fade after a Glide, or make Glide leave the alpha alone) in OSWindows.
+- Not a defect of the pictures: the brain truck has no visible model in the desktop simulation, so `49_slalom_course_truck.png` shows the course (gates, cones, green line) and the start gate only; the desktop simulation draws no left hand, so the watch pictures show the button without the wrist.
+
+### Check output
+```
+OK look set: 59 pictures in unity/Logs/os/look
+product findings: [windows] after tapping Image classifier the Project window stays invisible (alpha 0.00, scale 0.00092): the window glide that clears it of the Train panels cancels its open animation
+PASS os check   (OSCheck.Run, 28 ok lines, no FAIL)
+compile: 0 errors, 0 warnings. Console: 0 errors in the run; warnings only the known TMP Ellipsis, MRUK scene model, no-hub ones.
+```
+
+### Not done / limits
+- Pictures come from the desktop rig (simulated living room, flat shading): they judge layout, size, legibility and states, not passthrough or headset optics.
+- No screen was left out. Nothing was unreachable.
+
+### Changes outside OS/
+- None.
+
+## look-fix-r1 (round 1 of the look review fixes)
+
+### What was done
+- **Menu tile pressed** (OSTileView): while the pointer is down on a tile the plate is drawn black at 30 percent, darker than rest (the UI Set animator lit it white on press). The caption (status line) is locked to near white (0.88 alpha) in every state and raised from 17 to 19 units. Verified in `09_menu_tile_pressed.png` and `10_menu_tile_pressed_close.png`: the pressed Notebook tile is darker than its neighbours, the caption is bright and readable.
+- **Project window invisible after Image classifier** (OSWindows.Glide): a glide now finishes a running open fade (scale 1, alpha 1) before it moves the window, never cancels it half way. The capture no longer reports the finding; `17_project_classifier_with_train.png` shows the Image classifier window next to the Train panels (partly behind the Training panel from the capture's vantage, but drawn).
+- **Code sidebar overlap** (CodePanel.BuildFileList): the two Place() calls took (top, height) and were given (0, y); now `Place(title, y + 2, 16)` and `Place(state, y + 90, 38)`. `37_mode_code_panel.png`: ROCKET-LAB, THING CONTROLLER, the field and Apply read cleanly.
+- **Code lines cut at the right edge** (CodePanel + CodeSample.json): a right-edge fade and a thin horizontal position bar show when a line runs on; the demo rocket.py long line is split in two (ratio = ...). The fade colour matches the well.
+- **Train class names stacked** (TrainingDash): the panel is at least 0.68 m tall (set in Awake, so the workspace's reset size is the same), a heat row is never under 14 units, names are drawn at 11 units only when a row is 12 or more, epoch labels 10, label column 96. `40_mode_train_panel.png` shows the nine class names in a column.
+- **Messages icons as grey squares** (Messages/Resources/SlackIcons): the four svg files (the svg importer is not in this project, so no sprite loaded) are replaced by 128 px white PNG sprites; SlackUi.Icon turns the Image off when the sprite is missing. `42_mode_messages_panel.png`: carets, send arrow and sparkle show.
+- **Agents roles clipped** (OSAgentsWindow): the name column is 425 wide and the state column 120 (the state is one word). `25_agents_two_rows.png`: both role lines are whole, the Builder task is whole.
+- **CAD Model rocket over the Drawing header** (Workspace.ShrinkToFit): a narrow room pulls a side panel in over its neighbour (RoomFit's second pass only keeps it out of the walls); now a side panel that reaches within 9 degrees of the panel inside it is scaled down (never below 0.6) to fit. `34_mode_cad_with_notebook.png`: the Drawing header buttons show, the Model rocket panel is smaller and beside it.
+- **Volume captions** (ForgeVolume): hint line 14 units bold on a dark rounded plate, moved out past the ring edge. `43_artifact_heart.png`, `46_artifact_repo_activity.png`: the caption reads and no longer sits on the ring.
+- **Heart and other biology labels** (ArtifactTemplates brain, cell, dna, eye, heart, plant_cell): label height 0.011 to 0.02 and the small second line dropped (at the larger size the two-line labels ran into each other, which a first try with wrapped 85 percent lines showed). `43_artifact_heart.png`: 13 names, all readable, none overlapping.
+- **Windows over a volume** (OSWindows.ClearAllSoon, OSArtifacts): when an artifact's volume is adopted, every other open window that covers it moves to a free place, now and again 0.8 s and 2.5 s later (the model and its labels build after the box). A volume's cover is its box plus every renderer under it (the labels). `51_three_windows_desk.png`, `52_away_windows_stay.png`: the Notebook sits above the heart, clear of its labels.
+
+### Check output
+```
+OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level full), OSPlannerTest 101/0
+PASS os check (28 ok lines, no FAIL)
+PASS os play test: 140 passed, 0 failed
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 97 passed, 0 failed
+PASS biology templates check, glTF and timeline check, repo activity check, repo connector check, voice rules check, physics templates check
+PASS slalom brain check (Play mode, the brain truck on its colliders)
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+OK look set: 59 pictures in unity/Logs/os/look   (no product findings)
+compile: 0 errors, 0 warnings
+```
+
+### Decisions
+- Pressed fill is set in OSTileView.LateUpdate (after the animator) rather than by editing the package clip: the clip is a UI Set asset.
+- The Train panel is made taller instead of squeezing the probe strip: the probe photos are a feature and the heat map needs 14 units per class.
+- Biology label second lines dropped, not wrapped: wrapped three-line labels overlapped their neighbours at the old spacing and the leader lines are tied to the label positions.
+- Side panels shrink (not slide out) in a narrow room: sliding out puts them in the wall.
+- A volume's window clearing runs on spawn, not on every move: there is no per-volume registry to poll without allocating, and a volume dragged by hand should not make windows jump.
+
+### Not done / limits
+- The CAD Model rocket panel shrinks to about 0.7 of its width in the capture room, so its title is clipped ("Model rock...").
+- 17: the Image classifier window is visible but a corner of it is behind the Training panel from the capture camera; from the user's eye the layout keeps them apart.
+- The explanation lines of the biology labels are gone from the 3D labels (the names remain).
+
+### Changes outside OS/
+- Code/Scripts/CodePanel.cs: Place() arguments, scroll cues. Code/Resources/CodeSample.json: one long line split.
+- ML/TrainingDash/TrainingDash.cs: panel height, heat map rows and label sizes.
+- Messages/Resources/SlackIcons: svg replaced by png; Messages/Scripts/SlackUi.cs: icon with no sprite is hidden.
+- Core/Scripts/ForgeVolume.cs and Core/Prefabs/ForgeVolume.prefab, CAD/Prefabs/CadViewer.prefab (re-serialised by Unity with the new label offset): caption size, plate and position.
+- Core/Scripts/Workspace.cs: ShrinkToFit after the RoomFit pass.
+- Artifacts/Resources/ArtifactTemplates/{brain,cell,dna,eye,heart,plant_cell}/scene.json: label size, no second line.
+
+## look-fix-r2
+
+Fixed the round-2 look findings (kit, theme, shell, window manager; nothing hidden from the capture).
+
+- Greeting: OSShell dismisses the arrival greeting when the menu opens or any window is open (checked on open, on window changes and twice a second). It calls the new ArrivalDirector.DismissGreeting (fold, release the pet, let the dock in; unlike START it opens no mode and walks nobody). Why: a first version that pressed START opened Code mode and made the pet walk, which broke the Agents pad-walk check.
+- Classifier Project window: now visible and clear of the Train panels (alpha fix from round 1 plus the new corner-based cover); the capture's by-hand workaround and its finding were removed.
+- Settings About: the UI kit line names no brand ("a third-party UI kit, used under its licence"); OSSettingsTest now checks that and that no "Meta"/"Oculus" shows. Full notice stays in OS/THIRD_PARTY_NOTICES.md.
+- Train heat map: label column 96 -> 112 and a 12-character name limit, so "automobile" shows in full.
+- Mentions card header: ForgePanel keeps at least 120 units for the title on narrow panels (the Straight/Face me reserve shrinks), so "Mentions" and "4 unread" show.
+- Volume name: ForgeVolume draws it on a dark rounded plate (same colour as the hint plate), font 26, moved 2.5 cm further out so it clears the ring.
+- Allow sheet: Allow is the near-white primary pill (ArtifactWidgets.PillControl returns the ForgePill); Not now stays dim. "Face me" left as is.
+- Windows overlap: existing panels are covered by their real four corners seen from the eyes (CoverOfPanel), and GapDegrees 2.5 -> 4. In picture 52 the Project and Notebook windows no longer touch.
+
+Checks (all run after the changes): OSCheck PASS (27 ok); OSPlayTest PASS 140 passed, 0 failed; OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0, OSPlannerTest 101/0; GestureSelfTest 104/0; ArtifactChecks 97/0; voice rules PASS; NotebookCheck PASS; ML Main smoke PASS. Look capture: "OK look set: 59 pictures". (Counts are one or more above the earlier ones because each test now also counts its preferences-unchanged check.)
+
+Changes outside OS/: Pet/Scripts/Core/ArrivalDirector.cs (DismissGreeting, a small public hook); Core/Scripts/ForgePanel.cs (header reserve); Core/Scripts/ForgeVolume.cs and Core/Prefabs/ForgeVolume.prefab, CAD/Prefabs/CadViewer.prefab (label plate and offset, reserialised); ML/TrainingDash/TrainingDash.cs (heat map label); Artifacts/Scripts/ArtifactHost.cs and ArtifactWidgets.cs (Allow pill).
+
+## look-fix-r3
+
+- Classifier Project window (17): with the Train desk open there was no clear place in the four ordinary rows, so the window fell back to straight ahead one ring out, behind Training. OSWindows.FindSpot now also tries two high rows (0.62 m and 0.82 m above the eyes, at the preferred distance and one ring out) as a last resort, with a cost of 130 degrees so they never beat any other clear place. The window lands above Training, clear of every panel. First try with the high rows at normal cost broke OSWindowsTest (two windows touching), hence the penalty.
+- Heart panel (44): the button widget takes `alt_id`/`alt_label` (one toggle whose label flips) and `primary`. Pause the beat/Start the beat and Hide labels/Show labels are one toggle each; Trace the blood is the filled primary pill. The validator knows `alt_id` as a button. Only heart changed; the other biology templates still have their two-button label pairs.
+- Slalom scoreboard (48): a note says "Drive the truck through the gates to set a time." and turns into "Drive the gates again to beat your time." once a run exists on this course (`after_run` on the note, driven by the Runs row). Button is "Start a run". Runs lists only runs on this course ("None on this course" otherwise, no "(other course)"). The version row says "No runs yet" when neither side has a run. Value sizes were already equal on all rows (label 15, value 19); left as is, so that part of the finding is not changed.
+- Heart labels (43): every text node gets a dark TMP outline; heart labels are edge-anchored (`align` left/right) at x +-0.092 with leaders starting at +-0.082, clear of the model. Look: names clear of the heart; the outline is subtle.
+- Train results (38): KPI captions shortened (Top-3, Confidence, Calibration) and shrink-to-fit with ellipsis, KPI values shrink-to-fit, class list titles shrink-to-fit; tabs equal width 96 with a 6 gap; run label truncates. Checked only from the capture's steep angle (numbers no longer touch), not square on.
+
+Checks: OSCheck PASS; OSPlayTest 140/0; OSMenuTest 65/0, OSWindowsTest 61/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (full), OSPlannerTest 101/0; ArtifactChecks 97/0, BioTemplatesCheck, SlalomCheck, ArtifactRunCheck, GltfTimelineCheck, SimTemplatesCheck, VoiceRulesCheck PASS. Not re-run: GestureSelfTest, GesturePlayTest, Brain Loop, notebook, room slalom, ML Validate Main (nothing they touch changed except ML ResultsWall layout text).
+
+Changes outside OS/: Artifacts/Scripts/{ArtifactWidgets,ArtifactNodes,ArtifactValidator}.cs, Artifacts/Resources/ArtifactTemplates/{heart,slalom}/scene.json, Mocks/Resources/Mocks/artifacts/slalom/scene.json (same slalom edit), ML/ResultsWall/{ResultsWall,ResultsWall.Pages}.cs.
+
+## look-fix-r4
+
+- ResultsWall tab row (ML/ResultsWall/ResultsWall.cs): the five fixed 96 mm tabs are now one width computed from the panel (clamped 56 to 96 mm) so the row never passes the right edge; the run label width is clamped to 0 and the label is hidden when under 24 mm. Why: the last pill (Images) hung outside the frame in the narrow Train results window. Outside OS/: this one file, small.
+- Checks: OSCheck PASS; OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSPlannerTest 101/0, OSDriveTest 93/0 (full), OSPlayTest 140/0.
+- Look set: 59 pictures; 38_mode_train_with_menu and 17_project_classifier_with_train show the Images pill inside the frame.
+- Not run: GestureSelfTest, GesturePlayTest, ArtifactChecks, ML Validate Main (change is layout-only in ResultsWall).
+
+## look-fix-r5
+
+- Confirm card (OSUi.Confirm): now a solid strip docked along the bottom edge of the window (question left, confirm and Cancel right), on its own sorting canvas so a pager or any control at the bottom edge cannot sit above it. It no longer covers rows or notes; only the status line at the very bottom is hidden while it is open. Why: the old centred card sat over the Scout row and cut its footnote. A first try without the sorting canvas failed OSSettingsTest ('Background' on top of Cancel, the pager), so the canvas stays.
+- Face me / Straight (Core: ForgePill, PanelManipulator.TitleButton): new `ForgePill.Quiet`; a quiet pill lit shows a 30% white fill with light text, so Allow, Train and the other primaries are the only solid near-white pills. Title pills set it. Look: 45, 28, 40 show Face me as a grey lit pill.
+- Training dash (ML/TrainingDash/TrainingDash.cs): with no per-class history the class names are hidden and the well says "Per-class results appear after you press Train" (live: "...after the first epoch"); the probe strip says "Probe images show up here once training reports them" and is not drawn at all for a demo replay with no probes; both use MLUI.Sub instead of Faint.
+- Not changed: the Train window overlap at the right edge (17, 38). It is not two windows overlapping: the Results panel (one panel, Right slot, its tab row already fixed in round 4) is partly behind a wall of the mock living room, which is Workspace/RoomFit (Core) behaviour with the simulator room, not an OS window placement. Left alone.
+- Checks: OSCheck PASS; OSPlayTest 140/0; OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0, OSPlannerTest 101/0; GestureSelfTest 104/0; GesturePlayTest 32/0; ArtifactChecks 97/0; notebook and voice rules PASS; ML Validate Main PASS. Not re-run: Brain Loop, room slalom.
+- Changes outside OS/: Core/Scripts/ForgePill.cs (Quiet), Core/Scripts/PanelManipulator.cs (title pills Quiet), ML/TrainingDash/TrainingDash.cs (empty states).
+
+## look-fix-r6
+
+- Lit quiet pill (Core: ForgePill.Refresh, ForgeTheme.PillQuietOn): the lit "Face me" fill was white at 0.30 (label about 3:1). It is now white at 0.13 (same dark-grey read as the neighbouring "Straight" pill, label well over 4.5:1) plus a thin light ring (ForgeSurface.Outline 0.7), so lit still differs from off. One fix covers every window title bar. Checked in 21_settings_page2 and 09/42 messages panel: ring visible, label readable.
+- Not fixed: 38_mode_train_with_menu. The menu is the nearest surface and sits at the set place; the Training panel is a mode panel behind it. I tried a soft cost in OSMenu.Pose for panels behind the plate (and more tilt steps). With every mode panel around the desk there is no free place within the search range, so the menu stayed over the lower part of Training; counting OS windows too moved the menu to 30 degrees and broke OSSettingsTest and OSPlayTest. Reverted OSMenu.cs. The Training controls (Import, Send) in the shot are not hidden by it; the menu covers only the lower plot area.
+- Checks (final tree): OSCheck PASS; OSPlayTest 140/0; OSMenuTest 65/0, OSWindowsTest 61/0, OSToolsTest 96/0, OSProjectsTest 88/0, OSArtifactsTest 69/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (full), OSPlannerTest 101/0 (run with the pill change; OSMenu then identical to the committed file). One OSPlayTest run failed once at step 6 "menu opened when asked" and passed 140/0 on rerun (flake).
+- Look set: 59 pictures.
+- Changes outside OS/: Core/Scripts/ForgePill.cs, Core/Scripts/ForgeTheme.cs (PillQuietOn).
+
+## merge-main
+
+Merged origin/main (21 commits: the artifact host on the table and room-aware placement, "Albie says where the artifact went", the brain truck hiding with the host, tool description changes, Devpost and freeze docs, ML A check hardening) into feat/albie-os with `git merge --no-ff origin/main`. Merge commit 86f6e23.
+
+Conflicts: none. Git auto-merged ArtifactHost.cs and SlalomBrain.cs (the only files both sides touched; this branch's look-pass edits there are the Allow primary pill on the permissions sheet and `SlalomBrain.LapTarget` / the null-safe lap status, main's are `ComeToUser` placement, `PlacementNote`, `Spawned`, the `Closed` event and the hide/show of the truck). I read the merged result: the two sets of edits sit in different methods and compile together. Nothing of ours was dropped; no look finding comes back. Main.unity, Packages/manifest.json and ProjectSettings came in as main's (this branch never changed them); no file was edited by hand during the merge.
+
+What main's new behaviour changes for the OS, and what was done:
+- Host placement: `ArtifactHost.ComeToUser` now puts the host on a table in front of the user (top 0.2 to 1 m below the eyes), keeps out of walls, and turns aside from any other ForgePanel. OS windows are ForgePanels, so the host steps aside for them; the existing `AdoptPanels` + `OSWindows.ClearOf` still runs after the host builds and only moves the host's panel if it still covers another window. No change needed. New test steps (OSArtifactsTest) open the heart with a desk in front and check: host y on the desk top, `PlacementNote` "It's on the table ...", the tile keeps its own line, the panel and volume are still adopted and movable, Close all closes it.
+- "Albie says where it went": `artifact_open` now appends the placement note to `say`. OSArtifacts showed `say` under the tile in place of the status line, so a placed artifact would have lost "open · for RC truck" from its tile. `OSArtifacts.Succeeded` now drops the placement note from the tile notice (the voice and the Project window's Course line, which prints `say`, still carry it).
+- Brain truck: `SlalomBrain` is now spawned once and then hidden and parked whenever the host shows no truck course (`Hidden`), and `BrainLoops.Active` stays non-null. The OS would have offered Drive, Train and Autopilot on an unseen truck. New `OSProjects.LiveLoop` returns `BrainLoops.Active` unless it is a hidden brain truck; the Project window (Course, Drive, Train, Autopilot and the brain line), the Drive window (thing line, state, tile status, Stop) and the Train tile / brain trainer window use it. OSToolsTest now expects, after Close all at the desk, no brain trainer and "open · no truck yet", then reopens the slalom and checks the truck is back. OSArtifactsTest closes and reopens the slalom from its tile and checks Hidden and LiveLoop both ways.
+- Course action: `DescribeCourse` already prints `say`, so the Project window now also says where the host went. Unchanged otherwise.
+
+Decisions:
+- A hidden brain truck counts as "no truck" to the OS rather than changing `BrainLoops` (not ours): one helper, one line per call site.
+- The placement note stays off the tile (24-character status line, and the person sees the artifact in front of them).
+
+Checks (run after the merge and the OS edits; each line is the check's own output):
+- compile: 0 errors, 0 warnings
+- OSCheck: PASS os check
+- OSPlayTest: PASS os play test: 140 passed, 0 failed (info level reached: full; the Autopilot completed the slalom, drove: candidate 1)
+- OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 101/0, OSProjectsTest 88/0, OSArtifactsTest 81/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level: full), OSPlannerTest 101/0
+- OSTestEnvCheck: PASS os test environment check
+- GestureSelfTest: [GestureSelfTest] 104 passed, 0 failed
+- GesturePlayTest: [GesturePlayTest] 32 passed, 0 failed
+- ArtifactChecks: [ArtifactChecks] 110 passed, 0 failed (main added the Placement checks)
+- Artifacts menu checks: PASS run check; PASS biology templates check; PASS glTF and timeline check; PASS hoop check; PASS repo activity check; PASS repo connector check; PASS physics templates check; PASS slalom check; PASS voice rules check
+- Brain Loop (Play): PASS slalom brain check (Play mode, the brain truck on its colliders), 20 ok lines (27 lines in all), no FAIL, including "another artifact hides and parks the truck, and the slalom brings it back to the start"
+- Note on counts: OSWindowsTest prints 53 passed when the pet's first-arrival greeting is not holding the desk and 61 when it is (8 greeting-only steps); both are 0 failed, as in earlier rounds.
+
+Changes outside OS/: none (the merge brought main's changes in; no file outside OS/ was edited by hand).
+Free disk: 30 GB at start and end. Editor: out of Play mode, Main open and not dirty, 0 compile errors.
+
+## final-checks-apk: every check, the APK, the docs (2026-11-16)
+
+Branch feat/albie-os, origin/main already merged. Free disk on C: 30.1 GB at start, 19.8 GB after the first build, 18.5 GB at the end (the Android player build grows Library). One Unity 6000.6.7f1 editor, driven with `unity command eval`.
+
+### Docs
+- `OS/README.md`: the staged writer's README, checked against the code and corrected. One thing was untrue and is fixed: it said the Watch turn setting does nothing, but `OSWatch.LateUpdate` reads `OSSettings.watchTurn` and hides the button when it is off (line 255). The "Known limits" bullet is removed and the summons and settings tables say so. Also fixed: Check Test Environment needs no Play mode (the README said only Check OS did not). Checked true against the code: menu grid 4 by 2, tab bar, strip buttons, the seven tools, the four starters, the Settings pages and ranges (slider 0.35 to 0.7 and 0 to 30, clamp 0.35 to 0.8 and 0 to 35), window open 0.2 s and close 0.18 s, the `OSWatch` and `OSCornerButton` fields and defaults, the four voice tools and `os_answer`, the M key and left menu button, the menu items under Forge/OS, the icon table. The other long claims (the Known limits about Agents, Drive and the brain truck, the test environment text) were spot-checked against the code comments, not line by line.
+- `OS/THIRD_PARTY_NOTICES.md`: the UI Set notice already named https://developers.meta.com/horizon/licenses/oculussdk/ (kept). Added a table of every non-code file the branch added (git diff 3bb20ef..HEAD --diff-filter=A: png, wav, mat, asset, prefab, json under unity/Assets): OSKit.asset, AlbieDark.asset, OSMenu.prefab, OSShell.prefab, os.json, os_build.json and the four Messages PNGs. The branch added no wav, mat, font or texture files. The four Messages icons (caret, lock, send, sparkle, 128 px white PNG) replace SVGs of the same names that main's Messages module had; they were made during the look pass (commit 5e819a0). This run's log never recorded the tool that rasterised them, so the notice says that plainly, and says they are not from a third-party pack.
+- Commit 3bfb24e.
+
+### Check results (all run after the merge, one at a time, results verbatim)
+Compile: `unity recompile` after the edits below: status completed, 0 errors, 0 warnings reported by the tool; the console then held 50 compile warnings, 0 of them from files under Assets/_Forge/OS (they are in Core, Pet, ML, Artifacts, Desk, Messages: main's and earlier modules').
+
+Gestures
+- GestureSelfTest.RunMenu: `[GestureSelfTest] 104 passed, 0 failed`
+- GesturePlayTest: `[GesturePlayTest] 32 passed, 0 failed`
+
+Artifacts
+- ArtifactChecks.Run (Forge/Check Artifacts): `[ArtifactChecks] 110 passed, 0 failed` (the baseline was 97: main's merge added checks)
+- Check Runs: `PASS run check`
+- Check Biology Templates: `PASS biology templates check`
+- Check glTF and Timelines: `PASS glTF and timeline check`
+- Check Hoops: `PASS hoop check`
+- Check Repo Activity: `PASS repo activity check`
+- Check Repo Connector: `PASS repo connector check`
+- Check Physics Templates: `PASS physics templates check`
+- Check Slalom: `PASS slalom check`
+- Check Voice Rules: `PASS voice rules check`
+- Check Brain Loop (Play): `PASS slalom brain check (Play mode, the brain truck on its colliders)`, 19 ok lines, 0 FAIL (6/6 rooms: scripted laps and Autopilot)
+
+Controllers
+- Check Autopilot: `PASS autopilot check`
+- Check Behaviour Cloning: `PASS behaviour cloning check`
+- Check Runner: `PASS controller runner check`
+- Check Five In A Row: `PASS five in a row check (mock truck, Editor): live training worked 5 times in a row (4 on the first candidate)`
+- Check Hot Reload: `PASS hot reload check`
+- Check ML Template: `PASS ML template check`
+- Check Room Slalom: `PASS room slalom check (mock truck, Editor)`
+- Check Thing Runtime: `PASS thing runtime check (example truck on Unity physics, Editor)`
+
+Notebook, ML
+- Check Notebook: `PASS notebook check`
+- Validate Main (MLMainSmokeCheck): `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.` (git status afterwards: Main.unity not modified)
+
+OS
+- OSCheck.Run: `PASS os check`, 28 ok lines (before the build, and again after it)
+- OSTestEnvCheck: `PASS os test environment check` (before and after)
+- OSMenuTest `PASS [OSMenuTest] 65 passed, 0 failed`; OSWindowsTest `PASS [OSWindowsTest] 53 passed, 0 failed`; OSToolsTest `PASS [OSToolsTest] 101 passed, 0 failed`; OSProjectsTest `PASS [OSProjectsTest] 88 passed, 0 failed`; OSArtifactsTest `PASS [OSArtifactsTest] 81 passed, 0 failed`; OSSettingsTest `PASS [OSSettingsTest] 109 passed, 0 failed`; OSAgentsTest `PASS [OSAgentsTest] 99 passed, 0 failed`; OSCornerTest `PASS [OSCornerTest] 63 passed, 0 failed`; OSWatchTest `PASS [OSWatchTest] 108 passed, 0 failed`; OSDriveTest `PASS [OSDriveTest] 93 passed, 0 failed (level: full)`; OSPlannerTest `PASS [OSPlannerTest] 101 passed, 0 failed`
+- OSPlayTest: `PASS os play test: 140 passed, 0 failed`, Autopilot line `level: full`, `info level reached: full` (run twice, before and after the build, same result). Screenshots in `unity/Logs/os/`.
+- After the warning fixes and the rebuild: OSCheck 28 ok, OSMenuTest 65/0, OSWindowsTest 53/0, OSDriveTest 93/0 (full), OSPlayTest 140/0, OSTestEnvCheck PASS. The other part tests were not re-run: the fixes touch only OSWindows (one FindObjectsByType call), OSTileView (one attribute) and test code.
+
+No check failed. No regression against the baseline.
+
+### Compile warnings from OS code (found and fixed)
+The recompile tool reported 0 warnings only because nothing needed compiling. The warnings of the last real compile were read from Editor.log and were all from OS files: CS0618 `FindObjectsSortMode` (OSWindows 1, OSDriveTest 1, OSLookShots 2, OSPlayTest 3), CS0162 unreachable code on constants (OSCheck 3), CS0168 unused variable (OSPlayTest 1), UAC1001 `OSTileView.entry` not serialized. Fixed in commit 2e2d4db with no change in behaviour: the sort mode argument dropped (unsorted either way), constants read into locals in the two OSCheck checks, the unused variable removed, `[System.NonSerialized]` on the tile's entry. After it, the build report went from 52 to 49 warnings and the console held no warning from a file under OS/.
+
+### APK
+- Entry point: `QuestBuild.Build` (Core/Editor/QuestBuild.cs) is a batch-mode method: it reads `-buildOutput` (default `Builds/AlbieStandalone.apk`, relative to `unity/`) and ends with `EditorApplication.Exit`, which would have closed the editor that had to stay open. So the same `BuildPipeline.BuildPlayer` call was run from `unity command eval` with identical options (enabled scenes from EditorBuildSettings: Main and SampleScene, Android, BuildOptions.None) and the same default output path, without the Exit. QuestBuild.cs was not edited.
+- First build (at 3bfb24e): `[QuestBuild] Succeeded -> Builds/AlbieStandalone.apk errors=0 warnings=52 bytes=1520747996 seconds=897.3038619` (the report's total size, not the APK).
+- Rebuilt after the warning fixes, so the APK matches the pushed code: `[QuestBuild] Succeeded -> Builds/AlbieStandalone.apk errors=0 warnings=49 bytes=1520601131 seconds=177.9254267`.
+- APK: `C:\Users\marrh\GitHub Repos\albie-vr\unity\Builds\AlbieStandalone.apk`, 128,904,237 bytes = 128.9 MB (122.9 MiB). Not installed on a device. `Builds/` is in .gitignore; the APK and the folder are not staged. The older `Builds/AlbieHandTest.apk` (Nov 4) is untouched.
+- The build left no tracked file changed: ProjectSettings.asset, DevAgentSettings.asset and StreamingAssets/RuntimeActionBindings.json showed as changed while it ran and were back to clean after it. `git status` afterwards: only the pre-existing EditorPipelineConfig.json line-ending change and the untracked files the task lists.
+- For whoever drives this editor: a `delayCall` queued from eval did not fire while the editor was idle (it worked once, later not), so the second build ran as a blocking eval with `--timeout 3500` and `--timeout 3500000`.
+
+### Decisions
+- Fixed the README rather than pass on a false "Known limit": the watch turn setting works, and a hand-back that says otherwise would send Hudson looking for a bug that is not there.
+- Did not run QuestBuild.Build itself: its `EditorApplication.Exit` would have killed the open editor, which the rules forbid. Same call, same options, same path instead.
+- Rebuilt the APK after fixing the warnings: three minutes, and the file now matches HEAD.
+- Cleared the OS compile warnings in code instead of only listing them: the spec asks for no new warnings from OS code.
+
+### Changes outside OS/ on the whole branch (git diff --stat origin/main...HEAD, excluding OS/ and docs/; this run added none)
+58 files, 1665 insertions, 501 deletions. Project Settings, manifest.json and every .unity scene: unchanged.
+- Core: Scripts/Workspace.cs (OS hook: free frame away from a desk, keep open away, retired dock, Reanchor, CanOpen guard, ShrinkToFit), WorkspaceRemote.cs (CanOpen guard), ForgePanel.cs (header reserve, FitPlate), ForgePill.cs (Quiet), ForgeTheme.cs (constants, PillQuietOn), ForgeVolume.cs and Prefabs/ForgeVolume.prefab (caption plate), PanelManipulator.cs (title pills quiet), AlbieVoice.cs (small), Gestures/GestureWindow.cs and Gestures/SimulatedHandSource.cs (left test hand, off by default), Resources/ForgeLook/PanelSurface.mat and Shaders/ForgePanelSurface.shader (plate defaults).
+- CAD: Scripts/CadViewer.cs (`MenuOwnsM`), CadSandboxKeys.cs, Prefabs/CadViewer.prefab (re-serialised, label offset), README.md.
+- Code: Scripts/CodePanel.cs (layout, scroll cues), CodeTools.cs (CanOpen guard), Resources/CodeSample.json (one long line split).
+- ML: TrainingDash/TrainingDash.cs (panel height, heat map rows, empty states), ResultsWall/ResultsWall.cs and ResultsWall.Pages.cs (tab row width).
+- Messages: Resources/SlackIcons (four SVG replaced by four PNG, with .meta), Scripts/SlackUi.cs (icon with no sprite is hidden), SlackRemote.cs (CanOpen guard).
+- Artifacts: Scripts/ArtifactHost.cs, ArtifactNodes.cs, ArtifactValidator.cs, ArtifactWidgets.cs (Allow pill and small hooks), SlalomBrain.cs; Resources/ArtifactTemplates/{brain,cell,dna,eye,heart,plant_cell,slalom}/scene.json (label size, no second line; slalom edit); Mocks: Resources/Mocks/artifacts/slalom/scene.json (same slalom edit).
+- Pet: Scripts/Core/ArrivalDirector.cs (DismissGreeting hook), Scripts/Crew/AlbieCrew.cs and AlbieCrewMember.cs (Bring home, Send out, home spot).
+- Assets root: `_Forge/OS.meta` (the folder's meta).
+
+### Not done or not verified
+- No headset and no device install. Everything in spec 6.4 (real-hand feel, watch-turn thresholds against Meta's system gesture, frame rate on the 3S, passthrough legibility, voice with the paid session, room fit) is still open; the README's "Headset tuning" tables name the parameters.
+- The APK was built and not run: nothing here shows it starts on a Quest.
+
+Free disk: 30.1 GB at start, 18.5 GB at end. Editor: out of Play mode, Main open and not dirty, compiled, 0 errors.
+
+## sync-and-text-size (2026-11-16)
+
+### 1. Merge of origin/main
+`git fetch` found 2 commits the branch lacked (PR #72, "ML A: a hands transmitter, so the truck is driven with no controller paired": `Controllers/Scripts/HandsTransmitter.cs`, `HandsTransmitterCheck.cs`, `Artifacts/Scripts/SlalomBrain.cs` reads the transmitter during a hand lap, `SlalomBrainCheck.cs`, two READMEs). `git merge --no-ff origin/main` was clean (commit 166c55b), no conflicts. After it: `unity recompile` 0 errors 0 warnings, and these checks, all after the merge and before any text change:
+- OSCheck `PASS os check` (28 ok lines); OSTestEnvCheck `PASS os test environment check`
+- OSMenuTest 65/0, OSWindowsTest 53/0, OSToolsTest 101/0, OSProjectsTest 88/0, OSArtifactsTest 81/0, OSSettingsTest 109/0, OSAgentsTest 99/0, OSCornerTest 63/0, OSWatchTest 108/0, OSDriveTest 93/0 (level: full), OSPlannerTest 101/0
+- OSPlayTest `PASS os play test: 140 passed, 0 failed` (level reached: full)
+- Artifacts: ArtifactRunCheck, BioTemplatesCheck, GltfTimelineCheck, HoopCheck, RepoActivityCheck, RepoConnectorCheck, SimTemplatesCheck, SlalomCheck, VoiceRulesCheck all `PASS`; `[ArtifactChecks] 110 passed, 0 failed`; Check Brain Loop (Play) `PASS slalom brain check (Play mode, the brain truck on its colliders)` including the two new hands-transmitter lines (a full pinch drives into a cone, a right tilt turns the truck right 35 degrees in 1 s)
+- Controllers: AutopilotCheck, BehaviourCloningCheck, ControllersCheck, HandsTransmitterCheck (`PASS hands transmitter check`), FiveInARowCheck, HotReloadCheck, MLTemplateCheck, RoomSlalomCheck, ThingRuntimeCheck all `PASS`
+- NotebookCheck `PASS notebook check`; GestureSelfTest `[GestureSelfTest] 104 passed, 0 failed`; GesturePlayTest `[GesturePlayTest] 32 passed, 0 failed`; ML Validate Main `[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.`
+- Main.unity not modified (`git status` shows no .unity file).
+
+Interaction to know about: main's `HandsTransmitter` writes `stick.y` and `hand.roll` on change during a hand lap, the OS Drive pad writes the stick channels and zeroes them on release. Neither overwrites the other every frame (both write on change), and OSDriveTest passes with the merged `SlalomBrain`, so nothing was changed. Not tried together on a headset: if a pad press and a pinch happen in the same frame the later write wins.
+
+### 2. The look of the sixth round (commit 77f84ba, the quiet lit title-bar pill), looked at after the merge
+`Forge.OS.Editor.OSLookShots.Run()` gave `OK look set: 59 pictures`. The eight pictures, opened with Read, before any text change:
+- `16_project_truck_full`: the lit "Face me" pill reads clearly (a lighter fill with a thin ring and white text next to the dimmer "Straight"); nothing is clipped or overlapping, the content ends 30 px above the window's lower edge.
+- `20_settings_page1`: the pill reads clearly; nothing clipped. The Left/Right pair sits about 8 px further right than the switches above it (cosmetic only).
+- `21_settings_page2`: the pill reads clearly; nothing clipped, sliders and note are fine.
+- `25_agents_two_rows`: the pill reads clearly; nothing clipped or overlapping. Cosmetic: a band of empty space above "Bring all home" and between the crew note and "Make an agent".
+- `33_drive_idle`: the pill reads clearly; nothing clipped; the pad, Stop and the hint are all readable.
+- `03_menu_tools`: the menu has no title-bar pill; nothing clipped, the tiles and strip read well.
+- `32_build_plan_card`: the pill reads clearly; nothing clipped, plan lines and buttons readable.
+- `15_notebook_window`: the pill reads clearly; nothing clipped, but the page is dense: the last line sits 24 px above the window's lower edge, and the title bar has no badge (title and subtitle only).
+
+Nothing needed a fix for this step; nothing was changed for it.
+
+### 3. Text size
+Measured first with a new text audit in `OSLookShots` (`look/text_audit.txt`, written for every picture: every visible text of the menu and the OS windows with its units, its cap height in mm from the font's own cap line, and a WIDE or TALL flag when a text does not fit its box). Inter's cap line is 0.686 of its em, so cap height is 0.446 mm per unit at the OS unit of 0.65 mm.
+
+| Text | Before | After |
+|---|---|---|
+| Body text (`OSUi.BodyText`: labels, lines, buttons, tab titles, tile titles) | 20 units, 8.92 mm cap | 22 units, 9.81 mm cap |
+| Secondary text (`OSUi.SmallText`: hints, notes, empty states) | 19 units, 8.47 mm | 21.5 units, 9.59 mm |
+| Tile caption (the line under a tile title; the tile now uses `OSUi.CaptionText`) | 19 units, 8.47 mm (the 17 unit constant `CaptionText` was never used by the tile) | 20 units, 8.92 mm |
+| Section headings (`OSUi.TitleText`) | 24 units, 10.7 mm | 26 units, 11.6 mm |
+
+Audit over the OS windows and the menu (1453 drawn texts per capture, artifact and gesture windows left out): before, most of them were under 9.5 mm cap (721 at 8.92, 344 at 8.47, 69 at 8.45, 2 at 8.05); after, the only texts under 9.5 mm are the tile captions at 8.92 mm (above the 8.5 floor), the ForgePanel header subtitle and mode badge lettering at 8.45 mm (69, see Decisions), and a few tiles drawn pressed in (the animator scales a pressed tile to 0.95).
+The menu is 0.663 m wide, 67.1 degrees of horizontal view at its default 0.5 m (`OSMenuTest`: `menu: 0.663 m wide, 0.316 m tall, 0.50 m from the eyes, 15.0 degrees below eye level, 67.1 degrees of horizontal view`), under the 70 limit, so the caption did not need to be held smaller.
+
+What had to move so nothing clips or shrinks back (all in OS/):
+- `OSUi`: the four size constants (one place); label and tile boxes a little taller for the bigger lines; switch row 44 to 48, slider line 28 to 32. Window-local sizes (`LineSize`, `NoteSize`, `LeadSize`, `BodySize`, `NameSize`, `HintSize`) now read the constants, so nothing hides a smaller number.
+- `OSMenu`: tiles 220 to 226 units wide. Why: at 22 units the strip's five buttons left 14 units (9 mm) between Bring windows here and Close, under the 19 unit (12 mm) gap; at 226 it is 37 units and the others are at least 24.
+- `OSAgentsWindow`: window 0.90 to 0.96 m wide, name column 425 to 450. Why: at 22 units "Read the sample project and say what it d..." and "maps the codebase and finds where things..." were ellipsized (the audit's WIDE flag); both show whole now.
+- `OSProjectWindow`: 0.66 to 0.72 m tall (the truck project's page filled it to 30 px of the edge).
+- `OSNotebookWindow`: 0.78 to 0.86 m tall. Why: at 0.78 the fit step dropped a lesson and a version; at 0.86 the page fits one step down from the fullest and keeps both lessons.
+- `OSCheck` (touch sizes line): fails now if body cap height is under 9.5 mm, secondary under 9, tile caption under 8.5. Output when it ran (small was 21 units then; 21.5 since): `ok   touch targets and gaps at the OS unit are at least 22 mm and 12 mm (22.1 mm target, 12.4 mm gap, cap heights: body 9.81 mm, small 9.36 mm, tile caption 8.92 mm)`.
+- `OSLookShots`: the text audit. README: one line on the text sizes.
+
+Settings, Build something and Drive needed no layout change: their windows had room (Drive's two hint lines now wrap onto a second line inside the window).
+Every OS window and menu picture was opened with Read after the change (03, 04, 05, 06, 15, 16, 20, 22, 23, 25, 28, 29, 32, 33): no clipped, overlapping or ellipsized text; the strip and every window fit. The audit reports no WIDE or TALL flag in an OS window except 4 rows reading `TALL(23>0)` for the Agents crew note (a text whose box the layout leaves at height 0 while it draws fine; before the change it read `TALL(21>0)`, so not new).
+
+### Check output (after the text change)
+```
+PASS os check
+PASS os test environment check
+PASS [OSMenuTest] 65 passed, 0 failed
+PASS [OSWindowsTest] 53 passed, 0 failed
+PASS [OSToolsTest] 101 passed, 0 failed
+PASS [OSProjectsTest] 88 passed, 0 failed
+PASS [OSArtifactsTest] 81 passed, 0 failed
+PASS [OSSettingsTest] 109 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 140 passed, 0 failed   (info level reached: full)
+```
+One flaky run, plainly: in the last full pass OSDriveTest printed `FAIL [OSDriveTest] 83 passed, 1 failed (level: pad only)` with the only failing line `timed out` (the brain's training did not finish in its time), and OSPlannerTest right after it printed `FAIL [OSPlannerTest] 99 passed, 2 failed` (`a pointer reaches Cancel on a question: nothing under the pointer`). Both were re-run alone straight away: OSDriveTest `PASS ... 93 passed, 0 failed (level: full)` twice, OSPlannerTest `PASS ... 101 passed, 0 failed` twice. I read the planner failure as fallout of the timed-out drive test leaving the scene mid-state; I did not find the cause.
+
+### Decisions
+- Raised all four sizes in `OSUi` and nowhere else: every window already reads the floor in `OSUi.Text`, so one place moves the whole OS.
+- Secondary text 21.5 and not 21: 21 is 9.36 mm, under the 9.5 that the body-text ask names, and hints are read as often as the lines.
+- Tile caption 20 (8.92 mm), under its title (22) so the title leads, above the 8.5 floor; the menu did not go over 70 degrees, so there was no reason to hold it smaller.
+- Grew windows (agents wider, project and notebook taller) instead of paging: the notebook already drops rows by its own fit step, and the others had room.
+- Left the ForgePanel header's subtitle and mode badge lettering (8.45 mm cap, 0.05 under the 8.5 caption floor) alone: it is Core's shared look for every module's panels, not OS body text, and a change moves every panel's header. A fix is one font size in `ForgePanel` for its owner.
+- Did not touch the empty band in the Agents window (cosmetic, not clipped).
+
+### Changes outside OS/
+None. Only OS/ files changed, plus this log; the merge brought in main's own commits unchanged.
+
+### Not done or not verified
+- Nothing here has run on a headset: the 9.8 mm cap height is arithmetic from the font and the OS unit, checked on the desktop camera pictures, not at a real 0.5 m.
+- The merge's hands transmitter and the OS Drive pad were not tried together by a hand.
+
+## Improvement round 1: fixes from the audit (improve-fix-1)
+
+Nine audit findings, confirmed against the code, fixed most severe first. Only files under `unity/Assets/_Forge/OS/` changed (plus this log). Free disk on C: was 17.9 GB before the first and before the last Play run.
+
+### What was done
+1. **Settings sliders wrote `os_settings.json` on every drag callback** (3 findings, one cause). `OSSettingsWindow`: the Distance and Height callbacks now return at once when the rounded value equals the stored one, otherwise edit `OSSettings.Current` in memory (`ChangeLive`) and set `saveAt = Time.unscaledTime + SliderSaveDelay` (0.25 s, under the 0.4 s the old test waited). `Update` writes once when the delay passes (`FlushSave`, under the `saving` guard so the slider is not rebuilt under the finger); `OnDisable`, `OnDestroy`, `OnApplicationPause(true)` and `Rebuild` flush a waiting edit first. Toggles and choices still save at once through `Change`. Test lines in `OSSettingsTest`: 11 slider moves in 0.33 s give 0 writes while moving (an `OSSettings.Changed` counter) and the setting follows in memory, then exactly 1 write after the rest; a fresh edit shows `SavePending`.
+2. **A held window was glided out of the hand** (`OSWindows.ClearOf`). `ClearOf` now returns false while `PanelManipulator.Grabbing > 0` (the only accessor there is; it is per app, not per panel), and `ClearAfter` waits (at most 10 s) for the release before each delayed `ClearAll`, so the 0.8 s and 2.5 s ticks still clear the window once it is let go. Test in `OSWindowsTest`: a window put on top of another is not moved with `Grabbing` at 1 (and is not `Busy`), is moved once `Grabbing` is 0, and nothing overlaps afterwards.
+3. **Menu and Project window read every run file** (`OSArtifacts.ReadRow`, `OSProjects.LinkedArtifacts`). New `OSArtifacts.NewestRun(artifactId, projectIdOrNull)`: lists the `run_*.json` names, sorts them by number, and loads newest first with `ArtifactRuns.Load`, stopping at the first valid record (and the first for the project when one is given). Both callers use it, so the parses fall from every run to normally one. `ProjectName` now caches its answer for one rebuild (it called `OSRegistry.Find`, which allocates a list, once per row). Test lines in `OSProjectsTest`: newest with no project is the last record written; the truck project's newest walks back past another project's newer run; no match and no runs give null.
+4. **Menu caption colour rewritten every frame.** The kit animator's colour curves name the tile's status label `Label (1)`. `OSUi.Tile` now renames that object to `Caption` (`OSUi.TileCaptionName`) and calls `Animator.Rebind()`, so the curves find nothing; `OSTileView.Show` sets the colour once and `LateUpdate` keeps only the pressed-fill step. `OSMenuTest` line: every tile's caption has the new name and the right colour, and a colour set to red by the test is still red 0.3 s later (an animator that still reached it would put grey back).
+5. **First open built the whole menu in one frame.** `OSShell.Prewarm` (a coroutine from `Start`, `PrewarmDelay` 3 s) calls `OSMenu.Prewarm()` (only `Build()`: the controls and one theme pass, with `visual` inactive; nothing is shown or refreshed) and one frame later `OSWatch.Prewarm()`. Skipped when the menu is already open or built. `OSMenuTest` line: the menu is built before anybody opens it and stays hidden.
+6. **Menu placement search up to 560 x 28 points.** `OSMenu.Blocked` and `BlockedCore` take a `limit` and stop counting when they reach it; `Pose` passes the fewest count so far while nothing is clear and 1 once a clear place is known (the only two questions it asks of the count), so the chosen place is the same. `OSPlayTest` line: capped at 1 and at 3 agree with the full count.
+7. **Artifacts tab rebuild reads every run file.** Covered by 3 (newest run, one project-name lookup per rebuild).
+- **OSCheck** (now 29 ok lines) has a new line "the hand-drag guards are wired": the slider write delay is 0.05 to 0.5 s, `FlushSave` and the application-pause flush exist, the prewarm hooks exist, the tile caption is not named as the animator's path, and `OSTileView` keeps its pressed-fill step. It checks the wiring only; the behaviour is proven on the desktop rig by the part tests below.
+
+### Checks (verbatim result lines)
+```
+PASS os check   (29 ok lines)
+PASS [OSSettingsTest] 113 passed, 0 failed
+PASS [OSWindowsTest] 56 passed, 0 failed
+PASS [OSMenuTest] 67 passed, 0 failed
+PASS [OSToolsTest] 101 passed, 0 failed
+PASS [OSProjectsTest] 91 passed, 0 failed
+PASS [OSArtifactsTest] 81 passed, 0 failed
+PASS [OSAgentsTest] 99 passed, 0 failed
+PASS [OSCornerTest] 63 passed, 0 failed
+PASS [OSWatchTest] 108 passed, 0 failed
+PASS [OSDriveTest] 93 passed, 0 failed (level: full)
+PASS [OSPlannerTest] 101 passed, 0 failed
+PASS os play test: 141 passed, 0 failed   (info level reached: full)
+PASS os test environment check
+[GestureSelfTest] 104 passed, 0 failed
+[GesturePlayTest] 32 passed, 0 failed
+[ArtifactChecks] 110 passed, 0 failed
+PASS slalom brain check (Play mode, the brain truck on its colliders)   (21 ok, 0 FAIL)
+[ML Main smoke] PASS: saved Main scene, ML desk, flat/curved layout, ml.layout aliases, seven VizCard formats, scatter selection, regression row detail and restoration.
+PASS run check / PASS biology templates check / PASS glTF and timeline check / PASS hoop check / PASS slalom check / PASS voice rules check / PASS notebook check / PASS autopilot check / PASS controller runner check
+```
+Compile: 0 errors, no warning from a file under OS/. One flaky run, plainly: the first OSAgentsTest run failed once (`FAIL [OSAgentsTest] 98 passed, 1 failed`, line `the builder stands still on its pad (0.0508 m in 1 s)`, the pet drifting while idle) and passed 99/0 on two reruns; it touches nothing changed here. The Artifacts and Controllers checks not listed (Five In A Row, Room Slalom, Hot Reload, Thing Runtime, ML Template, Behaviour Cloning, Repo checks) were not re-run: nothing outside OS/ changed.
+
+### Decisions
+- Slider debounce 0.25 s, not 0.4 s: `OSSettingsTest` waits 0.4 s before reading the file, and 0.25 s leaves that margin.
+- Held-window guard uses the global `PanelManipulator.Grabbing`: there is no per-panel accessor, and `PanelManipulator.cs` is neither OS nor a `Forge*.cs` shared-look file. While anybody holds any panel no window is cleared; it is cleared on the next tick after the release.
+- Prewarm builds the menu and the wrist button only: the corner button builds at session start already and the table button when the user sits at the desk, so a prewarm helps little there; a tile prewarm would need a `Refresh`, which hands the gesture display to the window manager early (see the comment in `OSMenu`).
+- `OSArtifacts.NewestRun` is public (the Editor assembly does not see internals) and sorts by the run number in the file name exactly as `ArtifactRuns.List` does.
+
+### For module owners
+- `unity/Assets/_Forge/Artifacts/Scripts/ArtifactRuns.cs` line 64 (`List`): reads and parses every run file of an artifact and offers no "newest only" call. A public `ArtifactRuns.Newest(artifactId)` with a project filter would replace the OS-local `OSArtifacts.NewestRun`. Not needed for the OS to be fast; the OS helper is enough.
+- `unity/Assets/_Forge/Artifacts/Scripts/ArtifactLibrary.cs` line 155 (`List`): parses every manifest, and `OSArtifacts.ReadRow` then parses the same manifest again for its `links.project`. A `List` variant that includes `links` and the scene `space` would remove the second manifest read and the `ArtifactPackage.Load` per non-template artifact (`SpaceOf`). Left as it is.
+- `unity/Assets/_Forge/Core/Scripts/PanelManipulator.cs` line 36: `Grabbing` is a global count. A per-panel `IsHeld` would let `OSWindows.ClearOf` skip only the held window instead of all windows while anything is held.
+
+### Not done or not verified
+- **Nothing here is proven on a headset.** The slider write, the held-window guard, the prewarm and the caption change are proven only by mouse-style presses and reflection on the desktop rig. The OSCheck line stops the wiring from vanishing; it cannot show that a hand drag behaves.
+- Tile caption (finding 4): the claim that the animator writes the label every frame, and that this dirties the menu canvas every frame, was never measured. The rename removes the script's own write and the label's animator curves; the animator still writes the tile's plate, icon and title graphics each frame, so the canvas may still be dirtied. Profile on the device (`Canvas.BuildBatch`, `Canvas.SendWillRenderCanvases` with the menu open and idle); if hot, the next step is to disable each tile's Animator while it is idle (needs a hover and press test pass).
+- Not done from the findings: a per-row cache keyed on manifest and runs-folder write times, and a `SpaceOf` cache (the confirmers called them unnecessary; both stay open if a headset profile shows the Artifacts tab hitching). The second manifest parse and the `ArtifactPackage.Load` per non-template artifact remain (see For module owners).
+- The menu prewarm gain and the placement-search gain are unmeasured; the 50 to 150 ms and tens-of-ms figures in the audit were estimates.
+
+### Changes outside OS/
+None.

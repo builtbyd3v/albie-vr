@@ -24,13 +24,13 @@
     {
       "id": "label_mitochondrion",
       "kind": "text",
-      "text": "Mitochondrion\n<size=70%>releases energy as ATP</size>",
+      "text": "Mitochondrion",
       "pos": [
         -0.26,
         0.02,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -55,13 +55,13 @@
     {
       "id": "label_nucleolus",
       "kind": "text",
-      "text": "Nucleolus\n<size=70%>makes ribosome parts</size>",
+      "text": "Nucleolus",
       "pos": [
         -0.26,
         -0.05,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -86,13 +86,13 @@
     {
       "id": "label_rough_er",
       "kind": "text",
-      "text": "Rough ER\n<size=70%>its dots are ribosomes, which build proteins</size>",
+      "text": "Rough ER",
       "pos": [
         -0.26,
         -0.12,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -117,13 +117,13 @@
     {
       "id": "label_cytoplasm",
       "kind": "text",
-      "text": "Cytoplasm\n<size=70%>fluid that fills the cell</size>",
+      "text": "Cytoplasm",
       "pos": [
         -0.26,
         -0.19,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -148,13 +148,13 @@
     {
       "id": "label_membrane",
       "kind": "text",
-      "text": "Cell membrane\n<size=70%>controls what enters and leaves</size>",
+      "text": "Cell membrane",
       "pos": [
         0.26,
         0.02,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -179,13 +179,13 @@
     {
       "id": "label_lysosome",
       "kind": "text",
-      "text": "Lysosome\n<size=70%>digests waste with enzymes</size>",
+      "text": "Lysosome",
       "pos": [
         0.26,
         -0.05,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -210,13 +210,13 @@
     {
       "id": "label_nucleus",
       "kind": "text",
-      "text": "Nucleus\n<size=70%>holds the DNA</size>",
+      "text": "Nucleus",
       "pos": [
         0.26,
         -0.12,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -241,13 +241,13 @@
     {
       "id": "label_golgi",
       "kind": "text",
-      "text": "Golgi apparatus\n<size=70%>modifies, sorts and ships proteins</size>",
+      "text": "Golgi apparatus",
       "pos": [
         0.26,
         -0.19,
         -0.1
       ],
-      "height": 0.014,
+      "height": 0.02,
       "color": "#FFFFFF",
       "billboard": true
     },
@@ -303,7 +303,7 @@
         0.11,
         -0.1
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -317,7 +317,7 @@
         0.11,
         -0.1
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -331,7 +331,7 @@
         0.11,
         -0.1
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -345,7 +345,7 @@
         0.11,
         -0.1
       ],
-      "height": 0.012,
+      "height": 0.02,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false

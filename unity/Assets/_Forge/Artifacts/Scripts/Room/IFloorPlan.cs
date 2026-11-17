@@ -21,6 +21,8 @@ namespace Forge.Artifacts
         float CeilingHeight { get; }
         /// <summary>A world-axis box around the floor, for the search grid.</summary>
         Bounds FloorBounds { get; }
+        /// <summary>The Quest Play Area boundary in world xz coordinates, or null when unavailable.</summary>
+        Vector2[] Boundary { get; }
         /// <summary>The room's main axis (degrees about Y). Courses prefer to run along it or across it.</summary>
         float AxisYaw { get; }
         /// <summary>

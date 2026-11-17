@@ -37,6 +37,7 @@ public class ForgeVolume : MonoBehaviour
     bool highlighted;
     float highlight;
     TMP_Text hint;
+    ForgeSurface hintPlate;  // dark backing so the line holds its contrast on the pale ring and the wall
     float hintShown, hintTarget;
     string hintText, caption;
 
@@ -49,12 +50,52 @@ public class ForgeVolume : MonoBehaviour
     public string Title
     {
         get => label != null ? label.text : "";
-        set { if (label != null) label.text = value; }
+        set
+        {
+            if (label == null) return;
+            label.text = value;
+            FitLabelPlate();
+        }
+    }
+
+    ForgeSurface labelPlate;  // dark backing behind the name, always shown, so it reads on the pale ring, the desk and the wall
+    const float LabelFont = 26f, LabelPlateHeight = 40f;
+
+    // The name sits on a dark rounded plate the same colour as the hint's, sized to the text, with a larger font. Built once,
+    // at runtime, so every volume variant gets it without a prefab rebuild.
+    void FitLabelPlate()
+    {
+        if (label == null) return;
+        if (label.fontSize < LabelFont) label.fontSize = LabelFont;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        label.overflowMode = TextOverflowModes.Overflow;
+        if (labelPlate == null)
+        {
+            var go = new GameObject("LabelPlate", typeof(RectTransform));
+            go.layer = label.gameObject.layer;
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(label.transform.parent, false);
+            rt.SetAsFirstSibling();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = Vector2.zero;
+            labelPlate = go.AddComponent<ForgeSurface>();
+            labelPlate.Style = ForgeSurface.Kind.Fill;
+            labelPlate.Corner = LabelPlateHeight * 0.5f;
+            labelPlate.color = new Color(0.04f, 0.05f, 0.07f, 0.72f);
+            labelPlate.raycastTarget = false;
+        }
+        bool any = !string.IsNullOrEmpty(label.text);
+        labelPlate.gameObject.SetActive(any);
+        if (any) labelPlate.rectTransform.sizeDelta = new Vector2(label.GetPreferredValues(label.text).x + 40f, LabelPlateHeight);
     }
 
     void OnValidate() => ApplySize();
 
-    void Awake() => ApplySize();
+    void Awake()
+    {
+        ApplySize();
+        FitLabelPlate();
+    }
 
     void Update()
     {
@@ -66,7 +107,8 @@ public class ForgeVolume : MonoBehaviour
         if (hint != null && hintShown != hintTarget)
         {
             hintShown = Mathf.MoveTowards(hintShown, hintTarget, Time.deltaTime / ForgeTheme.HoverFade);
-            hint.alpha = 0.72f * hintShown;
+            hint.alpha = 0.95f * hintShown;
+            if (hintPlate != null) hintPlate.color = new Color(0.04f, 0.05f, 0.07f, 0.72f * hintShown);
         }
         if (!turntable) return;
         ViewYaw = (ViewYaw + turntableDegreesPerSecond * Time.deltaTime) % 360f;
@@ -107,7 +149,15 @@ public class ForgeVolume : MonoBehaviour
         bool show = !string.IsNullOrEmpty(text);
         if (show && hint == null) hint = MakeHint();
         if (hint == null) return;
-        if (show && hint.text != text) hint.text = text;
+        if (show && hint.text != text)
+        {
+            hint.text = text;
+            if (hintPlate != null)
+            {
+                float w = hint.GetPreferredValues(text).x;
+                hintPlate.rectTransform.sizeDelta = new Vector2(w + 28f, 26f);
+            }
+        }
         hintTarget = show ? 1f : 0f;
     }
 
@@ -115,16 +165,28 @@ public class ForgeVolume : MonoBehaviour
     TMP_Text MakeHint()
     {
         if (label == null) return null;
+        var plate = (RectTransform)new GameObject("HintPlate", typeof(RectTransform)).transform;
+        plate.SetParent(label.transform.parent, false);
+        plate.anchorMin = plate.anchorMax = new Vector2(0.5f, 0f);
+        plate.pivot = new Vector2(0.5f, 1f);
+        plate.anchoredPosition = new Vector2(0f, -4f);
+        plate.sizeDelta = new Vector2(320f, 26f);
+        hintPlate = plate.gameObject.AddComponent<ForgeSurface>();
+        hintPlate.Style = ForgeSurface.Kind.Fill;
+        hintPlate.Corner = 13f;
+        hintPlate.color = Color.clear;
+        hintPlate.raycastTarget = false;
         var rt = (RectTransform)new GameObject("Hint", typeof(RectTransform)).transform;
         rt.SetParent(label.transform.parent, false);
         rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
         rt.pivot = new Vector2(0.5f, 1f);
-        rt.anchoredPosition = new Vector2(0f, -1f);
+        rt.anchoredPosition = new Vector2(0f, -8f);
         rt.sizeDelta = new Vector2(320f, 30f);
         var text = rt.gameObject.AddComponent<TextMeshProUGUI>();
         text.font = ForgeTheme.Font != null ? ForgeTheme.Font : label.font;
         if (ForgeTheme.Font != null) text.fontSharedMaterial = ForgeTheme.Font.material;
-        text.fontSize = 9.5f;
+        text.fontSize = 14f;
+        text.fontStyle = FontStyles.Bold;
         text.lineSpacing = 6f;
         text.alignment = TextAlignmentOptions.Top;
         text.textWrappingMode = TextWrappingModes.NoWrap;
@@ -214,7 +276,7 @@ public class ForgeVolume : MonoBehaviour
             basePool.transform.localScale = new Vector3(diameter + 0.06f, diameter + 0.06f, 1f);
         }
         // The label is a small world-space canvas lying flat in front of the base.
-        if (label != null) label.transform.parent.localPosition = new Vector3(0f, 0.01f, -size.z * 0.5f - 0.03f);
+        if (label != null) label.transform.parent.localPosition = new Vector3(0f, 0.01f, -diameter * 0.5f - BasePad - 0.045f);
         ShowBase();
     }
 

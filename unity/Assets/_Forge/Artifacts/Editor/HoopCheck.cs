@@ -65,6 +65,7 @@ public static class HoopCheck
             ok &= Check(sb, "slots: weaving hoops, start, finish, all on the floor", Slots);
             ok &= Check(sb, "template: validates, builds, needs host 2", Template);
             ok &= Check(sb, "layout saved as hoops, reused, refused under a low ceiling", Layouts);
+            ok &= Check(sb, "Quest boundary keeps hoops inside", Boundary);
             ok &= Check(sb, "the tools make it by name", Tools);
             ok &= Check(sb, "a lap through every hoop completes, frames not hit", Completes);
             ok &= Check(sb, "skipping a hoop fails as missed_hoop", MissedHoop);
@@ -278,6 +279,24 @@ public static class HoopCheck
         var attic = ArtifactGenerators.Place(manifest, generator, inputs, scenario, MockFloorPlan.Attic(), false);
         if (attic.Ok || attic.Code != "no_headroom") return "attic: " + attic.Code;
         note = $"{first.Layout["layout_id"]} reused; 5 hoops made {five.Layout["layout_id"]}; attic refused";
+        return null;
+    }
+
+    static string Boundary(out string note)
+    {
+        note = null;
+        var room = MockFloorPlan.LivingRoom().WithBoundary(
+            new Vector2(-1.5f, -2.5f), new Vector2(1.5f, -2.5f), new Vector2(1.5f, 2.5f), new Vector2(-1.5f, 2.5f));
+        var fit = RoomHoops.Fit(room, RoomHoops.Settings.Default);
+        if (!fit.Ok) return "large boundary: " + fit.Code + " " + fit.Message;
+        foreach (var pair in fit.Slots)
+            foreach (var slot in pair.Value)
+                if (!PlayArea.Inside(room.Boundary, fit.Origin + Quaternion.Euler(0f, fit.Yaw, 0f) * slot.position, PlayArea.Margin)) return pair.Key + " left the boundary";
+        var small = MockFloorPlan.LivingRoom().WithBoundary(
+            new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(1f, 1f), new Vector2(-1f, 1f));
+        var refused = RoomHoops.Fit(small, RoomHoops.Settings.Default);
+        if (refused.Ok || refused.Code != "no_free_floor" || !refused.Message.Contains("boundary")) return "small boundary: " + refused.Code + " " + refused.Message;
+        note = "large boundary placed inside; small boundary refused with the boundary message";
         return null;
     }
 

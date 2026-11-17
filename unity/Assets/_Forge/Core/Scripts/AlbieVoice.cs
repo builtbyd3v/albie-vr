@@ -58,6 +58,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "ui_open_view opens a view at the desk (cad is 3D modeling, code is the code editor, ml is machine learning, messages is the messenger). " +
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
         "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
+        "The Albie menu holds the user's tools, projects and artifacts: os_menu opens or closes it and os_tab shows one tab. 'Open CAD' or 'open the notebook' is os_open with kind tool and its id (cad, code, train, notebook, drive, messages, gestures), which works away from the desk too; if os_open has no such tool, try ui_open_view. 'Open the truck project' is kind project, id proj_truck, and 'open settings' is kind system. 'Bring my windows here' is os_windows with action recenter, and 'close everything' is action close_all. " +
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
         "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
@@ -84,7 +85,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
     static readonly string[] Keyterms =
-        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook" };
+        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts" };
     static readonly Dictionary<string, string> ViewNotes = new Dictionary<string, string>
     {
         ["code"] = "The user switched to the CODE view (the code editor on the main screen).",

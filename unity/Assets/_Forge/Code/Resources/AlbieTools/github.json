@@ -1,0 +1,36 @@
+[
+  {"name": "github_list_repos",
+   "description": "List the repos in the connected GitHub account, which one is open in the code panel, and which one is linked to the open project. Call it before opening a repo by name.",
+   "parameters": {"type": "object", "properties": {}}},
+
+  {"name": "github_open_repo",
+   "description": "Open a repo in the code panel. Returns its top folder so you can say what is in it.",
+   "parameters": {"type": "object", "properties": {
+     "repo": {"type": "string", "description": "repo id (owner/name) or just the repo name"}},
+     "required": ["repo"]}},
+
+  {"name": "github_open_file",
+   "description": "Open a file from the open repo in the code panel. Read-only. For the bundled sample project use code_open_file instead.",
+   "parameters": {"type": "object", "properties": {
+     "path": {"type": "string", "description": "file path in the repo, e.g. src/main.py"}},
+     "required": ["path"]}},
+
+  {"name": "github_list_prs",
+   "description": "Show the open repo's open pull requests in the code panel and return them (number, title, author, branches).",
+   "parameters": {"type": "object", "properties": {}}},
+
+  {"name": "github_show_pr",
+   "description": "Show one pull request in the code panel: its summary, with the changed files on the left to open as diffs. Returns its title, description and changed files so you can walk the user through it. You can only show pull requests; you cannot merge, approve or push.",
+   "parameters": {"type": "object", "properties": {
+     "number": {"type": "integer", "minimum": 1, "description": "pull request number, e.g. 5"}},
+     "required": ["number"]}},
+
+  {"name": "github_close_pr",
+   "description": "Leave the pull request view and go back to the repo's files.",
+   "parameters": {"type": "object", "properties": {}}},
+
+  {"name": "github_link_repo",
+   "description": "Link a repo to the open project, so the code panel opens that repo whenever this project is open. Use it when the user says a repo belongs to this project.",
+   "parameters": {"type": "object", "properties": {
+     "repo": {"type": "string", "description": "repo id (owner/name) or name; leave out to link the repo that is open now"}}}}
+]

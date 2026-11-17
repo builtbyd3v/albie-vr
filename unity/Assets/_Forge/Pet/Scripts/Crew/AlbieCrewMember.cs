@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Forge.Pet
@@ -21,6 +22,16 @@ namespace Forge.Pet
         public AlbieController Controller { get; private set; }
         public AlbieAgentBridge Bridge { get; private set; }
         public bool Leaving { get; private set; }
+
+        /// <summary>
+        /// Brought home (the OS Agents window): not wandering. At a desk it stands still on its home pad (<see cref="HomeSpot"/>);
+        /// away from a desk its body is hidden (<see cref="BodyHidden"/>). Its task, bridge and hub state keep running either way.
+        /// </summary>
+        public bool Home { get; private set; }
+        /// <summary>The pad on the desk this member stands on while home, or null (away from a desk: the body is hidden instead).</summary>
+        public Vector3? HomeSpot { get; private set; }
+        /// <summary>The body (renderers and colliders) is switched off because the member is home away from a desk.</summary>
+        public bool BodyHidden { get; private set; }
 
         Material _hatMaterial;
         Transform _model, _head, _hat;
@@ -84,6 +95,128 @@ namespace Forge.Pet
             if (_model == null) Destroy(gameObject);
         }
 
+        // ---------------------------------------------------------------- home (OS Agents window)
+
+        const float HomePadSize = 0.06f, HomeCheckSeconds = 0.3f;
+        float _nextHomeCheck;
+        readonly List<Renderer> _bodyRenderers = new List<Renderer>(48);
+        readonly List<Collider> _bodyColliders = new List<Collider>(8);
+        readonly List<Collider> _collidersOff = new List<Collider>(8);
+
+        /// <summary>
+        /// Bring home (true) or send out (false). Home with a <paramref name="spot"/> (a point on the desk top): stop wandering, walk
+        /// there and stand still. Home with no spot (the user is away from a desk): hide the body, keep everything running.
+        /// Out: the body is back on and wandering resumes. The task, the bridge and the hub state are never touched, unlike
+        /// <see cref="GoHome"/>, which destroys the member (that is dismissal).
+        /// </summary>
+        public void SetHome(bool home, Vector3? spot = null)
+        {
+            if (Leaving) return;
+            if (!home)
+            {
+                if (!Home) return;
+                Home = false;
+                HomeSpot = null;
+                SetBodyHidden(false);
+                if (Controller != null) Controller.ReleaseStation();
+                if (AlbieCrew.Instance != null) AlbieCrew.Instance.NotifyHomeChanged();
+                return;
+            }
+            Home = true;
+            HomeSpot = spot;
+            _nextHomeCheck = 0f;
+            SetBodyHidden(!spot.HasValue);
+            ParkAtHome();
+            if (AlbieCrew.Instance != null) AlbieCrew.Instance.NotifyHomeChanged();
+        }
+
+        static AlbieNavSurface HomeSurface(Vector3 p) =>
+            AlbieNavSurface.TryGetSurfaceAt(p, out AlbieNavSurface found) ? found : AlbieNavSurface.Desk;
+
+        // Territory = a small square on the pad, so a working agent (crew work at the front of their own area) goes to the pad and
+        // stays there; StationAt = stand still on it while Wandering. StationAt ends a Working state, so a busy agent only gets the
+        // territory now and is parked by HomeTick once the controller is back in Wandering.
+        void ParkAtHome()
+        {
+            if (Controller == null) return;
+            if (!HomeSpot.HasValue)
+            {
+                if (Controller.State == AlbieState.Wandering) Controller.StationAt(transform.position);   // hidden: stay where it is
+                return;
+            }
+            Vector3 spot = HomeSpot.Value;
+            AlbieNavSurface surface = HomeSurface(spot);
+            bool onSurface = surface != null && surface.IsBuilt;
+            if (onSurface) Controller.SetTerritory(surface, spot, surface.Rotation, new Vector2(HomePadSize, HomePadSize));
+            if (Controller.State != AlbieState.Wandering) return;
+            if (onSurface && !Controller.IsHopping && Controller.CurrentSurface != surface) Controller.HopTo(surface, spot);   // e.g. it was on the floor
+            Controller.StationAt(spot);
+        }
+
+        // Every 0.3 s while home: park once the controller is back in Wandering, hop up if it is on the wrong surface, and keep
+        // anything made since (a bubble, the hat) hidden too. No allocations: the lists are reused.
+        void HomeTick()
+        {
+            if (Time.time < _nextHomeCheck) return;
+            _nextHomeCheck = Time.time + HomeCheckSeconds;
+            if (BodyHidden) ApplyBodyHidden();
+            SettleHomeSpot();
+            if (Controller == null || Controller.IsHopping || Controller.State != AlbieState.Wandering) return;
+            if (!Controller.Stationed) { ParkAtHome(); return; }
+            if (!HomeSpot.HasValue) return;
+            AlbieNavSurface surface = HomeSurface(HomeSpot.Value);
+            if (surface != null && surface.IsBuilt && Controller.CurrentSurface != surface) Controller.HopTo(surface, HomeSpot.Value);
+        }
+
+        // The controller stops walking about 15 cm short of a point it was sent to (NavMeshAgent stopping distance), so an agent
+        // would stand beside its pad. Once it has stopped (not moved 1 cm over a tick) near its pad, the pad is where it stands.
+        Vector3 _homeLastPos;
+
+        void SettleHomeSpot()
+        {
+            Vector3 p = transform.position;
+            bool still = (p - _homeLastPos).sqrMagnitude < 0.0001f;
+            _homeLastPos = p;
+            if (!still || !HomeSpot.HasValue || BodyHidden || (Controller != null && Controller.IsHopping)) return;
+            Vector3 spot = HomeSpot.Value;
+            float flat = new Vector2(p.x - spot.x, p.z - spot.z).magnitude;
+            if (flat > 0.03f && flat < 0.3f) HomeSpot = new Vector3(p.x, spot.y, p.z);
+        }
+
+        void SetBodyHidden(bool hide)
+        {
+            BodyHidden = hide;
+            ApplyBodyHidden();
+        }
+
+        // forceRenderingOff (not Renderer.enabled): the caption and the name tag switch things on and off themselves, and this flag is
+        // theirs to leave alone. Colliders are switched off so a hidden agent can't be poked; the ones switched off are remembered.
+        void ApplyBodyHidden()
+        {
+            GetComponentsInChildren(true, _bodyRenderers);
+            for (int i = 0; i < _bodyRenderers.Count; i++)
+                if (_bodyRenderers[i] != null) _bodyRenderers[i].forceRenderingOff = BodyHidden;
+            if (BodyHidden)
+            {
+                GetComponentsInChildren(true, _bodyColliders);
+                for (int i = 0; i < _bodyColliders.Count; i++)
+                {
+                    Collider c = _bodyColliders[i];
+                    if (c == null || !c.enabled) continue;
+                    c.enabled = false;
+                    _collidersOff.Add(c);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < _collidersOff.Count; i++)
+                    if (_collidersOff[i] != null) _collidersOff[i].enabled = true;
+                _collidersOff.Clear();
+            }
+            _bodyRenderers.Clear();
+            _bodyColliders.Clear();
+        }
+
         void BeginHatch()
         {
             if (_model == null) return;
@@ -94,6 +227,7 @@ namespace Forge.Pet
 
         void Update()
         {
+            if (Home && !Leaving) HomeTick();
             if (_model == null) return;
             float t = Time.time - _animStart;
             if (Leaving)
