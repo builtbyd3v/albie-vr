@@ -195,6 +195,23 @@ def test_crew_options_follow_the_kit(tmp_path: Path) -> None:
     assert "mcp__forge__assign_task" in albie.allowed_tools and "crew of helper agents" in albie.system_prompt
 
 
+def test_agent_shells_never_see_the_hubs_secrets_or_run_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The hub's GitHub token (crew builds, the Code panel) and its other keys must not reach a Claude turn's shell."""
+    monkeypatch.setenv("GITHUB_TOKEN", "github_pat_demo")
+    monkeypatch.setenv("XAI_API_KEY", "xai-demo")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-demo")
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    for opts in (runner._options(_project(tmp_path), "code", "builder", TYPES["builder"]),
+                 runner._options(_project(tmp_path), "qa", "reviewer", TYPES["reviewer"]),
+                 runner._options(_project(tmp_path), "code", "bit")):
+        assert opts.env["GITHUB_TOKEN"] == "" and opts.env["XAI_API_KEY"] == ""
+        assert "ANTHROPIC_API_KEY" not in opts.env  # the CLI may need it
+        assert "GH_TOKEN" not in opts.env  # only secrets that are set get blanked
+    builder = runner._options(_project(tmp_path), "code", "builder", TYPES["builder"])
+    assert "Bash(gh:*)" in builder.disallowed_tools and "Bash(git push:*)" in builder.disallowed_tools
+    assert "Bash(gh:*)" in runner._options(_project(tmp_path), "code", "bit").disallowed_tools
+
+
 def test_crew_runners_get_only_their_kit_tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Allowlist: never cad_* (except the Designer), never messages_*, never the crew tools; Albie keeps everything."""
     monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # registry copy: the crew tools are in it
