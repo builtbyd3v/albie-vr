@@ -12,173 +12,82 @@
       "asset": "assets/eye.glb",
       "pos": [
         0,
-        -0.16,
+        -0.02,
         0
       ],
       "rot": [
         0,
-        215,
+        180,
         0
       ],
       "scale": [
-        8,
-        8,
-        8
+        6,
+        6,
+        6
       ]
     },
     {
-      "id": "label_iris",
+      "id": "label_lens",
       "kind": "text",
-      "text": "Iris",
+      "text": "Lens",
       "pos": [
-        -0.24,
-        0.08,
-        -0.2
+        -0.2,
+        0.11,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
-      "id": "leader_iris",
+      "id": "leader_lens",
       "kind": "line",
       "points": [
         [
-          -0.17,
-          0.0752,
-          -0.2
-        ],
-        [
-          -0.1092,
-          0.0045,
-          -0.1366
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_pupil",
-      "kind": "text",
-      "text": "Pupil",
-      "pos": [
-        -0.24,
-        0.02,
-        -0.2
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_pupil",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          0.0152,
-          -0.2
-        ],
-        [
-          -0.0939,
-          -0.0232,
-          -0.1499
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_cornea",
-      "kind": "text",
-      "text": "Cornea",
-      "pos": [
-        -0.24,
-        -0.04,
-        -0.2
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_cornea",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          -0.0448,
-          -0.2
-        ],
-        [
-          -0.1236,
-          -0.0227,
-          -0.1284
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_sclera",
-      "kind": "text",
-      "text": "Sclera",
-      "pos": [
-        0.24,
-        0.08,
-        -0.2
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_sclera",
-      "kind": "line",
-      "points": [
-        [
-          0.17,
-          0.0752,
-          -0.2
-        ],
-        [
-          0,
-          0.037,
+          -0.208,
+          0.106,
           -0.12
+        ],
+        [
+          -0.0007,
+          -0.0186,
+          -0.0314
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_muscles",
+      "id": "label_retina",
       "kind": "text",
-      "text": "Eye muscles",
+      "text": "Retina",
       "pos": [
-        0.24,
-        0.02,
-        -0.2
+        -0.2,
+        -0.13,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
-      "id": "leader_muscles",
+      "id": "leader_retina",
       "kind": "line",
       "points": [
         [
-          0.17,
-          0.0152,
-          -0.2
+          -0.208,
+          -0.134,
+          -0.12
         ],
         [
-          0.0324,
-          -0.0162,
-          -0.1468
+          -0.0201,
+          -0.0231,
+          -0.0719
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -186,36 +95,197 @@
       "kind": "text",
       "text": "Optic nerve",
       "pos": [
-        0.24,
-        -0.04,
-        -0.2
+        0.2,
+        0.11,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "left"
     },
     {
       "id": "leader_optic_nerve",
       "kind": "line",
       "points": [
         [
-          0.17,
-          -0.0448,
-          -0.2
+          0.208,
+          0.106,
+          -0.12
         ],
         [
-          0.1435,
-          -0.0174,
-          0.0767
+          0.0355,
+          -0.0039,
+          -0.04
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_muscles",
+      "kind": "text",
+      "text": "Eye muscles",
+      "pos": [
+        0.2,
+        0.062,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_muscles",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          0.058,
+          -0.12
+        ],
+        [
+          0.0469,
+          -0.013,
+          -0.0331
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cornea",
+      "kind": "text",
+      "text": "Cornea",
+      "pos": [
+        0.2,
+        0.014,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_cornea",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          0.01,
+          -0.12
+        ],
+        [
+          0.0052,
+          -0.0216,
+          -0.0424
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_vitreous",
+      "kind": "text",
+      "text": "Vitreous body",
+      "pos": [
+        0.2,
+        -0.034,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_vitreous",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.038,
+          -0.12
+        ],
+        [
+          0.0043,
+          -0.0222,
+          -0.0625
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_iris",
+      "kind": "text",
+      "text": "Iris",
+      "pos": [
+        0.2,
+        -0.082,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_iris",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.086,
+          -0.12
+        ],
+        [
+          0.004,
+          -0.0228,
+          -0.0386
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_sclera",
+      "kind": "text",
+      "text": "Sclera",
+      "pos": [
+        0.2,
+        -0.13,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_sclera",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.134,
+          -0.12
+        ],
+        [
+          0.0078,
+          -0.0233,
+          -0.0789
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
       "id": "light",
       "kind": "timeline",
-      "duration_s": 10,
+      "duration_s": 10.0,
       "loop": false,
       "autoplay": false
     },
@@ -225,10 +295,10 @@
       "text": "1  Light enters through the cornea, which bends it",
       "pos": [
         0,
-        0.17,
-        -0.2
+        0.18,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -239,10 +309,10 @@
       "text": "2  It passes the pupil; the iris narrows the pupil in bright light",
       "pos": [
         0,
-        0.17,
-        -0.2
+        0.18,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -253,10 +323,10 @@
       "text": "3  Inside, the lens focuses it onto the retina at the back of the eye",
       "pos": [
         0,
-        0.17,
-        -0.2
+        0.18,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -267,10 +337,10 @@
       "text": "4  The retina turns light into signals; the optic nerve carries them to the brain",
       "pos": [
         0,
-        0.17,
-        -0.2
+        0.18,
+        -0.12
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -280,14 +350,14 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        -0.2363,
-        -0.0267,
-        -0.2859
+        -0.1835,
+        -0.02,
+        -0.0
       ],
       "size": [
-        0.012,
-        0.012,
-        0.012
+        0.01,
+        0.01,
+        0.01
       ],
       "color": "#FFE66D",
       "glow": true,
@@ -298,36 +368,17 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        0.1435,
-        -0.0174,
-        0.0767
+        0.0622,
+        -0.02,
+        0.0
       ],
       "size": [
-        0.012,
-        0.012,
-        0.012
+        0.01,
+        0.01,
+        0.01
       ],
       "color": "#7FDBFF",
       "glow": true,
-      "visible": false
-    },
-    {
-      "id": "ray",
-      "kind": "line",
-      "points": [
-        [
-          -0.2363,
-          -0.0267,
-          -0.2859
-        ],
-        [
-          -0.0939,
-          -0.0232,
-          -0.1499
-        ]
-      ],
-      "width": 0.003,
-      "color": "#FFE66D",
       "visible": false
     },
     {
@@ -337,26 +388,24 @@
       "widgets": [
         {
           "type": "note",
-          "text": "A human eye at 8 times life size; a real one is about 2.4 cm across. Turn your head: the muscles and the optic nerve are behind it."
+          "text": "A human eye at 6 times life size; a real one is about 2.4 cm across. Cut it open to see the lens, the vitreous body and the retina, or separate it into its layers."
         },
         {
           "type": "button",
           "id": "light",
-          "label": "Follow the light"
-        },
-        {
-          "type": "button",
-          "id": "labels_on",
-          "label": "Show labels"
+          "label": "Follow the light",
+          "primary": true
         },
         {
           "type": "button",
           "id": "labels_off",
-          "label": "Hide labels"
+          "label": "Hide labels",
+          "alt_id": "labels_on",
+          "alt_label": "Show labels"
         },
         {
           "type": "note",
-          "text": "3D model: public domain (CC0)."
+          "text": "3D model: Z-Anatomy (CC BY-SA 4.0) and BodyParts3D, (c) 2008 Life Science Integrated Database Center (CC BY-SA 2.1 JP). This model is shared under CC BY-SA 4.0."
         }
       ]
     }
@@ -364,96 +413,30 @@
   "rules": [
     {
       "type": "on_input",
-      "input": "light",
-      "do": [
-        {
-          "set": "label_iris.visible",
-          "value": true
-        },
-        {
-          "set": "leader_iris.visible",
-          "value": true
-        },
-        {
-          "set": "label_pupil.visible",
-          "value": true
-        },
-        {
-          "set": "leader_pupil.visible",
-          "value": true
-        },
-        {
-          "set": "label_cornea.visible",
-          "value": true
-        },
-        {
-          "set": "leader_cornea.visible",
-          "value": true
-        },
-        {
-          "set": "label_sclera.visible",
-          "value": true
-        },
-        {
-          "set": "leader_sclera.visible",
-          "value": true
-        },
-        {
-          "set": "label_muscles.visible",
-          "value": true
-        },
-        {
-          "set": "leader_muscles.visible",
-          "value": true
-        },
-        {
-          "set": "label_optic_nerve.visible",
-          "value": true
-        },
-        {
-          "set": "leader_optic_nerve.visible",
-          "value": true
-        },
-        {
-          "timeline": "light",
-          "action": "restart"
-        }
-      ]
-    },
-    {
-      "type": "on_input",
       "input": "labels_on",
       "do": [
         {
-          "set": "label_iris.visible",
+          "set": "label_lens.visible",
           "value": true
         },
         {
-          "set": "leader_iris.visible",
+          "set": "leader_lens.visible",
           "value": true
         },
         {
-          "set": "label_pupil.visible",
+          "set": "label_retina.visible",
           "value": true
         },
         {
-          "set": "leader_pupil.visible",
+          "set": "leader_retina.visible",
           "value": true
         },
         {
-          "set": "label_cornea.visible",
+          "set": "label_optic_nerve.visible",
           "value": true
         },
         {
-          "set": "leader_cornea.visible",
-          "value": true
-        },
-        {
-          "set": "label_sclera.visible",
-          "value": true
-        },
-        {
-          "set": "leader_sclera.visible",
+          "set": "leader_optic_nerve.visible",
           "value": true
         },
         {
@@ -465,11 +448,35 @@
           "value": true
         },
         {
-          "set": "label_optic_nerve.visible",
+          "set": "label_cornea.visible",
           "value": true
         },
         {
-          "set": "leader_optic_nerve.visible",
+          "set": "leader_cornea.visible",
+          "value": true
+        },
+        {
+          "set": "label_vitreous.visible",
+          "value": true
+        },
+        {
+          "set": "leader_vitreous.visible",
+          "value": true
+        },
+        {
+          "set": "label_iris.visible",
+          "value": true
+        },
+        {
+          "set": "leader_iris.visible",
+          "value": true
+        },
+        {
+          "set": "label_sclera.visible",
+          "value": true
+        },
+        {
+          "set": "leader_sclera.visible",
           "value": true
         }
       ]
@@ -479,35 +486,27 @@
       "input": "labels_off",
       "do": [
         {
-          "set": "label_iris.visible",
+          "set": "label_lens.visible",
           "value": false
         },
         {
-          "set": "leader_iris.visible",
+          "set": "leader_lens.visible",
           "value": false
         },
         {
-          "set": "label_pupil.visible",
+          "set": "label_retina.visible",
           "value": false
         },
         {
-          "set": "leader_pupil.visible",
+          "set": "leader_retina.visible",
           "value": false
         },
         {
-          "set": "label_cornea.visible",
+          "set": "label_optic_nerve.visible",
           "value": false
         },
         {
-          "set": "leader_cornea.visible",
-          "value": false
-        },
-        {
-          "set": "label_sclera.visible",
-          "value": false
-        },
-        {
-          "set": "leader_sclera.visible",
+          "set": "leader_optic_nerve.visible",
           "value": false
         },
         {
@@ -519,12 +518,230 @@
           "value": false
         },
         {
-          "set": "label_optic_nerve.visible",
+          "set": "label_cornea.visible",
           "value": false
         },
         {
-          "set": "leader_optic_nerve.visible",
+          "set": "leader_cornea.visible",
           "value": false
+        },
+        {
+          "set": "label_vitreous.visible",
+          "value": false
+        },
+        {
+          "set": "leader_vitreous.visible",
+          "value": false
+        },
+        {
+          "set": "label_iris.visible",
+          "value": false
+        },
+        {
+          "set": "leader_iris.visible",
+          "value": false
+        },
+        {
+          "set": "label_sclera.visible",
+          "value": false
+        },
+        {
+          "set": "leader_sclera.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "photon",
+      "property": "visible",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          7.4,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "photon",
+      "property": "pos",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          [
+            -0.1835,
+            -0.02,
+            -0.0
+          ]
+        ],
+        [
+          2.4,
+          [
+            -0.0635,
+            -0.02,
+            -0.0
+          ]
+        ],
+        [
+          3.6,
+          [
+            -0.04748,
+            -0.01994,
+            0.00048
+          ]
+        ],
+        [
+          5.0,
+          [
+            -0.0368,
+            -0.0199,
+            0.0008
+          ]
+        ],
+        [
+          7.3,
+          [
+            0.0622,
+            -0.02,
+            0.0
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "signal",
+      "property": "visible",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.5,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "signal",
+      "property": "pos",
+      "timeline": "light",
+      "keys": [
+        [
+          7.5,
+          [
+            0.0622,
+            -0.02,
+            0.0
+          ]
+        ],
+        [
+          8.2,
+          [
+            0.069,
+            -0.02,
+            0.0
+          ]
+        ],
+        [
+          9.8,
+          [
+            0.24,
+            -0.02,
+            0.0
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "light",
+      "do": [
+        {
+          "set": "label_lens.visible",
+          "value": true
+        },
+        {
+          "set": "leader_lens.visible",
+          "value": true
+        },
+        {
+          "set": "label_retina.visible",
+          "value": true
+        },
+        {
+          "set": "leader_retina.visible",
+          "value": true
+        },
+        {
+          "set": "label_optic_nerve.visible",
+          "value": true
+        },
+        {
+          "set": "leader_optic_nerve.visible",
+          "value": true
+        },
+        {
+          "set": "label_muscles.visible",
+          "value": true
+        },
+        {
+          "set": "leader_muscles.visible",
+          "value": true
+        },
+        {
+          "set": "label_cornea.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cornea.visible",
+          "value": true
+        },
+        {
+          "set": "label_vitreous.visible",
+          "value": true
+        },
+        {
+          "set": "leader_vitreous.visible",
+          "value": true
+        },
+        {
+          "set": "label_iris.visible",
+          "value": true
+        },
+        {
+          "set": "leader_iris.visible",
+          "value": true
+        },
+        {
+          "set": "label_sclera.visible",
+          "value": true
+        },
+        {
+          "set": "leader_sclera.visible",
+          "value": true
+        },
+        {
+          "timeline": "light",
+          "action": "restart"
         }
       ]
     },
@@ -563,7 +780,7 @@
           true
         ],
         [
-          5,
+          5.0,
           false
         ]
       ]
@@ -579,7 +796,7 @@
           false
         ],
         [
-          5,
+          5.0,
           true
         ],
         [
@@ -603,7 +820,7 @@
           true
         ],
         [
-          9.9,
+          9.95,
           false
         ]
       ]
@@ -638,34 +855,6 @@
     },
     {
       "type": "animate",
-      "target": "label_pupil",
-      "property": "color",
-      "timeline": "light",
-      "keys": [
-        [
-          0,
-          "#FFFFFF"
-        ],
-        [
-          2.5,
-          "#FFFFFF"
-        ],
-        [
-          2.51,
-          "#FFE66D"
-        ],
-        [
-          4.99,
-          "#FFE66D"
-        ],
-        [
-          5,
-          "#FFFFFF"
-        ]
-      ]
-    },
-    {
-      "type": "animate",
       "target": "label_iris",
       "property": "color",
       "timeline": "light",
@@ -694,6 +883,90 @@
     },
     {
       "type": "animate",
+      "target": "label_lens",
+      "property": "color",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_vitreous",
+      "property": "color",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          5,
+          "#FFFFFF"
+        ],
+        [
+          5.01,
+          "#FFE66D"
+        ],
+        [
+          7.49,
+          "#FFE66D"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_retina",
+      "property": "color",
+      "timeline": "light",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.5,
+          "#FFFFFF"
+        ],
+        [
+          7.51,
+          "#FFE66D"
+        ],
+        [
+          9.94,
+          "#FFE66D"
+        ],
+        [
+          9.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
       "target": "label_optic_nerve",
       "property": "color",
       "timeline": "light",
@@ -711,131 +984,14 @@
           "#FFE66D"
         ],
         [
-          9.89,
+          9.94,
           "#FFE66D"
         ],
         [
-          9.9,
+          9.95,
           "#FFFFFF"
         ]
       ]
-    },
-    {
-      "type": "animate",
-      "target": "photon",
-      "property": "visible",
-      "timeline": "light",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          0.01,
-          true
-        ],
-        [
-          4.6,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "photon",
-      "property": "pos",
-      "timeline": "light",
-      "keys": [
-        [
-          0,
-          [
-            -0.2363,
-            -0.0267,
-            -0.2859
-          ]
-        ],
-        [
-          2.4,
-          [
-            -0.1224,
-            -0.0239,
-            -0.1771
-          ]
-        ],
-        [
-          4.5,
-          [
-            -0.0939,
-            -0.0232,
-            -0.1499
-          ]
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "signal",
-      "property": "visible",
-      "timeline": "light",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          7.5,
-          true
-        ],
-        [
-          9.9,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "signal",
-      "property": "pos",
-      "timeline": "light",
-      "keys": [
-        [
-          7.5,
-          [
-            0.1435,
-            -0.0174,
-            0.0767
-          ]
-        ],
-        [
-          9.8,
-          [
-            0.2622,
-            -0.0145,
-            0.19
-          ]
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "ray",
-      "property": "visible",
-      "timeline": "light",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          0.01,
-          true
-        ],
-        [
-          5,
-          false
-        ]
-      ]
     }
-  ],
-  "run": null
+  ]
 }

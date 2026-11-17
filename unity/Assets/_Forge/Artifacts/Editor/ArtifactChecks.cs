@@ -88,6 +88,53 @@ public static class ArtifactChecks
             UnityEngine.Object.DestroyImmediate(root);
             UnityEngine.Object.DestroyImmediate(mesh);
         }
+        ExplorationParts();
+    }
+
+    // Two parts: a big shell with an authored "explode" marker, and a small inner part with none.
+    static void ExplorationParts()
+    {
+        var root = new GameObject("explorer parts check");
+        var shell = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        var core = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        try
+        {
+            shell.name = "Shell"; core.name = "Core";
+            shell.transform.SetParent(root.transform, false);
+            core.transform.SetParent(root.transform, false);
+            core.transform.localPosition = new Vector3(0.05f, 0f, 0f);
+            core.transform.localScale = Vector3.one * 0.1f;
+            var marker = new GameObject(ArtifactExplorer.ExplodeMarker + ".001").transform;  // as Blender names it
+            marker.SetParent(shell.transform, false);
+            marker.localPosition = new Vector3(0f, 0.3f, 0f);
+            var explorer = root.AddComponent<ArtifactExplorer>();
+            explorer.Initialize();
+            Check(explorer.PartCount == 2, "both meshes are parts, not " + explorer.PartCount);
+            explorer.Separate();
+            Check(explorer.Separated && shell.transform.localPosition == Vector3.zero, "separating moves over time, not in one jump");
+            explorer.Place(1f);
+            Check((shell.transform.localPosition - new Vector3(0f, 0.3f, 0f)).magnitude < 1e-5f, "the shell goes where its explode marker says");
+            Check(core.transform.localPosition.x > 0.05f + 1e-4f, "a part with no marker moves straight out from the centre");
+            var label = shell.transform.Find("label Shell");
+            Check(label != null && label.gameObject.activeSelf && label.GetComponent<TMPro.TMP_Text>().text == "Shell", "a separated part shows its name");
+            explorer.Place(0.3f);
+            Check(label != null && !label.gameObject.activeSelf, "names hide while the parts are still close");
+            var shellBefore = shell.GetComponent<Renderer>().sharedMaterial;
+            var coreBefore = core.GetComponent<Renderer>().sharedMaterial;
+            explorer.ToggleXRay();
+            var ghost = shell.GetComponent<Renderer>().sharedMaterial;
+            Check(explorer.LargeParts == 1 && ghost != shellBefore && ghost.GetColor("_BaseColor").a < 0.5f, "X-ray makes the big outer part see-through");
+            Check(core.GetComponent<Renderer>().sharedMaterial == coreBefore, "X-ray leaves the small inner part solid");
+            explorer.Section();
+            explorer.ResetView();
+            Check(!explorer.Separated && !explorer.Sectioned && !explorer.XRay && shell.transform.localPosition == Vector3.zero
+                  && core.transform.localPosition == new Vector3(0.05f, 0f, 0f) && shell.GetComponent<Renderer>().sharedMaterial == shellBefore,
+                "reset puts every part back, solid and whole");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
     }
 
     // In the app, the host comes to the user, and it steps aside for a panel that's already there (the Hands panel).

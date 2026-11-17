@@ -30,8 +30,8 @@
   "assets": [
     {
       "path": "assets/eye.glb",
-      "sha256": "bb507d18bb3ba31f33cb680c90f999ad8cc28c4479c3cb0479176ea42a140b1c",
-      "license": "CC0"
+      "sha256": "cf9bb885774d5b4aa3416d03af03ea7926cf2e59c8a131b13c1df090dcb0b670",
+      "license": "CC-BY-SA-4.0"
     }
   ],
   "permissions": {
