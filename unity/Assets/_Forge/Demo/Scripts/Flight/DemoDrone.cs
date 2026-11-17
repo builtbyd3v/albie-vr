@@ -343,6 +343,11 @@ namespace Forge.Demo
             Vector3 from;
             var arr = cue.Args["from"] as JArray;
             if (arr != null && arr.Count >= 3) from = new Vector3((float)arr[0], (float)arr[1], (float)arr[2]);
+            else if (ResearchStation.Instance != null)
+            {
+                // The script gives a slot name, not a point: come in from where the research verdict card is.
+                from = ResearchStation.VerdictPosition;
+            }
             else
             {
                 // No card position: come in from the upper left, where the research panel is.

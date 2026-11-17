@@ -14,6 +14,10 @@ namespace Forge.Demo
         {
             if (!DemoConfig.Load().enabled) return;
             if (Object.FindAnyObjectByType<DemoDirector>() != null) return;
+            // The stations (research, pipeline, drone, drone cam) ride in one Resources prefab so they are in the APK.
+            var pieces = Resources.Load<GameObject>("DemoPieces");
+            if (pieces != null) Object.Instantiate(pieces).name = "DemoPieces";
+            else Debug.LogWarning("[Demo] Resources/DemoPieces.prefab is missing (Forge > Demo > Build Runtime Pieces): only the Director runs.");
             new GameObject("DemoDirector").AddComponent<DemoDirector>();
             Debug.Log("[Demo] demo mode is on (Resources/demo_config.json): Director installed.");
         }
