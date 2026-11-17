@@ -172,13 +172,17 @@ namespace Forge.Pet
             AlbieState s = controller.State;
             if (pushToTalk.SessionActive || s == AlbieState.Thinking || s == AlbieState.Working || s == AlbieState.Error) { StopMonitor(); return; }
             if (lookToTalk && StartMonitor()) { _attending = true; _attendUntil = Time.time + listenSeconds; }
-            else if (pushToTalk.CanListenHandsFree && GateNextTurn() && pushToTalk.BeginHandsFree(listenSeconds)) _following = true;
-            else
-            {
-                // A gate set for a turn that never opened would gate the next one (the palm's, a button's) instead.
-                if (pushToTalk.Provider is HubSpeechToText gated) gated.RequireName = false;
-                if (wanderAwayWhenDone) controller.WanderAway();
-            }
+            else if (OpenFallbackTurn()) _following = true;
+            else if (wanderAwayWhenDone) controller.WanderAway();
+        }
+
+        // The no-monitor follow-up turn (mic busy, other STT). True when it opened. Internal for Forge > Core > Check Voice.
+        internal bool OpenFallbackTurn()
+        {
+            if (pushToTalk.CanListenHandsFree && GateNextTurn() && pushToTalk.BeginHandsFree(listenSeconds)) return true;
+            // A gate set for a turn that never opened would gate the next one (the palm's, a button's) instead.
+            if (pushToTalk.Provider is HubSpeechToText gated) gated.RequireName = false;
+            return false;
         }
 
         // The no-monitor fallback (mic busy, other STT) is a follow-up too: gated like CheckSpeech's turns. Live 18:31 it
@@ -205,7 +209,10 @@ namespace Forge.Pet
 
         /// <summary>The user looks at Albie, or did within lookGrace, or he sits on their palm (the palm gesture called
         /// him: that conversation is with him wherever they look). False with look-to-talk off or no camera.</summary>
-        public bool UserFacing => lookToTalk && (FacingNow() || Time.time - _lastLookAt <= lookGrace || (controller != null && controller.Perched));
+        public bool UserFacing => lookToTalk && CountsAsFacing(FacingNow(), Time.time - _lastLookAt, lookGrace, controller != null && controller.Perched);
+
+        // Looking now, or within the grace, or perched on the palm. Internal for Forge > Core > Check Voice.
+        internal static bool CountsAsFacing(bool lookingNow, float sinceLook, float grace, bool perched) => lookingNow || sinceLook <= grace || perched;
 
         // Within LookAngle of Albie's body, plus half its apparent size, so it works across the desk and up close.
         bool FacingNow()
@@ -215,12 +222,23 @@ namespace Forge.Pet
             Vector3 target = controller.transform.position;
             float radius = 0.1f;
             if (_body != null) { Bounds b = _body.bounds; target = b.center; radius = b.extents.magnitude; }
-            Vector3 to = target - cam.transform.position;
+            float angle = LastLookAngle, limit = LastLookLimit;
+            bool inCone = InLookCone(cam.transform.position, cam.transform.forward, target, radius, ref angle, ref limit);
+            LastLookAngle = angle;
+            LastLookLimit = limit;
+            return inCone;
+        }
+
+        // The look cone: within LookAngle of the target plus its apparent half-size; closer than 10 cm always counts (angle
+        // and limit are then left as they were). Internal for Forge > Core > Check Voice.
+        internal static bool InLookCone(Vector3 eye, Vector3 forward, Vector3 target, float radius, ref float angle, ref float limit)
+        {
+            Vector3 to = target - eye;
             float dist = to.magnitude;
             if (dist < 0.1f) return true;
-            LastLookAngle = Vector3.Angle(cam.transform.forward, to);
-            LastLookLimit = LookAngle + Mathf.Rad2Deg * Mathf.Atan2(radius, dist);
-            return LastLookAngle <= LastLookLimit;
+            angle = Vector3.Angle(forward, to);
+            limit = LookAngle + Mathf.Rad2Deg * Mathf.Atan2(radius, dist);
+            return angle <= limit;
         }
 
         bool Facing() => !lookToTalk || Camera.main == null || UserFacing;   // no way to tell: every turn counts
