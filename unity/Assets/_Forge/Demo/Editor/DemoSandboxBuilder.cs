@@ -51,10 +51,38 @@ namespace Forge.Demo.Editor
             return saved;
         }
 
+        public const string PiecesPrefabPath = "Assets/_Forge/Demo/Resources/DemoPieces.prefab";
+
+        /// <summary>
+        /// Builds Resources/DemoPieces.prefab: every station prefab in Demo/Prefabs (research, pipeline, drone, drone cam) nested
+        /// under one root, so DemoInstaller can add the whole demo to Main (and the APK) at runtime with no scene edit.
+        /// </summary>
+        [MenuItem("Forge/Demo/Build Runtime Pieces")]
+        public static void BuildRuntimePieces()
+        {
+            EnsureFolder("Assets/_Forge/Demo/Resources");
+            var root = new GameObject("DemoPieces");
+            var names = new List<string>();
+            foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { PrefabsDir }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (path == DirectorPrefabPath) continue;
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab == null) continue;
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, root.transform);
+                instance.name = prefab.name;
+                names.Add(prefab.name);
+            }
+            PrefabUtility.SaveAsPrefabAsset(root, PiecesPrefabPath);
+            Object.DestroyImmediate(root);
+            Debug.Log("[DemoSandbox] " + PiecesPrefabPath + " (" + string.Join(", ", names) + ")");
+        }
+
         static string BuildScene()
         {
             EnsureFolder("Assets/_Forge/Demo/Sandboxes");
             GameObject directorPrefab = BuildDirectorPrefab();
+            BuildRuntimePieces();
             var albiePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(AlbiePrefabPath);
             if (albiePrefab == null) throw new FileNotFoundException("Albie prefab missing: " + AlbiePrefabPath + " (Forge > Pet > Build All)");
             var rigPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ForgePrefabBuilder.DesktopRigPath);

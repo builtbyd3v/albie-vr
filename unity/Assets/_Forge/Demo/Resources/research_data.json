@@ -27,7 +27,7 @@
     },
     {
       "id": "cam_b",
-      "name": "Kestrel V3 Lite",
+      "name": "Plover V3 Lite",
       "image": "cam_b",
       "source": "dronehub.example",
       "specs": { "resolution": "720p", "fps": 60, "fov": 90, "voltage": "5 V", "weight_g": 14, "price_usd": 19, "ships_days": 5 },

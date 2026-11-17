@@ -1,5 +1,5 @@
 {
-  "enabled": false,
+  "enabled": true,
   "autoStartSeconds": 0,
   "voicePitch": 1.2,
   "muteLiveAgent": true,
