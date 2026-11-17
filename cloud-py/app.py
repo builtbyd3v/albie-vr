@@ -35,6 +35,7 @@ from typing import Any
 from fastapi import Body, FastAPI, Request
 from starlette.responses import JSONResponse
 
+import code_browser
 from cad import tools as cad_tools
 from cad.router import router as cad_router
 from cad.service import CadService
@@ -44,6 +45,7 @@ from ml import improve, router as ml_router_module
 from ml.service import Conflict, MLService
 from ml.setup.llm import LLMError, LLMResult
 from ml.tools import TOOLS as ML_TOOLS, MLTools
+from code_browser import tools as code_tools
 
 import text_improve
 
@@ -58,10 +60,12 @@ MAX_TRAINING = int(os.environ.get("MAX_TRAINING", "1"))
 CLAUDE_PROXY_URL = os.environ.get("CLAUDE_PROXY_URL", "")
 DEVICE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 INTERNAL = secrets.token_hex(16)  # training runs post their events to /_in/<this>/<device>/ml/ingest (no app key)
-# Cloned repos and other folders run code we haven't reviewed: the cloud trains only its own project.
+# A device trains its own copy of the template, or a repo Albie cloned for it with ml_github (after the user said
+# yes to it). The ML panel's own import path and the laptop-only routes stay off.
 BLOCKED = ("/ml/project/rescan", "/ml/project/type", "/ml/github/", "/ml/project/diff")
 CAD_TOOLS = {t["name"] for t in cad_tools.TOOLS}
-ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS} - {"ml_github"}
+ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
+CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
 EVENT_LOG = 400
 
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
@@ -128,11 +132,14 @@ class DeviceML(MLService):
 
     def __init__(self, repo: Path, device: str) -> None:
         super().__init__(repo)
+        self.template = self.repo
+        self.clones = repo.parent / "github"  # where ml_github clones for this device (MLTools.github)
         self.ingest_url = f"http://127.0.0.1:{PORT}/_in/{INTERNAL}/{device}"
 
     def open_project(self, path: str) -> Path:
-        if Path(path).resolve() != self.repo:
-            raise Conflict("the cloud trains only its own project")
+        target = Path(path).resolve()
+        if target != self.template and not target.is_relative_to(self.clones.resolve()):
+            raise Conflict("the cloud trains only this headset's project and the repos Albie cloned for it")
         return super().open_project(path)
 
     def start_training(self, epochs: int, hub_url: str) -> str:
@@ -143,7 +150,17 @@ class DeviceML(MLService):
 
 class DeviceMLTools(MLTools):
     def resolve(self, name: str) -> Path:
-        return self.svc.repo  # one project per device: whatever the user called it
+        """A repo cloned for this device by name or path; anything else is the device's own project."""
+        svc = self.svc
+        given = Path(name) if name else None
+        if given is not None and given.is_absolute() and given.is_dir():
+            return given
+        key = (name or "").lower().replace(" ", "").replace("-", "").replace("_", "")
+        if key and svc.clones.is_dir():
+            for clone in sorted(svc.clones.iterdir()):
+                if clone.is_dir() and key in clone.name.lower().replace("-", "").replace("_", ""):
+                    return clone
+        return svc.repo if not name else svc.template
 
 
 def copy_template(dest: Path) -> None:
@@ -220,10 +237,13 @@ class Device:
         app = FastAPI(title=f"Albie cloud device {device_id}")
         app.state.bus, app.state.cad, app.state.ml = self.bus, self.cad, self.ml
         app.state.ml_llm = proxy_llm if CLAUDE_PROXY_URL else no_llm
-        app.state.ml_jev, app.state.ml_backend = no_llm, "jev"  # setup never classifies with an LLM here
+        # A repo cloned with ml_github is classified and adapted by Claude through the proxy; with no proxy, setup
+        # fails and says so (the template needs no setup).
+        app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if CLAUDE_PROXY_URL else "jev"
         self.ml_tools = DeviceMLTools(app.state, root, speak=lambda pet, text: asyncio.sleep(0, False))
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
+        app.include_router(code_browser.router)  # /code/*: the GitHub repos and pull requests in the code panel
         self.add_routes(app)
         self.app = app
 
@@ -250,8 +270,10 @@ class Device:
                 result = await cad_tools.call_tool(name, args, self.cad, self.bus, show=show)
             elif name in ML_TOOL_NAMES:
                 result = await self.ml_tools.call(name, args)
-                if name in ("ml_open", "ml_train", "ml_apply"):
+                if name in ("ml_open", "ml_train", "ml_apply") or (name == "ml_github" and args.get("confirm") is True):
                     shown.append("ml")
+            elif name in CODE_TOOLS:
+                result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
             else:
                 result = {"error": f"no cloud tool {name!r}"}
             return {"result": result, "show": shown[0] if shown else None, "seq": self.bus.seq}
