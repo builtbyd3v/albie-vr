@@ -30,8 +30,8 @@
   "assets": [
     {
       "path": "assets/heart.glb",
-      "sha256": "3488628f8883e64a3bc1e702f7c741284616501dc6b3f38af466e25e6efca7fc",
-      "license": "CC0"
+      "sha256": "f25ae84dba86837871738a66605ee4bc5da197c239fb22bac88870e3db397e72",
+      "license": "CC-BY-SA-4.0"
     }
   ],
   "permissions": {

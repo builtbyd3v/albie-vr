@@ -1,30 +1,85 @@
 # Artifact exploration
 
-Branch: `feat/artifact-exploration`
+The artifact panel can turn, cut open, separate, see through and reset any imported GLB model. It works with the mouse
+(DesktopRig) and with ray and poke in the headset. The heart and eye templates are now real anatomy made of named
+parts, so those controls have something to show.
 
-The imported GLB viewer now supports 30-degree turns around the geometry centre,
-a reversible surface section, separate/assemble for models authored with multiple
-mesh transforms, and resetting the inspection pose. Controls use the existing
-artifact panel, which supports desktop mouse and headset ray/poke interactions.
+## Controls (`ArtifactExplorer`)
 
-The bundled heart and eye each contain one textured mesh, one primitive and one
-material. They have no authored anatomical part hierarchy. Their existing labels
-and flow animations remain scene annotations: they are not bound to moving mesh
-parts. Turning the surface does not reposition these annotations.
+| Button | What it does |
+|---|---|
+| Turn 30° | Rotates the model about its centre. |
+| Cut open / Whole | One cut through the model's centre, facing the viewer. The front half of every part is dropped, so the inside shows: chambers, valves and chordae in the heart; cornea, lens, vitreous body and retina in the eye. The imported meshes aren't changed. |
+| X-ray | The outer parts go see-through (18% opacity, keeping their colour), and the inner parts stay solid. In the heart, the valves and papillary muscles show through the chambers and vessels, and the blood cells can be followed. |
+| Separate / Assemble | Parts glide apart over 0.7 s to a layout that ships with the model. Each part shows its name, and labels move above or below a part so they don't collide. The scene's own labels hide while the parts are apart. |
+| Reset view | Puts the model back whole, solid, assembled and in its starting pose. |
 
-The section tool removes triangles on the positive local-Z half of each mesh.
-It preserves the source mesh and textures. It leaves an open surface, without a
-filled cut face or invented internal structures. Separate is inactive in effect
-for a single-mesh asset. This first pass does not improve the source geometry's
-realism or certify anatomical accuracy.
+Two markers in the GLB, both empty child nodes of a part, drive this:
 
-Next model work:
+- `explode` (or `explode.001` and so on, as Blender names them). Its local position is where the part goes when
+  separated. A part without one moves straight out from the centre.
+- `xray`. Marks a part that goes see-through. A model with no `xray` markers uses size instead: parts whose bounds are
+  at least 12% of the model's.
 
-- Replace heart and eye with licensed, reviewed meshes with named structures.
-- Define per-part identifiers, labels, explanatory text and authored separation
-  vectors; bind leader lines and learning animations to those identifiers.
-- Add smooth explode transitions, individual focus/hide and hand manipulation.
-- Apply the same part contract to other imported artifacts. The solar system is
-  currently built from scene nodes, so it does not use these GLB controls.
-- Verify readability, clipping, frame time and interaction on the headset before
-  shipping. Automated checks cover section reversibility and reset behavior.
+The markers are data inside the asset, so the C-12 scene schema doesn't change.
+
+## The models
+
+Built by `unity/Assets/_Forge/Artifacts/Tools~/anatomy/` (README there) from Z-Anatomy (CC BY-SA 4.0) and BodyParts3D
+(CC BY-SA 2.1 JP). The GLBs are CC BY-SA 4.0, and the panels show the credit.
+
+- **Heart, 17 parts, 104,861 triangles, 2.4 MB.**
+  - From Z-Anatomy: the four chambers as separate walls, the aortic and pulmonary valve leaflets, and the papillary
+    muscles.
+  - From BodyParts3D: the aorta, both venae cavae, the pulmonary arteries and veins, the right and left coronary
+    arteries, the cardiac veins, and the mitral and tricuspid valves with their chordae.
+  - Separated, the atria go up, the ventricles go down, the valves line up in front, and the coronary vessels peel off
+    to the sides.
+- **Eye, 15 parts, 42,040 triangles, 1 MB.**
+  - From Z-Anatomy: sclera, cornea, aqueous humour, iris, lens, zonular fibres, vitreous body, retina and the six eye
+    muscles.
+  - From BodyParts3D: the optic nerve.
+  - Separated, the layers spread along the line of sight and the muscles move outward.
+
+Shading is ambient occlusion baked into vertex colours. The cornea, aqueous humour, lens and vitreous body are
+see-through glTF materials. glTFast's PBR shader is in Always Included Shaders, so those variants are in the Quest build.
+
+## Templates
+
+`make_scenes.py` writes each template's scene from the model's own landmarks, so labels point at the real parts.
+
+- **Heart.** 14 labels with leaders.
+  - *Trace the blood* plays four captioned steps and starts the blood cells.
+  - *Show blood flow* runs 19 cells on a loop along the real path: venae cavae, right atrium, tricuspid valve, right
+    ventricle, pulmonary valve, pulmonary arteries; then pulmonary veins, left atrium, mitral valve, left ventricle,
+    aortic valve, aorta. Blue cells carry oxygen-poor blood, red cells oxygen-rich.
+  - The heart beats at 72 per minute about its own centre.
+- **Eye.** 8 labels.
+  - *Follow the light* sends a photon through the cornea, the pupil and the lens to the retina, then a signal down the
+    optic nerve, with four captions.
+
+## Checks
+
+- `ArtifactChecks` (Exploration):
+  - a single mesh doesn't claim parts, and the cut keeps only the back half;
+  - with two parts: the move is gradual, a marker sets where a part goes, an unmarked part moves outward, names show
+    only when apart, X-ray changes only the marked or big part, and reset restores everything.
+- `BioTemplatesCheck`:
+  - every template is valid;
+  - the models are openly licensed, credited in the panel, and match their hashes;
+  - the heart and eye have at least 10 named parts, each with an `explode` marker, plus `xray` markers;
+  - no part name has a `.001`;
+  - labels have leaders;
+  - captions and cells stay hidden until their button;
+  - the heart beats about its own centre.
+
+Still to check on a Quest: label readability, frame time with X-ray on (up to 12 transparent parts), and ray and poke
+on the panel buttons.
+
+## Next
+
+- Pick a part with the ray to isolate it and read about it (a part contract with descriptions).
+- Bind the scene labels to parts so they travel with them when the model is separated, instead of hiding.
+- A beat that squeezes the atria, then the ventricles, rather than scaling the whole heart.
+- For patient-specific hearts, segment CT or MRI in 3D Slicer (SlicerHeart) and export OBJ or STL into the same
+  pipeline.

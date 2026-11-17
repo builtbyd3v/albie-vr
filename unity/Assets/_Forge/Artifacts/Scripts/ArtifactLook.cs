@@ -38,6 +38,9 @@ namespace Forge.Artifacts
         /// <summary>Transparent and vertex-coloured, so a trail can fade along its length.</summary>
         public static Material Trail() => trail != null ? trail : trail = Template("ArtifactTrail");
 
+        /// <summary>See-through lit template for a model's X-ray view; callers copy it and set <c>_BaseColor</c>.</summary>
+        public static Material XRay() => Template("ArtifactXray");
+
         static Material Template(string name) => Resources.Load<Material>("ArtifactLook/" + name);
 
         public static GameObject Shape(string shape, bool collider)
