@@ -115,8 +115,20 @@ public static class ArtifactChecks
             explorer.Place(1f);
             Check((shell.transform.localPosition - new Vector3(0f, 0.3f, 0f)).magnitude < 1e-5f, "the shell goes where its explode marker says");
             Check(core.transform.localPosition.x > 0.05f + 1e-4f, "a part with no marker moves straight out from the centre");
-            var label = shell.transform.Find("label Shell");
+            var label = root.transform.Find("labels/label Shell");
             Check(label != null && label.gameObject.activeSelf && label.GetComponent<TMPro.TMP_Text>().text == "Shell", "a separated part shows its name");
+            // Callouts: from in front, both names sit outside the model, a full line apart if they share a column.
+            explorer.LayOutLabels(new Vector3(0f, 0.1f, -2f));
+            var other = root.transform.Find("labels/label Core");
+            float minX = float.MaxValue, maxX = float.MinValue;
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>())
+                if (r.GetComponent<TMPro.TMP_Text>() == null) { minX = Mathf.Min(minX, r.bounds.min.x); maxX = Mathf.Max(maxX, r.bounds.max.x); }
+            bool Clear(Transform t) => t.position.x < minX || t.position.x > maxX;
+            bool apartSides = (label.position.x < minX) != (other.position.x < minX);
+            Check(other != null && Clear(label) && Clear(other)
+                  && (apartSides || Mathf.Abs(label.position.y - other.position.y) >= 0.0209f),
+                "separated names stand clear of the model and of each other");
+            Check(label.GetComponentInChildren<LineRenderer>() != null, "each name has a leader line to its part");
             explorer.Place(0.3f);
             Check(label != null && !label.gameObject.activeSelf, "names hide while the parts are still close");
             var shellBefore = shell.GetComponent<Renderer>().sharedMaterial;

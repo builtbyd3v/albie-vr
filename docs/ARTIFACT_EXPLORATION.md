@@ -41,6 +41,17 @@ Built by `unity/Assets/_Forge/Artifacts/Tools~/anatomy/` (README there) from Z-A
   - From BodyParts3D: the optic nerve.
   - Separated, the layers spread along the line of sight and the muscles move outward.
 
+- **Brain, 22 parts, 96,270 triangles, 3 MB.** From Z-Anatomy, with its gyri and sulci grouped into lobes.
+  - Each hemisphere: frontal, parietal, temporal, occipital, insular and limbic cortex, and white matter.
+  - Also: cerebellum, brainstem, corpus callosum, thalamus, basal ganglia, hippocampus and fornix, amygdala and
+    ventricles.
+  - Cut open gives the midline view. Separated, the lobes move out and the hemispheres part.
+- **Animal cell, 13 parts; plant cell, 10 parts; DNA, 5 parts.** Modelled in Blender (`build_models.py`, CC0).
+  - Cells: organelles at textbook relative sizes, with mitochondrial cristae, chloroplast grana and ribosomes on the
+    rough ER.
+  - DNA: B-form, 10 pairs per turn with the grooves. Bases are coloured by letter, with 2 or 3 hydrogen bonds per pair.
+    Separate unzips the strands.
+
 Shading is ambient occlusion baked into vertex colours. The cornea, aqueous humour, lens and vitreous body are
 see-through glTF materials. glTFast's PBR shader is in Always Included Shaders, so those variants are in the Quest build.
 

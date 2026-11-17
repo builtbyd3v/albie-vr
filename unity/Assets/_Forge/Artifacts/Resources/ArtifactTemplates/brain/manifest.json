@@ -30,8 +30,8 @@
   "assets": [
     {
       "path": "assets/brain.glb",
-      "sha256": "dc561f1eb7f0f8131c6d920e4604fde4403640b7ec39addfe2a6cade1b8f4479",
-      "license": "CC0"
+      "sha256": "822a39ec96b9a71da710fa613d175dc06a088a7cda31646d396ade1659b0323a",
+      "license": "CC-BY-SA-4.0"
     }
   ],
   "permissions": {

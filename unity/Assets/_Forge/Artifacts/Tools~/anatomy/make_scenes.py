@@ -129,13 +129,13 @@ def L(name, node):
     return to_scene(lm[name], node)
 
 
-def manifest(tid, title, asset):
+def manifest(tid, title, asset, license="CC-BY-SA-4.0"):
     sha = hashlib.sha256(open(GLB, "rb").read()).hexdigest()
     return {"schema": "albie.artifact/1", "id": tid, "title": title, "version": 1, "kind": "standalone", "category": "viz",
             "template": tid, "links": {"project": None, "project_version": None, "repo": None, "thing": None},
             "runtime": {"type": "scene", "min_runtime": 4}, "scene": "scene.json", "script": None, "inputs": [],
             "scenarios": [{"id": "default", "seed": 1, "params": {}}], "data": [],
-            "assets": [{"path": asset, "sha256": sha, "license": "CC-BY-SA-4.0"}],
+            "assets": [{"path": asset, "sha256": sha, "license": license}],
             "permissions": {"network": [], "connectors": [], "storage": "artifact-local", "write_project": "none",
                             "room": "none", "things": "none"}, "outputs": []}
 
@@ -268,7 +268,169 @@ def eye():
         manifest("eye", "Human eye", "assets/eye.glb")
 
 
-scene, man = heart() if WHAT == "heart" else eye()
+OWN = "3D model: made for Albie (CC0)."
+
+
+def tour(spot_id, stops, duration, timeline):
+    """A glowing marker that visits each stop in turn: [(position, label ids)] -> nodes, rules."""
+    span = duration / len(stops)
+    keys = []
+    for i, (pos, _) in enumerate(stops):
+        keys += [[round(i * span + 0.01, 3), pos], [round((i + 1) * span - 0.3, 3), pos]]
+    keys[0][0] = 0
+    rules = [{"type": "animate", "target": spot_id, "property": "pos", "timeline": timeline, "keys": keys},
+             {"type": "animate", "target": spot_id, "property": "visible", "timeline": timeline,
+              "keys": [[0, False], [0.01, True], [round(duration - 0.05, 3), False]]}]
+    for i, (_, ids) in enumerate(stops):
+        rules += highlight(ids, round(i * span + (0.01 if i == 0 else 0), 3), round((i + 1) * span - (0.05 if i == len(stops) - 1 else 0), 3), timeline)
+    node = {"id": spot_id, "kind": "primitive", "shape": "sphere", "pos": stops[0][0], "size": [0.014] * 3,
+            "color": "#FFE66D", "glow": True, "visible": False}
+    return [node], rules
+
+
+def model_scene(node, spec, column_x, z, y_range, extra_nodes, rules, info, label_height=0.016):
+    label_nodes, ids = labels(spec, node, column_x, z, y_range, label_height)
+    rules = label_rules(ids) + rules
+    return {"schema": "albie.scene/1", "space": "volume", "view": {"radius": 0.3}, "generators": [],
+            "nodes": [node] + label_nodes + extra_nodes + [info], "rules": rules}
+
+
+def brain():
+    node = {"id": "brain", "kind": "gltf", "asset": "assets/brain.glb", "pos": [0, -0.01, 0], "rot": [0, 180, 0], "scale": [1.3, 1.3, 1.3]}
+    A = lambda part: anchor(part, node)
+    spec = [("frontal", "Frontal lobe", A("Left frontal lobe")), ("parietal", "Parietal lobe", A("Left parietal lobe")),
+            ("temporal", "Temporal lobe", A("Left temporal lobe")), ("occipital", "Occipital lobe", A("Left occipital lobe")),
+            ("cerebellum", "Cerebellum", A("Cerebellum")), ("brainstem", "Brainstem", A("Brainstem")),
+            ("corpus_callosum", "Corpus callosum", A("Corpus callosum")), ("thalamus", "Thalamus", A("Thalamus"))]
+    where = {k: a for k, _, a in spec}
+    stops = [(where["frontal"], ["frontal"]), (where["parietal"], ["parietal"]), (where["occipital"], ["occipital"]),
+             (where["temporal"], ["temporal"]), (where["cerebellum"], ["cerebellum"]), (where["brainstem"], ["brainstem"])]
+    spot_nodes, spot_rules = tour("spot", stops, 12.0, "tour")
+    captions = ["The frontal lobe plans, decides, and sends the signals that move your body",
+                "The parietal lobe makes sense of touch and of where your body is",
+                "The occipital lobe, at the back, turns signals from the eyes into vision",
+                "The temporal lobe handles hearing, memory and understanding speech",
+                "The cerebellum keeps you balanced and makes movements smooth",
+                "The brainstem keeps you breathing and your heart beating"]
+    step_nodes, step_rules = steps(captions, 0.17, -0.12, 12.0, "tour")
+    rules = spot_rules + step_rules + [{"type": "on_input", "input": "tour", "do": [{"timeline": "tour", "action": "restart"}]}]
+    info = {"id": "info", "kind": "panel", "title": "Human brain", "widgets": [
+        {"type": "note", "text": "A real adult brain from anatomical scans, its left side toward you and the front to your left. "
+                                 "It weighs about 1.4 kg. Cut it open down the middle, or separate it into its lobes and deep parts."},
+        {"type": "button", "id": "tour", "label": "Tour the lobes", "primary": True},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": CREDIT}]}
+    extra = [{"id": "tour", "kind": "timeline", "duration_s": 12, "loop": False, "autoplay": False}] + step_nodes + spot_nodes
+    return model_scene(node, spec, 0.2, -0.12, (-0.12, 0.12), extra, rules, info), manifest("brain", "Human brain", "assets/brain.glb")
+
+
+def dna():
+    node = {"id": "dna", "kind": "gltf", "asset": "assets/dna.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [1, 1, 1]}
+    spec = [("backbone", "Backbone", L("backbone", node)), ("base", "Base", L("base", node)),
+            ("pair", "Base pair", L("pair", node)), ("bonds", "Hydrogen bonds", L("bond", node)),
+            ("strand2", "Second strand", L("strand2", node))]
+    where = {k: a for k, _, a in spec}
+    stops = [(where["backbone"], ["backbone", "strand2"]), (where["pair"], ["pair"]), (where["bonds"], ["bonds"]),
+             (where["base"], ["base"])]
+    spot_nodes, spot_rules = tour("spot", stops, 10.0, "explain")
+    captions = ["Two strands twist around each other: a double helix",
+                "Each rung is a base pair: A with T, and G with C",
+                "Hydrogen bonds are weak, so the strands can unzip to be copied",
+                "The order of the bases is the code: about 3 billion pairs in one human genome"]
+    step_nodes, step_rules = steps(captions, 0.15, -0.1, 10.0, "explain")
+    ids = [k for k, _, _ in spec]
+    hide = [{"set": f"{k}_{i}.visible", "value": False} for i in ids for k in ("label", "leader")]
+    rules = spot_rules + step_rules + [
+        {"type": "animate", "target": "dna", "property": "rot", "timeline": "spin", "keys": [[0, [0, 180, 0]], [12, [0, 540, 0]]]},
+        {"type": "on_input", "input": "explain", "do": [{"timeline": "explain", "action": "restart"}]},
+        {"type": "on_input", "input": "spin_on", "do": hide + [{"timeline": "spin", "action": "play"}]},
+        {"type": "on_input", "input": "spin_off", "do": [{"timeline": "spin", "action": "restart"}, {"timeline": "spin", "action": "pause"}]},
+    ]
+    info = {"id": "info", "kind": "panel", "title": "DNA double helix", "widgets": [
+        {"type": "note", "text": "Twenty base pairs of B-DNA, about 100 million times life size: 10 pairs per turn, 2 nm wide, with "
+                                 "the major and minor grooves. Bases: A green, T red, G yellow, C blue. A-T pairs share two hydrogen "
+                                 "bonds, G-C pairs three. Separate unzips the two strands."},
+        {"type": "button", "id": "explain", "label": "Explain it", "primary": True},
+        {"type": "button", "id": "spin_on", "label": "Spin it", "alt_id": "spin_off", "alt_label": "Stop spinning"},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": OWN}]}
+    extra = [{"id": "explain", "kind": "timeline", "duration_s": 10, "loop": False, "autoplay": False},
+             {"id": "spin", "kind": "timeline", "duration_s": 12, "loop": True, "autoplay": False}] + step_nodes + spot_nodes
+    return model_scene(node, spec, 0.13, -0.08, (-0.08, 0.08), extra, rules, info), manifest("dna", "DNA double helix", "assets/dna.glb", "CC0")
+
+
+def cell():
+    node = {"id": "cell", "kind": "gltf", "asset": "assets/cell.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [1.1, 1.1, 1.1]}
+    spec = [(k, t, L(k, node)) for k, t in (("nucleus", "Nucleus"), ("nucleolus", "Nucleolus"), ("rough_er", "Rough ER"),
+            ("golgi", "Golgi apparatus"), ("mitochondrion", "Mitochondrion"), ("lysosome", "Lysosome"),
+            ("centrosome", "Centrosome"), ("membrane", "Cell membrane"), ("cytoplasm", "Cytoplasm"))]
+    nucleus, er, golgi, membrane = L("nucleus", node), L("rough_er", node), L("golgi", node), L("membrane", node)
+    outside = [round(v, 4) for v in lerp(L("centre", node), membrane, 1.35)]
+    rules = [
+        {"type": "animate", "target": "tracer", "property": "visible", "timeline": "pathway", "keys": [[0, False], [0.01, True], [9.9, False]]},
+        {"type": "animate", "target": "tracer", "property": "pos", "timeline": "pathway",
+         "keys": [[0, nucleus], [2.3, er], [4.8, er], [7.0, golgi], [9.0, membrane], [9.8, outside]]},
+        {"type": "animate", "target": "tracer", "property": "color", "timeline": "pathway",
+         "keys": [[0, "#7FDBFF"], [2.4, "#7FDBFF"], [2.6, "#FFE66D"], [7.0, "#FFE66D"], [7.2, "#FF9F43"]]},
+        {"type": "on_input", "input": "follow", "do": [{"timeline": "pathway", "action": "restart"}]},
+    ]
+    captions = ["The DNA's instructions are copied to mRNA, which leaves the nucleus",
+                "Ribosomes on the rough ER read the mRNA and build the protein",
+                "The Golgi apparatus modifies the protein and packs it into a vesicle",
+                "The vesicle fuses with the membrane and releases the protein"]
+    step_nodes, step_rules = steps(captions, 0.17, -0.13, 10.0, "pathway")
+    rules += step_rules + highlight(["nucleus"], 0.01, 2.5, "pathway") + highlight(["rough_er"], 2.5, 5, "pathway") \
+        + highlight(["golgi"], 5, 7.5, "pathway") + highlight(["membrane"], 7.5, 9.95, "pathway")
+    info = {"id": "info", "kind": "panel", "title": "Animal cell", "widgets": [
+        {"type": "note", "text": "A typical animal cell, about 10 000 times life size (a real one is 10 to 30 micrometres across). "
+                                 "Its membrane is see-through; cut it open or separate it to see each organelle."},
+        {"type": "button", "id": "follow", "label": "Follow a protein", "primary": True},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": OWN}]}
+    extra = [{"id": "pathway", "kind": "timeline", "duration_s": 10, "loop": False, "autoplay": False}] + step_nodes + [
+        {"id": "tracer", "kind": "primitive", "shape": "sphere", "pos": nucleus, "size": [0.009] * 3, "color": "#7FDBFF", "glow": True, "visible": False}]
+    return model_scene(node, spec, 0.19, -0.13, (-0.12, 0.12), extra, rules, info), manifest("cell", "Animal cell", "assets/cell.glb", "CC0")
+
+
+def plant_cell():
+    node = {"id": "plant_cell", "kind": "gltf", "asset": "assets/plant_cell.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [1.1, 1.1, 1.1]}
+    spec = [(k, t, L(k, node)) for k, t in (("wall", "Cell wall"), ("vacuole", "Central vacuole"), ("chloroplast", "Chloroplast"),
+            ("nucleus", "Nucleus"), ("nucleolus", "Nucleolus"), ("rough_er", "Rough ER"), ("golgi", "Golgi apparatus"),
+            ("cytoplasm", "Cytoplasm"))]
+    vac, chl, cyt, wall = L("vacuole", node), L("chloroplast", node), L("cytoplasm", node), L("wall", node)
+    sky = [chl[0], round(chl[1] + 0.25, 4), chl[2]]
+    out = [round(v, 4) for v in lerp(L("centre", node), wall, 1.6)]
+    rules = [
+        {"type": "animate", "target": "molecule", "property": "visible", "timeline": "photosynthesis", "keys": [[0, False], [0.01, True], [9.9, False]]},
+        {"type": "animate", "target": "molecule", "property": "pos", "timeline": "photosynthesis", "keys": [[0, vac], [2.4, chl], [7.4, chl], [9.8, cyt]]},
+        {"type": "animate", "target": "molecule", "property": "color", "timeline": "photosynthesis",
+         "keys": [[0, "#7FDBFF"], [5.0, "#7FDBFF"], [5.2, "#FFFFFF"]]},
+        {"type": "animate", "target": "sunbeam", "property": "visible", "timeline": "photosynthesis", "keys": [[0, False], [2.5, True], [5.0, False]]},
+        {"type": "animate", "target": "oxygen", "property": "visible", "timeline": "photosynthesis", "keys": [[0, False], [5.2, True], [9.9, False]]},
+        {"type": "animate", "target": "oxygen", "property": "pos", "timeline": "photosynthesis", "keys": [[5.2, chl], [7.5, wall], [9.8, out]]},
+        {"type": "on_input", "input": "sun", "do": [{"timeline": "photosynthesis", "action": "restart"}]},
+    ]
+    captions = ["Water stored in the central vacuole moves to a chloroplast",
+                "Sunlight reaches the chloroplast, and its green stacks capture the energy",
+                "It joins water and carbon dioxide into sugar, giving off oxygen",
+                "Sugar feeds the cell through the cytoplasm; oxygen leaves through the wall"]
+    step_nodes, step_rules = steps(captions, 0.17, -0.13, 10.0, "photosynthesis")
+    rules += step_rules + highlight(["vacuole"], 0.01, 2.5, "photosynthesis") + highlight(["chloroplast"], 2.5, 7.5, "photosynthesis") \
+        + highlight(["cytoplasm", "wall"], 7.5, 9.95, "photosynthesis")
+    info = {"id": "info", "kind": "panel", "title": "Plant cell", "widgets": [
+        {"type": "note", "text": "A leaf cell, about 2 000 times life size. Unlike an animal cell it has a cell wall, chloroplasts and "
+                                 "one big central vacuole. Cut it open or separate it to see inside."},
+        {"type": "button", "id": "sun", "label": "Follow the sunlight", "primary": True},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": OWN}]}
+    extra = [{"id": "photosynthesis", "kind": "timeline", "duration_s": 10, "loop": False, "autoplay": False}] + step_nodes + [
+        {"id": "molecule", "kind": "primitive", "shape": "sphere", "pos": vac, "size": [0.008] * 3, "color": "#7FDBFF", "glow": True, "visible": False},
+        {"id": "oxygen", "kind": "primitive", "shape": "sphere", "pos": chl, "size": [0.007] * 3, "color": "#FF6B6B", "glow": True, "visible": False},
+        {"id": "sunbeam", "kind": "line", "points": [sky, chl], "width": 0.004, "color": "#FFE66D", "visible": False}]
+    return model_scene(node, spec, 0.21, -0.13, (-0.12, 0.12), extra, rules, info), manifest("plant_cell", "Plant cell", "assets/plant_cell.glb", "CC0")
+
+
+scene, man = {"heart": heart, "eye": eye, "brain": brain, "dna": dna, "cell": cell, "plant_cell": plant_cell}[WHAT]()
 with open(os.path.join(OUT, "scene.json"), "w") as f:
     json.dump(scene, f, indent=2)
 with open(os.path.join(OUT, "manifest.json"), "w") as f:

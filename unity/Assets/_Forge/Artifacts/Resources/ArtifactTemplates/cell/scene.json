@@ -2,7 +2,7 @@
   "schema": "albie.scene/1",
   "space": "volume",
   "view": {
-    "radius": 0.36
+    "radius": 0.3
   },
   "generators": [],
   "nodes": [
@@ -12,168 +12,50 @@
       "asset": "assets/cell.glb",
       "pos": [
         0,
-        -0.25,
+        0,
         0
       ],
       "rot": [
         0,
         180,
         0
+      ],
+      "scale": [
+        1.1,
+        1.1,
+        1.1
       ]
     },
     {
-      "id": "label_mitochondrion",
+      "id": "label_nucleus",
       "kind": "text",
-      "text": "Mitochondrion",
+      "text": "Nucleus",
       "pos": [
-        -0.26,
-        0.02,
-        -0.1
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_mitochondrion",
-      "kind": "line",
-      "points": [
-        [
-          -0.175,
-          0.0144,
-          -0.1
-        ],
-        [
-          -0.097,
-          -0.062,
-          -0.107
-        ]
-      ],
-      "width": 0.0012,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_nucleolus",
-      "kind": "text",
-      "text": "Nucleolus",
-      "pos": [
-        -0.26,
-        -0.05,
-        -0.1
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_nucleolus",
-      "kind": "line",
-      "points": [
-        [
-          -0.175,
-          -0.0556,
-          -0.1
-        ],
-        [
-          -0.003,
-          -0.085,
-          -0.057
-        ]
-      ],
-      "width": 0.0012,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_rough_er",
-      "kind": "text",
-      "text": "Rough ER",
-      "pos": [
-        -0.26,
-        -0.12,
-        -0.1
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_rough_er",
-      "kind": "line",
-      "points": [
-        [
-          -0.175,
-          -0.1256,
-          -0.1
-        ],
-        [
-          -0.038,
-          -0.128,
-          -0.089
-        ]
-      ],
-      "width": 0.0012,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_cytoplasm",
-      "kind": "text",
-      "text": "Cytoplasm",
-      "pos": [
-        -0.26,
         -0.19,
-        -0.1
+        0.12,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
-      "id": "leader_cytoplasm",
+      "id": "leader_nucleus",
       "kind": "line",
       "points": [
         [
-          -0.175,
-          -0.1956,
-          -0.1
+          -0.198,
+          0.116,
+          -0.13
         ],
         [
-          -0.08,
-          -0.19,
-          -0.098
+          -0.0132,
+          0.0418,
+          0.0088
         ]
       ],
-      "width": 0.0012,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_membrane",
-      "kind": "text",
-      "text": "Cell membrane",
-      "pos": [
-        0.26,
-        0.02,
-        -0.1
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_membrane",
-      "kind": "line",
-      "points": [
-        [
-          0.175,
-          0.0144,
-          -0.1
-        ],
-        [
-          0.12,
-          -0.05,
-          -0.022
-        ]
-      ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -181,61 +63,63 @@
       "kind": "text",
       "text": "Lysosome",
       "pos": [
-        0.26,
-        -0.05,
-        -0.1
+        -0.19,
+        0.06,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_lysosome",
       "kind": "line",
       "points": [
         [
-          0.175,
-          -0.0556,
-          -0.1
+          -0.198,
+          0.056,
+          -0.13
         ],
         [
-          0.117,
-          -0.122,
-          -0.057
+          -0.0077,
+          0.033,
+          -0.0638
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_nucleus",
+      "id": "label_nucleolus",
       "kind": "text",
-      "text": "Nucleus",
+      "text": "Nucleolus",
       "pos": [
-        0.26,
-        -0.12,
-        -0.1
+        -0.19,
+        0.0,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
-      "id": "leader_nucleus",
+      "id": "leader_nucleolus",
       "kind": "line",
       "points": [
         [
-          0.175,
-          -0.1256,
-          -0.1
+          -0.198,
+          -0.004,
+          -0.13
         ],
         [
-          0.035,
-          -0.13,
-          -0.038
+          -0.0044,
+          0.0231,
+          0.0022
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -243,49 +127,192 @@
       "kind": "text",
       "text": "Golgi apparatus",
       "pos": [
-        0.26,
         -0.19,
-        -0.1
+        -0.06,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_golgi",
       "kind": "line",
       "points": [
         [
-          0.175,
-          -0.1956,
-          -0.1
+          -0.198,
+          -0.064,
+          -0.13
         ],
         [
-          0.053,
-          -0.154,
-          -0.099
+          -0.0627,
+          0.0176,
+          -0.0297
         ]
       ],
-      "width": 0.0012,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "tracer",
-      "kind": "primitive",
-      "shape": "sphere",
+      "id": "label_centrosome",
+      "kind": "text",
+      "text": "Centrosome",
       "pos": [
-        0.035,
-        -0.13,
-        -0.046
+        -0.19,
+        -0.12,
+        -0.13
       ],
-      "size": [
-        0.008,
-        0.008,
-        0.008
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_centrosome",
+      "kind": "line",
+      "points": [
+        [
+          -0.198,
+          -0.124,
+          -0.13
+        ],
+        [
+          -0.0022,
+          -0.0176,
+          0.0583
+        ]
       ],
-      "color": "#4D9DE0",
-      "glow": true,
-      "visible": false
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_membrane",
+      "kind": "text",
+      "text": "Cell membrane",
+      "pos": [
+        0.19,
+        0.12,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_membrane",
+      "kind": "line",
+      "points": [
+        [
+          0.198,
+          0.116,
+          -0.13
+        ],
+        [
+          0.0,
+          0.044,
+          -0.1078
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_mitochondrion",
+      "kind": "text",
+      "text": "Mitochondrion",
+      "pos": [
+        0.19,
+        0.04,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_mitochondrion",
+      "kind": "line",
+      "points": [
+        [
+          0.198,
+          0.036,
+          -0.13
+        ],
+        [
+          0.0473,
+          0.0293,
+          -0.0582
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_rough_er",
+      "kind": "text",
+      "text": "Rough ER",
+      "pos": [
+        0.19,
+        -0.04,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_rough_er",
+      "kind": "line",
+      "points": [
+        [
+          0.198,
+          -0.044,
+          -0.13
+        ],
+        [
+          0.0435,
+          0.0206,
+          -0.0155
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cytoplasm",
+      "kind": "text",
+      "text": "Cytoplasm",
+      "pos": [
+        0.19,
+        -0.12,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_cytoplasm",
+      "kind": "line",
+      "points": [
+        [
+          0.198,
+          -0.124,
+          -0.13
+        ],
+        [
+          0.055,
+          -0.033,
+          -0.044
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
     },
     {
       "id": "pathway",
@@ -300,10 +327,10 @@
       "text": "1  The DNA's instructions are copied to mRNA, which leaves the nucleus",
       "pos": [
         0,
-        0.11,
-        -0.1
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -314,10 +341,10 @@
       "text": "2  Ribosomes on the rough ER read the mRNA and build the protein",
       "pos": [
         0,
-        0.11,
-        -0.1
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -328,10 +355,10 @@
       "text": "3  The Golgi apparatus modifies the protein and packs it into a vesicle",
       "pos": [
         0,
-        0.11,
-        -0.1
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -342,12 +369,30 @@
       "text": "4  The vesicle fuses with the membrane and releases the protein",
       "pos": [
         0,
-        0.11,
-        -0.1
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "tracer",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.0132,
+        0.0418,
+        0.0088
+      ],
+      "size": [
+        0.009,
+        0.009,
+        0.009
+      ],
+      "color": "#7FDBFF",
+      "glow": true,
       "visible": false
     },
     {
@@ -357,26 +402,24 @@
       "widgets": [
         {
           "type": "note",
-          "text": "A typical animal cell with a wedge cut away. Not to scale: a real one is about 10 to 30 micrometres across."
+          "text": "A typical animal cell, about 10 000 times life size (a real one is 10 to 30 micrometres across). Its membrane is see-through; cut it open or separate it to see each organelle."
         },
         {
           "type": "button",
           "id": "follow",
-          "label": "Follow a protein"
-        },
-        {
-          "type": "button",
-          "id": "labels_on",
-          "label": "Show labels"
+          "label": "Follow a protein",
+          "primary": true
         },
         {
           "type": "button",
           "id": "labels_off",
-          "label": "Hide labels"
+          "label": "Hide labels",
+          "alt_id": "labels_on",
+          "alt_label": "Show labels"
         },
         {
           "type": "note",
-          "text": "3D model: public domain (CC0)."
+          "text": "3D model: made for Albie (CC0)."
         }
       ]
     }
@@ -384,24 +427,22 @@
   "rules": [
     {
       "type": "on_input",
-      "input": "follow",
-      "do": [
-        {
-          "timeline": "pathway",
-          "action": "restart"
-        }
-      ]
-    },
-    {
-      "type": "on_input",
       "input": "labels_on",
       "do": [
         {
-          "set": "label_mitochondrion.visible",
+          "set": "label_nucleus.visible",
           "value": true
         },
         {
-          "set": "leader_mitochondrion.visible",
+          "set": "leader_nucleus.visible",
+          "value": true
+        },
+        {
+          "set": "label_lysosome.visible",
+          "value": true
+        },
+        {
+          "set": "leader_lysosome.visible",
           "value": true
         },
         {
@@ -410,6 +451,38 @@
         },
         {
           "set": "leader_nucleolus.visible",
+          "value": true
+        },
+        {
+          "set": "label_golgi.visible",
+          "value": true
+        },
+        {
+          "set": "leader_golgi.visible",
+          "value": true
+        },
+        {
+          "set": "label_centrosome.visible",
+          "value": true
+        },
+        {
+          "set": "leader_centrosome.visible",
+          "value": true
+        },
+        {
+          "set": "label_membrane.visible",
+          "value": true
+        },
+        {
+          "set": "leader_membrane.visible",
+          "value": true
+        },
+        {
+          "set": "label_mitochondrion.visible",
+          "value": true
+        },
+        {
+          "set": "leader_mitochondrion.visible",
           "value": true
         },
         {
@@ -426,38 +499,6 @@
         },
         {
           "set": "leader_cytoplasm.visible",
-          "value": true
-        },
-        {
-          "set": "label_membrane.visible",
-          "value": true
-        },
-        {
-          "set": "leader_membrane.visible",
-          "value": true
-        },
-        {
-          "set": "label_lysosome.visible",
-          "value": true
-        },
-        {
-          "set": "leader_lysosome.visible",
-          "value": true
-        },
-        {
-          "set": "label_nucleus.visible",
-          "value": true
-        },
-        {
-          "set": "leader_nucleus.visible",
-          "value": true
-        },
-        {
-          "set": "label_golgi.visible",
-          "value": true
-        },
-        {
-          "set": "leader_golgi.visible",
           "value": true
         }
       ]
@@ -467,11 +508,19 @@
       "input": "labels_off",
       "do": [
         {
-          "set": "label_mitochondrion.visible",
+          "set": "label_nucleus.visible",
           "value": false
         },
         {
-          "set": "leader_mitochondrion.visible",
+          "set": "leader_nucleus.visible",
+          "value": false
+        },
+        {
+          "set": "label_lysosome.visible",
+          "value": false
+        },
+        {
+          "set": "leader_lysosome.visible",
           "value": false
         },
         {
@@ -480,6 +529,38 @@
         },
         {
           "set": "leader_nucleolus.visible",
+          "value": false
+        },
+        {
+          "set": "label_golgi.visible",
+          "value": false
+        },
+        {
+          "set": "leader_golgi.visible",
+          "value": false
+        },
+        {
+          "set": "label_centrosome.visible",
+          "value": false
+        },
+        {
+          "set": "leader_centrosome.visible",
+          "value": false
+        },
+        {
+          "set": "label_membrane.visible",
+          "value": false
+        },
+        {
+          "set": "leader_membrane.visible",
+          "value": false
+        },
+        {
+          "set": "label_mitochondrion.visible",
+          "value": false
+        },
+        {
+          "set": "leader_mitochondrion.visible",
           "value": false
         },
         {
@@ -497,38 +578,120 @@
         {
           "set": "leader_cytoplasm.visible",
           "value": false
-        },
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "pos",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          [
+            -0.0132,
+            0.0418,
+            0.0088
+          ]
+        ],
+        [
+          2.3,
+          [
+            0.0435,
+            0.0206,
+            -0.0155
+          ]
+        ],
+        [
+          4.8,
+          [
+            0.0435,
+            0.0206,
+            -0.0155
+          ]
+        ],
+        [
+          7.0,
+          [
+            -0.0627,
+            0.0176,
+            -0.0297
+          ]
+        ],
+        [
+          9.0,
+          [
+            0.0,
+            0.044,
+            -0.1078
+          ]
+        ],
+        [
+          9.8,
+          [
+            0.0,
+            0.0594,
+            -0.1455
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "tracer",
+      "property": "color",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          "#7FDBFF"
+        ],
+        [
+          2.4,
+          "#7FDBFF"
+        ],
+        [
+          2.6,
+          "#FFE66D"
+        ],
+        [
+          7.0,
+          "#FFE66D"
+        ],
+        [
+          7.2,
+          "#FF9F43"
+        ]
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "follow",
+      "do": [
         {
-          "set": "label_membrane.visible",
-          "value": false
-        },
-        {
-          "set": "leader_membrane.visible",
-          "value": false
-        },
-        {
-          "set": "label_lysosome.visible",
-          "value": false
-        },
-        {
-          "set": "leader_lysosome.visible",
-          "value": false
-        },
-        {
-          "set": "label_nucleus.visible",
-          "value": false
-        },
-        {
-          "set": "leader_nucleus.visible",
-          "value": false
-        },
-        {
-          "set": "label_golgi.visible",
-          "value": false
-        },
-        {
-          "set": "leader_golgi.visible",
-          "value": false
+          "timeline": "pathway",
+          "action": "restart"
         }
       ]
     },
@@ -547,7 +710,67 @@
           true
         ],
         [
-          2,
+          2.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2.5,
+          true
+        ],
+        [
+          5.0,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5.0,
+          true
+        ],
+        [
+          7.5,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "pathway",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.5,
+          true
+        ],
+        [
+          9.95,
           false
         ]
       ]
@@ -571,32 +794,12 @@
           "#FFE66D"
         ],
         [
-          1.99,
+          2.49,
           "#FFE66D"
         ],
         [
-          2,
+          2.5,
           "#FFFFFF"
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "step_2",
-      "property": "visible",
-      "timeline": "pathway",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          2,
-          true
-        ],
-        [
-          5,
-          false
         ]
       ]
     },
@@ -611,11 +814,11 @@
           "#FFFFFF"
         ],
         [
-          2,
+          2.5,
           "#FFFFFF"
         ],
         [
-          2.01,
+          2.51,
           "#FFE66D"
         ],
         [
@@ -625,26 +828,6 @@
         [
           5,
           "#FFFFFF"
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "step_3",
-      "property": "visible",
-      "timeline": "pathway",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          5,
-          true
-        ],
-        [
-          7.5,
-          false
         ]
       ]
     },
@@ -678,26 +861,6 @@
     },
     {
       "type": "animate",
-      "target": "step_4",
-      "property": "visible",
-      "timeline": "pathway",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          7.5,
-          true
-        ],
-        [
-          9.9,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
       "target": "label_membrane",
       "property": "color",
       "timeline": "pathway",
@@ -715,147 +878,14 @@
           "#FFE66D"
         ],
         [
-          9.89,
+          9.94,
           "#FFE66D"
         ],
         [
-          9.9,
+          9.95,
           "#FFFFFF"
         ]
       ]
-    },
-    {
-      "type": "animate",
-      "target": "tracer",
-      "property": "visible",
-      "timeline": "pathway",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          0.01,
-          true
-        ],
-        [
-          9.9,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "tracer",
-      "property": "pos",
-      "timeline": "pathway",
-      "keys": [
-        [
-          0,
-          [
-            0.035,
-            -0.13,
-            -0.046
-          ]
-        ],
-        [
-          1.2,
-          [
-            0,
-            -0.135,
-            -0.075
-          ]
-        ],
-        [
-          2,
-          [
-            -0.038,
-            -0.128,
-            -0.097
-          ]
-        ],
-        [
-          5,
-          [
-            -0.03,
-            -0.135,
-            -0.1
-          ]
-        ],
-        [
-          7,
-          [
-            0.053,
-            -0.154,
-            -0.107
-          ]
-        ],
-        [
-          8.5,
-          [
-            0.09,
-            -0.2,
-            -0.088
-          ]
-        ],
-        [
-          9.9,
-          [
-            0.16,
-            -0.23,
-            -0.06
-          ]
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "tracer",
-      "property": "color",
-      "timeline": "pathway",
-      "keys": [
-        [
-          2,
-          "#4D9DE0"
-        ],
-        [
-          3,
-          "#FFE66D"
-        ],
-        [
-          6.5,
-          "#FFE66D"
-        ],
-        [
-          7.5,
-          "#F2B134"
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "tracer",
-      "property": "scale",
-      "timeline": "pathway",
-      "keys": [
-        [
-          6.5,
-          1
-        ],
-        [
-          7.5,
-          1.5
-        ],
-        [
-          9.5,
-          1.5
-        ],
-        [
-          9.9,
-          0.6
-        ]
-      ]
     }
-  ],
-  "run": null
+  ]
 }

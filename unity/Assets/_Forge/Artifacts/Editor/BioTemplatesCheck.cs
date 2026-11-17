@@ -46,7 +46,7 @@ public static class BioTemplatesCheck
             ok &= Check(sb, "every biology template is valid and this host builds it", Valid);
             ok &= Check(sb, "artifact_list offers them and artifact_create makes them", Made);
             ok &= Check(sb, "every model is bundled, openly licensed and credited, and matches its hash", Model);
-            ok &= Check(sb, "the heart and eye come apart into named parts, each with a place to go", Parts);
+            ok &= Check(sb, "every biology model comes apart into named parts, each with a place to go", Parts);
             ok &= Check(sb, "every label has a leader, and Show and Hide labels cover them all", Labels);
             ok &= Check(sb, "captions and moving parts stay hidden until their button starts them", Hidden);
             ok &= Check(sb, "the heart squeezes about its own centre", Beat);
@@ -175,7 +175,7 @@ public static class BioTemplatesCheck
     {
         note = null;
         var counts = new List<string>();
-        foreach (string t in new[] { "heart", "eye" })
+        foreach (string t in Bio)
         {
             var p = ArtifactPackage.Load(t, out string error);
             if (p == null) return t + ": " + error;
@@ -197,8 +197,9 @@ public static class BioTemplatesCheck
                 if (!marker) return $"{t}: {name} has no {ArtifactExplorer.ExplodeMarker} marker";
                 parts++;
             }
-            if (parts < 10) return $"{t} has only {parts} parts";
-            if (!json.ToString().Contains("\"xray")) return t + " doesn't say which parts X-ray shows through";
+            if (parts < 5) return $"{t} has only {parts} parts";
+            // DNA has no outer layer to see through; every other model marks its outer parts.
+            if (t != "dna" && !json.ToString().Contains("\"xray")) return t + " doesn't say which parts X-ray shows through";
             counts.Add($"{t} {parts} parts");
         }
         note = string.Join(", ", counts);
