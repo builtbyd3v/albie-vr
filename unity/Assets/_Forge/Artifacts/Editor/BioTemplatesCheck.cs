@@ -45,7 +45,8 @@ public static class BioTemplatesCheck
         {
             ok &= Check(sb, "every biology template is valid and this host builds it", Valid);
             ok &= Check(sb, "artifact_list offers them and artifact_create makes them", Made);
-            ok &= Check(sb, "every model is bundled, CC0, and matches its hash", Model);
+            ok &= Check(sb, "every model is bundled, openly licensed and credited, and matches its hash", Model);
+            ok &= Check(sb, "every biology model comes apart into named parts, each with a place to go", Parts);
             ok &= Check(sb, "every label has a leader, and Show and Hide labels cover them all", Labels);
             ok &= Check(sb, "captions and moving parts stay hidden until their button starts them", Hidden);
             ok &= Check(sb, "the heart squeezes about its own centre", Beat);
@@ -146,7 +147,17 @@ public static class BioTemplatesCheck
             var p = ArtifactPackage.Load(t, out string error);
             if (p == null) return t + ": " + error;
             var asset = (JObject)p.Manifest["assets"][0];
-            if ((string)asset["license"] != "CC0") return t + " license " + asset["license"];
+            string license = (string)asset["license"];
+            if (license != "CC0" && license != "CC-BY-SA-4.0") return t + " license " + license;
+            // Share-alike models must credit their sources where the user sees them, and come apart into named parts.
+            if (license != "CC0")
+            {
+                bool credited = false;
+                foreach (JObject n in (JArray)Scene(t)["nodes"])
+                    if ((string)n["kind"] == "panel")
+                        foreach (var w in (JArray)n["widgets"]) credited |= ((string)w["text"] ?? "").Contains("CC BY-SA");
+                if (!credited) return t + " is CC BY-SA but its panel doesn't credit the sources";
+            }
             byte[] bytes = p.ReadAsset((string)asset["path"], out string why);
             if (bytes == null) return t + ": " + why;
             if (bytes.Length > ArtifactSchema.MaxAssetBytes) return $"{t}: {bytes.Length} bytes is over the limit";
@@ -156,6 +167,42 @@ public static class BioTemplatesCheck
             sizes.Add($"{t} {bytes.Length / 1024} KB");
         }
         note = string.Join(", ", sizes);
+        return null;
+    }
+
+    // Reads the GLB's JSON chunk: every mesh node needs a name and an "explode" child (ArtifactExplorer's layout).
+    static string Parts(out string note)
+    {
+        note = null;
+        var counts = new List<string>();
+        foreach (string t in Bio)
+        {
+            var p = ArtifactPackage.Load(t, out string error);
+            if (p == null) return t + ": " + error;
+            byte[] glb = p.ReadAsset((string)p.Manifest["assets"][0]["path"], out string why);
+            if (glb == null) return t + ": " + why;
+            int length = BitConverter.ToInt32(glb, 12);
+            var json = JObject.Parse(Encoding.UTF8.GetString(glb, 20, length));
+            var nodes = (JArray)json["nodes"];
+            int parts = 0;
+            foreach (JObject n in nodes)
+            {
+                if (n["mesh"] == null) continue;
+                string name = (string)n["name"];
+                if (string.IsNullOrEmpty(name)) return t + " has a part with no name";
+                if (ArtifactExplorer.DisplayName(name) != name) return $"{t}: \"{name}\" would show with its .001";
+                bool marker = false;
+                if (n["children"] is JArray children)
+                    foreach (var c in children) marker |= ArtifactExplorer.IsExplodeMarker((string)nodes[(int)c]["name"]);
+                if (!marker) return $"{t}: {name} has no {ArtifactExplorer.ExplodeMarker} marker";
+                parts++;
+            }
+            if (parts < 5) return $"{t} has only {parts} parts";
+            // DNA has no outer layer to see through; every other model marks its outer parts.
+            if (t != "dna" && !json.ToString().Contains("\"xray")) return t + " doesn't say which parts X-ray shows through";
+            counts.Add($"{t} {parts} parts");
+        }
+        note = string.Join(", ", counts);
         return null;
     }
 

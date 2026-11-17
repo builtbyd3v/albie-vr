@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Forge.Notebook;
 using Newtonsoft.Json.Linq;
@@ -63,6 +64,50 @@ namespace Forge.Artifacts
                     }
                 }
             if (rowX > 0f) y += PillRow + Gap;
+            // Resolve at press time: glTF loads asynchronously, after the panel has been built.
+            if (build.Assets.Count > 0)
+            {
+                y += Note(panel.Content, y, "Explore the model: cut it open, separate its parts (each one is named), or see through the outer layers.") + Gap;
+                // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
+                var hiddenLabels = new List<GameObject>();
+                Action<bool> sceneLabels = apart =>
+                {
+                    if (apart)
+                    {
+                        foreach (var pair in build.Nodes)
+                            if (pair.Value != null && pair.Value.activeSelf && (pair.Key.StartsWith("label_") || pair.Key.StartsWith("leader_")))
+                            {
+                                pair.Value.SetActive(false);
+                                hiddenLabels.Add(pair.Value);
+                            }
+                    }
+                    else
+                    {
+                        foreach (var go in hiddenLabels) if (go != null) go.SetActive(true);
+                        hiddenLabels.Clear();
+                    }
+                };
+                Action<Action<ArtifactExplorer>> inspect = action =>
+                {
+                    foreach (var node in build.Nodes.Values)
+                        if (node != null && node.TryGetComponent<ArtifactGltf>(out var model) && model.Loaded && model.Explorer != null)
+                        {
+                            // The part names lay themselves out round this panel rather than under it.
+                            model.Explorer.Avoid = panel.transform;
+                            model.Explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f;
+                            action(model.Explorer);
+                            sceneLabels(model.Explorer.Separated);
+                        }
+                };
+                float x = 0f;
+                x += Pill(panel.Content, y, x, "Turn 30°", () => inspect(e => e.Turn())) + 10f;
+                x += Pill(panel.Content, y, x, "Cut open / Whole", () => inspect(e => e.Section())) + 10f;
+                Pill(panel.Content, y, x, "X-ray", () => inspect(e => e.ToggleXRay()));
+                y += PillRow + Gap;
+                x = Pill(panel.Content, y, 0f, "Separate / Assemble", () => inspect(e => e.Separate())) + 10f;
+                Pill(panel.Content, y, x, "Reset view", () => inspect(e => e.ResetView()));
+                y += PillRow + Gap;
+            }
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;
             if (hintText != null && build.Host.RunsRow != null) build.Host.RunsRow.SetHint(hintText, hintText.text, hintAfter);
             build.Host.KeepAboveBase(panel);

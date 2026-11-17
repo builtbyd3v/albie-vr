@@ -54,6 +54,22 @@ def fake_get_json(url: str, tries: int = 3):
     images = any(w in name for w in ("mnist", "shapes"))
     if parsed.netloc == "huggingface.co" and parsed.path == "/api/datasets":
         return [{"id": "fake/reviews"}] if "review" in q.get("search", "") else []
+    if parsed.netloc == "huggingface.co" and parsed.path == "/api/models":
+        return [{"id": "fake/distilbert-small"}] if "distilbert" in q.get("search", "") else []
+    if parsed.netloc == "huggingface.co" and parsed.path.startswith("/api/models/"):
+        model = urllib.parse.unquote(parsed.path.removeprefix("/api/models/"))
+        if "gpt" in model:
+            return {"id": model, "pipeline_tag": "text-generation", "gated": False,
+                    "config": {"model_type": "gpt2", "architectures": ["GPT2LMHeadModel"]},
+                    "siblings": [{"rfilename": f} for f in ("config.json", "model.safetensors", "tokenizer.json")],
+                    "downloads": 10}
+        return {"id": model, "pipeline_tag": "fill-mask", "gated": False,
+                "config": {"model_type": "distilbert", "architectures": ["DistilBertForMaskedLM"]},
+                "cardData": {"license": "apache-2.0"},
+                "siblings": [{"rfilename": f} for f in ("config.json", "pytorch_model.bin", "tokenizer.json")],
+                "downloads": 1000}
+    if parsed.netloc == "huggingface.co" and parsed.path.endswith("/resolve/main/config.json"):
+        return {"model_type": "distilbert", "architectures": ["DistilBertForMaskedLM"], "hidden_size": 32}
     if parsed.netloc == "huggingface.co":
         if "nolabels" in parsed.path:
             return {"cardData": {"license": "cc0-1.0"}}
@@ -130,6 +146,7 @@ def fake_hf(monkeypatch, tmp_path):
     monkeypatch.setattr(hf_data, "get_json", fake_get_json)
     monkeypatch.setattr(hf_data, "get_bytes", fake_get_bytes)
     monkeypatch.setattr(new_project, "ROWS", {"text_classification": (300, 80), "image_classification": (150, 60)})
+    monkeypatch.setattr(new_project, "PRETRAINED_ROWS", (300, 80))
     monkeypatch.setenv("FORGE_HF_CACHE", str(tmp_path / "hf-cache"))
 
 
@@ -398,3 +415,137 @@ def test_the_clouds_free_improvement_patches_a_built_project(tmp_path, template,
     assert "LSTM" in plan["diagnosis"] and "headlines" not in plan["diagnosis"]
     (rel, _, content), = improve.check_proposal(repo, plan)
     assert rel == "train.py" and "CosineAnnealingLR" in content and "sched.step()" in content
+
+
+@pytest.mark.parametrize("gap, changes, epochs", [(0.2, 2, 3), (0.01, 2, 6)])
+def test_the_clouds_free_improvement_patches_a_pretrained_project(tmp_path, gap, changes, epochs):
+    """The pretrained template already has AdamW and a schedule: the free fix adds weight decay and label
+    smoothing, keeps the model name the project recorded, and still passes the forge-line guardrails."""
+    import importlib.util
+    import shutil
+
+    from ml import improve
+    from ml.service import ROOT
+
+    spec = importlib.util.spec_from_file_location("text_improve", ROOT / "cloud-py" / "text_improve.py")
+    text_improve = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(text_improve)
+    repo = tmp_path / "repo"
+    shutil.copytree(new_project.TEMPLATES / "pretrained", repo)
+    (repo / "project.json").write_text(json.dumps({
+        "model": "hf", "model_name": "XTREMEDistil", "base_model": "microsoft/xtremedistil-l6-h256-uncased",
+        "task": "text_classification", "rows": {"train": 2000}}))
+    d = {"train_val_gap": gap, "train_acc": 0.9, "val_acc": 0.9 - gap, "best_val_acc": 0.9 - gap, "epochs": 3}
+    plan = text_improve.plan(d, repo)
+    assert len(plan["changes"]) == changes and plan["epochs"] == epochs
+    assert "XTREMEDistil" in plan["diagnosis"] and "headlines" not in plan["diagnosis"]
+    (rel, _, content), = improve.check_proposal(repo, plan)
+    assert rel == "train.py" and "--label-smoothing" in content and "args.weight_decay" in content
+
+
+# --- pretrained models (fine-tuning an encoder from Hugging Face) -------------------------------------------
+
+def test_model_words_that_name_a_pretrained_encoder():
+    assert new_project.model_kind("fine-tune distilbert") == "hf"
+    assert new_project.model_kind("a pretrained roberta") == "hf"
+    assert new_project.model_kind("a bert") == "transformer"  # from scratch, as before
+
+
+def test_plan_finetunes_a_model_from_the_hub(fake_hf):
+    p = new_project.plan(request="fine-tune distilbert on movie reviews")
+    assert p["model"] == "hf" and p["base_model"] == "distilbert-base-uncased"
+    assert p["model_name"] == "DistilBERT" and p["task"] == "text_classification"
+    assert p["dataset"] == "stanfordnlp/imdb" and p["classes"] == ["neg", "pos"]
+    assert p["rows"] == {"train": 300, "val": 80}
+    assert new_project.default_epochs(p) == new_project.PRETRAINED_EPOCHS
+    said = new_project.describe(p)
+    assert said["finetune"] is True and said["base_model"] == "distilbert-base-uncased"
+
+
+def test_plan_takes_an_explicit_base_model_id(fake_hf):
+    p = new_project.plan(request="fine-tune on movie reviews", base_model="fake/distilbert-small")
+    assert p["base_model"] == "fake/distilbert-small" and p["model_name"] == "distilbert-small"
+
+
+def test_a_generative_model_is_refused(fake_hf):
+    with pytest.raises(hf_data.DatasetError, match="generative"):
+        new_project.plan(request="fine-tune on movie reviews", base_model="fake/gpt2")
+
+
+@pytest.mark.parametrize("said", ["fine-tune gpt2 on movie reviews", "train llama on movie reviews",
+                                  "fine-tune t5 on movie reviews", "fine-tune mistral on tweets"])
+def test_a_generative_model_named_in_the_request_is_refused(said):
+    """Not a silent fall-back to the default encoder: the user named a model the template can't use, so Albie
+    says why instead of building something else."""
+    with pytest.raises(hf_data.DatasetError, match="generative"):
+        new_project.plan(request=said)
+
+
+def test_a_vision_model_named_in_the_request_is_refused():
+    with pytest.raises(hf_data.DatasetError, match="vision|image fine-tuning"):
+        new_project.plan(request="fine-tune vit on movie reviews")
+
+
+def test_build_writes_the_pretrained_template(tmp_path, fake_hf):
+    p = new_project.plan(request="fine-tune distilbert on movie reviews")
+    repo = new_project.build(p, tmp_path / "new", epochs=2)
+    project = json.loads((repo / "project.json").read_text())
+    assert project["model"] == "hf" and project["base_model"] == "distilbert-base-uncased"
+    assert project["max_len"] == 128 and project["lr"] == 3e-5
+    assert {"model.py", "data.py", "train.py", ".forge/adapter.py"} <= {str(x.relative_to(repo)) for x in repo.rglob("*")}
+    profile = json.loads((repo / ".forge" / "profile.json").read_text())
+    assert profile["base_model"] == "distilbert-base-uncased" and "fine-tune" in profile["notes"]
+    assert "fine-tuned from" in (repo / "README.md").read_text()
+
+
+@pytest.fixture()
+def tiny_encoder(tmp_path):
+    """A real, tiny Hugging Face encoder on disk: no Hub call and no pretrained download in the test."""
+    pytest.importorskip("transformers")
+    from transformers import BertConfig, BertModel, BertTokenizer
+
+    path = tmp_path / "tiny-encoder"
+    path.mkdir()
+    words = sorted({w for i in range(40) for w in re.findall(r"[a-z0-9']+", text_row(i)["text"].lower())})
+    vocab = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"] + words
+    (path / "vocab.txt").write_text("\n".join(vocab) + "\n")
+    BertTokenizer(vocab_file=str(path / "vocab.txt")).save_pretrained(path)
+    config = BertConfig(vocab_size=len(vocab), hidden_size=16, num_hidden_layers=1, num_attention_heads=2,
+                        intermediate_size=32, max_position_embeddings=128)
+    BertModel(config).save_pretrained(path)
+    return path
+
+
+def test_a_pretrained_project_passes_check_and_trains(tmp_path, fake_hf, tiny_encoder):
+    pytest.importorskip("torch")
+    import os
+    import subprocess
+
+    from ml.service import FORGE_SDK
+
+    p = new_project.plan(request="fine-tune on movie reviews", base_model=str(tiny_encoder))
+    repo = new_project.build(p, tmp_path / "new", epochs=1)
+    env = {**os.environ, "FORGE_OFFLINE": "1", "PYTHONPATH": str(FORGE_SDK)}
+    check = subprocess.run([sys.executable, "-m", "forge.check", str(repo)], cwd=repo, env=env,
+                           capture_output=True, text=True, timeout=300)
+    assert check.returncode == 0, check.stdout[-2000:] + check.stderr[-2000:]
+    done = subprocess.run([sys.executable, "train.py", "--epochs", "1"], cwd=repo, env=env,
+                          capture_output=True, text=True, timeout=300)
+    assert done.returncode == 0, done.stderr[-2000:]
+    assert "best val acc" in done.stdout
+    assert (repo / "checkpoints" / "best.pt").is_file()
+
+
+def test_ml_new_finetunes_a_pretrained_encoder_end_to_end(tmp_path, monkeypatch, fake_hf, tiny_encoder):
+    result, said, events, svc = _run_tool(tmp_path, monkeypatch, {
+        "request": "fine-tune on movie reviews", "base_model": str(tiny_encoder.resolve()), "epochs": 1})
+    assert result["finetune"] is True and result["base_model"] == str(tiny_encoder.resolve())
+    assert result["model"] == "tiny-encoder" and result["dataset"] == "stanfordnlp/imdb"
+    assert said[0] == "Got 300 texts. Training the tiny-encoder now; watch the curves.", said
+    assert said[-1].startswith("Done!"), said
+    repo = svc.repo
+    project = json.loads((repo / "project.json").read_text())
+    assert project["model"] == "hf" and project["base_model"] == str(tiny_encoder.resolve())
+    assert [p for t, p in events if t == "ml.layout"][-1]["archetype"] == "text_classification"
+    assert svc.latest_run("results.json") is not None
+

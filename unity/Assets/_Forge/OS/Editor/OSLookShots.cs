@@ -915,7 +915,7 @@ namespace Forge.OS.Editor
             Problem0(shell.MenuOpen, "the table button opens the menu");
             foreach (float w in OpenTab(OSTab.Tools)) yield return w;
             yield return 0.5f;
-            FrameMenu("menu_tools", "The menu on the Tools tab: the tab bar, seven tool tiles (CAD, Code, Train, Notebook, Drive, Messages, Gestures) with a status line each, and the bottom strip (Build something, Agents, Settings, Bring windows here, Close).");
+            FrameMenu("menu_tools", "The menu on the Tools tab: the tab bar, eight tool tiles (CAD, Code, Train, Notebook, Messages, Gestures, Drive, Agents) with a status line each, and the bottom strip (Build something, Agents, Settings, Bring windows here, Close).");
             foreach (float w in OpenTab(OSTab.Projects)) yield return w;
             FrameMenu("menu_projects", "The menu on the Projects tab: the four starter projects (RC truck started, with its version and a passed slalom; Quadcopter, Rocket and Image classifier not started) and the strip.");
             foreach (float w in OpenTab(OSTab.Artifacts)) yield return w;

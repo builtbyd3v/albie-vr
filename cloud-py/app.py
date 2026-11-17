@@ -68,7 +68,7 @@ ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
 CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
 # "Albie, build me a ..." (hub/agent/build.py): the crew writes a project on this machine and, after a yes, opens a
 # pull request on BUILD_REPO. Named here so the module (and the Claude CLI it drives) loads only when first used.
-BUILD_TOOLS = {"build_start", "build_status", "build_ship", "build_cancel"}
+BUILD_TOOLS = {"build_start", "build_approve", "build_review", "build_status", "build_ship", "build_cancel"}
 EVENT_LOG = 400
 
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
@@ -157,6 +157,12 @@ class DeviceML(MLService):
 
 
 class DeviceMLTools(MLTools):
+    def project_dirs(self) -> list[tuple[Path, str]]:
+        """This headset's projects only: its copy of the template, the repos cloned and the projects built for it."""
+        svc = self.svc
+        found = super().project_dirs() + [(svc.template, "example")]
+        return [(p, kind) for p, kind in found if p.is_dir() and svc.allowed(p.resolve())]
+
     def resolve(self, name: str) -> Path:
         """A path, or a repo cloned or a project built for this device, by name. With no name, the one it used
         last (kept across a restart or the Space's sleep), else its own copy of the cloud's project."""
@@ -206,8 +212,13 @@ def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float
             message = json.loads(answer.read())
     except Exception as e:  # noqa: BLE001 - any failure means: use the scripted change
         raise LLMError(f"Claude proxy: {e}") from e
-    if message.get("stop_reason") in ("refusal", "max_tokens"):
-        raise LLMError(f"Claude stopped: {message.get('stop_reason')}")
+    if message.get("stop_reason") == "max_tokens":
+        # The proxy caps answers at 4096 tokens; adapting a whole repo needs far more (ml/setup/llm.py allows 64000).
+        raise LLMError("Claude's answer was cut off: setting up a GitHub repo needs the cloud's own Claude key "
+                       "(the Space's ANTHROPIC_API_KEY secret, from ALBIE_ANTHROPIC_API_KEY when it deploys), "
+                       "not the shared proxy")
+    if message.get("stop_reason") == "refusal":
+        raise LLMError("Claude declined this request")
     text = next((b.get("text") for b in message.get("content", []) if b.get("type") == "text"), None)
     try:
         return LLMResult(data=json.loads(text or ""), content=message.get("content", []), usage=message.get("usage", {}))
@@ -266,6 +277,7 @@ class Device:
         app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if app.state.ml_llm is not no_llm else "jev"
         self.ml_tools = DeviceMLTools(app.state, root, speak=lambda pet, text: asyncio.sleep(0, False))
         self.builds = None  # this headset's agent.build.Builds, made on its first build tool
+        app.state.ml_tools = self.ml_tools  # GET /ml/projects lists this headset's projects
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
         app.include_router(code_browser.router)  # /code/*: the GitHub repos and pull requests in the code panel
@@ -295,7 +307,8 @@ class Device:
                 await self.publish_event(agent_events.crew_spawn(agent_type))  # AlbieCrew hatches it
                 return {"status": "hatched"}
 
-            self.builds = agent_build.Builds(publish=self.publish_event, hatch=hatch)
+            self.builds = agent_build.Builds(publish=self.publish_event, hatch=hatch,
+                                            root=DATA / "devices" / self.id / "builds")
         if name == "build_start":
             if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAKE_AGENT") != "1":
                 return {"error": "the crew can't think yet: Albie's cloud has no Claude key (the Space's "

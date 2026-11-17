@@ -1,5 +1,6 @@
 using Forge.Artifacts;
 using Forge.Controllers;
+using Forge.Notebook;
 using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
@@ -23,7 +24,7 @@ namespace Forge.OS
         /// <summary>Window id, and the id of the tool's tile.</summary>
         public const string WindowId = "drive";
 
-        static readonly Vector2 SizeMeters = new Vector2(0.44f, 0.50f);
+        static readonly Vector2 SizeMeters = new Vector2(0.50f, 0.64f);
         const float PadSize = 260f, KnobSize = 84f;            // OS units: 169 mm and 55 mm
         const float StopWidth = 300f, StopHeight = 76f;         // OS units: 195 x 49 mm
         const float PollSeconds = 0.2f;
@@ -36,6 +37,8 @@ namespace Forge.OS
         ForgePanel panel;
         OSDrivePad pad;
         Button stop;
+        Button setup, record, train, autopilot;
+        TMP_Text actionText;
         TMP_Text thingText, stateText;
         float nextPoll;
         int thingKey = int.MinValue, stateKey = int.MinValue;
@@ -103,12 +106,19 @@ namespace Forge.OS
 
             thingText = OSUi.Text(column, "", LineSize);
 
+            setup = OSUi.Button(column, "Set up truck", () => RunProjectAction("course"), OSButtonStyle.Primary);
+
             RectTransform padRow = OSUi.Row(column, PadSize, 0f);
             padRow.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
             pad = OSDrivePad.Create(padRow, PadSize, KnobSize);
 
             TMP_Text hint = OSUi.Text(column, "Push up to drive, down to reverse, sideways to steer. Let go and it stops.", HintSize, true);
             hint.alignment = TextAlignmentOptions.Center;
+
+            RectTransform actions = OSUi.Row(column, OSUi.ButtonHeight, 12f);
+            record = OSUi.Button(actions, "Record laps", () => RunProjectAction("drive"));
+            train = OSUi.Button(actions, "Train", () => RunProjectAction("train"));
+            autopilot = OSUi.Button(actions, "Autopilot", () => RunProjectAction("autopilot"));
 
             RectTransform stopRow = OSUi.Row(column, StopHeight, 0f);
             stopRow.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
@@ -141,6 +151,8 @@ namespace Forge.OS
             stateText = OSUi.Text(column, "", LineSize, true);
             stateText.alignment = TextAlignmentOptions.Center;
             thingText.alignment = TextAlignmentOptions.Center;
+            actionText = OSUi.Text(column, "Tap Set up truck to create a course, then Allow on its card.", HintSize, true);
+            actionText.alignment = TextAlignmentOptions.Center;
 
             Poll(true);
         }
@@ -164,6 +176,10 @@ namespace Forge.OS
             if (thingText == null) return;
             IBrainLoop loop = OSProjects.LiveLoop;
             var brain = loop as SlalomBrain;
+            if (setup != null) setup.gameObject.SetActive(loop == null && ThingHosts.Count == 0);
+            if (record != null) record.interactable = brain != null && brain.State == SlalomBrain.Mode.Idle;
+            if (train != null) train.interactable = brain != null && brain.State == SlalomBrain.Mode.Idle && brain.CompletedLaps > 0;
+            if (autopilot != null) autopilot.interactable = brain != null && (brain.State == SlalomBrain.Mode.Idle || brain.State == SlalomBrain.Mode.Autopilot);
             int hosts = ThingHosts.Count;
             int tk = (brain != null ? 1 : 0) | (loop != null ? 2 : 0) | (Mathf.Min(hosts, 15) << 2);
             if (force || tk != thingKey)
@@ -171,7 +187,7 @@ namespace Forge.OS
                 thingKey = tk;
                 if (brain != null) thingLine = "Drives: the truck (the brain truck on the slalom)";
                 else if (hosts > 0) thingLine = "Drives: " + FirstThing();
-                else thingLine = "No truck to drive yet. Open the RC truck project and tap Course.";
+                else thingLine = "No truck to drive yet. Tap Set up truck to create a course.";
                 thingText.text = thingLine;
                 // The brain truck holds a hand's speed (see OSDrivePad.ThrottleScale); another truck gets the whole range.
                 if (pad != null) pad.ThrottleScale = brain != null ? HandThrottle : 1f;
@@ -183,7 +199,28 @@ namespace Forge.OS
                 stateKey = sk;
                 stateLine = StateText(loop, brain);
                 stateText.text = stateLine;
+                if (brain != null && actionText != null)
+                    actionText.text = brain.State == SlalomBrain.Mode.Idle
+                        ? "Record two laps with the pad, then Train and Autopilot."
+                        : "Let go of the pad to brake. Stop ends the recording or Autopilot.";
             }
+        }
+
+        // Reuse the project's setup, permission card, recording and training actions so Drive can be used on its own.
+        void RunProjectAction(string action)
+        {
+            string id = NotebookStore.ProjectId;
+            if (string.IsNullOrEmpty(id) || OSProjects.KindOf(id) != OSProjectKind.Truck)
+                id = NotebookStore.DefaultProject;
+            if (!OSProjects.EnsureOpen(id, out string error))
+            {
+                actionText.text = error;
+                return;
+            }
+            var window = OSProjectWindow.Open(id);
+            var project = window != null ? window.GetComponent<OSProjectWindow>() : null;
+            actionText.text = project != null ? project.Do(action) : "The truck project couldn't open. Try Set up truck again.";
+            nextPoll = 0f;
         }
 
         /// <summary>The throttle at which a hand holds <see cref="SlalomBrain.KeySpeed"/> on the brain truck: what its W key and a Touch stick write.</summary>

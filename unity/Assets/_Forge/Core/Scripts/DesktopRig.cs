@@ -33,6 +33,18 @@ public class DesktopRig : MonoBehaviour
 
     /// <summary>The desktop rig in use, if any (panel handles ask it for the mouse ray).</summary>
     public static DesktopRig Current { get; private set; }
+    public static bool TypingInField
+    {
+        get
+        {
+            var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+            var field = selected != null ? selected.GetComponent<TMP_InputField>() : null;
+            return field != null && field.isFocused;
+        }
+    }
+
+    /// <summary>Allow ordinary mouse selection and typing in a workspace form.</summary>
+    public void FreeCursor() => SetCursorLocked(false);
     /// <summary>UI under the crosshair / cursor right now, or null.</summary>
     public GameObject Hovered => hovered;
     /// <summary>Ray from the eyes through the crosshair or the free cursor.</summary>
@@ -82,9 +94,10 @@ public class DesktopRig : MonoBehaviour
         if (kb == null || mouse == null) return;
 
         if (kb.escapeKey.wasPressedThisFrame) SetCursorLocked(!cursorLocked);
-        if (cursorLocked || mouse.rightButton.isPressed) Look(mouse.delta.ReadValue());
-        if (!Seated && seatMove == null) Walk(kb);
-        if (kb.eKey.wasPressedThisFrame) ToggleSeat();
+        bool typing = TypingInField;
+        if (!typing && (cursorLocked || mouse.rightButton.isPressed)) Look(mouse.delta.ReadValue());
+        if (!typing && !Seated && seatMove == null) Walk(kb);
+        if (!typing && kb.eKey.wasPressedThisFrame) ToggleSeat();
 
         Vector2 screen = cursorLocked ? new Vector2(Screen.width * 0.5f, Screen.height * 0.5f) : mouse.position.ReadValue();
         bool hitUi = Point(screen, mouse.leftButton.wasPressedThisFrame, mouse.leftButton.wasReleasedThisFrame);

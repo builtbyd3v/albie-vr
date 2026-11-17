@@ -142,7 +142,11 @@ TOOL_RULES = (
     "branch. Use the crew only when the user names a crew member or asks for help in parallel. "
     "ML (machine learning) requests always go to your ml tools, never to delegate: opening the ML project or 'the "
     "ML stuff' is ml_open (not ui_open_view), starting a new ML project or model ('start an RNN project', 'build a "
-    "CNN on handwritten digits') is ml_new (never artifact_create or delegate), putting that project on GitHub as a pull request is ml_publish (ask first; confirm true only after a yes), pulling up or importing a repo from GitHub is ml_github, 'how is my model doing' or the last score is ml_status, 'what can I do "
+    "CNN on handwritten digits') is ml_new (never artifact_create or delegate); fine-tuning a pretrained Hugging "
+    "Face model ('fine-tune distilbert on movie reviews') is also ml_new, with base_model set to the model they "
+    "named (or left out for the small default), and it is never ml_open or a 'no such project' answer; putting "
+    "that project on GitHub as a pull request is ml_publish (ask first; confirm true only after a yes), pulling up "
+    "or importing a repo from GitHub is ml_github, 'how is my model doing' or the last score is ml_status, 'what can I do "
     "better' or 'improve it' is ml_improve, a yes or 'apply it' after an ml_improve suggestion is ml_apply, 'undo "
     "that' is ml_undo, and 'train it again' is ml_train. The Neural Net Lab (a small network learning 2D data, "
     "TensorFlow Playground style) is nn_open, nn_control, nn_neuron and nn_status; 'why did the accuracy drop' or "
@@ -162,6 +166,9 @@ TOOL_RULES = (
 IGNORED_NOTE = ("The user's last message was not said to you (background audio, or talk to someone else). "
                 "Ignore it completely: never act on it, answer it or mention it.")
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
+# Lead-only tools that work from any screen: workflows have no characters, and a build (agent/build.py) has its own
+# workspace, plan card and crew, so "Albie, build me a ..." must not need the CODE screen open.
+OPEN_ON_EVERY_SCREEN = ("workflow_", "build_")
 VIEW_NOTES = {
     "code": "The user switched to the CODE view (the code panel on the main screen); crew tools are available now.",
     "cad": "The user switched to the CAD view (the open design on the desk); crew tools are off until they open CODE.",
@@ -843,7 +850,8 @@ class GrokVoiceSession(_Base):
             job = asyncio.create_task(self._run_delegate(str(args["task"]), mode))
             self._jobs.add(job)
             job.add_done_callback(self._jobs.discard)
-        elif tools.is_lead_only(name) and not name.startswith("workflow_") and self.workspace_mode is not None and self.workspace_mode != "code":
+        elif (tools.is_lead_only(name) and not name.startswith(OPEN_ON_EVERY_SCREEN)
+              and self.workspace_mode is not None and self.workspace_mode != "code"):
             result = CREW_OFF_CODE_SCREEN  # the crew lives on the CODE screen; Unity told us another view is open
         elif tools.has(name):
             # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s).

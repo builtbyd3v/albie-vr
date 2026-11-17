@@ -272,6 +272,11 @@ namespace Forge.OS
             statusShown = status;
 
             OSUi.Clear(column);
+            RectTransform workflowActions = OSUi.Row(column, OSUi.ButtonHeight, 19f);
+            workflowActions.GetComponent<LayoutElement>().flexibleHeight = 0f;
+            OSUi.Button(workflowActions, "Project workflow", () => OSWorkflowWindow.Open(), OSButtonStyle.Primary);
+            OSUi.Button(workflowActions, "Agent office", () => OSAgentOffice.Open());
+
             if (!crewNow)
             {
                 Label(column, "The crew isn't available in this scene.", BodySize, true);
@@ -286,6 +291,7 @@ namespace Forge.OS
             panel.Subtitle = current.Count == 0 ? "no agents yet" : current.Count + (current.Count == 1 ? " agent" : " agents") + (anyHome ? ", " + HomeCountIn(current) + " home" : "");
 
             RectTransform actions = OSUi.Row(column, OSUi.ButtonHeight, 19f);
+            actions.GetComponent<LayoutElement>().flexibleHeight = 0f;
             Button bringAll = OSUi.Button(actions, "Bring all home", BringAllHome, OSButtonStyle.Secondary, "home");
             if (bringAll != null) bringAll.interactable = anyOut;
             Button sendAll = OSUi.Button(actions, "Send all out", SendAllOut, OSButtonStyle.Secondary);

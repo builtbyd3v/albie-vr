@@ -1,5 +1,6 @@
 torch>=2.4
 torchvision
+transformers>=5.0  # ml_new's pretrained fine-tuning (hub/ml/templates/pretrained)
 numpy
 pillow
 matplotlib

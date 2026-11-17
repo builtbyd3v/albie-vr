@@ -456,12 +456,12 @@ namespace Forge.OS.Editor
             OSProjects.Refresh();
             ManualInputs.Clear();
 
-            // ---- the Tools tab: seven tiles, Drive after Gestures, a true status line
+            // ---- the Tools tab: eight tiles, Drive after Gestures, Agents last, a true status line
             var tools = new List<OSEntry>();
             OSRegistry.Fill(OSTab.Tools, tools);
             string order = "";
             foreach (var e in tools) order += e.id + ";";
-            Check(order == "cad;code;train;notebook;messages;gestures;drive;", "the Tools tab lists seven tools, Drive after Gestures (" + order + ")");
+            Check(order == "cad;code;train;notebook;messages;gestures;drive;agents;", "the Tools tab lists eight tools, Drive after Gestures (" + order + ")");
             OSEntry driveEntry = OSRegistry.Find(OSTab.Tools, "drive");
             Check(driveEntry != null && driveEntry.title == "Drive" && OSUi.Icon(driveEntry.icon) != null && driveEntry.open != null && driveEntry.status != null && driveEntry.isOpen != null,
                 "the Drive entry has a title, a kit icon, a status line, an open flag and an action");
@@ -477,12 +477,12 @@ namespace Forge.OS.Editor
             yield return 0.4f;
             string tileIds = "";
             for (int i = 0; i < menu.ActiveTiles.Count; i++) tileIds += (menu.ActiveTiles[i].entry != null ? menu.ActiveTiles[i].entry.id : "?") + ",";
-            Check(shell.MenuOpen && menu.ActiveTiles.Count == 7, "the menu shows seven tiles on the Tools tab (" + menu.ActiveTiles.Count + ": " + tileIds + ")");
+            Check(shell.MenuOpen && menu.ActiveTiles.Count == 8, "the menu shows eight tiles on the Tools tab (" + menu.ActiveTiles.Count + ": " + tileIds + ")");
             OSTileView driveTile = null;
             for (int i = 0; i < menu.ActiveTiles.Count; i++)
                 if (menu.ActiveTiles[i].entry != null && menu.ActiveTiles[i].entry.id == "drive") driveTile = menu.ActiveTiles[i];
             Check(driveTile != null && driveTile.title != null && driveTile.title.text == "Drive", "one of them is Drive");
-            Shot("70_tools_seven_tiles");
+            Shot("70_tools_eight_tiles");
             Check(driveTile != null && OSToolsTest.Press(driveTile.gameObject, out why), "a pointer reaches the Drive tile: " + why);
             yield return 1.0f;
 
@@ -521,16 +521,22 @@ namespace Forge.OS.Editor
             Check(Chan("stick.x") == 0f && Chan("stick.y") == 0f, "letting go writes zero at once");
 
             // ---- the truck project, Course (the Allow step first), the brain truck
-            OSProjects.OpenProject(NotebookStore.DefaultProject);
+            ArtifactHost host = ArtifactHost.Current ?? ArtifactBootstrap.Ensure();
+            // Give the setup button a clear mock floor without changing the user's room or approvals.
+            if (host != null) host.Room = MockFloorPlan.LivingRoom();
+            var setupButton = FindButton(win, "Set up truck");
+            Check(setupButton != null && setupButton.interactable, "Drive offers setup when no truck exists");
+            Check(FindButton(win, "Record laps") != null && !FindButton(win, "Record laps").interactable,
+                "recording stays unavailable until the truck exists");
+            if (setupButton != null) setupButton.onClick.Invoke();
             yield return 1.2f;
             OSProjectWindow project = ProjectView(shell);
             Check(project != null && project.ProjectId == NotebookStore.DefaultProject, "the RC truck project window is open");
             if (project == null) yield break;
-            ArtifactHost host = ArtifactHost.Current ?? ArtifactBootstrap.Ensure();
             // The simulated living room of the desktop rig has no clear strip of floor for a slalom: lay the course out in the mock room.
             if (host != null) host.Room = MockFloorPlan.LivingRoom();
             Check(BrainLoops.Active == null, "no brain truck before Course");
-            string asked = project.Do("course");
+            string asked = project.StatusLine;
             Check(asked.StartsWith("The slalom asks first.", StringComparison.Ordinal), "Course asks for permission first (" + asked + ")");
             if (host != null && host.OpenManifest != null) ArtifactApprovals.Approve(host.OpenManifest);  // Allow
             AlbieTools.Call("artifact_close", new JObject());
@@ -556,12 +562,12 @@ namespace Forge.OS.Editor
             yield return 0.6f;
             Shot("72_drive_idle_truck");
 
-            // ---- the Drive action of the truck project: opens Drive and starts a two-lap recording
+            // ---- Drive's own Record laps action starts a two-lap recording
             project = ProjectView(shell);
             OSWindow projectWindow = windows.Find(OSProjectWindow.WindowId);
-            UnityEngine.UI.Button driveButton = FindButton(projectWindow, "Drive");
-            Check(driveButton != null && driveButton.interactable, "the project window's Drive action is on now that the tool exists");
-            DesktopRig.Current.LookAt(OSToolsTest.CenterOf(projectWindow.Panel.transform));
+            UnityEngine.UI.Button driveButton = FindButton(win, "Record laps");
+            Check(driveButton != null && driveButton.interactable, "Drive's Record laps action is ready with a truck");
+            DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.5f;
             Check(driveButton != null && OSToolsTest.Press(driveButton.gameObject, out why), "a pointer reaches the Drive action: " + why);
             yield return 0.8f;
@@ -699,10 +705,10 @@ namespace Forge.OS.Editor
 
             // ---- the whole flow: laps recorded by driving the pad through the slalom
             int lapsBefore = brain.CompletedLaps;
-            DesktopRig.Current.LookAt(OSToolsTest.CenterOf(projectWindow.Panel.transform));
+            DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.5f;
             projectWindow = windows.Find(OSProjectWindow.WindowId);
-            driveButton = FindButton(projectWindow, "Drive");
+            driveButton = FindButton(win, "Record laps");
             Check(driveButton != null && OSToolsTest.Press(driveButton.gameObject, out why), "Drive starts the recording again: " + why);
             yield return 0.8f;
             Check(brain.State == SlalomBrain.Mode.Lap && brain.LapTarget == lapsBefore + 2, "two laps to record (" + Lap(brain) + ")");
@@ -752,7 +758,10 @@ namespace Forge.OS.Editor
             }
 
             // ---- Train, then Autopilot, from the project window's own buttons
-            Check(project.Do("train").StartsWith("Training the brain", StringComparison.Ordinal), "Train starts on the pad laps");
+            var trainButton = FindButton(win, "Train");
+            Check(trainButton != null && trainButton.interactable, "Drive enables Train after completed laps");
+            if (trainButton != null) trainButton.onClick.Invoke();
+            Check(project.StatusLine.StartsWith("Training the brain", StringComparison.Ordinal), "Drive's Train starts on the pad laps");
             waited = 0f;
             while (brain.State == SlalomBrain.Mode.Idle && waited < 2f) { waited += 0.1f; yield return 0.1f; }
             until = Time.time + 90f;
@@ -763,7 +772,10 @@ namespace Forge.OS.Editor
             OSModes.Close();
             yield return 0.8f;
 
-            string auto = project.Do("autopilot");
+            var autopilotButton = FindButton(win, "Autopilot");
+            Check(autopilotButton != null && autopilotButton.interactable, "Drive offers Autopilot after training");
+            if (autopilotButton != null) autopilotButton.onClick.Invoke();
+            string auto = project.StatusLine;
             Check(auto.StartsWith("The Autopilot is driving", StringComparison.Ordinal), "Autopilot starts (" + auto + ")");
             yield return 0.5f;
             Check(drive.StateLine == "Autopilot driving" || brain.State == SlalomBrain.Mode.Idle, "the Drive window says the Autopilot is driving (" + drive.StateLine + ")");

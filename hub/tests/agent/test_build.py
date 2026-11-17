@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -33,14 +34,17 @@ def scripted_runner(delay: float = 0.0, commits_itself: tuple[str, ...] = ()):
                 return ""
             await asyncio.sleep(0.01)
         if mode == "code":
-            out = project.path / "out"
-            out.mkdir(exist_ok=True)
-            (out / FILES[pet_id]).write_text(f"# by {pet_id}\n")
+            folder = re.search(r"Work only in the folder ([^ ]+)/", text)
+            out = project.path / (folder.group(1) if folder else ".") / "out"
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "__init__.py").touch()
+            content = "import unittest\nclass TestApp(unittest.TestCase):\n def test_runs(self): self.assertEqual(2 + 2, 4)\n" if pet_id == "tester" else f"# by {pet_id}\n"
+            (out / FILES[pet_id]).write_text(content)
             if pet_id in commits_itself:
                 git(project.path, "add", "-A")
                 git(project.path, "-c", "user.name=crew", "-c", "user.email=c@c", "commit", "-q", "-m", f"{pet_id} work")
             return f"{pet_id} wrote out/{FILES[pet_id]}."
-        return "No bugs found."
+        return "No bugs found. REVIEW: PASS"
 
     run.seen = seen  # type: ignore[attr-defined]
     return run
@@ -65,6 +69,8 @@ def wait_for(client: TestClient, build_id: str, states=("ready", "shipped", "fai
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         b = client.get(f"/agent/builds/{build_id}").json()
+        if b["state"] == "awaiting_plan":
+            client.post(f"/agent/builds/{build_id}/approve", json={"confirm": True})
         if b["state"] in states:
             return b
         time.sleep(0.02)
@@ -98,7 +104,7 @@ def test_a_build_plans_runs_each_crew_member_in_turn_and_commits(builds_env, mon
     log = git(ws, "log", "--format=%an|%s").splitlines()
     assert len(log) == 3 and all(line.startswith("Albie|") for line in log)
     assert log[-1].startswith("Albie|Builder:")
-    assert sorted(p.name for p in (ws / "out").iterdir()) == ["README.md", "app.py", "test_app.py"]
+    assert sorted(p.name for p in (ws / "out").iterdir() if p.is_file()) == ["README.md", "__init__.py", "app.py", "test_app.py"]
 
     # No BUILD_REPO: it stays on the hub, and shipping says so instead of pretending.
     asked = tool(builds_env, "build_ship")
@@ -143,7 +149,7 @@ def test_shipping_needs_a_yes_then_pushes_the_branch_and_opens_a_pull_request(
     assert shipped == {"status": "shipped", "pr_number": 7, "pr_url": "https://github.com/demo/sandbox/pull/7"}
     assert git(remote, "branch", "--list", b["branch"]).strip() == b["branch"]
     files = git(remote, "ls-tree", "-r", "--name-only", b["branch"]).splitlines()
-    assert {"README.md", "out/app.py", "out/test_app.py", "out/README.md"} <= set(files)
+    assert {"README.md", *(b["folder"] + "/out/" + p for p in ("app.py", "test_app.py", "README.md"))} <= set(files)
     owner, repo, head, title, body = opened[0]
     assert (owner, repo, head) == ("demo", "sandbox", b["branch"])
     assert title.startswith("Albie's crew:") and "**Builder**" in body and "**Reviewer**" in body
@@ -200,7 +206,7 @@ def test_a_step_that_changes_nothing_in_a_new_repo_has_no_commit(builds_env, mon
 
     monkeypatch.setattr(build_mod, "_runner", lambda: idle)
     b = wait_for(builds_env, builds_env.post("/agent/builds", json={"goal": "empty"}).json()["id"])
-    assert b["state"] == "ready" and [s["commit"] for s in b["steps"]] == [None, None, None, None]
+    assert b["state"] == "failed" and not any(s["commit"] for s in b["steps"])
 
 
 def test_one_build_at_a_time_and_cancel_stops_it(builds_env, monkeypatch) -> None:
@@ -263,8 +269,19 @@ def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypat
         mine = build_mod.Builds(publish=publish, hatch=hatch)
         started = await build_mod.call_tool("build_start", {"goal": "a dice roller"}, of=mine)
         b = mine.get(started["build_id"])
-        while not b.done:
-            await asyncio.sleep(0.01)
+        async def finish():
+            while b.state == "planning":
+                await asyncio.sleep(0.01)
+            assert b.state == "awaiting_plan"
+            assert b.workspace is None
+            refused = await build_mod.call_tool("build_approve", {"confirm": False}, of=mine)
+            assert "error" in refused
+            approved = await build_mod.call_tool("build_approve", {"confirm": True}, of=mine)
+            assert approved["build_id"] == b.id
+            await b.future
+
+        await asyncio.wait_for(finish(), timeout=10)
+        assert b.verification[0]["state"] == "passed"
         return b.public()
 
     b = asyncio.run(run())
@@ -274,6 +291,7 @@ def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypat
     says = [e.payload for e in log if e.type == "pet.say"]
     assert says[0]["text"].startswith("Planning") and says[1]["card"]["title"].startswith("Plan:")
     assert says[-1]["card"]["title"].startswith("Built:")
+    assert "build.updated" in types
     assert "agent.task_progress" in types  # the crew members' live lines reach the headset's log
     progress = [e.payload for e in log if e.type == "agent.task_progress"]
     assert {p["pet_id"] for p in progress} == {"builder", "tester", "scribe", "reviewer"}

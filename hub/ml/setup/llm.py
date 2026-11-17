@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 MODEL = os.environ.get("FORGE_LLM_MODEL", "claude-opus-5-5")
-MAX_TOKENS = 32_000
+MAX_TOKENS = 64_000  # streamed; Opus 5.5 thinking counts toward it, and a whole-repo adapter at effort "high" overran 32k
 BETAS = ["server-side-fallback-2026-07-01"]
 NO_CREDENTIALS = "no valid Anthropic credentials: set ANTHROPIC_API_KEY in the hub's environment"
 

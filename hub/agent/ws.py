@@ -148,6 +148,11 @@ async def _on_text(s: Session, raw: str) -> None:
                 crew.project_id = h.project_id
             log.info("hello client=%s pet=%s project=%s", h.client, h.pet_id, h.project_id)
             await _open_voice(s, h)
+            # A reconnect must restore the workflow gate and panel even between progress messages.
+            from .build import builds
+            current_build = builds.get(None)
+            if current_build is not None:
+                await bus.send(s.ws, Event(type="build.updated", payload=current_build.public()))
         elif event.type == "agent.ask":
             await _on_ask(s, AgentAsk.model_validate(event.payload))
         elif event.type == "agent.cancel":

@@ -26,8 +26,12 @@ COPY cloud-py cloud-py
 # ml_new ("start an RNN project"): the datasets it reaches for, sampled once here (~25 MB; it reads them from this
 # cache first), so the demo's new projects don't wait on, or get rate-limited by, Hugging Face. A failure only
 # means those projects download live.
-ENV FORGE_HF_CACHE=/app/hf-cache
+ENV FORGE_HF_CACHE=/app/hf-cache HF_HOME=/app/hf-models
 RUN PYTHONPATH=/app/hub python -m ml.new_project warm || echo "ml_new cache warm failed; new projects download live"
+# ml_new fine-tuning ("fine-tune distilbert on movie reviews"): the default encoder's tokenizer and weights, once,
+# so the first demo run doesn't wait on the Hub. A failure only means that run downloads them.
+RUN python -c "from transformers import AutoTokenizer, AutoModel; m='microsoft/xtremedistil-l6-h256-uncased'; \
+AutoTokenizer.from_pretrained(m); AutoModel.from_pretrained(m)" || echo "pretrained model warm failed; it downloads live"
 
 # The shared AG News subset (~30 MB) and a first 4-epoch run, so "open my ML project" has a score at once.
 RUN cd ml-examples/text-classification \
@@ -38,6 +42,7 @@ RUN cd ml-examples/text-classification \
 
 # ponytail: HOME=/tmp gives library caches (torch, matplotlib) a writable home under uid 1000.
 ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data PORT=8080 HOME=/tmp \
+    HF_HOME=/app/hf-models \
     CLAUDE_PROXY_URL=https://albie-cloud.vercel.app/api/claude \
     FORGE_ML_PIP=1 FORGE_MAX_TRAIN=4000 FORGE_MAX_VAL=500 FORGE_LLM_MODEL=claude-sonnet-5-5
 # ml_github: a cloned repo's missing packages go into its own venv (FORGE_ML_PIP, hub/ml/repo_env.py), and its
