@@ -4,9 +4,8 @@ Limited to repos the demo account owns. Reading is GET /code/...; the two writes
 request) are POSTs that need {"confirm": true}, sent only after the user confirmed on the device or to Albie.
 Albie's tools on the same functions are in code_browser/tools.py.
 
-CODE_GITHUB_TOKEN: the demo account's token, set in hub/.env. It never ships in the APK (D-04, D-30) and never
-appears in a response. It is taken out of the process environment on first use, so child processes started
-afterwards (ML training scripts from imported repos) don't inherit it.
+GITHUB_TOKEN: the demo account's token, set in the hub's environment. It never ships in the APK (D-04, D-30) and
+never appears in a response. The ML import (ml/github_import.py) reads the same variable.
 """
 from __future__ import annotations
 
@@ -25,7 +24,6 @@ _BASE = "https://api.github.com"
 _MAX_FILE = 256_000
 _MAX_PATCH = 8_000
 
-_token_value: str | None = None
 _owned: dict[str, dict] = {}  # "owner/name" in lower case -> the repo as GitHub returned it
 current_repo = ""  # the repo the device last read: what "this repo" means to Albie's tools
 
@@ -111,10 +109,7 @@ class Done(BaseModel):
 
 
 def _token() -> str:
-    global _token_value
-    if _token_value is None:
-        _token_value = os.environ.pop("CODE_GITHUB_TOKEN", "")
-    return _token_value
+    return os.environ.get("GITHUB_TOKEN", "")
 
 
 async def _get(session: aiohttp.ClientSession, path: str) -> dict | list:
@@ -149,7 +144,7 @@ async def _write(session: aiohttp.ClientSession, method: str, path: str, body: d
 def _session() -> aiohttp.ClientSession:
     token = _token()
     if not token:
-        raise HTTPException(503, "CODE_GITHUB_TOKEN not set in hub/.env")
+        raise HTTPException(503, "GITHUB_TOKEN is not set for the hub")
     return aiohttp.ClientSession(
         headers={
             "Authorization": f"Bearer {token}",
@@ -206,7 +201,7 @@ def _patch(text: str) -> tuple[str, bool]:
 
 async def list_sources() -> Sources:
     if not _token():
-        return Sources(note="CODE_GITHUB_TOKEN not set in hub/.env")
+        return Sources(note="GITHUB_TOKEN is not set for the hub")
     async with _session() as s:
         await _load_owned(s)
     repos = list(_owned.values())

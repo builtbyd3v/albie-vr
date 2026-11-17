@@ -47,7 +47,7 @@ def github(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, dict[str, Any],
 
     monkeypatch.setattr(code_browser, "_get", fake_get)
     monkeypatch.setattr(code_browser, "_session", FakeSession)
-    monkeypatch.setattr(code_browser, "_token_value", "secret-token")
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
     code_browser._owned.clear()
     app = FastAPI()
     app.include_router(code_browser.router)
@@ -65,9 +65,9 @@ def test_sources_lists_owned_repos(github) -> None:
 
 def test_no_token_is_a_note_not_an_error(github, monkeypatch: pytest.MonkeyPatch) -> None:
     client, _, asked = github
-    monkeypatch.setattr(code_browser, "_token_value", "")
+    monkeypatch.delenv("GITHUB_TOKEN")
     body = client.get("/code/sources").json()
-    assert body["sources"] == [] and "CODE_GITHUB_TOKEN" in body["note"]
+    assert body["sources"] == [] and "GITHUB_TOKEN" in body["note"]
     assert asked == []
 
 
