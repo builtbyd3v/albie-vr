@@ -92,6 +92,9 @@ namespace Forge.Artifacts
                     foreach (var node in build.Nodes.Values)
                         if (node != null && node.TryGetComponent<ArtifactGltf>(out var model) && model.Loaded && model.Explorer != null)
                         {
+                            // The part names lay themselves out round this panel rather than under it.
+                            model.Explorer.Avoid = panel.transform;
+                            model.Explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f;
                             action(model.Explorer);
                             sceneLabels(model.Explorer.Separated);
                         }

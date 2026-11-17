@@ -30,6 +30,11 @@ namespace Forge.Artifacts
             public Material[] materials, ghosts;
             public bool large;
             public TextMeshPro label;
+            public LineRenderer leader;
+            public int side;                       // the callout column it's in: -1 left, 1 right, 0 not yet set out
+            public int column;                     // the column it goes in this frame
+            public float across, height, slot;     // layout scratch, metres
+            public float width;                    // the name's width, metres
         }
 
         readonly List<Part> parts = new List<Part>();
@@ -104,8 +109,8 @@ namespace Forge.Artifacts
             {
                 var part = parts[i];
                 part.transform.localPosition = part.position + part.offset * eased;
-                if (part.label != null) part.label.gameObject.SetActive(t > 0.6f);
             }
+            ShowLabels(t > 0.6f);
         }
 
         /// <summary>Cuts the model open on one plane through its centre, facing the viewer, and keeps the back half.</summary>
@@ -217,55 +222,155 @@ namespace Forge.Artifacts
             return part.transform.parent.InverseTransformVector(world);
         }
 
+        // Names of separated parts, set out as callouts: two columns beside the model as the viewer sees it, each
+        // sorted by the height of its parts and spaced a line apart, with a leader line to each part. Laid out every
+        // frame they show, so they stay readable while the parts move and as the viewer walks round.
+        const float LabelSize = 0.13f;      // TMP font size at world scale 1: about 1.3 cm tall
+        const float LineSpacing = 0.021f;   // between label rows, metres
+        const float ColumnGap = 0.02f;      // from the model's edge on that side to its column
+        static readonly Color LeaderColour = new Color(0.82f, 0.83f, 0.86f, 0.85f);
+        Part[] labelled = new Part[0], column = new Part[0];
+        Transform labelRoot;
+
+        /// <summary>Something beside the model the names must not run under (the artifact's panel), and its half width.</summary>
+        public Transform Avoid;
+        public float AvoidHalfWidth;
+
         void MakeLabels()
         {
-            var placed = new List<Vector3>();  // where each label will be once the parts are apart (world)
+            if (labelRoot != null) return;
+            labelRoot = new GameObject("labels").transform;
+            labelRoot.SetParent(transform, false);
+            var list = new List<Part>();
             foreach (var part in parts)
             {
-                if (part.label != null || part.renderer == null) continue;
+                if (part.renderer == null) continue;
                 string name = DisplayName(part.transform.name);
                 if (string.IsNullOrEmpty(name) || name.StartsWith("Mesh") || name.StartsWith("Node")) continue;
                 var go = new GameObject("label " + name);
-                go.transform.SetParent(part.transform, false);
+                go.transform.SetParent(labelRoot, false);
                 var text = go.AddComponent<TextMeshPro>();
                 if (ForgeTheme.Font != null) text.font = ForgeTheme.Font;
                 text.text = name;
-                text.alignment = TextAlignmentOptions.Center;
                 text.textWrappingMode = TextWrappingModes.NoWrap;
                 text.outlineWidth = 0.22f;
                 text.outlineColor = new Color32(8, 10, 14, 235);
                 text.rectTransform.sizeDelta = new Vector2(2f, 0.5f);
-                text.fontSize = 0.15f;
+                text.fontSize = LabelSize;
                 go.AddComponent<ArtifactBillboard>();
-                // Above the part, or below it when another label is already there, judged where the parts will be once
-                // apart. The label rides on the part, so it's placed relative to where the part is now.
-                var parent = part.transform.parent;
-                var moved = parent.TransformVector(part.transform.localPosition - part.position);
-                var full = parent.TransformVector(part.offset);
-                var b = part.renderer.bounds;
-                var apartCentre = b.center - moved + full;
-                float lift = b.extents.y + 0.012f;
-                var spot = apartCentre + Vector3.up * lift;
-                if (Crowded(placed, spot))
-                {
-                    var below = apartCentre - Vector3.up * lift;
-                    spot = Crowded(placed, below) ? spot + Vector3.up * 0.022f : below;
-                }
-                placed.Add(spot);
-                go.transform.position = spot - full + moved;
                 float world = go.transform.lossyScale.x;
                 if (world > 1e-6f) go.transform.localScale *= 1f / world;
-                go.SetActive(apart > 0.6f);
+                var leader = new GameObject("leader").AddComponent<LineRenderer>();
+                leader.transform.SetParent(go.transform, false);
+                leader.useWorldSpace = true;
+                leader.sharedMaterial = ArtifactLook.Trail();
+                leader.startColor = leader.endColor = LeaderColour;
+                leader.widthMultiplier = 0.0008f;
+                leader.positionCount = 2;
+                leader.numCapVertices = 2;
+                leader.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                leader.receiveShadows = false;
+                leader.alignment = LineAlignment.View;
                 part.label = text;
+                part.leader = leader;
+                part.width = text.GetPreferredValues(name).x * go.transform.lossyScale.x;
+                part.side = 0;
+                list.Add(part);
             }
+            labelled = list.ToArray();
+            column = new Part[labelled.Length];
+            ShowLabels(apart > 0.6f);
         }
 
-        // Two labels clash when they're within a word's width side to side and a line's height up and down.
-        static bool Crowded(List<Vector3> placed, Vector3 spot)
+        void ShowLabels(bool show)
         {
-            foreach (var p in placed)
-                if (Mathf.Abs(p.y - spot.y) < 0.02f && new Vector2(p.x - spot.x, p.z - spot.z).magnitude < 0.07f) return true;
-            return false;
+            for (int i = 0; i < labelled.Length; i++) labelled[i].label.gameObject.SetActive(show);
+        }
+
+        void LateUpdate()
+        {
+            if (labelled.Length == 0 || !labelled[0].label.gameObject.activeSelf) return;
+            var cam = Camera.main;
+            if (cam != null) LayOutLabels(cam.transform.position);
+        }
+
+        /// <summary>Sets out the part names as two columns of callouts seen from <paramref name="eye"/>. Checks call it directly.</summary>
+        public void LayOutLabels(Vector3 eye)
+        {
+            if (labelled.Length == 0) return;
+            var c = transform.TransformPoint(centre);
+            var toModel = c - eye; toModel.y = 0f;
+            var right = toModel.sqrMagnitude > 1e-8f ? Vector3.Cross(Vector3.up, toModel.normalized) : Vector3.right;
+            // How far the model reaches to each side right now, so each column just clears its own side (the panel
+            // usually stands on one side, so a column no further out than it needs to be stays clear of it).
+            float reachLeft = 0f, reachRight = 0f;
+            for (int i = 0; i < labelled.Length; i++)
+            {
+                var p = labelled[i];
+                var b = p.renderer.bounds;
+                float half = Mathf.Abs(b.extents.x * right.x) + Mathf.Abs(b.extents.y * right.y) + Mathf.Abs(b.extents.z * right.z);
+                float across = Vector3.Dot(b.center - c, right);
+                reachLeft = Mathf.Max(reachLeft, half - across);
+                reachRight = Mathf.Max(reachRight, half + across);
+                p.across = across;
+                p.height = Vector3.Dot(b.center - c, Vector3.up);
+            }
+            float xLeft = reachLeft + ColumnGap, xRight = reachRight + ColumnGap;
+            // Where the panel's near edge is, if it's beside the model: a name that would run under it goes to the other side.
+            int blocked = 0; float edge = 0f;
+            if (Avoid != null)
+            {
+                float a = Vector3.Dot(Avoid.position - c, right);
+                blocked = a < 0f ? -1 : 1;
+                edge = Mathf.Abs(a) - AvoidHalfWidth - 0.01f;
+            }
+            for (int i = 0; i < labelled.Length; i++)
+            {
+                var p = labelled[i];
+                p.column = p.across < 0f ? -1 : 1;
+                if (blocked != 0 && p.column == blocked && (blocked < 0 ? xLeft : xRight) + p.width > edge) p.column = -blocked;
+            }
+            Column(-1, c, right, xLeft);
+            Column(1, c, right, xRight);
+        }
+
+        void Column(int side, Vector3 c, Vector3 right, float x)
+        {
+            int n = 0;
+            for (int i = 0; i < labelled.Length; i++)
+                if (labelled[i].column == side) column[n++] = labelled[i];
+            if (n == 0) return;
+            // Top to bottom by the parts' heights (insertion sort: a couple of dozen parts, no allocation).
+            for (int i = 1; i < n; i++)
+            {
+                var p = column[i]; int j = i - 1;
+                while (j >= 0 && column[j].height < p.height) { column[j + 1] = column[j]; j--; }
+                column[j + 1] = p;
+            }
+            // Each row as close to its part's height as it can be while staying a line below the row above, then the
+            // whole column moved back so on average the rows sit level with their parts.
+            float shift = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                column[i].slot = i == 0 ? column[i].height : Mathf.Min(column[i].height, column[i - 1].slot - LineSpacing);
+                shift += column[i].height - column[i].slot;
+            }
+            shift /= n;
+            for (int i = 0; i < n; i++)
+            {
+                var p = column[i];
+                var spot = c + right * (side * x) + Vector3.up * (p.slot + shift);
+                if (p.side != side)
+                {
+                    // Left column reads toward the model (right-aligned), right column away from it.
+                    p.side = side;
+                    p.label.alignment = side < 0 ? TextAlignmentOptions.Right : TextAlignmentOptions.Left;
+                    p.label.rectTransform.pivot = new Vector2(side < 0 ? 1f : 0f, 0.5f);
+                }
+                p.label.transform.position = spot;
+                p.leader.SetPosition(0, spot - right * (side * 0.006f));
+                p.leader.SetPosition(1, p.renderer.bounds.center);
+            }
         }
 
         static Material[] Ghosts(Material[] source)
