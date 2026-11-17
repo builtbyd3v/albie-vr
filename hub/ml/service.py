@@ -151,7 +151,7 @@ class MLService:
                        f"`python -m forge.run {RUNNER_JOBS.get(name, 'dataset')} --repo {self.repo}`")
 
     def run_runner(self, job: str) -> None:
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")]))}
+        env = {**{k: v for k, v in os.environ.items() if k != "GITHUB_TOKEN"}, "PYTHONPATH": os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")]))}
         proc = subprocess.run([self.python(), "-m", "forge.run", job, "--repo", str(self.repo)], cwd=self.repo,
                               env=env, capture_output=True, text=True, timeout=RUNNER_TIMEOUT_S)
         if proc.returncode != 0:
@@ -423,7 +423,7 @@ class MLService:
         if "--epochs" in argv[:-1]:
             argv[argv.index("--epochs") + 1] = str(epochs)
         run_id = uuid.uuid4().hex[:8]
-        env = {k: v for k, v in os.environ.items() if k not in ("FORGE_OFFLINE", "FORGE_RUN_DIR")}
+        env = {k: v for k, v in os.environ.items() if k not in ("FORGE_OFFLINE", "FORGE_RUN_DIR", "GITHUB_TOKEN")}  # imported code never sees the token
         env.update(FORGE_HUB=hub_url.rstrip("/"), FORGE_RUN_ID=run_id,
                    PYTHONPATH=os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")])))
         self.forge_dir.mkdir(parents=True, exist_ok=True)
@@ -483,7 +483,7 @@ class MLService:
                         "repository": imported["repository"], "archetype": "image_classification",
                         "format": imported["format"], "runs": imported.get("runs")}
         run_id = uuid.uuid4().hex[:8]
-        env = {k: v for k, v in os.environ.items() if k not in ("FORGE_OFFLINE", "FORGE_RUN_DIR")}
+        env = {k: v for k, v in os.environ.items() if k not in ("FORGE_OFFLINE", "FORGE_RUN_DIR", "GITHUB_TOKEN")}  # imported code never sees the token
         env.update(FORGE_HUB=hub_url.rstrip("/"), FORGE_RUN_ID=run_id, FORGE_RUN_DIR=str(self.runs_dir),
                    PYTHONPATH=os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")])))
         self.forge_dir.mkdir(parents=True, exist_ok=True)
