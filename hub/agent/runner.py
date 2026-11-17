@@ -58,6 +58,7 @@ REVIEW_BASH = ["Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(
 DOCS_BASH = ["Bash(git add:*)", "Bash(git commit:*)", "Bash(git status:*)", "Bash(git diff:*)"]
 # Irreversible / out-of-scope actions the pet must never take without a human.
 CODE_DENY = [
+    "Bash(gh:*)",  # GitHub goes through the hub's own tools, behind a confirm; gh would use whatever login the Mac has
     "Bash(git push:*)",
     "Bash(git checkout:*)",
     "Bash(git switch:*)",
@@ -66,6 +67,18 @@ CODE_DENY = [
     "Bash(rm -rf:*)",
     "Bash(sudo:*)",
 ]
+# Secrets the hub holds for its own calls (GitHub, Slack, Grok voice, Hugging Face). A Claude turn runs the Claude CLI
+# with a shell, and the SDK starts it with the hub's whole environment; its env option can override values but not
+# remove them, so each of these is passed as "". ANTHROPIC_API_KEY stays: the CLI may need it to run at all.
+HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "XAI_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_USER_TOKEN",
+              "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
+
+
+def agent_env() -> dict[str, str]:
+    """What a Claude turn's environment overrides: every hub secret that is set, blanked."""
+    return {name: "" for name in HIDDEN_ENV if os.environ.get(name)}
+
+
 # Crew members share the repo through worktrees: they must not touch other branches or worktrees either.
 CREW_DENY = CODE_DENY + ["Bash(git worktree:*)", "Bash(git merge:*)", "Bash(git rebase:*)", "Bash(git stash:*)"]
 # Hub tools (agent/tools.py) a crew runner may call, by name prefix: only its kit's own module. Never cad_*
@@ -177,6 +190,7 @@ def _options(project: ProjectConfig, mode: ConcreteMode, pet_id: str = "bit",
         setting_sources=["project"],  # load the repo's CLAUDE.md, not the user's global settings
         include_partial_messages=(mode == "qa"),  # token deltas -> smooth captions
         max_turns=12 if mode == "qa" else 40,
+        env=agent_env(),  # no hub secrets in the agent's shell
         stderr=lambda line: log.debug("claude-cli: %s", line),
     )
 
