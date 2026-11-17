@@ -1,56 +1,68 @@
-using System;
 using System.Collections.Generic;
 using System.Text;
 using Forge.Controllers;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 /// <summary>
-/// The code view on the headset. When hub is live it shows the connected GitHub repo (file tree, file viewer,
-/// PR diff); when hub is off it falls back to the bundled sample project. Either way the THING CONTROLLER section
-/// stays at the bottom of the left column so Satya's ML truck controller always works.
-///
-/// Albie drives it through <see cref="CodeTools"/> (local files) and <see cref="GitHubTools"/> (hub files/PRs).
-/// Lives on Code/Resources/CodePanel.prefab (a ForgePanel; Forge > Code > Build Code Panel Prefab).
-/// UI is built in code — no scene editing needed.
+/// The code view on the headset. The left column lists files, the right pane shows one (monospace, line numbers,
+/// simple Python colors), and the bottom bar has the status line. It has three views:
+/// <list type="bullet">
+/// <item>Sample: the bundled project in <see cref="CodeProject"/>, with Albie's highlight and note, Undo and Reset
+/// (tap twice). Albie drives it through <see cref="CodeTools"/>. With the hub off this is the only view.</item>
+/// <item>Repo and PRs (hub live): the project's GitHub repo and its pull requests as diffs, read-only, from
+/// <see cref="GitHubView"/>. Albie drives them through <see cref="GitHubTools"/>.</item>
+/// </list>
+/// The view follows whichever of the two Albie last acted on; the tabs switch it by hand. The THING CONTROLLER block
+/// stays at the bottom of the left column in every view.
+/// Lives on Code/Resources/CodePanel.prefab (a ForgePanel; Forge > Code > Build Code Panel Prefab). UI is built in code.
+/// Redraws only when something changes, never per frame.
 /// </summary>
 [RequireComponent(typeof(ForgePanel))]
 public class CodePanel : MonoBehaviour
 {
-    const float SideWidth = 150f, BarHeight = 40f, TabH = 34f, Gap = 10f, FontSize = 12.5f, Pad = 8f;
+    enum View { None, Sample, Repo, Prs }
+
+    const float SideWidth = 150f, BarHeight = 40f, TabHeight = 30f, Gap = 10f, FontSize = 12.5f, Pad = 8f;
+    const float TitleHeight = 26f, ControllerHeight = 130f;
+    // One TMP mesh holds the whole file, so a long one is cut here to keep the Quest's frame time.
+    const int MaxLines = 500, LabelChars = 19;
     static readonly Color CodeBg = new Color(0f, 0f, 0f, 0.28f);
     static readonly Color ErrorTint = new Color(1f, 0.35f, 0.35f, 0.22f);
 
     ForgePanel panel;
-    RectTransform side, viewport, content, bar;
-    TMP_Text code, note, status, projectLabel;
+    RectTransform tabs, side, codeBox, listContent, viewport, content, bar;
+    TMP_Text code, note, status, listTitle;
     Image highlight;
     ScrollRect scroll;
-    ForgePill undo, reset;
+    ForgePill sampleTab, repoTab, prsTab, undo, reset;
     TMP_InputField controllerSpeed;
     TMP_Text controllerState;
     ForgePill controllerApply;
+    // The running truck's controller, re-read twice a second: a Thing can start or swap controllers while the panel is
+    // open, and the code panel only refreshes when its own files change.
     float controllerPoll;
-    Forge.Controllers.ControllerFile shownFile;
+    ControllerFile shownFile;
     float shownSpeed = float.NaN;
-    // Local (CodeProject) file pills
     readonly List<(ForgePill pill, CodeProject.File file)> pills = new List<(ForgePill, CodeProject.File)>();
-    bool dirty = true, resetArmed;
+    readonly List<ForgePill> repoPills = new List<ForgePill>();
+    bool dirty = true, resetArmed, connected;
     float resetArmedUntil;
     string shownText, shownPath;
     int shownStart = -1;
-
-    // GitHub/PR tab row (shown only when hub is live)
-    RectTransform tabRow;
-    ForgePill filesTab, prTab;
-    // GitHub file tree / PR file pills (rebuilt on path or mode change)
-    readonly List<(ForgePill pill, object data)> ghPills = new List<(ForgePill, object)>();
-    string shownGhPath, shownGhFile, shownGhPrFile;
-    GitHubView.ViewMode shownGhMode = GitHubView.ViewMode.Files;
-    bool ghDirty;
-
-    // ---------------------------------------------------------------- lifecycle
+    View view = View.Sample, shownView = View.None;
+    int shownVersion = -1;
+    string shownFolder;
+    GitHubView.PrDetail shownPr;
+    // What the sample project last showed, to tell "Albie opened or edited a sample file" from a status line.
+    CodeProject.File seenOpen;
+    string seenText;
+    int seenStart;
+    // A short message (the controller's) that takes the status line in any view.
+    string notice;
+    float noticeUntil;
 
     void Awake()
     {
@@ -59,36 +71,27 @@ public class CodePanel : MonoBehaviour
         var placeholder = panel.Content.Find("Placeholder");
         if (placeholder != null) placeholder.gameObject.SetActive(false);
         Build();
+        var _ = CodeProject.Files;  // loads the sample, so its first load doesn't read as Albie opening a file
+        SampleMoved();
     }
 
     void OnEnable()
     {
         CodeProject.Changed += MarkDirty;
-        GitHubView.Changed += MarkGhDirty;
-        ForgeNet.StatusChanged += OnNetStatus;
-        dirty = ghDirty = true;
-        bool live = ForgeNet.Status == ForgeNetStatus.Live;
-        if (live && GitHubView.CurrentSource == null) GitHubView.Refresh();
-        if (tabRow != null) tabRow.gameObject.SetActive(live);
+        GitHubView.Changed += MarkDirty;
+        ForgeNet.StatusChanged += OnHub;
+        dirty = true;
     }
 
     void OnDisable()
     {
         CodeProject.Changed -= MarkDirty;
-        GitHubView.Changed -= MarkGhDirty;
-        ForgeNet.StatusChanged -= OnNetStatus;
+        GitHubView.Changed -= MarkDirty;
+        ForgeNet.StatusChanged -= OnHub;
     }
 
     void MarkDirty() => dirty = true;
-    void MarkGhDirty() => ghDirty = true;
-
-    void OnNetStatus(ForgeNetStatus s)
-    {
-        bool live = s == ForgeNetStatus.Live;
-        if (live && GitHubView.CurrentSource == null) GitHubView.Refresh();
-        if (tabRow != null) tabRow.gameObject.SetActive(live);
-        if (live) ghDirty = true; else dirty = true;
-    }
+    void OnHub(ForgeNetStatus _) => dirty = true;
 
     void LateUpdate()
     {
@@ -99,21 +102,15 @@ public class CodePanel : MonoBehaviour
             RefreshControllerState();
         }
         if (code == null) return;
-        bool liveHub = ForgeNet.Status == ForgeNetStatus.Live && GitHubView.CurrentSource != null;
-        if (liveHub && (dirty || ghDirty))
+        GitHubView.SyncProject();
+        if (notice != null && Time.unscaledTime > noticeUntil)
         {
-            dirty = ghDirty = false;
-            RefreshGitHub();
+            notice = null;
+            dirty = true;
         }
-        else if (!liveHub && dirty)
-        {
-            dirty = false;
-            Refresh();
-        }
-        else
-        {
-            ghDirty = false;
-        }
+        if (!dirty) return;
+        dirty = false;
+        Refresh();
     }
 
     // ---------------------------------------------------------------- layout
@@ -122,34 +119,53 @@ public class CodePanel : MonoBehaviour
     {
         RectTransform root = panel.Content;
 
-        // Tab row at the top (FILES | PR — shown when hub live)
-        tabRow = Rect("Tabs", root, new Vector2(0f, 1f), new Vector2(1f, 1f));
-        tabRow.pivot = new Vector2(0f, 1f);
-        tabRow.offsetMin = new Vector2(0f, -TabH);
-        tabRow.offsetMax = Vector2.zero;
-        tabRow.gameObject.SetActive(false);
-        filesTab = ForgePill.Create(tabRow, "FILES", () => GitHubView.ClosePr());
-        filesTab.Rect.anchorMin = filesTab.Rect.anchorMax = filesTab.Rect.pivot = new Vector2(0f, 0.5f);
-        filesTab.Rect.anchoredPosition = new Vector2(0f, 0f);
-        filesTab.Rect.sizeDelta = new Vector2(80f, TabH - 6f);
-        prTab = ForgePill.Create(tabRow, "PRs", () => GitHubView.FetchPrs());
-        prTab.Rect.anchorMin = prTab.Rect.anchorMax = prTab.Rect.pivot = new Vector2(0f, 0.5f);
-        prTab.Rect.anchoredPosition = new Vector2(88f, 0f);
-        prTab.Rect.sizeDelta = new Vector2(80f, TabH - 6f);
+        tabs = Rect("Tabs", root, new Vector2(0f, 1f), new Vector2(1f, 1f));
+        tabs.offsetMin = new Vector2(0f, -TabHeight);
+        sampleTab = Tab("Sample", 0f, 80f, () => { view = View.Sample; dirty = true; });
+        repoTab = Tab("Repo", 88f, 150f, GitHubView.ShowFiles);
+        prsTab = Tab("PRs", 246f, 70f, () => GitHubView.ShowPrs());
+        tabs.gameObject.SetActive(false);
 
-        // Left column (tab row takes the top strip)
         side = Rect("Files", root, new Vector2(0f, 0f), new Vector2(0f, 1f));
         side.pivot = new Vector2(0f, 1f);
         side.offsetMin = new Vector2(0f, BarHeight + Gap);
-        side.offsetMax = new Vector2(SideWidth, -(TabH + Gap));
-        projectLabel = Text("Project", side, 11f, ForgeTheme.PanelSubtext);
-        projectLabel.characterSpacing = 2f;
-        Place(projectLabel.rectTransform, 0f, 18f);
+        side.offsetMax = new Vector2(SideWidth, 0f);
+        listTitle = Text("Title", side, 11f, ForgeTheme.PanelSubtext);
+        listTitle.characterSpacing = 2f;
+        Place(listTitle.rectTransform, 0f, 18f);
 
-        // Right code pane
-        var codeBox = Rect("Code", root, Vector2.zero, Vector2.one);
+        var list = Rect("List", side, Vector2.zero, Vector2.one);
+        list.offsetMin = new Vector2(0f, ControllerHeight + Gap);
+        list.offsetMax = new Vector2(0f, -TitleHeight);
+        list.gameObject.AddComponent<RectMask2D>();
+        list.gameObject.AddComponent<Image>().color = Color.clear;  // a target for drag-to-scroll
+        listContent = Rect("Content", list, new Vector2(0f, 1f), new Vector2(1f, 1f));
+        listContent.pivot = new Vector2(0f, 1f);
+        var listScroll = list.gameObject.AddComponent<ScrollRect>();
+        listScroll.viewport = list;
+        listScroll.content = listContent;
+        listScroll.horizontal = false;
+        listScroll.movementType = ScrollRect.MovementType.Clamped;
+        listScroll.scrollSensitivity = 20f;
+
+        // Controller code is a second live surface in the general Code panel. It is intentionally optional: when the
+        // Thing runtime is not open, the field remains visible and explains that the value will apply on the next run.
+        var controller = Rect("Controller", side, Vector2.zero, new Vector2(1f, 0f));
+        controller.offsetMax = new Vector2(0f, ControllerHeight);
+        var controllerTitle = Text("Title", controller, 10f, ForgeTheme.PanelSubtext);
+        controllerTitle.text = "THING CONTROLLER";
+        controllerTitle.characterSpacing = 1.5f;
+        Place(controllerTitle.rectTransform, 0f, 16f);
+        controllerSpeed = Forge.ML.MLUI.Input(controller, "max_speed", "max_speed", 0f, 20f, SideWidth - 6f, 28f);
+        controllerSpeed.text = "1.5";
+        controllerApply = Forge.ML.MLUI.Pill(controller, "Apply max_speed", 0f, 54f, SideWidth - 6f, 28f, ApplyControllerSpeed);
+        controllerState = Text("State", controller, 10f, ForgeTheme.PanelSubtext);
+        controllerState.textWrappingMode = TextWrappingModes.Normal;
+        Place(controllerState.rectTransform, 88f, 38f);
+
+        codeBox = Rect("Code", root, Vector2.zero, Vector2.one);
         codeBox.offsetMin = new Vector2(SideWidth + Gap, BarHeight + Gap);
-        codeBox.offsetMax = new Vector2(0f, -(TabH + Gap));
+        codeBox.offsetMax = Vector2.zero;
         var bg = codeBox.gameObject.AddComponent<ForgeSurface>();
         bg.Style = ForgeSurface.Kind.Fill;
         bg.Corner = 12f;
@@ -159,7 +175,7 @@ public class CodePanel : MonoBehaviour
         viewport.offsetMin = new Vector2(Pad, Pad);
         viewport.offsetMax = new Vector2(-Pad, -Pad);
         viewport.gameObject.AddComponent<RectMask2D>();
-        var hit = viewport.gameObject.AddComponent<Image>();
+        var hit = viewport.gameObject.AddComponent<Image>();  // a target for drag-to-scroll
         hit.color = Color.clear;
 
         content = Rect("Content", viewport, new Vector2(0f, 1f), new Vector2(0f, 1f));
@@ -213,45 +229,137 @@ public class CodePanel : MonoBehaviour
         srt.offsetMax = new Vector2(-260f, 0f);
     }
 
-    void BuildFileList()
+    ForgePill Tab(string label, float x, float width, UnityAction click)
     {
-        projectLabel.text = CodeProject.Name.ToUpperInvariant();
-        float y = 26f;
-        foreach (var f in CodeProject.Files)
-        {
-            var file = f;
-            var pill = ForgePill.Create(side, f.path, () => CodeProject.Show(file));
-            pill.Rect.anchorMin = pill.Rect.anchorMax = pill.Rect.pivot = new Vector2(0f, 1f);
-            pill.Rect.sizeDelta = new Vector2(SideWidth - 6f, 34f);
-            pill.Rect.anchoredPosition = new Vector2(0f, -y);
-            y += 40f;
-            pills.Add((pill, file));
-        }
-        // Controller code is a second live surface in the general Code panel. Intentionally optional:
-        // when no Thing is running the field stays visible and the value applies on the next run.
-        var controllerTitle = Text("Controller", side, 10f, ForgeTheme.PanelSubtext);
-        controllerTitle.text = "THING CONTROLLER";
-        controllerTitle.characterSpacing = 1.5f;
-        Place(controllerTitle.rectTransform, 0f, y + 2f);
-        controllerSpeed = Forge.ML.MLUI.Input(side, "max_speed", "max_speed", 0f, y + 22f, SideWidth - 6f, 28f);
-        controllerSpeed.text = "1.5";
-        controllerApply = Forge.ML.MLUI.Pill(side, "Apply max_speed", 0f, y + 56f, SideWidth - 6f, 28f, ApplyControllerSpeed);
-        controllerState = Text("Controller state", side, 10f, ForgeTheme.PanelSubtext);
-        controllerState.textWrappingMode = TextWrappingModes.Normal;
-        controllerState.rectTransform.sizeDelta = new Vector2(SideWidth - 10f, 38f);
-        Place(controllerState.rectTransform, 0f, y + 90f);
+        var tab = ForgePill.Create(tabs, label, click, TabHeight - 4f, 11.5f);
+        tab.Rect.anchorMin = tab.Rect.anchorMax = tab.Rect.pivot = new Vector2(0f, 0.5f);
+        tab.Rect.anchoredPosition = new Vector2(x, 0f);
+        tab.Rect.sizeDelta = new Vector2(width, TabHeight - 4f);
+        return tab;
     }
 
-    // ---------------------------------------------------------------- local mode refresh
+    // The tab row only exists with a repo to show; without it the columns take the full height, as before.
+    void ShowTabs(bool on)
+    {
+        tabs.gameObject.SetActive(on);
+        float top = on ? -(TabHeight + Gap) : 0f;
+        side.offsetMax = new Vector2(SideWidth, top);
+        codeBox.offsetMax = new Vector2(0f, top);
+    }
+
+    ForgePill ListPill(string label, float y, float height, UnityAction click)
+    {
+        var pill = ForgePill.Create(listContent, label, click);
+        pill.Rect.anchorMin = pill.Rect.anchorMax = pill.Rect.pivot = new Vector2(0f, 1f);
+        pill.Rect.sizeDelta = new Vector2(SideWidth - 6f, height);
+        pill.Rect.anchoredPosition = new Vector2(0f, -y);
+        return pill;
+    }
+
+    void ClearList()
+    {
+        foreach (var (pill, _) in pills) Destroy(pill.gameObject);
+        foreach (var pill in repoPills) Destroy(pill.gameObject);
+        pills.Clear();
+        repoPills.Clear();
+    }
+
+    void SetListHeight(float height, bool toTop)
+    {
+        listContent.sizeDelta = new Vector2(0f, height);
+        if (toTop) listContent.anchoredPosition = Vector2.zero;
+    }
+
+    void SetCode(string rich)
+    {
+        code.text = rich;
+        code.ForceMeshUpdate();
+        Vector2 size = code.GetPreferredValues();
+        code.rectTransform.sizeDelta = size;
+        content.sizeDelta = new Vector2(Mathf.Max(size.x + 40f, viewport.rect.width), size.y + 8f);
+    }
+
+    // ---------------------------------------------------------------- refresh
 
     void Refresh()
     {
-        // Re-show local pills if they were hidden by a GitHub session
-        foreach (var (p, _) in ghPills) if (p != null) p.gameObject.SetActive(false);
-        foreach (var (p, _) in pills) if (p != null) p.gameObject.SetActive(true);
-        if (projectLabel != null) projectLabel.gameObject.SetActive(true);
+        bool sampleMoved = SampleMoved();
+        bool repoMoved = GitHubView.Version != shownVersion;
+        bool nowConnected = ForgeNet.Status == ForgeNetStatus.Live && GitHubView.CurrentSource != null;
+        if (nowConnected != connected)
+        {
+            connected = nowConnected;
+            ShowTabs(connected);
+            view = connected ? RepoView : View.Sample;
+        }
+        else if (connected)
+        {
+            // The view follows what Albie (or a tab) last acted on.
+            if (sampleMoved) view = View.Sample;
+            else if (repoMoved) view = RepoView;
+        }
 
-        if (pills.Count == 0) BuildFileList();
+        bool entered = view != shownView;
+        if (view == View.Sample) RefreshSample(entered);
+        else if (entered || repoMoved) RefreshRepo();
+        shownView = view;
+        shownVersion = GitHubView.Version;
+
+        if (connected)
+        {
+            sampleTab.On = view == View.Sample;
+            repoTab.On = view == View.Repo;
+            prsTab.On = view == View.Prs;
+            SetLabel(repoTab, Tail(GitHubView.CurrentSource.name, LabelChars));
+        }
+        bool sample = view == View.Sample;
+        var open = CodeProject.Open;
+        undo.Button.interactable = sample && open != null && open.undo.Count > 0;
+        undo.Rect.gameObject.SetActive(undo.Button.interactable);
+        reset.Rect.gameObject.SetActive(sample);
+        // With no repo on screen, a source control problem (no token, no repos) still has to be readable somewhere.
+        string line = sample ? CodeProject.Status : GitHubView.StatusText;
+        if (sample && !connected && string.IsNullOrEmpty(line) && ForgeNet.Status == ForgeNetStatus.Live) line = GitHubView.StatusText;
+        status.text = notice ?? line;
+        RefreshControllerState();
+    }
+
+    static View RepoView => GitHubView.Mode == GitHubView.ViewMode.Prs ? View.Prs : View.Repo;
+
+    bool SampleMoved()
+    {
+        var open = CodeProject.Open;
+        string text = open?.text;
+        int start = CodeProject.HighlightStart;
+        bool moved = open != seenOpen || !ReferenceEquals(text, seenText) || start != seenStart;
+        seenOpen = open;
+        seenText = text;
+        seenStart = start;
+        return moved;
+    }
+
+    static void SetLabel(ForgePill pill, string text)
+    {
+        var label = pill.GetComponentInChildren<TMP_Text>();
+        if (label.text != text) label.text = text;
+    }
+
+    void RefreshSample(bool entered)
+    {
+        if (entered)
+        {
+            ClearList();
+            listTitle.text = CodeProject.Name.ToUpperInvariant();
+            float y = 0f;
+            foreach (var f in CodeProject.Files)
+            {
+                var file = f;
+                pills.Add((ListPill(f.path, y, 34f, () => CodeProject.Show(file)), file));
+                y += 40f;
+            }
+            SetListHeight(y, true);
+            shownText = shownPath = null;
+        }
         var open = CodeProject.Open;
         if (open == null) return;
 
@@ -261,241 +369,177 @@ public class CodePanel : MonoBehaviour
             pill.On = file == open;
             int n = CodeProject.Check(file).Count;
             if (file == open) problems = n;
-            var label = pill.GetComponentInChildren<TMP_Text>();
-            string text = file.path + (file.text != file.original ? " *" : "") + (n > 0 ? $"  <color=#FF7A7A>{n}</color>" : "");
-            if (label.text != text) label.text = text;
+            SetLabel(pill, file.path + (file.text != file.original ? " *" : "") + (n > 0 ? $"  <color=#FF7A7A>{n}</color>" : ""));
         }
         string subtitle = open.path + (problems == 0 ? "" : $" · {problems} error{(problems == 1 ? "" : "s")}");
         if (panel.Subtitle != subtitle) panel.Subtitle = subtitle;
-        status.text = CodeProject.Status;
-        undo.Button.interactable = open.undo.Count > 0;
-        undo.Rect.gameObject.SetActive(open.undo.Count > 0);
-        reset.Rect.gameObject.SetActive(true);
 
         bool moved = open.path != shownPath || CodeProject.HighlightStart != shownStart;
         if (open.text != shownText || open.path != shownPath)
         {
-            code.text = Render(open, CodeProject.Check(open));
-            code.ForceMeshUpdate();
-            Vector2 size = code.GetPreferredValues();
-            code.rectTransform.sizeDelta = size;
-            content.sizeDelta = new Vector2(Mathf.Max(size.x + 40f, viewport.rect.width), size.y + 8f);
+            SetCode(Render(open.path, open.text, CodeProject.Check(open)));
             shownText = open.text;
         }
         shownPath = open.path;
         shownStart = CodeProject.HighlightStart;
         PlaceHighlight(moved);
-        RefreshControllerState();
     }
 
-    // ---------------------------------------------------------------- GitHub mode refresh
+    // ---------------------------------------------------------------- repo and pull requests
 
-    void RefreshGitHub()
+    void RefreshRepo()
     {
-        bool isPr = GitHubView.Mode == GitHubView.ViewMode.PrDiff;
+        var source = GitHubView.CurrentSource;
+        var pr = GitHubView.OpenPr;
+        bool prs = view == View.Prs;
+        string folder = prs ? null : GitHubView.CurrentPath;
+        bool newList = view != shownView || folder != shownFolder || pr != shownPr;
+        shownFolder = folder;
+        shownPr = pr;
 
-        // Tabs
-        if (filesTab != null) filesTab.On = !isPr;
-        if (prTab != null)
+        ClearList();
+        float y = 0f;
+        string title, subtitle;
+        if (!prs)
         {
-            prTab.On = isPr;
-            string prLabel = GitHubView.OpenPr != null ? $"PR #{GitHubView.OpenPr.number}" : "PRs";
-            var t = prTab.GetComponentInChildren<TMP_Text>();
-            if (t != null && t.text != prLabel) t.text = prLabel;
-        }
-
-        // Status + subtitle
-        if (status != null) status.text = GitHubView.StatusText;
-        string subtitle = isPr && GitHubView.OpenPr != null
-            ? $"PR #{GitHubView.OpenPr.number} · {GitHubView.OpenPr.title}"
-            : (GitHubView.FilePath ?? GitHubView.CurrentSource?.name ?? "");
-        if (panel.Subtitle != subtitle) panel.Subtitle = subtitle;
-
-        // Undo/Reset not relevant in GitHub mode
-        if (undo != null) undo.Rect.gameObject.SetActive(false);
-        if (reset != null) reset.Rect.gameObject.SetActive(false);
-        if (highlight != null) highlight.gameObject.SetActive(false);
-
-        // Left column: rebuild when path or mode changes
-        bool needRebuild = GitHubView.CurrentPath != shownGhPath || GitHubView.Mode != shownGhMode;
-        if (needRebuild) RebuildGhPills();
-        shownGhPath = GitHubView.CurrentPath;
-        shownGhMode = GitHubView.Mode;
-
-        // Update selected-file highlighting on pills without a full rebuild
-        if (!isPr && GitHubView.FilePath != shownGhFile)
-        {
-            foreach (var (pill, data) in ghPills)
-                if (data is GitHubView.TreeItem item)
-                    pill.On = item.path == GitHubView.FilePath;
-            shownGhFile = GitHubView.FilePath;
-        }
-        if (isPr && GitHubView.OpenPrFile?.filename != shownGhPrFile)
-        {
-            foreach (var (pill, data) in ghPills)
-                if (data is GitHubView.PrFile f)
-                    pill.On = f.filename == GitHubView.OpenPrFile?.filename;
-            shownGhPrFile = GitHubView.OpenPrFile?.filename;
-        }
-
-        // Right pane
-        string newText = isPr ? RenderGhDiff() : RenderGhFile();
-        if (newText == null || newText == code.text) return;
-        code.text = newText;
-        code.ForceMeshUpdate();
-        Vector2 sz = code.GetPreferredValues();
-        code.rectTransform.sizeDelta = sz;
-        content.sizeDelta = new Vector2(Mathf.Max(sz.x + 40f, viewport.rect.width), sz.y + 8f);
-        content.anchoredPosition = Vector2.zero;
-        scroll.velocity = Vector2.zero;
-    }
-
-    void RebuildGhPills()
-    {
-        foreach (var (p, _) in ghPills) if (p != null) Destroy(p.gameObject);
-        ghPills.Clear();
-
-        // Hide local pills and project label
-        foreach (var (p, _) in pills) if (p != null) p.gameObject.SetActive(false);
-        if (projectLabel != null) projectLabel.gameObject.SetActive(false);
-
-        bool isPr = GitHubView.Mode == GitHubView.ViewMode.PrDiff;
-        float y = 8f;
-
-        if (!isPr)
-        {
-            if (GitHubView.CurrentPath.Length > 0)
+            title = folder.Length == 0 ? source.name : folder;
+            subtitle = GitHubView.FilePath ?? source.fullName;
+            if (folder.Length > 0)
             {
-                int slash = GitHubView.CurrentPath.LastIndexOf('/');
-                string parent = slash > 0 ? GitHubView.CurrentPath.Substring(0, slash) : "";
-                var back = ForgePill.Create(side, "← ..", () => GitHubView.OpenPath(parent));
-                PosGhPill(back.Rect, y); y += 36f;
-                ghPills.Add((back, null));
+                int slash = folder.LastIndexOf('/');
+                string parent = slash < 0 ? "" : folder.Substring(0, slash);
+                RepoPill("..", ref y, false, () => GitHubView.OpenPath(parent));
             }
             foreach (var item in GitHubView.Tree)
             {
-                var it = item;
-                string label = (it.type == "dir" ? "▸ " : "") + it.name;
-                var pill = ForgePill.Create(side, label, it.type == "dir"
-                    ? (Action)(() => GitHubView.OpenPath(it.path))
-                    : () => GitHubView.OpenFile(it.path));
-                pill.On = it.path == GitHubView.FilePath;
-                PosGhPill(pill.Rect, y); y += 36f;
-                ghPills.Add((pill, it));
+                string path = item.path;
+                if (item.IsDir) RepoPill(Tail(item.name, LabelChars - 1) + "/", ref y, false, () => GitHubView.OpenPath(path));
+                else RepoPill(Tail(item.name, LabelChars), ref y, path == GitHubView.FilePath, () => GitHubView.OpenFile(path));
             }
         }
-        else if (GitHubView.OpenPr == null)
+        else if (pr == null)
         {
-            foreach (var pr in GitHubView.Prs)
+            title = "PULL REQUESTS";
+            subtitle = source.fullName + " · pull requests";
+            foreach (var p in GitHubView.Prs)
             {
-                var p = pr;
-                string label = $"#{p.number} {Trunc(p.title, 18)}";
-                var pill = ForgePill.Create(side, label, () => GitHubView.FetchPr(p.number));
-                PosGhPill(pill.Rect, y); y += 36f;
-                ghPills.Add((pill, p));
+                int number = p.number;
+                string label = $"#{number} {p.title}";
+                RepoPill(label.Length > LabelChars ? label.Substring(0, LabelChars - 2) + ".." : label, ref y, false, () => GitHubView.FetchPr(number));
             }
         }
         else
         {
-            var backPill = ForgePill.Create(side, "← PRs", GitHubView.FetchPrs);
-            PosGhPill(backPill.Rect, y); y += 36f;
-            ghPills.Add((backPill, null));
-            foreach (var f in GitHubView.OpenPr.files)
+            title = $"PR #{pr.number}";
+            subtitle = $"PR #{pr.number} · {pr.title}";
+            RepoPill("..", ref y, false, GitHubView.BackToPrList);
+            RepoPill("Summary", ref y, GitHubView.OpenPrFile == null, () => GitHubView.ShowPrFile(null));
+            foreach (var f in pr.files)
             {
                 var file = f;
-                string icon = f.status switch { "added" => "+ ", "removed" => "- ", "renamed" => "→ ", _ => "~ " };
-                string label = icon + Trunc(System.IO.Path.GetFileName(f.filename), 18);
-                var pill = ForgePill.Create(side, label, () => GitHubView.ShowPrFile(file));
-                pill.On = f.filename == GitHubView.OpenPrFile?.filename;
-                PosGhPill(pill.Rect, y); y += 36f;
-                ghPills.Add((pill, f));
+                string mark = f.status == "added" ? "+ " : f.status == "removed" ? "- " : "~ ";
+                RepoPill(mark + Tail(f.filename, LabelChars - 2), ref y, f == GitHubView.OpenPrFile, () => GitHubView.ShowPrFile(file));
             }
         }
-    }
+        SetListHeight(y, newList);
+        listTitle.text = Tail(title, LabelChars).ToUpperInvariant();
+        if (panel.Subtitle != subtitle) panel.Subtitle = subtitle;
 
-    void PosGhPill(RectTransform rt, float y)
-    {
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
-        rt.sizeDelta = new Vector2(SideWidth - 6f, 32f);
-        rt.anchoredPosition = new Vector2(0f, -y);
-    }
-
-    // ---------------------------------------------------------------- GitHub rendering
-
-    string RenderGhFile()
-    {
-        if (GitHubView.Loading) return $"<color={LineNoColor}>{GitHubView.StatusText}</color>";
-        if (GitHubView.FileContent == null)
-            return $"<color={LineNoColor}>Select a file to view it.</color>";
-        string path = GitHubView.FilePath ?? "";
-        string text = GitHubView.FileContent;
-        bool python = path.EndsWith(".py");
-        string[] lines = text.Replace("\r\n", "\n").Split('\n');
-        int width = lines.Length.ToString().Length;
-        var sb = new StringBuilder(text.Length * 2);
-        sb.Append("<mspace=0.6em>");
-        string triple = null;
-        for (int i = 0; i < lines.Length; i++)
+        string rich = !prs ? RenderRepoFile() : pr == null ? RenderPrList() : GitHubView.OpenPrFile == null ? RenderPrSummary(pr) : RenderDiff(GitHubView.OpenPrFile);
+        if (rich != code.text)
         {
-            sb.Append("<color=").Append(LineNoColor).Append('>')
-              .Append((i + 1).ToString().PadLeft(width)).Append("</color>  ");
-            if (python)
-                triple = Python(sb, lines[i], triple);
-            else
-            {
-                string l = lines[i].TrimStart();
-                if (l.StartsWith("//") || l.StartsWith("#")) Colored(sb, CommentColor, lines[i]);
-                else Escaped(sb, lines[i]);
-            }
-            if (i < lines.Length - 1) sb.Append('\n');
+            SetCode(rich);
+            content.anchoredPosition = Vector2.zero;
+            scroll.velocity = Vector2.zero;
+        }
+        highlight.gameObject.SetActive(false);
+    }
+
+    void RepoPill(string label, ref float y, bool on, UnityAction click)
+    {
+        var pill = ListPill(label, y, 30f, click);
+        pill.On = on;
+        repoPills.Add(pill);
+        y += 34f;
+    }
+
+    /// <summary>The end of a long name, since the end (the file name, the extension) is what tells entries apart.</summary>
+    static string Tail(string text, int max) => text.Length <= max ? text : ".." + text.Substring(text.Length - (max - 2));
+
+    static string Plain(string message)
+    {
+        var sb = new StringBuilder("<mspace=0.6em>");
+        Colored(sb, LineNoColor, message);
+        return sb.ToString();
+    }
+
+    static string RenderRepoFile()
+    {
+        if (GitHubView.FileContent == null) return Plain("Pick a file on the left.");
+        if (GitHubView.FileContent.Length == 0) return Plain(GitHubView.FileNote.Length > 0 ? GitHubView.FileNote : "This file is empty.");
+        return Render(GitHubView.FilePath, GitHubView.FileContent.Replace("\r\n", "\n"), null, MaxLines);
+    }
+
+    static string RenderPrList()
+    {
+        if (GitHubView.Prs.Count == 0) return Plain(GitHubView.Loading ? "Loading pull requests..." : "No open pull requests.");
+        var sb = new StringBuilder("<mspace=0.6em>");
+        foreach (var p in GitHubView.Prs)
+        {
+            Colored(sb, HeadingColor, $"#{p.number}  {p.title}\n");
+            Colored(sb, LineNoColor, $"    {p.author}   {p.head} -> {p.baseBranch}\n\n");
         }
         return sb.ToString();
     }
 
-    string RenderGhDiff()
+    static string RenderPrSummary(GitHubView.PrDetail pr)
     {
-        if (GitHubView.OpenPr == null)
-            return $"<color={LineNoColor}>Loading…</color>";
-        if (GitHubView.OpenPrFile == null)
+        var sb = new StringBuilder("<mspace=0.6em>");
+        Colored(sb, HeadingColor, $"#{pr.number}  {pr.title}\n");
+        Colored(sb, LineNoColor, $"{pr.author}   {pr.head} -> {pr.baseBranch}\n\n");
+        Colored(sb, AddColor, $"+{pr.additions}");
+        sb.Append("  ");
+        Colored(sb, RemoveColor, $"-{pr.deletions}");
+        sb.Append($"  in {pr.changedFiles} file{(pr.changedFiles == 1 ? "" : "s")}\n");
+        if (pr.files.Count < pr.changedFiles) Colored(sb, LineNoColor, $"Only the first {pr.files.Count} files are listed.\n");
+        sb.Append('\n');
+        if (pr.body.Length > 0)
         {
-            var pr = GitHubView.OpenPr;
-            var sb = new StringBuilder();
-            sb.Append("<mspace=0.6em>");
-            Colored(sb, HeadingColor, $"PR #{pr.number}: {pr.title}\n");
-            Colored(sb, LineNoColor, $"by {pr.author}  ·  {pr.head} → {pr.baseBranch}\n");
-            sb.Append("+"); Colored(sb, "#22CF86", pr.additions.ToString());
-            sb.Append("  -"); Colored(sb, "#FF7A7A", pr.deletions.ToString());
-            sb.Append($"  {pr.changedFiles} file{(pr.changedFiles == 1 ? "" : "s")}\n\n");
-            if (pr.body.Length > 0) Colored(sb, LineNoColor, pr.body + "\n\n");
-            Colored(sb, LineNoColor, "Select a changed file on the left to see the diff.");
-            return sb.ToString();
+            Escaped(sb, pr.body.Replace("\r\n", "\n"));
+            sb.Append("\n\n");
         }
-        var pf = GitHubView.OpenPrFile;
-        if (string.IsNullOrEmpty(pf.patch))
+        foreach (var f in pr.files)
         {
-            string msg = pf.status switch
-            {
-                "added" => $"New file: {pf.filename}  (+{pf.additions} lines)",
-                "removed" => $"Deleted: {pf.filename}  (-{pf.deletions} lines)",
-                "renamed" => $"Renamed: {pf.filename}",
-                _ => $"{pf.filename}  (no diff available)",
-            };
-            return $"<mspace=0.6em><color={LineNoColor}>{EscapeStr(msg)}</color>";
+            Colored(sb, AddColor, ("+" + f.additions).PadLeft(5));
+            Colored(sb, RemoveColor, ("-" + f.deletions).PadLeft(5));
+            sb.Append("  ");
+            Escaped(sb, f.filename);
+            sb.Append('\n');
         }
-        var sb2 = new StringBuilder();
-        sb2.Append("<mspace=0.6em>");
-        Colored(sb2, HeadingColor, $"--- {pf.filename}  +{pf.additions} -{pf.deletions}\n");
-        foreach (string raw in pf.patch.Split('\n'))
-        {
-            if (raw.StartsWith("@@")) Colored(sb2, NameColor, raw + "\n");
-            else if (raw.StartsWith("+") && !raw.StartsWith("+++")) Colored(sb2, "#22CF86", raw + "\n");
-            else if (raw.StartsWith("-") && !raw.StartsWith("---")) Colored(sb2, "#FF7A7A", raw + "\n");
-            else Colored(sb2, LineNoColor, raw + "\n");
-        }
-        return sb2.ToString();
+        return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- controller (ML truck, Satya's work)
+    static string RenderDiff(GitHubView.PrFile file)
+    {
+        var sb = new StringBuilder("<mspace=0.6em>");
+        Colored(sb, HeadingColor, $"{file.filename}   {file.status}   +{file.additions} -{file.deletions}\n\n");
+        if (file.patch.Length == 0)
+        {
+            Colored(sb, LineNoColor, "No text diff for this file (binary, renamed without changes, or too large).");
+            return sb.ToString();
+        }
+        foreach (string line in file.patch.Split('\n'))
+        {
+            string color = line.StartsWith("@@") ? NameColor : line.StartsWith("+") ? AddColor : line.StartsWith("-") ? RemoveColor : null;
+            if (color == null) Escaped(sb, line);
+            else Colored(sb, color, line);
+            sb.Append('\n');
+        }
+        if (file.truncated) Colored(sb, LineNoColor, "\nThe rest of this diff is too long to show.");
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- controller
 
     static ControllerHost Truck() => ThingHosts.Find(TemplateTools.DefaultThing);
 
@@ -530,16 +574,24 @@ public class CodePanel : MonoBehaviour
         if (controllerSpeed == null || !float.TryParse(controllerSpeed.text, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out float value))
         {
-            CodeProject.SetStatus("max_speed must be a number.");
+            Say("max_speed must be a number.");
             return;
         }
         var host = Truck();
         string error = host == null ? "No truck is running." : host.SetTunable("max_speed", value);
-        CodeProject.SetStatus(error ?? $"{host.File.Name} max_speed hot reloaded to {value:0.0} m/s.");
+        Say(error ?? $"{host.File.Name} max_speed hot reloaded to {value:0.0} m/s.");
         RefreshControllerState(true);
     }
 
-    // ---------------------------------------------------------------- local rendering
+    void Say(string text)
+    {
+        notice = text;
+        noticeUntil = Time.unscaledTime + 4f;
+        CodeProject.SetStatus(text);
+        dirty = true;
+    }
+
+    // ---------------------------------------------------------------- sample highlight, undo, reset
 
     void PlaceHighlight(bool scrollTo)
     {
@@ -604,27 +656,31 @@ public class CodePanel : MonoBehaviour
         "pass", "raise", "return", "try", "while", "with", "yield",
     };
     const string KeywordColor = "#C792EA", StringColor = "#C3E88D", CommentColor = "#6F7A88", NumberColor = "#F78C6C",
-        NameColor = "#82AAFF", LineNoColor = "#5C6370", ErrorNoColor = "#FF7A7A", HeadingColor = "#FFCB6B";
+        NameColor = "#82AAFF", LineNoColor = "#5C6370", ErrorNoColor = "#FF7A7A", HeadingColor = "#FFCB6B",
+        AddColor = "#22CF86", RemoveColor = "#FF7A7A";
 
-    static string Render(CodeProject.File f, List<CodeProject.Problem> problems)
+    static string Render(string path, string text, List<CodeProject.Problem> problems, int maxLines = int.MaxValue)
     {
         var bad = new HashSet<int>();
-        foreach (var p in problems) bad.Add(p.line);
-        bool python = f.path.EndsWith(".py");
-        string[] lines = f.text.Split('\n');
-        int width = lines.Length.ToString().Length;
-        var sb = new StringBuilder(f.text.Length * 2);
+        if (problems != null) foreach (var p in problems) bad.Add(p.line);
+        bool python = path.EndsWith(".py");
+        string hashColor = path.EndsWith(".md") ? HeadingColor : CommentColor;
+        string[] lines = text.Split('\n');
+        int shown = Mathf.Min(lines.Length, maxLines);
+        int width = shown.ToString().Length;
+        var sb = new StringBuilder(text.Length * 2);
         sb.Append("<mspace=0.6em>");
         string triple = null;
-        for (int i = 0; i < lines.Length; i++)
+        for (int i = 0; i < shown; i++)
         {
             sb.Append("<color=").Append(bad.Contains(i + 1) ? ErrorNoColor : LineNoColor).Append('>')
               .Append((i + 1).ToString().PadLeft(width)).Append("</color>  ");
             if (python) triple = Python(sb, lines[i], triple);
-            else if (lines[i].StartsWith("#")) Colored(sb, HeadingColor, lines[i]);
+            else if (lines[i].StartsWith("#")) Colored(sb, hashColor, lines[i]);
             else Escaped(sb, lines[i]);
-            if (i < lines.Length - 1) sb.Append('\n');
+            if (i < shown - 1) sb.Append('\n');
         }
+        if (shown < lines.Length) Colored(sb, LineNoColor, $"\n\n{lines.Length - shown} more lines not shown.");
         return sb.ToString();
     }
 
@@ -706,11 +762,6 @@ public class CodePanel : MonoBehaviour
         if (text.IndexOf('<') < 0) sb.Append(text);
         else sb.Append(text.Replace("<", "<noparse><</noparse>"));
     }
-
-    static string EscapeStr(string text) =>
-        text.IndexOf('<') < 0 ? text : text.Replace("<", "<noparse><</noparse>");
-
-    static string Trunc(string s, int max) => s.Length <= max ? s : s.Substring(0, max - 1) + "…";
 
     // ---------------------------------------------------------------- helpers
 

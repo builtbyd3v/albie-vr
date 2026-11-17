@@ -1,16 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// Installs the CodePanel prefab in the CODE mode's main slot.
-/// GitHub file browsing and PR diff view are built into CodePanel itself — it switches automatically
-/// when the hub is live. No panel swapping needed here.
+/// Puts the headset's own code view (<see cref="CodePanel"/>, Resources/CodePanel.prefab) in the CODE mode's main slot,
+/// whatever prefab the scene had there (Main.unity still names the old streamed-screen panel until it is rebuilt).
+/// Installs itself; no scene change needed.
 /// </summary>
 public class CodeMode : MonoBehaviour
 {
-    const string ModeId = "code", ItemId = "screen-main";
+    const string ModeId = "code", ItemId = "screen-main", Title = "Code";
 
     WorkspaceItem item;
-    GameObject prefab;
+    GameObject local;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
@@ -18,21 +18,23 @@ public class CodeMode : MonoBehaviour
         if (FindAnyObjectByType<CodeMode>() == null) new GameObject("CodeMode").AddComponent<CodeMode>();
     }
 
-    void Awake() => prefab = Resources.Load<GameObject>("CodePanel");
+    void Awake() => local = Resources.Load<GameObject>("CodePanel");
 
     void Update()
     {
-        if (item == null) Bind();
+        if (local == null) return;
+        if (item == null && !Bind()) return;
+        if (item.prefab == local) return;
+        item.prefab = local;
+        item.title = Title;
     }
 
-    void Bind()
+    bool Bind()
     {
         var ws = Workspace.Current;
-        if (ws == null) return;
+        if (ws == null) return false;
         var mode = ws.modes.Find(m => m.id == ModeId);
         item = mode?.items.Find(i => i.id == ItemId);
-        if (item == null) return;
-        item.prefab = prefab;
-        item.title = "Code";
+        return item != null;
     }
 }
