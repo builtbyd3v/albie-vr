@@ -28,6 +28,8 @@ using UnityEngine.SceneManagement;
 public class DebugBridge : MonoBehaviour
 {
     public const int Port = 8765;
+    /// <summary>The port this run listens on: <see cref="Port"/>, or ALBIE_BRIDGE_PORT in the Editor.</summary>
+    public static int ActivePort { get; private set; } = Port;
     const int LogCapacity = 500;
     const int StackChars = 2000;
     const float DefaultTimeoutS = 30f;
@@ -83,17 +85,20 @@ public class DebugBridge : MonoBehaviour
 #endif
         try
         {
-            listener = new TcpListener(IPAddress.Loopback, Port);
+#if UNITY_EDITOR  // several editors on one laptop (or an adb forward holding 8765): ALBIE_BRIDGE_PORT picks another port
+            if (int.TryParse(Environment.GetEnvironmentVariable("ALBIE_BRIDGE_PORT"), out int p)) ActivePort = p;
+#endif
+            listener = new TcpListener(IPAddress.Loopback, ActivePort);
             listener.Start();
         }
         catch (SocketException e)  // the port is taken (another Play session, or an adb forward on this laptop)
         {
-            Debug.LogWarning($"[DebugBridge] can't listen on 127.0.0.1:{Port}: {e.Message}");
+            Debug.LogWarning($"[DebugBridge] can't listen on 127.0.0.1:{ActivePort}: {e.Message}");
             listener = null;
             return;
         }
         new Thread(AcceptLoop) { IsBackground = true, Name = "DebugBridge accept" }.Start();
-        Debug.Log($"[DebugBridge] listening on 127.0.0.1:{Port}");
+        Debug.Log($"[DebugBridge] listening on 127.0.0.1:{ActivePort}");
     }
 
     void OnDestroy() => Stop();
