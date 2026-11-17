@@ -43,6 +43,7 @@ public static class ArtifactChecks
         Inputs();
         Approvals();
         Looks();
+        Exploration();
         Physics();
         Placement();
         foreach (var f in failures) Debug.LogError("[ArtifactChecks] FAIL " + f);
@@ -54,6 +55,39 @@ public static class ArtifactChecks
     {
         Run();
         EditorApplication.Exit(failures.Count == 0 ? 0 : 1);
+    }
+
+    static void Exploration()
+    {
+        var root = new GameObject("explorer check");
+        root.transform.localPosition = new Vector3(0.2f, 0f, 0f);
+        var mesh = new Mesh();
+        mesh.vertices = new[] { new Vector3(0, 0, -1), new Vector3(1, 0, -1), new Vector3(0, 1, -1),
+            new Vector3(0, 0, 1), new Vector3(1, 0, 1), new Vector3(0, 1, 1) };
+        mesh.triangles = new[] { 0, 1, 2, 3, 4, 5 };
+        mesh.RecalculateBounds();
+        try
+        {
+            var child = new GameObject("surface", typeof(MeshFilter), typeof(MeshRenderer));
+            child.transform.SetParent(root.transform, false);
+            var filter = child.GetComponent<MeshFilter>();
+            filter.sharedMesh = mesh;
+            var explorer = root.AddComponent<ArtifactExplorer>();
+            explorer.Initialize();
+            Check(explorer.PartCount == 1, "single mesh is not advertised as segmented anatomy");
+            explorer.Section();
+            Check(filter.sharedMesh != mesh && filter.sharedMesh.triangles.Length == 3, "section retains only the back surface");
+            Check(mesh.triangles.Length == 6, "section leaves imported geometry intact");
+            explorer.Turn();
+            explorer.ResetView();
+            Check(filter.sharedMesh == mesh && root.transform.localRotation == Quaternion.identity && root.transform.localPosition == new Vector3(0.2f, 0f, 0f),
+                "reset restores the original surface and pose");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+            UnityEngine.Object.DestroyImmediate(mesh);
+        }
     }
 
     // In the app, the host comes to the user, and it steps aside for a panel that's already there (the Hands panel).
