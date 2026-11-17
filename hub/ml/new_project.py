@@ -78,7 +78,13 @@ def plan(model: str | None = None, dataset: str | None = None, task: str | None 
     if task is not None and task not in TASKS:
         raise NewProjectError(f"I can build text or image classifiers, not {task!r} yet")
     named = model_kind(model)
-    kind = named or model_kind(request) or ("hf" if base_model else None)
+    kind = named or model_kind(request)
+    if kind is None:
+        try:
+            hf_data.refuse_named_model(request)
+        except hf_data.DatasetError:
+            kind = "hf"  # a model named in the request that the pretrained template refuses, with the reason
+    kind = kind or ("hf" if base_model else None)
     if base_model and kind not in (None, "hf"):
         raise NewProjectError(f"I can fine-tune a Hugging Face model or train a {MODEL_NAMES.get(kind, kind)} from "
                               "scratch, not both")

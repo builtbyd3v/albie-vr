@@ -472,6 +472,20 @@ def test_a_generative_model_is_refused(fake_hf):
         new_project.plan(request="fine-tune on movie reviews", base_model="fake/gpt2")
 
 
+@pytest.mark.parametrize("said", ["fine-tune gpt2 on movie reviews", "train llama on movie reviews",
+                                  "fine-tune t5 on movie reviews", "fine-tune mistral on tweets"])
+def test_a_generative_model_named_in_the_request_is_refused(said):
+    """Not a silent fall-back to the default encoder: the user named a model the template can't use, so Albie
+    says why instead of building something else."""
+    with pytest.raises(hf_data.DatasetError, match="generative"):
+        new_project.plan(request=said)
+
+
+def test_a_vision_model_named_in_the_request_is_refused():
+    with pytest.raises(hf_data.DatasetError, match="vision|image fine-tuning"):
+        new_project.plan(request="fine-tune vit on movie reviews")
+
+
 def test_build_writes_the_pretrained_template(tmp_path, fake_hf):
     p = new_project.plan(request="fine-tune distilbert on movie reviews")
     repo = new_project.build(p, tmp_path / "new", epochs=2)

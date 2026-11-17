@@ -124,9 +124,13 @@ random ones. It works on the cloud and the hub, and the headset's ML desk is unc
   DeBERTa, XLM-R, MiniLM, ModernBERT...). Say a family ("distilbert", "roberta"), an id (`owner/name`), or pass
   `base_model`. The default is `microsoft/xtremedistil-l6-h256-uncased` (12.7M parameters: about a minute on a
   CPU), so "fine-tune a model" needs no model name.
-- **Refused, with a reason Albie says:** generative models (GPT, Llama, T5, BART), models with no tokenizer or no
-  PyTorch/safetensors weights, and gated/private models. Image fine-tuning isn't offered yet: images still train
-  from scratch with a CNN.
+- **Which data:** any Hugging Face **text classification** dataset the words point at, not just movie reviews:
+  "tweet sentiment" -> `cardiffnlp/tweet_eval`, "news topics" -> `fancyzhx/ag_news`, "toxic comments" ->
+  `Heliosoph/Jigsaw-Toxic-Comments`, "handwritten digits" -> `ylecun/mnist` (images, from scratch only).
+- **Refused, with a reason Albie says:** generative models (GPT, Llama, Mistral, T5, BART), vision models (ViT,
+  CLIP, ResNet), models with no tokenizer or no PyTorch/safetensors weights, and gated/private models. A model
+  named in the request is refused by name instead of silently falling back to the default encoder. Image
+  fine-tuning isn't offered yet: images still train from scratch with a CNN.
 - **Rows and epochs:** 2,000 train / 400 val (fewer forwards and backwards through the encoder than the
   from-scratch template's 4,000/500) and 3 epochs by default. `ml_new` speaks that it may take a couple of minutes.
 - **Measured on this laptop's CPU** (2026-11-17, IMDB, 2 classes): the default XTREMEDistil model at 2,000/400

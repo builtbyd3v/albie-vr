@@ -501,6 +501,27 @@ def inspect_model(model: str) -> ModelInfo:
     return _inspect(model, _remote_card(model), local=False)
 
 
+# Named models that aren't text encoders: refused by name, before any Hub search, so "fine-tune gpt2" doesn't
+# silently fall back to the default encoder. Word boundaries keep "gpt" out of "gpt2" (the entries are longest
+# first) and "opt" out of "optimize".
+GENERATIVE_NAMES = ("stable diffusion", "command-r", "mixtral", "mistral", "llama", "falcon", "gemma", "bloom",
+                    "qwen", "whisper", "gpt2", "gpt-2", "gpt", "opt", "t5", "mt5", "bart", "mbart", "pegasus", "phi")
+VISION_NAMES = ("vision transformer", "vit", "clip", "resnet", "yolo")
+
+
+def refuse_named_model(words: str) -> None:
+    """Raise DatasetError when the words name a model this template can't use, with the reason to say."""
+    said = " " + (words or "").lower() + " "
+    for name in GENERATIVE_NAMES:
+        if re.search(rf"\b{re.escape(name)}\b", said):
+            raise DatasetError(f"{name} is a generative model; I fine-tune encoder models like BERT, DistilBERT "
+                               "or RoBERTa as a text classifier")
+    for name in VISION_NAMES:
+        if re.search(rf"\b{re.escape(name)}\b", said):
+            raise DatasetError(f"{name} is a vision model; image fine-tuning isn't supported yet (images train "
+                               "from scratch with a CNN)")
+
+
 def find_model(words: str = "", model: str | None = None) -> ModelInfo:
     """The pretrained model the user meant: one they named, else a known family, else a Hub search, else the
     small default. Only encoders that pass `inspect_model` are returned."""
@@ -508,6 +529,7 @@ def find_model(words: str = "", model: str | None = None) -> ModelInfo:
         named = model.strip()
         if Path(named).expanduser().is_dir() or "/" in named:
             return inspect_model(named)
+        refuse_named_model(named)
         known = model_alias(named)
         if known:
             return inspect_model(known)
@@ -519,6 +541,7 @@ def find_model(words: str = "", model: str | None = None) -> ModelInfo:
                 reasons.append(f"{candidate}: {e}")
         raise DatasetError(f"no Hugging Face model for {named!r} that I can fine-tune"
                            + (f" ({reasons[0]})" if reasons else ""))
+    refuse_named_model(words)
     known = model_alias(words)
     if known:
         return inspect_model(known)
