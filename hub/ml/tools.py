@@ -153,6 +153,58 @@ def card(plan: dict, n: int) -> ev.Card:
                                                  ev.CardAction(label="Not now", action_id=f"ml:dismiss:{n}")])
 
 
+def project_kind(path: Path, new_root: Path, clones: Path) -> str:
+    """"new" (ml_new built it), "github" (ml_github cloned it) or "example" (the template, ml-examples/)."""
+    for root, kind in ((new_root, "new"), (clones, "github")):
+        try:
+            if path.resolve().is_relative_to(root.resolve()):
+                return kind
+        except OSError:
+            pass
+    return "example"
+
+
+def _json_file(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def project_card(path: Path, kind: str, open_svc: Any = None) -> dict[str, Any]:
+    """What the Projects tab shows for one ML project. Reads only small files (project.json, .forge/profile.json,
+    the newest run's summary.json): no setup, no LLM, so listing every project stays quick."""
+    built = _json_file(path / "project.json")       # ml_new's plan: title, task, model, dataset
+    profile = _json_file(path / ".forge" / "profile.json")  # setup's classification: summary, archetype
+    title = str(built.get("title") or "").strip() or path.name.replace("-", " ").replace("_", " ")
+    summary = str(profile.get("summary") or "").strip() or None
+    runs_dir = path / ".forge" / "runs"
+    runs = sorted((p for p in runs_dir.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime) if runs_dir.is_dir() else []
+    best = None
+    for run in reversed(runs):
+        summary_json = _json_file(run / "summary.json")
+        value = summary_json.get("best_val_acc") or summary_json.get("accuracy") or summary_json.get("r2")
+        if isinstance(value, (int, float)):
+            best = round(float(value), 4)
+            break
+    if open_svc is not None:
+        status = str(open_svc.project.get("status") or "idle")
+        training = bool(open_svc.training_active())
+        summary = summary or open_svc.project.get("summary")
+    else:
+        status = "ready" if (path / ".forge" / "profile.json").exists() else "not set up"
+        training = False
+    card: dict[str, Any] = {"name": path.name, "title": title, "kind": kind, "status": status, "open": open_svc is not None,
+                            "training": training, "runs": len(runs), "best_metric": best}
+    if summary:
+        card["summary"] = summary[:240]
+    for key in ("task", "model", "dataset", "base_model"):
+        if built.get(key):
+            card[key] = built[key]
+    return card
+
+
 class MLTools:
     """One per hub: the app state (bus, MLService), where recent projects are kept, and Albie's voice."""
 
@@ -251,6 +303,34 @@ class MLTools:
         elif out["status"] == "failed":
             out["error"] = svc.project.get("error")
         out.update(self._last_run())
+        return out
+
+    # --- every project, for the headset's Projects tab (GET /ml/projects) -----------------------------
+    def project_dirs(self) -> list[tuple[Path, str]]:
+        """(folder, kind) for every ML project here, the open one and the recent ones first."""
+        svc = self.svc
+        new_root, clones = self.new_root(), self.recent_path.parent / "github"
+        configured = [Path(p).expanduser() for p in os.environ.get("FORGE_ML_PROJECTS", "").split(os.pathsep) if p]
+        found: list[Path] = [svc.repo] + [Path(p) for p in self.recent()]
+        for root in (new_root, clones, *configured, *SEARCH_DIRS):
+            if root.is_dir():
+                found += sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
+                                key=lambda p: p.stat().st_mtime, reverse=True)
+        return [(p, project_kind(p, new_root, clones)) for p in found]
+
+    def projects(self) -> list[dict[str, Any]]:
+        """One card per project (project_card), each folder once."""
+        svc, seen, out = self.svc, set(), []
+        current = svc.repo.resolve()
+        for path, kind in self.project_dirs():
+            try:
+                real = path.resolve()
+            except OSError:
+                continue
+            if real in seen or not real.is_dir():
+                continue
+            seen.add(real)
+            out.append(project_card(real, kind, svc if real == current else None))
         return out
 
     async def github(self, query: str, confirm: bool) -> dict[str, Any]:
