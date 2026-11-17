@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY cloud-py/requirements.txt cloud-py/requirements.txt
-RUN pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu \
     && pip install -r cloud-py/requirements.txt
 
 COPY hub/cad hub/cad
@@ -36,6 +36,10 @@ RUN cd ml-examples/text-classification \
 
 # ponytail: HOME=/tmp gives library caches (torch, matplotlib) a writable home under uid 1000.
 ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data PORT=8080 HOME=/tmp \
-    CLAUDE_PROXY_URL=https://albie-cloud.vercel.app/api/claude
+    CLAUDE_PROXY_URL=https://albie-cloud.vercel.app/api/claude \
+    FORGE_ML_PIP=1 FORGE_MAX_TRAIN=4000 FORGE_MAX_VAL=500 FORGE_LLM_MODEL=claude-sonnet-5-5
+# ml_github: a cloned repo's missing packages go into its own venv (FORGE_ML_PIP, hub/ml/repo_env.py), and its
+# patched training script caps the data at FORGE_MAX_TRAIN / FORGE_MAX_VAL samples so an epoch takes seconds on
+# this CPU. FORGE_LLM_MODEL: the model setup uses when the Space has its own ANTHROPIC_API_KEY secret.
 EXPOSE 8080
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
