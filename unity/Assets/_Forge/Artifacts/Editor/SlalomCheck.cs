@@ -367,8 +367,8 @@ public static class SlalomCheck
     static string Boundary(out string note)
     {
         note = null;
-        Vector2[] large = { new Vector2(-1.5f, -2.5f), new Vector2(1.5f, -2.5f), new Vector2(1.5f, 2.5f), new Vector2(-1.5f, 2.5f) };
-        var room = MockFloorPlan.LivingRoom().WithBoundary(large);
+        Vector2[] large = { new Vector2(-3f, -3f), new Vector2(3f, -3f), new Vector2(3f, 3f), new Vector2(-3f, 3f) };
+        var room = MockFloorPlan.Loft().WithBoundary(large);
         var fit = FloorSlalom.Fit(room, Default());
         if (!fit.Ok) return "large boundary: " + fit.Code + " " + fit.Message;
         foreach (var pair in fit.Slots)
@@ -384,14 +384,14 @@ public static class SlalomCheck
         var generator = (JObject)scene["generators"][0];
         var scenario = (JObject)manifest["scenarios"][0];
         var inputs = new ArtifactInputs(manifest);
-        var savedRoom = MockFloorPlan.LivingRoom();
+        var savedRoom = MockFloorPlan.Loft();
         var first = ArtifactGenerators.Place(manifest, generator, inputs, scenario, savedRoom, false);
         if (!first.Ok) return "saved setup: " + first.Message;
-        var changedRoom = MockFloorPlan.LivingRoom().WithBoundary(
-            new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(1f, 1f), new Vector2(-1f, 1f));
+        var changedRoom = MockFloorPlan.Loft().WithBoundary(
+            new Vector2(0f, -3f), new Vector2(4f, -3f), new Vector2(4f, 3f), new Vector2(0f, 3f));
         var remade = ArtifactGenerators.Place(manifest, generator, inputs, scenario, changedRoom, false);
         if (!remade.Ok || remade.Reused || remade.Message == null || !remade.Message.Contains("boundary has changed")) return "saved boundary: " + remade.Message;
-        note = "large boundary placed inside; small boundary refused; saved course was remade after shrink";
+        note = "large boundary placed inside; small boundary refused; saved course was remade after boundary change";
         return null;
     }
 
