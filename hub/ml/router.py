@@ -148,6 +148,16 @@ def get_github_presets() -> list[dict]:
     return github_presets()
 
 
+@router.get("/projects")
+def get_projects(request: Request) -> dict:
+    """Every ML project the headset can open: the ones Albie built (ml_new), the repos he cloned (ml_github) and the
+    examples, each with its status and last score. The Projects tab lists these; opening one is ml_open."""
+    tools = getattr(request.app.state, "ml_tools", None)
+    if tools is None:
+        raise HTTPException(503, "the ML tools aren't running")
+    return {"projects": tools.projects()}
+
+
 @router.post("/github/import", response_model=GitHubImportResponse)
 async def import_github(req: GitHubImportRequest, request: Request) -> GitHubImportResponse:
     """The CIFAR-10 preset layout (read statically) is ready at once and trains the checked-in copy. Any other
