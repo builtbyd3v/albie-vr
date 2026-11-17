@@ -32,6 +32,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           ALBIE_APP_KEY: ${{ secrets.ALBIE_APP_KEY }}
+          ALBIE_GITHUB_TOKEN: ${{ secrets.ALBIE_GITHUB_TOKEN }}
           HF_OWNER: builtbyd3v
       # The public runtime API needs no token. RUNNING passes; BUILDING / APP_STARTING are polled for up to 15 min.
       - name: Check the Space runs

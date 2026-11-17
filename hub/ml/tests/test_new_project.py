@@ -186,7 +186,7 @@ async def _until(cond, said, timeout=120.0):
         await asyncio.sleep(0.1)
 
 
-def _run_tool(tmp_path, monkeypatch, args: dict) -> tuple[dict, list[str], list[tuple[str, dict]], MLService]:
+def _run_tool(tmp_path, monkeypatch, args: dict, last: tuple[str, ...] = ("Done!",)) -> tuple[dict, list[str], list[tuple[str, dict]], MLService]:
     pytest.importorskip("torch")  # the template's train.py runs on this python
     monkeypatch.setattr(logtail, "POLL_S", 0.05)
     monkeypatch.setattr(prescan_mod, "find_python", lambda repo: sys.executable)
@@ -214,7 +214,7 @@ def _run_tool(tmp_path, monkeypatch, args: dict) -> tuple[dict, list[str], list[
         assert result.get("status") == "building", result
         again = await tools.call("ml_new", args)
         assert "still building" in again["error"]  # one at a time
-        await _until(lambda: any(s.startswith(("Done!", "I couldn", "The project", "That run")) for s in said), said)
+        await _until(lambda: any(s.startswith(last + ("I couldn", "The project", "That run", "I can't")) for s in said), said)
         return result, svc
 
     result, svc = asyncio.run(flow())

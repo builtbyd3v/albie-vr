@@ -23,7 +23,7 @@ from typing import Any
 from agent import events as ev
 from agent import speech as agent_speech
 
-from . import github, hf_data, improve, new_project
+from . import github, github_publish, hf_data, improve, new_project
 from .router import _stop_tail, service, start_run, start_setup
 from .service import Conflict, NotFound
 from .setup.adapt import ROOT
@@ -69,8 +69,18 @@ TOOLS: list[dict[str, Any]] = [
                                                       "about ('movie reviews', 'handwritten digits'), if the user said"},
          "task": {"type": "string", "enum": ["text_classification", "image_classification"],
                   "description": "only if the user was clear about text or images"},
-         "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8)"}},
+         "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8)"},
+         "publish": {"type": "boolean", "description": "true if the user also asked to put it on GitHub or open a "
+                                                       "pull request; after training Albie asks before opening it"}},
          "required": ["request"]}},
+    {"name": "ml_publish",
+     "description": "Put the ML project Albie built (ml_new) on GitHub as a pull request: its code, a README with the "
+                    "training results, and the data when it's small ('push it to GitHub', 'create a PR'). Call it "
+                    "first without confirm: nothing is posted, and you get the repo and branch; say them and ask "
+                    "'open the pull request?'. Only after a clear yes, call it again with confirm true. If you "
+                    "already offered the pull request after training and the user said yes, call it with confirm true.",
+     "parameters": {"type": "object", "properties": {
+         "confirm": {"type": "boolean", "description": "true only after the user said yes to this pull request"}}}},
     {"name": "ml_status",
      "description": "The open ML project: whether it's training, and the last run's numbers (validation "
                     "accuracy, train/val gap, weakest classes). Use it for 'how's my model doing?'.",
@@ -141,6 +151,7 @@ class MLTools:
         self.recent_path = Path(data_dir) / "ml" / "recent.json"
         self.jobs: set[asyncio.Task[None]] = set()
         self.offer = 0  # the live proposal card's number; 0 = none (a tap on an older card does nothing)
+        self.publish_offer: dict[str, Any] | None = None  # the pull request Albie described and is waiting for a yes on
 
     async def call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Run one tool. Errors come back as {"error": ...} so the model can explain them."""
@@ -151,6 +162,8 @@ class MLTools:
                 return await self.github(str(args.get("query") or "").strip(), args.get("confirm") is True)
             if name == "ml_new":
                 return await self.new(args)
+            if name == "ml_publish":
+                return await self.publish(args.get("confirm") is True)
             if name == "ml_status":
                 return self.status()
             if name == "ml_improve":
@@ -165,7 +178,7 @@ class MLTools:
                 epochs = args.get("epochs")
                 return self.train(10 if epochs is None else int(epochs))
         except (improve.ImproveError, Conflict, NotFound, ValueError, new_project.NewProjectError,
-                hf_data.DatasetError) as e:
+                hf_data.DatasetError, github_publish.PublishError) as e:
             return {"error": str(e)}
         return {"error": f"Unknown ML tool {name!r}"}
 
@@ -262,7 +275,7 @@ class MLTools:
         p = await asyncio.to_thread(new_project.plan, model=str(model) if model else None,
                                     dataset=str(args.get("dataset") or "").strip() or None, task=args.get("task") or None,
                                     request=str(args.get("request") or ""))
-        task = asyncio.create_task(self._build_new(p, epochs))
+        task = asyncio.create_task(self._build_new(p, epochs, args.get("publish") is True))
         self.state.ml_building = task
         self.jobs.add(task)
         task.add_done_callback(self.jobs.discard)
@@ -271,7 +284,7 @@ class MLTools:
                         "building (model, dataset, what it tells apart). The ML desk opens by itself and the "
                         "training curves go live; the score is spoken when it's done."}
 
-    async def _build_new(self, p: dict[str, Any], epochs: int) -> None:
+    async def _build_new(self, p: dict[str, Any], epochs: int, publish: bool = False) -> None:
         svc = self.svc
         try:
             path = await asyncio.to_thread(new_project.build, p, self.new_root(), lambda _: None, epochs)
@@ -301,7 +314,42 @@ class MLTools:
         what = "texts" if p["task"] == "text_classification" else "images"
         rows = json.loads((path / "project.json").read_text())["rows"]["train"]
         await self.say(f"Got {rows:,} {what}. Training the {p['model_name']} now; watch the curves.")
-        self._announce(run_id, {})
+        if not publish:
+            self._announce(run_id, {})
+            return
+        await self._when_done(run_id, {})
+        await self.offer_publish()
+
+    # --- the built project as a GitHub pull request (ml_publish) ---------------------------------------
+    async def offer_publish(self) -> None:
+        """After training, when the user asked for a PR up front: describe it and ask (nothing is posted yet)."""
+        try:
+            plan = await asyncio.to_thread(github_publish.plan, self.svc.repo)
+        except github_publish.PublishError as e:
+            await self.say(f"I can't open the pull request: {e}.")
+            return
+        self.publish_offer = {**plan, "path": str(self.svc.repo)}
+        where = f"a new repo, {plan['repo']}" if plan["create_repo"] else plan["repo"]
+        await self.say(f"Shall I open a pull request with the project in {where}?")
+        await agent_speech.note(self.pet_id, "You just offered to open a GitHub pull request with the ML project. A yes "
+                                             "means ml_publish with confirm true; a no means say okay.")
+
+    async def publish(self, confirm: bool) -> dict[str, Any]:
+        svc = self.svc
+        if svc.training_active():
+            raise Conflict("it's still training; I'll put it on GitHub once the results are in")
+        offer = self.publish_offer
+        if not confirm or offer is None or offer.get("path") != str(svc.repo):
+            plan = await asyncio.to_thread(github_publish.plan, svc.repo)
+            self.publish_offer = {**plan, "path": str(svc.repo)}
+            return {"status": "awaiting_confirmation", **plan,
+                    "next": "Nothing was posted. Say the repo (and that it's new, if create_repo) and ask whether to "
+                            "open the pull request. Only after a clear yes, call ml_publish again with confirm true."}
+        self.publish_offer = None
+        done = await asyncio.to_thread(github_publish.publish, svc.repo, offer)
+        await self.state.bus.publish("code.view", {"repo": done["repo"], "pr": done["number"]})  # the code panel shows it
+        return {"status": "opened", **done,
+                "note": "Say the pull request number and that it's open in the code panel."}
 
     def _last_run(self) -> dict[str, Any]:
         try:
