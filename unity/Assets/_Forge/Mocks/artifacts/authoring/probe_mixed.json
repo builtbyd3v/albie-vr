@@ -1,0 +1,5 @@
+{"manifest":{"schema":"albie.artifact/1","id":"probe","title":"Probe","version":1,"kind":"standalone","category":"viz","runtime":{"type":"scene"},"scene":"../x.json","scenarios":[{"id":"d"}],"inputs":[{"name":"on","type":"boolean","default":false}]},
+ "scene":{"schema":"albie.scene/1","space":"volume","nodes":[
+  {"id":"a","kind":"primitive","shape":"box","position":[1,2,3],"rotation":[0,0,30],"onClick":"x","emissive":true,"scripts":["x"],"slider":{"input":"on"}},
+  {"id":"b","kind":"primitive","shape":"box","widgets":[{"type":"button","id":"press"}],"size":["$on",1,1]}],
+  "rules":[{"type":"on_input","input":"press","do":[{"set":"a.color","value":"#FF0000"},{"sim":"nope","action":"explode"},{"flip":"a"}]}]}}

@@ -1,0 +1,102 @@
+{
+ "note": "Mutation: a seesaw whose parts all forgot pos. They cut through each other at the origin, so it is a collapse (and the two seats coincide).",
+ "expect": {
+  "errors": [
+   "parts_collapsed@nodes",
+   "parts_coincident@nodes[3]"
+  ]
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_pile_collapsed",
+  "title": "Seesaw pile",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.4
+  },
+  "nodes": [
+   {
+    "id": "board",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.6,
+     0.03,
+     0.1
+    ],
+    "color": "#8B5A2B"
+   },
+   {
+    "id": "fulcrum",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.06,
+     0.12,
+     0.06
+    ],
+    "color": "#666666"
+   },
+   {
+    "id": "seat_l",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.08,
+     0.06,
+     0.08
+    ],
+    "color": "#CCCCCC"
+   },
+   {
+    "id": "seat_r",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.08,
+     0.06,
+     0.08
+    ],
+    "color": "#CCCCCC"
+   }
+  ]
+ }
+}

@@ -1,0 +1,115 @@
+{
+ "note": "Review fixture: a water molecule, three spheres joined only by line bonds, with no view (grounded). A line through two parts joins them, so nothing floats.",
+ "expect": {
+  "errors": []
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_molecule_ok",
+  "title": "Water Molecule",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 6
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "nodes": [
+   {
+    "id": "o",
+    "kind": "primitive",
+    "shape": "sphere",
+    "size": [
+     0.12,
+     0.12,
+     0.12
+    ],
+    "color": "#E53935"
+   },
+   {
+    "id": "h1",
+    "kind": "primitive",
+    "shape": "sphere",
+    "size": [
+     0.07,
+     0.07,
+     0.07
+    ],
+    "pos": [
+     -0.16,
+     -0.11,
+     0
+    ],
+    "color": "#FFFFFF"
+   },
+   {
+    "id": "h2",
+    "kind": "primitive",
+    "shape": "sphere",
+    "size": [
+     0.07,
+     0.07,
+     0.07
+    ],
+    "pos": [
+     0.16,
+     -0.11,
+     0
+    ],
+    "color": "#FFFFFF"
+   },
+   {
+    "id": "b1",
+    "kind": "line",
+    "through": [
+     "o",
+     "h1"
+    ],
+    "width": 0.01,
+    "color": "#BBBBBB"
+   },
+   {
+    "id": "b2",
+    "kind": "line",
+    "through": [
+     "o",
+     "h2"
+    ],
+    "width": 0.01,
+    "color": "#BBBBBB"
+   }
+  ]
+ }
+}

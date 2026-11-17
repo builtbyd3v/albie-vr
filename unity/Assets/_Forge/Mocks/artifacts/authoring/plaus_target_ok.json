@@ -1,0 +1,119 @@
+{
+ "note": "Review fixture: an archery target, three concentric rings with no pos (nested by design, at the origin), and a stand. Not a collapse.",
+ "expect": {
+  "errors": []
+ },
+ "manifest": {
+  "schema": "albie.artifact/1",
+  "id": "plaus_target_ok",
+  "title": "Archery Target",
+  "version": 1,
+  "kind": "standalone",
+  "category": "tool",
+  "template": null,
+  "links": {
+   "project": null,
+   "project_version": null,
+   "repo": null,
+   "thing": null
+  },
+  "runtime": {
+   "type": "scene",
+   "min_runtime": 1
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [],
+  "scenarios": [
+   {
+    "id": "default",
+    "seed": 0,
+    "params": {}
+   }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+   "network": [],
+   "connectors": [],
+   "storage": "artifact-local",
+   "write_project": "none",
+   "room": "none",
+   "things": "none"
+  },
+  "outputs": []
+ },
+ "scene": {
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+   "radius": 0.25
+  },
+  "nodes": [
+   {
+    "id": "ring_outer",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.36,
+     0.02,
+     0.36
+    ],
+    "rot": [
+     90,
+     0,
+     0
+    ],
+    "color": "#1E88E5"
+   },
+   {
+    "id": "ring_mid",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.24,
+     0.024,
+     0.24
+    ],
+    "rot": [
+     90,
+     0,
+     0
+    ],
+    "color": "#E53935"
+   },
+   {
+    "id": "bullseye",
+    "kind": "primitive",
+    "shape": "cylinder",
+    "size": [
+     0.1,
+     0.028,
+     0.1
+    ],
+    "rot": [
+     90,
+     0,
+     0
+    ],
+    "color": "#FDD835"
+   },
+   {
+    "id": "stand",
+    "kind": "primitive",
+    "shape": "box",
+    "size": [
+     0.04,
+     0.06,
+     0.04
+    ],
+    "pos": [
+     0,
+     -0.21,
+     0
+    ],
+    "color": "#6D4C41"
+   }
+  ]
+ }
+}
