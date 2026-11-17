@@ -60,7 +60,9 @@ namespace Forge.Demo.Editor
             {
                 if (File.Exists(LockPath) && (DateTime.UtcNow - File.GetLastWriteTimeUtc(LockPath)).TotalMinutes < 10)
                 {
-                    Debug.LogError("[Demo] the editor is held by '" + File.ReadAllText(LockPath).Trim() + "' (Temp/demo-editor.lock). Wait and retry.");
+                    string holder = File.ReadAllText(LockPath).Trim();
+                    if (holder == station) return true;   // already ours (taken by hand before the menu was used)
+                    Debug.LogError("[Demo] the editor is held by '" + holder + "' (Temp/demo-editor.lock). Wait and retry.");
                     return false;
                 }
                 File.WriteAllText(LockPath, station);

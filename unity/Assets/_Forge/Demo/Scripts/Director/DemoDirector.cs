@@ -31,6 +31,8 @@ namespace Forge.Demo
         /// <summary>Index of the running (or last run) beat; -1 before the first Next.</summary>
         public int BeatIndex { get; private set; } = -1;
         public bool BeatRunning => beatRunning;
+        /// <summary>Every line of the running beat has been said (a beat with none counts as done).</summary>
+        public bool LinesDone => beatRunning && linesDone;
         /// <summary>The last beat's advance came true: nothing is left to play.</summary>
         public bool Finished { get; private set; }
         public bool Armed => BeatIndex < 0 && !beatRunning && pendingStart < 0 && !Finished;

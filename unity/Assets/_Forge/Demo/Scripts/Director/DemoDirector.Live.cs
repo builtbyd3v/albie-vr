@@ -44,7 +44,7 @@ namespace Forge.Demo
             if (summon != Summon.WaitPalm) return;
             Transform head = PetUser.Head;
             forced = true;
-            forcedPos = head != null ? head.TransformPoint(new Vector3(-0.08f, -0.32f, 0.42f)) : albie.transform.position;
+            forcedPos = head != null ? head.TransformPoint(new Vector3(-0.1f, -0.2f, 0.45f)) : albie.transform.position;   // a palm held out, inside the view
             Debug.Log("[Demo] no palm: Albie lands in front of Hudson anyway.");
             BeginApproach();
         }
