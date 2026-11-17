@@ -35,6 +35,7 @@ from cad.router import router as cad_router
 from cad.service import CadService, watch_script
 from desk import DeskService
 from desk import tools as desk_tools
+from demo.router import router as demo_router
 from desk.router import router as desk_router
 from events import EventBus
 from messaging import MessageStore, SlackService, SlackSettings
@@ -161,6 +162,7 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.include_router(agent_router)
     app.include_router(messaging_router)
     app.include_router(desk_router)
+    app.include_router(demo_router)  # laptop remote for the scripted video demo: /demo
     app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
     app.include_router(artifacts_router)  # POST /artifacts/review: advisory Jev review of a new artifact
     app.include_router(models_router)  # GET /models/search|fetch|file: open-licensed 3D models for artifacts (models/service.py)
