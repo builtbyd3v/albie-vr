@@ -192,11 +192,17 @@ def prepare_workspace(build: Build) -> None:
     _git(ws, "config", "user.email", GIT_EMAIL)
 
 
-def commit_step(build: Build, step: Step) -> str | None:
-    """Commit what the step changed (a crew member may have committed already). The new head, or None if nothing."""
+def head(build: Build) -> str | None:
+    assert build.workspace is not None
+    res = _git(build.workspace, "rev-parse", "HEAD")
+    return res.stdout.strip() or None if res.returncode == 0 else None
+
+
+def commit_step(build: Build, step: Step, before: str | None) -> str | None:
+    """Commit what the step left uncommitted. The step's last commit (its own, if the crew member committed, or this
+    one), or None if the step changed nothing since `before`, the head when the step started."""
     ws = build.workspace
     assert ws is not None
-    before = _git(ws, "rev-parse", "HEAD").stdout.strip() or None
     _git(ws, "add", "-A")
     if _git(ws, "diff", "--cached", "--quiet").returncode != 0:
         _check(_git(ws, "commit", "-q", "-m", f"{TYPES[step.agent].name}: {step.task[:60]}",
@@ -255,7 +261,8 @@ def step_prompt(build: Build, i: int) -> str:
         f"Plan: {build.summary}",
         f"Your task: {step.task}",
         f"Work only in {where}. Do the whole of your task now, not a stub, and don't ask questions: make sensible "
-        "choices and say what you chose. Don't push, don't switch branches, and don't touch anything outside that folder.",
+        "choices and say what you chose. Don't commit (each step is committed for you), don't push, don't switch "
+        "branches, and don't touch anything outside that folder.",
         *(["What the crew did before you:", *earlier] if earlier else []),
         "When you're done, reply in one or two plain sentences: what you did and the files you touched.",
     ])
@@ -340,6 +347,7 @@ class Builds:
         step.state = "running"
         emit = Emitter(agent.id, redact=[str(build.workspace)])
         mode = "qa" if agent.read_only else "code"
+        before = await asyncio.to_thread(head, build)
         try:
             result = await _runner()(project, step_prompt(build, i), mode, emit, pet_id=agent.id,
                                      control=build.control, agent=agent)
@@ -355,7 +363,7 @@ class Builds:
             return
         step.summary = (result or "").strip()[:600] or "Done."
         if not agent.read_only:
-            step.commit = await asyncio.to_thread(commit_step, build, step)
+            step.commit = await asyncio.to_thread(commit_step, build, step, before)
         step.state = "done"
 
     @staticmethod

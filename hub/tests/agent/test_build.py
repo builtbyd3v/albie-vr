@@ -19,8 +19,9 @@ def git(cwd: Path, *args: str) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def scripted_runner(delay: float = 0.0):
-    """A crew member that writes one file per step (the reviewer only reads), like a real turn would."""
+def scripted_runner(delay: float = 0.0, commits_itself: tuple[str, ...] = ()):
+    """A crew member that writes one file per step (the reviewer only reads), like a real turn would. Members named
+    in commits_itself also commit their own work, as real crew members sometimes do."""
     seen: list[tuple[str, str]] = []
 
     async def run(project, text, mode, emit, *, pet_id, control=None, agent=None):
@@ -33,6 +34,9 @@ def scripted_runner(delay: float = 0.0):
             out = project.path / "out"
             out.mkdir(exist_ok=True)
             (out / FILES[pet_id]).write_text(f"# by {pet_id}\n")
+            if pet_id in commits_itself:
+                git(project.path, "add", "-A")
+                git(project.path, "-c", "user.name=crew", "-c", "user.email=c@c", "commit", "-q", "-m", f"{pet_id} work")
             return f"{pet_id} wrote out/{FILES[pet_id]}."
         return "No bugs found."
 
@@ -170,6 +174,17 @@ def test_the_open_pull_request_button_on_albies_card_ships(builds_env, tmp_path:
     assert builds_env.get(f"/agent/builds/{b['id']}").json()["state"] == "ready"
     builds_env.portal.call(build_mod.on_card, Session(), card.actions[0].action_id)
     assert builds_env.get(f"/agent/builds/{b['id']}").json()["pr_number"] == 3
+
+
+def test_a_member_that_commits_its_own_work_still_gets_the_credit(builds_env, monkeypatch) -> None:
+    # Seen live: the Builder and Tester committed their own work, and the build said they had no commit.
+    monkeypatch.setattr(build_mod, "_runner", lambda: scripted_runner(commits_itself=("builder", "tester")))
+    b = wait_for(builds_env, builds_env.post("/agent/builds", json={"goal": "notes app"}).json()["id"])
+    ws = build_mod.builds.builds[b["id"]].workspace
+    log = git(ws, "log", "--format=%h|%s").splitlines()
+    assert [s["commit"] for s in b["steps"][:3]] == [log[2].split("|")[0], log[1].split("|")[0], log[0].split("|")[0]]
+    assert log[0].split("|")[1].startswith("Scribe:")  # left uncommitted by the scribe, committed by the build
+    assert b["steps"][3]["commit"] is None
 
 
 def test_one_build_at_a_time_and_cancel_stops_it(builds_env, monkeypatch) -> None:
