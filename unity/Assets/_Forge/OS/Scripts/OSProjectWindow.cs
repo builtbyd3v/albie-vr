@@ -410,12 +410,12 @@ namespace Forge.OS
 
         string DoTrain()
         {
-            string toolError = OpenTrainTool();
+            string toolError = kind == OSProjectKind.Ml ? (OSModes.Open("ml") ? null : "Train couldn't open right now.") : OpenTrainTool();
             if (kind != OSProjectKind.Truck)
             {
                 if (toolError != null) return toolError;
                 if (kind == OSProjectKind.Ml)
-                    return ForgeCloud.Serves("/ml/") ? "Train is open. Tap Load dataset to open the data." : OSProjects.NeedsCloud;
+                    return ForgeCloud.Serves("/ml/") ? "Train is open. Tap Load dataset to open the data." : "Train is open. Tap Train to learn from bundled images on this device.";
                 return "Train is open.";
             }
 

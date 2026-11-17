@@ -134,7 +134,7 @@ namespace Forge.ML
             else if (session.Overfit)
                 Banner(MLUI.Warn, "Overfitting", (string.IsNullOrEmpty(session.OverfitReason) ? "validation loss rose twice while training loss fell" : session.OverfitReason)
                     + (best >= 0 ? $"  ·  best epoch {best + 1}" : ""));
-            else if (!string.IsNullOrEmpty(session.Notice)) Banner(MLUI.Accent, "Hub", session.Notice);
+            else if (!string.IsNullOrEmpty(session.Notice)) Banner(MLUI.Accent, session.IsLive ? "Hub" : "On device", session.Notice);
             else if (session.Done && best >= 0 && !float.IsNaN(session.Data.metrics[best].val_acc))
                 Banner(MLUI.Good, "Finished", $"best val accuracy {session.Data.metrics[best].val_acc:0.0%} at epoch {best + 1}  ·  full evaluation on the Results panel");
             else banner.gameObject.SetActive(false);
@@ -179,7 +179,7 @@ namespace Forge.ML
         }
         void DrawLiveGraphs()
         {
-            sectionTitle.text = session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  DEMO REPLAY";
+            sectionTitle.text = session.RunId == "on-device" ? "PER-CLASS ACCURACY  ·  HELD-OUT IMAGES" : session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  DEMO REPLAY";
             int classes = session.Data.classes.Length;
             int columns = classHistory.Count;
             // The heat map keeps every class name readable: a row is never under MinRow units, even when that leaves the

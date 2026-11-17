@@ -113,6 +113,16 @@ public static class MLSmokeCheck
             Require(brainCurve != null && brainCurve.UsesExternalValues, "Controller brain reuses TrainingDash/MLCurve for its live loss trace");
             Require(brainView.SampleCount > 0, "Controller brain loads mock lap samples");
             Require(Array.Exists(brainObject.GetComponentsInChildren<Button>(true), b => b.GetComponentInChildren<TMPro.TMP_Text>(true)?.text == "Record lap"), "Controller brain exposes Record lap");
+            var brainButtons = brainObject.GetComponentsInChildren<Button>(true);
+            var increase = Array.Find(brainButtons, b => b.GetComponentInChildren<TMPro.TMP_Text>(true)?.text == "+");
+            Require(brainObject.GetComponentsInChildren<TMPro.TMP_InputField>(true).Length == 0 && increase != null,
+                "Controller brain speed can be changed without a keyboard");
+            if (increase != null)
+            {
+                increase.onClick.Invoke();
+                Require(Array.Exists(brainObject.GetComponentsInChildren<TMPro.TMP_Text>(true), t => t.text == "1.6"),
+                    "Controller brain speed increase updates the value");
+            }
             int beforeRecord = brainView.SampleCount;
             Require(brainView.SetRecording(true) && brainView.SetRecording(false) && brainView.SampleCount >= beforeRecord, "Controller brain record flow accepts start and stop");
             UnityEngine.Object.Destroy(brainObject);
@@ -220,13 +230,35 @@ public static class MLSmokeCheck
             session.Restart(); Require(!session.Done && session.EpochIndex == -1, "Replay resets progress");
             var train = ActiveButton(dashContent, "Train");
             Require(train != null, "Training panel exposes Train");
+            bool waitingOffline = false;
             if (!session.IsLive)
             {
                 train.onClick.Invoke();
-                Require(!string.IsNullOrEmpty(session.Notice) && session.Notice.Contains("needs the hub"), "Train explains an unavailable hub");
+                Require(session.TrainBusy && session.Notice.Contains("bundled images"), "Train starts preparing real bundled images offline");
+                waitingOffline = true;
+                Action finished = null;
+                finished = () =>
+                {
+                    if (!session.Done && session.RunStatus != "failed") return;
+                    session.Changed -= finished;
+                    try
+                    {
+                        Require(session.Done && session.RunId == "on-device", "Offline image training finishes");
+                        var result = MLReport.Build(session);
+                        var last = session.Data.metrics[session.EpochIndex];
+                        Require(result.evaluated > 0 && Mathf.Abs(result.accuracy - last.val_acc) < 0.0001f,
+                            "Results report the held-out accuracy, not training images");
+                        Require(Array.Exists(session.Data.samples, s => s.split == "validation" && s.probs != null),
+                            "Offline results include real probabilities for held-out images");
+                        Debug.Log("[ML smoke] PASS: offline image training completed and Results matches held-out accuracy.");
+                        if (Application.isBatchMode) EditorApplication.Exit(0);
+                    }
+                    catch (Exception error) { Debug.LogException(error); if (Application.isBatchMode) EditorApplication.Exit(1); }
+                };
+                session.Changed += finished;
             }
             Debug.Log("[ML smoke] PASS: mock loading, panel initialization, relabel, remove, pair filtering, overfit, completion and restart.");
-            if (Application.isBatchMode) EditorApplication.Exit(0);
+            if (Application.isBatchMode && !waitingOffline) EditorApplication.Exit(0);
         }
         catch (Exception error) { Debug.LogException(error); if (Application.isBatchMode) EditorApplication.Exit(1); }
     }

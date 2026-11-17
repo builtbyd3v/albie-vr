@@ -620,7 +620,8 @@ namespace Forge.OS.Editor
             yield return 1.5f;
             Check(OSModes.IsOpen("ml") && !windows.IsOpen(OSToolsCatalog.BrainId), "desk: Train with no truck opens the ML desk and no brain trainer");
             string noTruckStatus = OSRegistry.Find(OSTab.Tools, "train").status();
-            Check(noTruckStatus.StartsWith("open · no truck", StringComparison.Ordinal), "the Train tile says 'open · no truck yet' (" + noTruckStatus + ")");
+            Check(noTruckStatus.Contains("Open slalom to train"), "the Train tile explains how to get a truck (" + noTruckStatus + ")");
+            Check(windows.IsOpen("train_help") && OSToolsTest.AllText(windows.Find("train_help")).Contains("Open the slalom first"), "Train offers a slalom opening step");
             windows.CloseAll();
             OSModes.Close();
             yield return 1.2f;

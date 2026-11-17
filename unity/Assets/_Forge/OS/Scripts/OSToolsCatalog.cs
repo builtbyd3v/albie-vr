@@ -111,6 +111,21 @@ namespace Forge.OS
             // Nothing in Main shows the controller brain panel, so the OS does: as a window of its own, beside the ML desk,
             // whenever a brain truck is running (OSProjects.LiveLoop is the SlalomBrain that ArtifactBootstrap.EnsureBrain spawns).
             if (OSProjects.LiveLoop != null) OpenBrain();
+            else if (OSShell.Current != null) OSShell.Current.Windows.Open("train_help", "Learn to drive", new Vector2(0.48f, 0.28f), BuildTrainHelp);
+        }
+
+        static void BuildTrainHelp(ForgePanel panel)
+        {
+            var body = OSUi.Body(panel);
+            if (body == null) return;
+            var column = OSUi.Column(body, 19f);
+            var status = OSUi.Text(column, "Open the slalom first, then I can learn to drive it.", OSUi.BodyText);
+            OSUi.Button(column, "Open slalom", () =>
+            {
+                OSProjects.OpenProject(Forge.Notebook.NotebookStore.DefaultProject);
+                var project = OSShell.Current?.Windows.Find(OSProjectWindow.WindowId)?.GetComponent<OSProjectWindow>();
+                status.text = project != null ? project.Do("course") : "The truck project couldn't open.";
+            }, OSButtonStyle.Primary);
         }
 
         /// <summary>
@@ -145,7 +160,7 @@ namespace Forge.OS
             if (key == trainKey) return trainText;
 
             string truck;
-            if (loop == null) truck = "no truck yet";
+            if (loop == null) truck = "Open slalom to train";
             else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Lap) truck = "recording a lap";
             else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Training) truck = "training";
             else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Autopilot) truck = "autopilot driving";

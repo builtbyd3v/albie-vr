@@ -309,8 +309,8 @@ namespace Forge.OS.Editor
             // ---- the tab, from nothing
             string listing = Listing();
             Measure("fresh: " + listing);
-            Check(listing == "proj_truck=not started (open) | proj_quadcopter=not started | proj_rocket=not started | proj_classifier=not started | ",
-                "fresh install: the Projects tab lists the four starters, the truck open, every line 'not started' (" + listing + ")");
+            Check(listing == "proj_truck=Ready to start (open) | proj_quadcopter=Ready to start | proj_rocket=Ready to start | proj_classifier=Ready to start | ",
+                "fresh install: the Projects tab invites starting each project (" + listing + ")");
 
             // ---- RC truck from the real tile
             var step = PressTile(shell, menu, "proj_truck", "50_projects_tab_fresh");
@@ -487,7 +487,7 @@ namespace Forge.OS.Editor
             yield return 1.2f;
             view = View(shell);
             Check(view != null && view.ProjectId == "proj_classifier" && NotebookStore.ProjectId == "proj_classifier", "Image classifier opens as the open project");
-            Check(view != null && view.StatusLine == OSProjects.NeedsCloud, "Image classifier shows the honest offline line (" + (view != null ? view.StatusLine : "no window") + ")");
+            Check(view != null && view.StatusLine.Contains("bundled images"), "Image classifier offers on-device training (" + (view != null ? view.StatusLine : "no window") + ")");
             win = windows.Find(OSProjectWindow.WindowId);
             if (win != null)
             {
@@ -502,7 +502,7 @@ namespace Forge.OS.Editor
                 Check(problem == null, "the classifier window text is inside it and doesn't overlap" + (problem ?? ""));
                 Shot("56_classifier_window");
                 if (dataset != null) { dataset.onClick.Invoke(); yield return 0.3f; }
-                Check(View(shell).StatusLine == OSProjects.NeedsCloud, "pressing Load dataset offline changes nothing and throws nothing");
+                Check(View(shell).StatusLine.Contains("bundled images"), "pressing disabled Load dataset changes nothing and throws nothing");
             }
 
             foreach (string part in new[] { "quadcopter", "rocket" })
