@@ -39,7 +39,11 @@ namespace Forge.Artifacts
                     switch (type)
                     {
                         case "note":
-                            y += Note(panel.Content, y, widget.Value<string>("text"), false, out var noteText) + Gap;
+                            // The course's first line: in the app, where the course is from here goes on top (see CourseNote).
+                            string noteLine = widget.Value<string>("text");
+                            if (hintText == null && widget.Value<string>("after_run") != null && build.Host.CourseNote != null)
+                                noteLine = build.Host.CourseNote + "\n" + noteLine;
+                            y += Note(panel.Content, y, noteLine, false, out var noteText) + Gap;
                             if (widget.Value<string>("after_run") != null) { hintText = noteText; hintAfter = widget.Value<string>("after_run"); }
                             break;
                         case "stat": y += Stat(panel.Content, y, widget, build) + Gap; break;
