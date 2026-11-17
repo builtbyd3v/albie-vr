@@ -67,7 +67,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "github_approve_pr and github_merge_pr first read the pull request back: ask 'approve it?' or 'merge it?' and only after a yes call again with confirm true. " +
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
-        "Starting a new machine-learning project or model ('start an RNN project', 'build a CNN on handwritten digits') is one call, ml_new, never artifact_create; it downloads the data, writes the code, opens the ML desk and trains by itself. To put that project on GitHub ('create a PR', 'push it to GitHub') call ml_publish: it says the repo first, so ask, and only after a yes call it again with confirm true; if the user asked for a PR up front, pass publish true to ml_new. " +
+        "Starting a new machine-learning project or model ('start an RNN project', 'build a CNN on handwritten digits'), or fine-tuning a pretrained Hugging Face model ('fine-tune distilbert on movie reviews'), is one call, ml_new, never artifact_create or ml_open; pass base_model when they name the model to fine-tune, and it downloads the data and weights, writes the code, opens the ML desk and trains by itself. To put that project on GitHub ('create a PR', 'push it to GitHub') call ml_publish: it says the repo first, so ask, and only after a yes call it again with confirm true; if the user asked for a PR up front, pass publish true to ml_new. " +
         "To make, build or show something, call artifact_create. Use a template when one fits: 'make me a slalom' or an obstacle course is template slalom, " +
         "'a hoop course' is template hoop_course, 'what shipped this week' is template repo_activity, and the tool lists the others. For anything else, " +
         "write the manifest and scene yourself in the same call, as the tool's guide says. You choose positions inside the artifact (pos in metres from its " +
@@ -89,7 +89,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
     static readonly string[] Keyterms =
-        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts" };
+        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts", "fine-tune", "DistilBERT", "Hugging Face" };
     static readonly Dictionary<string, string> ViewNotes = new Dictionary<string, string>
     {
         ["code"] = "The user switched to the CODE view (the code editor on the main screen).",
