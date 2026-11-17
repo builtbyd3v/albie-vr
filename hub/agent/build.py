@@ -31,6 +31,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from . import events as ev
@@ -274,8 +275,18 @@ def step_prompt(build: Build, i: int) -> str:
 
 
 # ------------------------------------------------------------------ the run
-async def say(text: str, card: ev.Card | None = None) -> None:
-    await bus.broadcast(ev.pet_say(LEAD, text, card))
+Publish = Callable[[ev.Event], Awaitable[None]]  # sends one event to the headset
+Hatch = Callable[[str], Awaitable[dict[str, Any]]]  # brings a crew member into the room, by type
+
+
+class _Target:
+    """What an Emitter broadcasts to, for a Builds that publishes somewhere other than the hub's socket bus."""
+
+    def __init__(self, publish: Publish) -> None:
+        self._publish = publish
+
+    async def broadcast(self, event: ev.Event) -> None:
+        await self._publish(event)
 
 
 def _runner():
@@ -285,9 +296,20 @@ def _runner():
 
 
 class Builds:
-    def __init__(self) -> None:
+    """The builds of one hub, or of one headset on Albie's cloud. The hub's default sends events over its socket bus
+    and hatches through its crew; the cloud passes `publish` (the headset's polled event log, cloud-py/app.py) and
+    `hatch` (a crew.spawn event the headset acts on), since there is no socket and no Unity roster there."""
+
+    def __init__(self, publish: Publish | None = None, hatch: Hatch | None = None) -> None:
         self.builds: dict[str, Build] = {}
         self.latest: str | None = None
+        self.on_hub = publish is None
+        self.publish: Publish = publish or bus.broadcast
+        self.hatch: Hatch = hatch or crew.spawn
+        self.target = bus if publish is None else _Target(publish)
+
+    async def say(self, text: str, card: ev.Card | None = None) -> None:
+        await self.publish(ev.pet_say(LEAD, text, card))
 
     def get(self, build_id: str | None) -> Build | None:
         return self.builds.get(build_id or self.latest or "")
@@ -301,9 +323,10 @@ class Builds:
         running = next((b for b in self.builds.values() if not b.done), None)
         if running is not None:
             raise RuntimeError(f"the crew is still building {running.title or running.goal!r}; cancel it or wait")
-        from . import ws  # late: ws imports the runner; the card buttons must work before the first tap
+        if self.on_hub:  # the hub's card taps (the cloud's go through build_ship, AlbieCards on the headset)
+            from . import ws  # late: ws imports the runner; the card buttons must work before the first tap
 
-        ws.card_handlers.setdefault("build", on_card)
+            ws.card_handlers.setdefault("build", on_card)
         build = Build(uuid.uuid4().hex, goal, repo=build_repo(), control=TurnControl())
         self.builds[build.id] = build
         self.latest = build.id
@@ -312,15 +335,15 @@ class Builds:
 
     async def _run(self, build: Build) -> None:
         try:
-            await say(f"Planning: {build.goal}")
+            await self.say(f"Planning: {build.goal}")
             await asyncio.to_thread(prepare_workspace, build)
             build.title, build.summary, build.steps, build.planned_by = await make_plan(build.goal)
-            await say(f"Here's the plan for {build.title}.", ev.Card(
+            await self.say(f"Here's the plan for {build.title}.", ev.Card(
                 title=f"Plan: {build.title}",
                 bullets=[f"{TYPES[s.agent].name}: {s.task[:90]}" for s in build.steps]))
             build.state = "building"
             for agent in dict.fromkeys(s.agent for s in build.steps):  # hatch who the plan needs, in plan order
-                hatched = await crew.spawn(agent)
+                hatched = await self.hatch(agent)
                 if "error" in hatched:
                     log.info("build %s: %s didn't hatch (%s); working without the character", build.id[:6], agent,
                              hatched["error"])
@@ -332,16 +355,16 @@ class Builds:
                 await self._step(build, project, i)
             if self._cancelled(build):
                 build.state = "cancelled"
-                await say(f"Stopped building {build.title}.")
+                await self.say(f"Stopped building {build.title}.")
                 return
             build.state = "ready"
-            await say(f"{build.title} is built.", self._ready_card(build))
+            await self.say(f"{build.title} is built.", self._ready_card(build))
         except asyncio.CancelledError:
             build.state = "cancelled"
         except Exception as exc:
             log.exception("build %s failed", build.id[:6])
             build.state, build.error = "failed", str(exc)[:300]
-            await say(f"The build stopped: {build.error}")
+            await self.say(f"The build stopped: {build.error}")
         finally:
             if build.done and build.finished_at is None:
                 build.finished_at = now()
@@ -350,7 +373,7 @@ class Builds:
         step = build.steps[i]
         agent = TYPES[step.agent]
         step.state, step.started_at = "running", now()
-        emitter = Emitter(agent.id, redact=[str(build.workspace)])
+        emitter = Emitter(agent.id, redact=[str(build.workspace)], target=self.target)
 
         async def emit(event: ev.Event) -> None:  # to the headset as always, and the latest line for the build page
             await emitter(event)
@@ -436,7 +459,7 @@ class Builds:
             log.warning("build %s didn't ship: %s", build.id[:6], reason)
             return {"error": f"couldn't open the pull request: {reason}"}
         build.state, build.pr_number, build.pr_url = "shipped", pr.get("number"), pr.get("url")
-        await say(f"Pull request #{build.pr_number} is open.", ev.Card(
+        await self.say(f"Pull request #{build.pr_number} is open.", ev.Card(
             title=f"PR #{build.pr_number}: {build.title}",
             bullets=[f"{build.branch} into {pr.get('base', 'main')}", str(build.pr_url or "")]))
         return {"status": "shipped", "pr_number": build.pr_number, "pr_url": build.pr_url}
@@ -457,13 +480,19 @@ builds = Builds()
 
 
 # ------------------------------------------------------------------ Albie's tools (lead only)
+# Kept the same in the headset's copy (unity/.../Core/Resources/AlbieTools/cloud.json): there it competes with
+# artifact_create, which takes "any request to make or build something" that you look at in the room.
+BUILD_START_DESCRIPTION = (
+    "Have the crew write a software project from scratch, as code in a repo, end to end: Albie plans it, the crew "
+    "hatches, and Builder, Tester, Scribe and Reviewer each do their part in turn, committing as they go; when it's "
+    "ready the user can have a pull request opened. Use it when the user asks for a program, app, script, tool, "
+    "website, game to run on a computer, or a pull request ('build me a Python to-do app', 'write a command-line "
+    "unit converter', 'have the crew make a snake game in the terminal'). Something to look at or play with in the "
+    "room is artifact_create instead. Takes a few minutes; returns at once with a build id. Say you're on it.")
 _ID = {"type": "string", "description": "build id; omit for the latest build"}
 TOOLS: list[dict[str, Any]] = [
     {"name": "build_start",
-     "description": "Build a whole small project from scratch with the crew, end to end, when the user asks Albie to "
-                    "build or make something ('build me a to-do app', 'make a snake game'). Albie plans it, the crew "
-                    "hatches, and builder, tester, scribe and reviewer each do their part in turn, committing as they "
-                    "go. Takes a few minutes; returns at once with a build id. Say you're on it.",
+     "description": BUILD_START_DESCRIPTION,
      "parameters": {"type": "object", "properties": {
          "goal": {"type": "string", "description": "what to build, in the user's words plus anything they said about it"}},
          "required": ["goal"]}},
@@ -481,21 +510,23 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+async def call_tool(name: str, args: dict[str, Any], of: Builds | None = None) -> dict[str, Any]:
+    """One of the build tools, on the hub's builds or on `of` (a cloud headset's own)."""
+    b = of or builds
     if name == "build_start":
         try:
-            build = builds.start(str(args.get("goal", "")))
+            build = b.start(str(args.get("goal", "")))
         except (ValueError, RuntimeError) as exc:
             return {"error": str(exc)}
         return {"status": "started", "build_id": build.id, "repo": build.repo,
                 "say": "Say you'll plan it and the crew will build it; you'll hear when it's ready."}
-    build = builds.get(args.get("build_id"))
+    build = b.get(args.get("build_id"))
     if build is None:
         return {"error": "no build yet (builds are kept in memory)"}
     if name == "build_status":
         return build.public()
     if name == "build_cancel":
-        if not await builds.cancel(build):
+        if not await b.cancel(build):
             return {"error": f"the build is already {build.state}"}
         return build.public()
     if name == "build_ship":
@@ -507,7 +538,7 @@ async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
                     "branch": build.branch, "folder": build.folder,
                     "say": f"Ask: open a pull request for {build.title} on {build.repo}? Only after a clear yes, "
                            "call build_ship again with confirm true."}
-        return await builds.ship(build)
+        return await b.ship(build)
     return {"error": f"unknown tool {name!r}"}
 
 
@@ -526,7 +557,7 @@ async def on_card(session: Any, action_id: str) -> None:
             await note(f"The user tapped Open pull request; pull request #{result.get('pr_number')} is open. "
                        "Don't call build_ship.")
     if "error" in result:
-        await say(result["error"])
+        await builds.say(result["error"])
 
 
 tools.register(TOOLS, call_tool, lead_only=True)

@@ -241,3 +241,40 @@ def test_bad_goals_are_refused(builds_env) -> None:
     assert builds_env.post("/agent/builds", json={"goal": ""}).status_code == 422
     assert "error" in tool(builds_env, "build_start", goal="   ")
     assert "error" in tool(builds_env, "build_status")  # nothing built yet
+
+
+def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypatch) -> None:
+    """The cloud's shape (cloud-py/app.py): no socket bus, no Unity roster. Every event goes to the headset's own log,
+    and the crew is hatched by a crew.spawn event in that log."""
+    monkeypatch.setenv("FAKE_AGENT", "1")
+    monkeypatch.setenv("BUILD_DIR", str(tmp_path / "builds"))
+    monkeypatch.delenv("BUILD_REPO", raising=False)
+    monkeypatch.setattr(build_mod, "_runner", lambda: scripted_runner())
+    log: list = []
+
+    async def publish(event) -> None:
+        log.append(event)
+
+    async def hatch(agent_type: str) -> dict:
+        await publish(ev.crew_spawn(agent_type))
+        return {"status": "hatched"}
+
+    async def run() -> dict:
+        mine = build_mod.Builds(publish=publish, hatch=hatch)
+        started = await build_mod.call_tool("build_start", {"goal": "a dice roller"}, of=mine)
+        b = mine.get(started["build_id"])
+        while not b.done:
+            await asyncio.sleep(0.01)
+        return b.public()
+
+    b = asyncio.run(run())
+    assert b["state"] == "ready" and [s["state"] for s in b["steps"]] == ["done"] * 4
+    types = [e.type for e in log]
+    assert [e.payload["agent_type"] for e in log if e.type == "crew.spawn"] == ["builder", "tester", "scribe", "reviewer"]
+    says = [e.payload for e in log if e.type == "pet.say"]
+    assert says[0]["text"].startswith("Planning") and says[1]["card"]["title"].startswith("Plan:")
+    assert says[-1]["card"]["title"].startswith("Built:")
+    assert "agent.task_progress" in types  # the crew members' live lines reach the headset's log
+    progress = [e.payload for e in log if e.type == "agent.task_progress"]
+    assert {p["pet_id"] for p in progress} == {"builder", "tester", "scribe", "reviewer"}
+    assert str(tmp_path) not in str([e.payload for e in log])  # no cloud paths to the headset

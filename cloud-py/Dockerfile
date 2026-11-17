@@ -16,7 +16,9 @@ COPY hub/cad hub/cad
 COPY hub/ml hub/ml
 COPY hub/code_browser hub/code_browser
 COPY hub/events.py hub/events.py
-COPY hub/agent/events.py hub/agent/events.py
+# hub/agent for "Albie, build me a ..." (agent/build.py and the crew's Claude runner). The cloud's own agent package
+# (cloud-py/stubs/agent) still stands in front of it, so the voice, Slack and socket code never load here.
+COPY hub/agent hub/agent
 COPY forge-sdk/forge forge-sdk/forge
 COPY ml-examples/text-classification ml-examples/text-classification
 COPY cloud-py cloud-py
@@ -41,5 +43,9 @@ ENV PYTHONPATH=/app/cloud-py/stubs:/app/cloud-py:/app/hub CLOUD_DATA_DIR=/data P
 # ml_github: a cloned repo's missing packages go into its own venv (FORGE_ML_PIP, hub/ml/repo_env.py), and its
 # patched training script caps the data at FORGE_MAX_TRAIN / FORGE_MAX_VAL samples so an epoch takes seconds on
 # this CPU. FORGE_LLM_MODEL: the model setup uses when the Space has its own ANTHROPIC_API_KEY secret.
+# Builds (hub/agent/build.py): the crew's Claude CLI ships inside claude-agent-sdk and needs the Space's own
+# ANTHROPIC_API_KEY secret (the Vercel proxy can't stream); each build clones BUILD_REPO with the Space's GITHUB_TOKEN
+# and opens its pull request there after the user's yes. The Space's own variables override these.
+ENV BUILD_DIR=/data/builds BUILD_REPO=albieuser/rc-truck AGENT_MODEL=claude-sonnet-5-5
 EXPOSE 8080
 CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -18,3 +18,6 @@ anthropic==2.3.0  # repo setup with the Space's own ANTHROPIC_API_KEY (else the 
 pandas==3.1.1
 scikit-learn==1.9.1
 tqdm==4.70.1
+# "Albie, build me a ..." (hub/agent/build.py): the crew's Claude runner (it bundles the Claude CLI) and its config
+claude-agent-sdk==0.2.173
+PyYAML==6.0.3

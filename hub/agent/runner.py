@@ -67,11 +67,12 @@ CODE_DENY = [
     "Bash(rm -rf:*)",
     "Bash(sudo:*)",
 ]
-# Secrets the hub holds for its own calls (GitHub, Slack, Grok voice, Hugging Face). A Claude turn runs the Claude CLI
-# with a shell, and the SDK starts it with the hub's whole environment; its env option can override values but not
-# remove them, so each of these is passed as "". ANTHROPIC_API_KEY stays: the CLI may need it to run at all.
+# Secrets the hub holds for its own calls (GitHub, Slack, Grok voice, Hugging Face; on Albie's cloud also the headset
+# app key). A Claude turn runs the Claude CLI with a shell, and the SDK starts it with the hub's whole environment; its
+# env option can override values but not remove them, so each of these is passed as "". ANTHROPIC_API_KEY stays: the
+# CLI needs it to run at all (so on the cloud, give it a key with a spend limit).
 HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "XAI_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_USER_TOKEN",
-              "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
+              "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "ALBIE_APP_KEY")
 
 
 def agent_env() -> dict[str, str]:
