@@ -22,10 +22,11 @@ using UnityEngine.SceneManagement;
 /// Debug bridge: lets a laptop drive a headset nobody is wearing. Newline-delimited JSON over TCP on 127.0.0.1:<see cref="Port"/>;
 /// one request line gets exactly one response line, in order, and a connection may carry many requests.
 /// Request <c>{"id": any, "cmd": "...", ...}</c>; response <c>{"id", "ok": true, ...}</c> or <c>{"id", "ok": false, "error"}</c>.
-/// Commands: ping, tools, call, state, logs, say. Socket threads only read and write; every command runs on the main thread.
+/// Commands: ping, tools, call, state, logs, say, plus the feature sweep's (DebugBridgeFeatures.cs: lifecycle, desk,
+/// voice_guard, inject, first_run). Socket threads only read and write; every command runs on the main thread.
 /// Installs itself when Play starts. Check: Forge > Core > Check Debug Bridge.
 /// </summary>
-public class DebugBridge : MonoBehaviour
+public partial class DebugBridge : MonoBehaviour
 {
     public const int Port = 8765;
     /// <summary>The port this run listens on: <see cref="Port"/>, or ALBIE_BRIDGE_PORT in the Editor.</summary>
@@ -229,6 +230,7 @@ public class DebugBridge : MonoBehaviour
                     job.Finish(error == null ? Ok(id, new JObject { ["text"] = text.Trim() }) : Fail(id, error));
                     break;
                 default:
+                    if (cmd != null && RunFeature(cmd, id, job)) break;
                     if (cmd != null && extra.TryGetValue(cmd, out var run))
                         run(job.req, fields => job.Finish(Ok(id, fields ?? new JObject())), message => job.Finish(Fail(id, message)));
                     else
@@ -255,6 +257,7 @@ public class DebugBridge : MonoBehaviour
             if (type != "ForgePanel" && type != "OSWindow") continue;
             var t = mb.transform;
             var w = new JObject { ["name"] = t.name, ["type"] = type, ["path"] = PathOf(t), ["pos"] = Vec(t.position) };
+            if (mb is ForgePanel panel && !string.IsNullOrEmpty(panel.panelId)) w["id"] = panel.panelId;  // e.g. messages-mentions
             if (cam != null)
             {
                 // Panels are turned with LookRotation(panel - head) (PanelManipulator, GestureWindow), so a panel's
@@ -270,12 +273,14 @@ public class DebugBridge : MonoBehaviour
             }
             windows.Add(w);
         }
-        return new JObject
+        var state = new JObject
         {
             ["head"] = cam != null ? new JObject { ["pos"] = Vec(head), ["fwd"] = Vec(cam.transform.forward) } : null,
             ["fps"] = Math.Round(fps, 1),
             ["windows"] = windows,
         };
+        AddFeatureState(state);
+        return state;
     }
 
     JObject Logs(long since)

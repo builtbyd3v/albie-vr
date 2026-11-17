@@ -38,10 +38,10 @@ public class CodePanel : MonoBehaviour
     TMP_Text code, note, status, listTitle;
     Image highlight;
     ScrollRect scroll;
+    ForgePill sampleTab, repoTab, prsTab, undo, reset, approve, merge;
     // A long line runs past the right edge: a fade there says "more", and a thin bar along the bottom shows where you are.
     Image edgeFade, hTrack, hThumb;
     static Sprite fadeSprite;
-    ForgePill sampleTab, repoTab, prsTab, undo, reset, approve, merge;
     TMP_InputField controllerSpeed;
     TMP_Text controllerState;
     ForgePill controllerApply;

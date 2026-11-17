@@ -5,6 +5,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 
 // Batch-mode Quest APK build: unity build --target Android --execute-method QuestBuild.Build -o Builds/X.apk .
+// Add -dev for a development build as com.albie.devbuild ("Dev's Build"); ProjectSettings is left as it was.
 // Release APK for the store channel: Forge > Build > Release APK, or -executeMethod QuestBuild.Release (docs/RELEASE.md).
 public static class QuestBuild
 {
@@ -15,14 +16,34 @@ public static class QuestBuild
         string[] args = System.Environment.GetCommandLineArgs();
         int i = System.Array.IndexOf(args, "-buildOutput");
         string path = i >= 0 && i + 1 < args.Length ? args[i + 1] : "Builds/AlbieStandalone.apk";
-        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        // -dev: a development build that installs next to the release app (own id and name, this build only).
+        bool dev = System.Array.IndexOf(args, "-dev") >= 0;
+        string oldId = PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android), oldName = PlayerSettings.productName;
+        BuildReport report;
+        try
         {
-            scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
-            locationPathName = path,
-            target = BuildTarget.Android,
-            options = BuildOptions.None,
-        });
-        Debug.Log($"[QuestBuild] {report.summary.result} -> {path}");
+            if (dev)
+            {
+                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.albie.devbuild");
+                PlayerSettings.productName = "Dev's Build";
+            }
+            report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
+                locationPathName = path,
+                target = BuildTarget.Android,
+                options = dev ? BuildOptions.Development : BuildOptions.None,
+            });
+        }
+        finally
+        {
+            if (dev)
+            {
+                PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, oldId);
+                PlayerSettings.productName = oldName;
+            }
+        }
+        Debug.Log($"[QuestBuild] {report.summary.result}{(dev ? " (development, com.albie.devbuild)" : "")} -> {path}");
         EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
     }
 
