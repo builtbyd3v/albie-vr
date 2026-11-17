@@ -50,6 +50,13 @@ public class DebugBridge : MonoBehaviour
 
     struct LogLine { public long seq; public string type, msg, stack; }
 
+    /// <summary>An extra command: answer exactly once with <c>ok(fields)</c> (fields may be null) or <c>fail(message)</c>, now or later, on the main thread.</summary>
+    public delegate void Command(JObject req, Action<JObject> ok, Action<string> fail);
+    static readonly Dictionary<string, Command> extra = new Dictionary<string, Command>();
+
+    /// <summary>Add a command from another file (same #if guard). Call it from a [RuntimeInitializeOnLoadMethod]; a second Register of a name replaces the first.</summary>
+    public static void Register(string cmd, Command run) => extra[cmd] = run;
+
     TcpListener listener;
     readonly CancellationTokenSource stop = new CancellationTokenSource();
     readonly ConcurrentQueue<Job> jobs = new ConcurrentQueue<Job>();
@@ -217,7 +224,10 @@ public class DebugBridge : MonoBehaviour
                     job.Finish(error == null ? Ok(id, new JObject { ["text"] = text.Trim() }) : Fail(id, error));
                     break;
                 default:
-                    job.Finish(Fail(id, cmd == null ? "missing \"cmd\"" : $"unknown cmd '{cmd}'"));
+                    if (cmd != null && extra.TryGetValue(cmd, out var run))
+                        run(job.req, fields => job.Finish(Ok(id, fields ?? new JObject())), message => job.Finish(Fail(id, message)));
+                    else
+                        job.Finish(Fail(id, cmd == null ? "missing \"cmd\"" : $"unknown cmd '{cmd}'"));
                     break;
             }
         }

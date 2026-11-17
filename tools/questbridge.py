@@ -151,9 +151,9 @@ def pick_window(windows, want):
 
 
 def run_case(conn, case, i, out, a, names):
-    tool, args = case["tool"], case.get("args") or {}
-    r = {"name": case["name"], "tool": tool, "args": args, "status": "PASS", "reasons": []}
-    if tool not in names:
+    tool, args = case.get("tool"), case.get("args") or {}
+    r = {"name": case["name"], "tool": tool or "cmd:" + case["cmd"], "args": args, "status": "PASS", "reasons": []}
+    if tool and tool not in names:
         r.update(status="SKIP", reasons=["tool not registered in this build"])
         return r
     if conn is None:
@@ -161,7 +161,8 @@ def run_case(conn, case, i, out, a, names):
         return r
     try:
         seq = request(conn, "logs").get("seq", 0)
-        r["response"] = resp = call(conn, tool, args)
+        # {"cmd": "hand", "args": {...}} sends that bridge command with args as its fields; {"tool": ...} calls an Albie tool.
+        r["response"] = resp = call(conn, tool, args) if tool else request(conn, case["cmd"], timeout=40, **args)
         time.sleep(case.get("wait_s", 1.5))
         r["state"] = state = request(conn, "state")
         if not a.no_adb:
@@ -270,6 +271,9 @@ def main(argv=None):
     s.add_argument("--timeout", type=float, default=30)
     s = sub.add_parser("say", help="send Albie a typed sentence")
     s.add_argument("text")
+    s = sub.add_parser("cmd", help="send any bridge command, e.g. cmd hand '{\"gesture\": \"fist\"}'")
+    s.add_argument("name")
+    s.add_argument("json_params", nargs="?", default="{}", help="JSON object of extra request fields")
     s = sub.add_parser("shot", help="save a headset screenshot")
     s.add_argument("out")
     s = sub.add_parser("sweep", help="unattended test run over a case file")
@@ -301,6 +305,11 @@ def main(argv=None):
             if not isinstance(args, dict):
                 raise ValueError("JSON_ARGS must be a JSON object")
             return one(a, "call", tool=a.tool, args=args, timeout_s=a.timeout)
+        if a.cmd == "cmd":
+            params = json.loads(a.json_params)
+            if not isinstance(params, dict):
+                raise ValueError("JSON_PARAMS must be a JSON object")
+            return one(a, a.name, timeout=float(params.get("timeout_s", 30)) + 10, **params)
         if a.cmd == "say":
             return one(a, "say", text=a.text)
         if a.cmd == "sweep":
