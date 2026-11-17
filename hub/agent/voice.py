@@ -162,6 +162,9 @@ TOOL_RULES = (
 IGNORED_NOTE = ("The user's last message was not said to you (background audio, or talk to someone else). "
                 "Ignore it completely: never act on it, answer it or mention it.")
 CREW_OFF_CODE_SCREEN = {"error": "crew tools are only available on the code screen; ask the user to open CODE"}
+# Lead-only tools that work from any screen: workflows have no characters, and a build (agent/build.py) has its own
+# workspace, plan card and crew, so "Albie, build me a ..." must not need the CODE screen open.
+OPEN_ON_EVERY_SCREEN = ("workflow_", "build_")
 VIEW_NOTES = {
     "code": "The user switched to the CODE view (the code panel on the main screen); crew tools are available now.",
     "cad": "The user switched to the CAD view (the open design on the desk); crew tools are off until they open CODE.",
@@ -843,7 +846,8 @@ class GrokVoiceSession(_Base):
             job = asyncio.create_task(self._run_delegate(str(args["task"]), mode))
             self._jobs.add(job)
             job.add_done_callback(self._jobs.discard)
-        elif tools.is_lead_only(name) and not name.startswith("workflow_") and self.workspace_mode is not None and self.workspace_mode != "code":
+        elif (tools.is_lead_only(name) and not name.startswith(OPEN_ON_EVERY_SCREEN)
+              and self.workspace_mode is not None and self.workspace_mode != "code"):
             result = CREW_OFF_CODE_SCREEN  # the crew lives on the CODE screen; Unity told us another view is open
         elif tools.has(name):
             # ponytail: awaited inline, so the reader waits on the tool (CAD regen about 1 s).

@@ -56,7 +56,7 @@ def test_crew_tools_answer_an_error_off_the_code_screen(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(tools, "call", call)
     monkeypatch.setattr(tools, "has", lambda name: True)
-    monkeypatch.setattr(tools, "is_lead_only", lambda name: name == "spawn_agent")
+    monkeypatch.setattr(tools, "is_lead_only", lambda name: name in ("spawn_agent", "build_start", "workflow_start"))
 
     async def one(mode: str | None, name: str) -> dict[str, Any]:
         grok, sink = MockGrok(), Sink()
@@ -78,9 +78,12 @@ def test_crew_tools_answer_an_error_off_the_code_screen(monkeypatch: pytest.Monk
         assert await one("code", "spawn_agent") == {"status": "hatched"}
         assert await one(None, "spawn_agent") == {"status": "hatched"}  # a client that never sends workspace.mode
         assert await one("cad", "ui_open_view") == {"status": "hatched"}  # only the crew tools are gated
+        # "Albie, build me a ..." and workflows work from any screen (a build has its own workspace and crew).
+        assert await one("cad", "build_start") == {"status": "hatched"}
+        assert await one("", "workflow_start") == {"status": "hatched"}
 
     asyncio.run(run())
-    assert called == ["spawn_agent", "spawn_agent", "ui_open_view"]
+    assert called == ["spawn_agent", "spawn_agent", "ui_open_view", "build_start", "workflow_start"]
 
 
 class StubVoice:
