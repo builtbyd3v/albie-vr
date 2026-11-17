@@ -322,6 +322,8 @@ namespace Forge.OS
         {
             foreach (string template in ArtifactLibrary.Templates)
             {
+                // Hidden for the submission (Satyabrata, Nov 16): hoops are for a drone, and the app has none to fly.
+                if (template == "hoop_course") continue;
                 string name = template;
                 string key = "new_" + name;
                 bool room = RoomTemplates.Contains(name);

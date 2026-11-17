@@ -368,9 +368,14 @@ namespace Forge.Artifacts
             PlacePanel(panel.transform, at);
         }
 
+        /// <summary>A panel button was pressed, by its id, before its rules run. The brain truck listens for the slalom's
+        /// "drive_lap" and "albie_drives", so the course works with no voice.</summary>
+        public event System.Action<string> Fired;
+
         /// <summary>A button was pressed: run its <c>on_input</c> rules.</summary>
         public void Fire(string input)
         {
+            Fired?.Invoke(input);
             if (!(open?.Scene["rules"] is JArray rules)) return;
             foreach (var rule in rules)
                 if (rule.Value<string>("type") == "on_input" && rule.Value<string>("input") == input && rule["do"] is JArray actions)
