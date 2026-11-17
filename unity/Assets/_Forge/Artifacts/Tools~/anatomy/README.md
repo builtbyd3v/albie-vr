@@ -1,8 +1,23 @@
-# Anatomy models (heart, eye)
+# Biology models (heart, eye, brain, cell, plant cell, DNA)
 
-`build_anatomy.py` makes the heart and eye GLBs from open anatomy data. `make_scenes.py` then writes the two templates'
-`scene.json` and `manifest.json` from the GLB and the landmarks the build measured, and copies the GLB into
-`Resources/ArtifactTemplates/<heart|eye>/assets/`. Unity ignores this folder (its name ends in `~`).
+- `build_anatomy.py` makes the heart, eye and brain GLBs from open anatomy data.
+- `build_models.py` models the DNA, animal cell and plant cell from scratch. No source data is involved, so these
+  GLBs are our own work and CC0.
+- `make_scenes.py` then writes each template's `scene.json` and `manifest.json` from the GLB and the landmarks the
+  build measured, and copies the GLB into `Resources/ArtifactTemplates/<name>/assets/`.
+
+Unity ignores this folder (its name ends in `~`).
+
+The brain is built from Z-Anatomy only. Its gyri and sulci are grouped into the frontal, parietal, temporal,
+occipital, insular and limbic cortex of each hemisphere (the rules are `BRAIN_RULES` in `build_anatomy.py`). The white
+matter, cerebellum, brainstem and the deep structures are separate parts. The brain is turned so the patient's left
+faces glTF +Z, which makes the runtime's cut go down the midline.
+
+```sh
+$B -b --disable-autoexec Z-Anatomy/Startup.blend --python build_anatomy.py -- brain <stl_dir> out/brain.glb out/brain.json
+for w in dna cell plant_cell; do $B -b --python build_models.py -- $w out/$w.glb out/$w.json; done
+for w in brain dna cell plant_cell; do python make_scenes.py $w out/$w.glb out/$w.json ../../Resources/ArtifactTemplates/$w; done
+```
 
 ## Sources and licence
 

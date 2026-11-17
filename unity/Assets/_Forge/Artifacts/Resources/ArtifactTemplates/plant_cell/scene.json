@@ -12,173 +12,50 @@
       "asset": "assets/plant_cell.glb",
       "pos": [
         0,
-        -0.11,
+        0,
         0
       ],
       "rot": [
-        40,
+        0,
         180,
         0
       ],
       "scale": [
-        1,
-        1,
-        1
+        1.1,
+        1.1,
+        1.1
       ]
-    },
-    {
-      "id": "label_rough_er",
-      "kind": "text",
-      "text": "Rough ER",
-      "pos": [
-        -0.24,
-        0.01,
-        -0.16
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_rough_er",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          0.0052,
-          -0.16
-        ],
-        [
-          -0.0287,
-          -0.0378,
-          -0.0295
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_chloroplast",
-      "kind": "text",
-      "text": "Chloroplast",
-      "pos": [
-        -0.24,
-        -0.04,
-        -0.16
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_chloroplast",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          -0.0448,
-          -0.16
-        ],
-        [
-          -0.0768,
-          -0.0634,
-          -0.0697
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_vacuole",
-      "kind": "text",
-      "text": "Central vacuole",
-      "pos": [
-        -0.24,
-        -0.09,
-        -0.16
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_vacuole",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          -0.0948,
-          -0.16
-        ],
-        [
-          -0.0009,
-          -0.0795,
-          -0.1029
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_wall",
-      "kind": "text",
-      "text": "Cell wall",
-      "pos": [
-        -0.24,
-        -0.14,
-        -0.16
-      ],
-      "height": 0.02,
-      "color": "#FFFFFF",
-      "billboard": true
-    },
-    {
-      "id": "leader_wall",
-      "kind": "line",
-      "points": [
-        [
-          -0.17,
-          -0.1448,
-          -0.16
-        ],
-        [
-          -0.075,
-          -0.136,
-          -0.141
-        ]
-      ],
-      "width": 0.001,
-      "color": "#D0D4DA"
     },
     {
       "id": "label_nucleus",
       "kind": "text",
       "text": "Nucleus",
       "pos": [
-        0.24,
-        0.01,
-        -0.16
+        -0.21,
+        0.12,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_nucleus",
       "kind": "line",
       "points": [
         [
-          0.17,
-          0.0052,
-          -0.16
+          -0.218,
+          0.116,
+          -0.13
         ],
         [
-          0.0135,
-          -0.0028,
-          -0.0084
+          -0.0792,
+          0.0374,
+          -0.0
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -186,61 +63,63 @@
       "kind": "text",
       "text": "Nucleolus",
       "pos": [
-        0.24,
-        -0.04,
-        -0.16
+        -0.21,
+        0.06,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_nucleolus",
       "kind": "line",
       "points": [
         [
-          0.17,
-          -0.0448,
-          -0.16
+          -0.218,
+          0.056,
+          -0.13
         ],
         [
-          -0.0014,
-          -0.0105,
-          -0.0156
+          -0.0748,
+          0.0259,
+          -0.0044
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_cytoplasm",
+      "id": "label_rough_er",
       "kind": "text",
-      "text": "Cytoplasm",
+      "text": "Rough ER",
       "pos": [
-        0.24,
-        -0.09,
-        -0.16
+        -0.21,
+        0.0,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
-      "id": "leader_cytoplasm",
+      "id": "leader_rough_er",
       "kind": "line",
       "points": [
         [
-          0.17,
-          -0.0948,
-          -0.16
+          -0.218,
+          -0.004,
+          -0.13
         ],
         [
-          0.0594,
-          -0.038,
-          -0.0084
+          -0.0718,
+          0.002,
+          -0.0373
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -248,30 +127,159 @@
       "kind": "text",
       "text": "Golgi apparatus",
       "pos": [
-        0.24,
-        -0.14,
-        -0.16
+        -0.21,
+        -0.06,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.016,
       "color": "#FFFFFF",
-      "billboard": true
+      "billboard": true,
+      "align": "right"
     },
     {
       "id": "leader_golgi",
       "kind": "line",
       "points": [
         [
-          0.17,
-          -0.1448,
-          -0.16
+          -0.218,
+          -0.064,
+          -0.13
         ],
         [
-          0.0874,
-          -0.0731,
-          -0.0663
+          -0.055,
+          -0.0385,
+          0.0385
         ]
       ],
-      "width": 0.001,
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_cytoplasm",
+      "kind": "text",
+      "text": "Cytoplasm",
+      "pos": [
+        -0.21,
+        -0.12,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_cytoplasm",
+      "kind": "line",
+      "points": [
+        [
+          -0.218,
+          -0.124,
+          -0.13
+        ],
+        [
+          -0.0935,
+          -0.044,
+          -0.033
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_wall",
+      "kind": "text",
+      "text": "Cell wall",
+      "pos": [
+        0.21,
+        0.12,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_wall",
+      "kind": "line",
+      "points": [
+        [
+          0.218,
+          0.116,
+          -0.13
+        ],
+        [
+          0.0,
+          0.0605,
+          -0.0715
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_vacuole",
+      "kind": "text",
+      "text": "Central vacuole",
+      "pos": [
+        0.21,
+        0.0,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_vacuole",
+      "kind": "line",
+      "points": [
+        [
+          0.218,
+          -0.004,
+          -0.13
+        ],
+        [
+          0.0198,
+          0.0,
+          -0.0443
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_chloroplast",
+      "kind": "text",
+      "text": "Chloroplast",
+      "pos": [
+        0.21,
+        -0.12,
+        -0.13
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_chloroplast",
+      "kind": "line",
+      "points": [
+        [
+          0.218,
+          -0.124,
+          -0.13
+        ],
+        [
+          0.0792,
+          0.0,
+          -0.0484
+        ]
+      ],
+      "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
@@ -287,10 +295,10 @@
       "text": "1  Water stored in the central vacuole moves to a chloroplast",
       "pos": [
         0,
-        0.13,
-        -0.16
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -301,10 +309,10 @@
       "text": "2  Sunlight reaches the chloroplast, and its green stacks capture the energy",
       "pos": [
         0,
-        0.13,
-        -0.16
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -315,10 +323,10 @@
       "text": "3  It joins water and carbon dioxide into sugar, giving off oxygen",
       "pos": [
         0,
-        0.13,
-        -0.16
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -329,10 +337,10 @@
       "text": "4  Sugar feeds the cell through the cytoplasm; oxygen leaves through the wall",
       "pos": [
         0,
-        0.13,
-        -0.16
+        0.17,
+        -0.13
       ],
-      "height": 0.02,
+      "height": 0.018,
       "color": "#FFE66D",
       "billboard": true,
       "visible": false
@@ -342,16 +350,16 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        -0.0009,
-        -0.0795,
-        -0.1149
+        0.0198,
+        0.0,
+        -0.0443
       ],
       "size": [
-        0.01,
-        0.01,
-        0.01
+        0.008,
+        0.008,
+        0.008
       ],
-      "color": "#4D9DE0",
+      "color": "#7FDBFF",
       "glow": true,
       "visible": false
     },
@@ -360,16 +368,16 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        -0.0768,
-        -0.0634,
-        -0.0817
+        0.0792,
+        0.0,
+        -0.0484
       ],
       "size": [
-        0.008,
-        0.008,
-        0.008
+        0.007,
+        0.007,
+        0.007
       ],
-      "color": "#FFFFFF",
+      "color": "#FF6B6B",
       "glow": true,
       "visible": false
     },
@@ -378,14 +386,14 @@
       "kind": "line",
       "points": [
         [
-          -0.04,
-          0.09,
-          -0.2
+          0.0792,
+          0.25,
+          -0.0484
         ],
         [
-          -0.0768,
-          -0.0634,
-          -0.0817
+          0.0792,
+          0.0,
+          -0.0484
         ]
       ],
       "width": 0.004,
@@ -399,26 +407,24 @@
       "widgets": [
         {
           "type": "note",
-          "text": "A plant cell cut open. Unlike an animal cell it has a cell wall, chloroplasts and one big central vacuole. A real one is about 10 to 100 micrometres across."
+          "text": "A leaf cell, about 2 000 times life size. Unlike an animal cell it has a cell wall, chloroplasts and one big central vacuole. Cut it open or separate it to see inside."
         },
         {
           "type": "button",
           "id": "sun",
-          "label": "Follow the sunlight"
-        },
-        {
-          "type": "button",
-          "id": "labels_on",
-          "label": "Show labels"
+          "label": "Follow the sunlight",
+          "primary": true
         },
         {
           "type": "button",
           "id": "labels_off",
-          "label": "Hide labels"
+          "label": "Hide labels",
+          "alt_id": "labels_on",
+          "alt_label": "Show labels"
         },
         {
           "type": "note",
-          "text": "3D model: public domain (CC0)."
+          "text": "3D model: made for Albie (CC0)."
         }
       ]
     }
@@ -426,115 +432,9 @@
   "rules": [
     {
       "type": "on_input",
-      "input": "sun",
-      "do": [
-        {
-          "set": "label_rough_er.visible",
-          "value": true
-        },
-        {
-          "set": "leader_rough_er.visible",
-          "value": true
-        },
-        {
-          "set": "label_chloroplast.visible",
-          "value": true
-        },
-        {
-          "set": "leader_chloroplast.visible",
-          "value": true
-        },
-        {
-          "set": "label_vacuole.visible",
-          "value": true
-        },
-        {
-          "set": "leader_vacuole.visible",
-          "value": true
-        },
-        {
-          "set": "label_wall.visible",
-          "value": true
-        },
-        {
-          "set": "leader_wall.visible",
-          "value": true
-        },
-        {
-          "set": "label_nucleus.visible",
-          "value": true
-        },
-        {
-          "set": "leader_nucleus.visible",
-          "value": true
-        },
-        {
-          "set": "label_nucleolus.visible",
-          "value": true
-        },
-        {
-          "set": "leader_nucleolus.visible",
-          "value": true
-        },
-        {
-          "set": "label_cytoplasm.visible",
-          "value": true
-        },
-        {
-          "set": "leader_cytoplasm.visible",
-          "value": true
-        },
-        {
-          "set": "label_golgi.visible",
-          "value": true
-        },
-        {
-          "set": "leader_golgi.visible",
-          "value": true
-        },
-        {
-          "timeline": "photosynthesis",
-          "action": "restart"
-        }
-      ]
-    },
-    {
-      "type": "on_input",
       "input": "labels_on",
       "do": [
         {
-          "set": "label_rough_er.visible",
-          "value": true
-        },
-        {
-          "set": "leader_rough_er.visible",
-          "value": true
-        },
-        {
-          "set": "label_chloroplast.visible",
-          "value": true
-        },
-        {
-          "set": "leader_chloroplast.visible",
-          "value": true
-        },
-        {
-          "set": "label_vacuole.visible",
-          "value": true
-        },
-        {
-          "set": "leader_vacuole.visible",
-          "value": true
-        },
-        {
-          "set": "label_wall.visible",
-          "value": true
-        },
-        {
-          "set": "leader_wall.visible",
-          "value": true
-        },
-        {
           "set": "label_nucleus.visible",
           "value": true
         },
@@ -551,11 +451,11 @@
           "value": true
         },
         {
-          "set": "label_cytoplasm.visible",
+          "set": "label_rough_er.visible",
           "value": true
         },
         {
-          "set": "leader_cytoplasm.visible",
+          "set": "leader_rough_er.visible",
           "value": true
         },
         {
@@ -564,6 +464,38 @@
         },
         {
           "set": "leader_golgi.visible",
+          "value": true
+        },
+        {
+          "set": "label_cytoplasm.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cytoplasm.visible",
+          "value": true
+        },
+        {
+          "set": "label_wall.visible",
+          "value": true
+        },
+        {
+          "set": "leader_wall.visible",
+          "value": true
+        },
+        {
+          "set": "label_vacuole.visible",
+          "value": true
+        },
+        {
+          "set": "leader_vacuole.visible",
+          "value": true
+        },
+        {
+          "set": "label_chloroplast.visible",
+          "value": true
+        },
+        {
+          "set": "leader_chloroplast.visible",
           "value": true
         }
       ]
@@ -573,38 +505,6 @@
       "input": "labels_off",
       "do": [
         {
-          "set": "label_rough_er.visible",
-          "value": false
-        },
-        {
-          "set": "leader_rough_er.visible",
-          "value": false
-        },
-        {
-          "set": "label_chloroplast.visible",
-          "value": false
-        },
-        {
-          "set": "leader_chloroplast.visible",
-          "value": false
-        },
-        {
-          "set": "label_vacuole.visible",
-          "value": false
-        },
-        {
-          "set": "leader_vacuole.visible",
-          "value": false
-        },
-        {
-          "set": "label_wall.visible",
-          "value": false
-        },
-        {
-          "set": "leader_wall.visible",
-          "value": false
-        },
-        {
           "set": "label_nucleus.visible",
           "value": false
         },
@@ -621,11 +521,11 @@
           "value": false
         },
         {
-          "set": "label_cytoplasm.visible",
+          "set": "label_rough_er.visible",
           "value": false
         },
         {
-          "set": "leader_cytoplasm.visible",
+          "set": "leader_rough_er.visible",
           "value": false
         },
         {
@@ -635,6 +535,200 @@
         {
           "set": "leader_golgi.visible",
           "value": false
+        },
+        {
+          "set": "label_cytoplasm.visible",
+          "value": false
+        },
+        {
+          "set": "leader_cytoplasm.visible",
+          "value": false
+        },
+        {
+          "set": "label_wall.visible",
+          "value": false
+        },
+        {
+          "set": "leader_wall.visible",
+          "value": false
+        },
+        {
+          "set": "label_vacuole.visible",
+          "value": false
+        },
+        {
+          "set": "leader_vacuole.visible",
+          "value": false
+        },
+        {
+          "set": "label_chloroplast.visible",
+          "value": false
+        },
+        {
+          "set": "leader_chloroplast.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "molecule",
+      "property": "visible",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "molecule",
+      "property": "pos",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          0,
+          [
+            0.0198,
+            0.0,
+            -0.0443
+          ]
+        ],
+        [
+          2.4,
+          [
+            0.0792,
+            0.0,
+            -0.0484
+          ]
+        ],
+        [
+          7.4,
+          [
+            0.0792,
+            0.0,
+            -0.0484
+          ]
+        ],
+        [
+          9.8,
+          [
+            -0.0935,
+            -0.044,
+            -0.033
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "molecule",
+      "property": "color",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          0,
+          "#7FDBFF"
+        ],
+        [
+          5.0,
+          "#7FDBFF"
+        ],
+        [
+          5.2,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "sunbeam",
+      "property": "visible",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2.5,
+          true
+        ],
+        [
+          5.0,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "oxygen",
+      "property": "visible",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          5.2,
+          true
+        ],
+        [
+          9.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "oxygen",
+      "property": "pos",
+      "timeline": "photosynthesis",
+      "keys": [
+        [
+          5.2,
+          [
+            0.0792,
+            0.0,
+            -0.0484
+          ]
+        ],
+        [
+          7.5,
+          [
+            0.0,
+            0.0605,
+            -0.0715
+          ]
+        ],
+        [
+          9.8,
+          [
+            0.0,
+            0.0968,
+            -0.1144
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "sun",
+      "do": [
+        {
+          "timeline": "photosynthesis",
+          "action": "restart"
         }
       ]
     },
@@ -673,7 +767,7 @@
           true
         ],
         [
-          5,
+          5.0,
           false
         ]
       ]
@@ -689,7 +783,7 @@
           false
         ],
         [
-          5,
+          5.0,
           true
         ],
         [
@@ -713,7 +807,7 @@
           true
         ],
         [
-          9.9,
+          9.95,
           false
         ]
       ]
@@ -757,11 +851,11 @@
           "#FFFFFF"
         ],
         [
-          0.01,
+          2.5,
           "#FFFFFF"
         ],
         [
-          0.02,
+          2.51,
           "#FFE66D"
         ],
         [
@@ -793,11 +887,11 @@
           "#FFE66D"
         ],
         [
-          9.89,
+          9.94,
           "#FFE66D"
         ],
         [
-          9.9,
+          9.95,
           "#FFFFFF"
         ]
       ]
@@ -821,167 +915,14 @@
           "#FFE66D"
         ],
         [
-          9.89,
+          9.94,
           "#FFE66D"
         ],
         [
-          9.9,
+          9.95,
           "#FFFFFF"
         ]
       ]
-    },
-    {
-      "type": "animate",
-      "target": "molecule",
-      "property": "visible",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          0.01,
-          true
-        ],
-        [
-          9.9,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "molecule",
-      "property": "pos",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          0,
-          [
-            -0.0009,
-            -0.0795,
-            -0.1149
-          ]
-        ],
-        [
-          2.3,
-          [
-            -0.0768,
-            -0.0634,
-            -0.0817
-          ]
-        ],
-        [
-          7.5,
-          [
-            -0.0768,
-            -0.0634,
-            -0.0817
-          ]
-        ],
-        [
-          9.5,
-          [
-            0.0594,
-            -0.038,
-            -0.0204
-          ]
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "molecule",
-      "property": "color",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          0,
-          "#4D9DE0"
-        ],
-        [
-          5,
-          "#4D9DE0"
-        ],
-        [
-          5.6,
-          "#FFE66D"
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "oxygen",
-      "property": "visible",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          5.5,
-          true
-        ],
-        [
-          9.9,
-          false
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "oxygen",
-      "property": "pos",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          5.5,
-          [
-            -0.0768,
-            -0.0634,
-            -0.0817
-          ]
-        ],
-        [
-          7.5,
-          [
-            -0.0768,
-            -0.0634,
-            -0.0997
-          ]
-        ],
-        [
-          9.5,
-          [
-            -0.075,
-            -0.136,
-            -0.181
-          ]
-        ]
-      ]
-    },
-    {
-      "type": "animate",
-      "target": "sunbeam",
-      "property": "visible",
-      "timeline": "photosynthesis",
-      "keys": [
-        [
-          0,
-          false
-        ],
-        [
-          2.5,
-          true
-        ],
-        [
-          7.5,
-          false
-        ]
-      ]
     }
-  ],
-  "run": null
+  ]
 }

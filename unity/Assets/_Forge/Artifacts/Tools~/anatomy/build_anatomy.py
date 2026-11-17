@@ -214,7 +214,7 @@ def material(key):
     return m
 
 
-def bake_colours(scale, colour_fn=None, samples=20, reach=0.012):
+def bake_colours(scale, colour_fn=None, samples=20, reach=0.012, self_only=()):
     """Ambient occlusion (times an optional per-vertex colour) into COLOR_0, which glTF multiplies into the base colour."""
     tmp = []
     for o, _ in built.values():
@@ -232,6 +232,8 @@ def bake_colours(scale, colour_fn=None, samples=20, reach=0.012):
         if 0.05 < v.length <= 1: dirs.append(v.normalized())
     for part, (o, mat) in built.items():
         me = o.data
+        # A part that something else wraps (white matter under the cortex) is shaded by its own folds only.
+        tree = BVHTree.FromObject(o, bpy.context.evaluated_depsgraph_get()) if part in self_only else bvh
         layer = me.color_attributes.new("Col", "BYTE_COLOR", "POINT")
         skip_ao = MATS[mat][2] < 1  # see-through parts don't occlude themselves
         for i, v in enumerate(me.vertices):
@@ -240,7 +242,7 @@ def bake_colours(scale, colour_fn=None, samples=20, reach=0.012):
                 hits = 0
                 for d in dirs:
                     if d.dot(v.normal) < 0: d = -d
-                    if bvh.ray_cast(v.co + v.normal * reach * 0.03, d, reach)[0] is not None: hits += 1
+                    if tree.ray_cast(v.co + v.normal * reach * 0.03, d, reach)[0] is not None: hits += 1
                 a = max(0.4, 1.0 - 0.8 * hits / samples)
             col = colour_fn(part, v.co) if colour_fn else (1, 1, 1)
             layer.data[i].color = (col[0] * a, col[1] * a, col[2] * a, 1.0)
@@ -467,9 +469,116 @@ def eye():
     finish(centre, rot, explode, lm, xray)
 
 
+# --- the brain ------------------------------------------------------------------------------------------------------
+# Z-Anatomy splits the cortex into gyri and sulci; these rules group them into lobes, first match wins.
+BRAIN_SKIP = ("nerve", "salivatory", "ambiguus", "cochlear nucleus", "vestibular nuclei", "nucleus of", "eyeball", "cornea",
+              "iris", "lens", "retina", "sclera", "vitreous", "zonular", "lacrimal", "cochlea", "vestibule", "auditory",
+              "tympanic", "falx", "tentorium", "suspensory", "optic", "septal nuclei", "stria", "habenula", "commissure",
+              "interpeduncular", "geniculate", "mamillary", "choroid plexus", "septum pellucidum", "root", "lentiform")
+BRAIN_RULES = [
+    ("White matter", ("white matter",)),
+    ("Limbic lobe", ("cingulate", "parahippocampal")),
+    ("Insula", ("insula",)),
+    ("Temporal lobe", ("occipitotemporal", "collateral sulcus", "temporal", "lat_fis-post")),
+    ("Occipital lobe", ("parieto-occipital", "occipital", "cuneus", "lingual", "calcarine", "lunate")),
+    ("Parietal lobe", ("parietal", "postcentral", "supramarginal", "angular", "precuneus", "jensen")),
+    ("Frontal lobe", ("frontal", "precentral", "central sulcus", "orbital", "straight gyrus", "olfactory", "paracentral",
+                      "opercular", "triangular", "lat_fis-ant", "frontopolar")),
+    ("Cerebellum", ("lobule", "vermis", "culmen", "declive", "flocculus", "lingula", "tonsil", "cerebellar peduncle")),
+    ("Brainstem", ("medulla", "pons", "midbrain", "olive", "colliculus", "base of peduncle", "red nucleus")),
+    ("Ventricles", ("ventricle", "aqueduct")),
+    ("Corpus callosum", ("corpus callosum",)),
+    ("Thalamus", ("thalamus",)),
+    ("Basal ganglia", ("caudate", "putamen", "globus pallidus")),
+    ("Hippocampus and fornix", ("hippocampus", "fornix")),
+    ("Amygdala", ("amygdaloid",)),
+]
+SIDED = {"White matter", "Limbic lobe", "Insula", "Temporal lobe", "Occipital lobe", "Parietal lobe", "Frontal lobe"}
+MATS.update({
+    "frontal": ((0.80, 0.60, 0.53), 0.55, 1, True), "parietal": ((0.83, 0.68, 0.54), 0.55, 1, True),
+    "temporal": ((0.74, 0.60, 0.64), 0.55, 1, True), "occipital": ((0.82, 0.57, 0.57), 0.55, 1, True),
+    "insula": ((0.78, 0.65, 0.58), 0.55, 1, True), "limbic": ((0.86, 0.68, 0.60), 0.55, 1, True),
+    "white_matter": ((0.93, 0.90, 0.83), 0.6, 1, True), "cerebellum": ((0.76, 0.54, 0.49), 0.55, 1, True),
+    "brainstem": ((0.86, 0.76, 0.66), 0.55, 1, True), "ventricles": ((0.45, 0.65, 0.90), 0.1, 0.55, True),
+    "callosum": ((0.95, 0.93, 0.87), 0.6, 1, True), "thalamus": ((0.72, 0.56, 0.62), 0.55, 1, True),
+    "basal_ganglia": ((0.62, 0.50, 0.60), 0.55, 1, True), "hippocampus": ((0.86, 0.72, 0.54), 0.55, 1, True),
+    "amygdala": ((0.82, 0.58, 0.44), 0.55, 1, True),
+})
+BRAIN_MAT = {"Frontal lobe": "frontal", "Parietal lobe": "parietal", "Temporal lobe": "temporal",
+             "Occipital lobe": "occipital", "Insula": "insula", "Limbic lobe": "limbic", "White matter": "white_matter",
+             "Cerebellum": "cerebellum", "Brainstem": "brainstem", "Ventricles": "ventricles",
+             "Corpus callosum": "callosum", "Thalamus": "thalamus", "Basal ganglia": "basal_ganglia",
+             "Hippocampus and fornix": "hippocampus", "Amygdala": "amygdala"}
+BRAIN_TRIS = {"White matter": 6000, "Cerebellum": 10000, "Brainstem": 4000, "Ventricles": 3000, "Frontal lobe": 8000,
+              "Parietal lobe": 6000, "Temporal lobe": 6000, "Occipital lobe": 4000, "Insula": 1500, "Limbic lobe": 2500}
+
+
+def brain():
+    ref = zobj["Corpus callosum"]
+    centre_ref = ref.matrix_world @ (sum((Vector(b) for b in ref.bound_box), Vector()) / 8)
+    groups = {}
+    for o in list(zobj):
+        if o.type != "MESH" or len(o.data.polygons) == 0 or not o.users_collection:
+            continue
+        if "Nervous" not in o.users_collection[0].name:
+            continue
+        c = o.matrix_world @ (sum((Vector(b) for b in o.bound_box), Vector()) / 8)
+        if (c - centre_ref).length > 0.11:
+            continue
+        low = o.name.lower()
+        if any(s in low for s in BRAIN_SKIP) and not any(k in low for k in ("caudate", "red nucleus")):
+            continue
+        part = next((p for p, keys in BRAIN_RULES if any(k in low for k in keys)), None)
+        if part is None:
+            print("BRAIN unassigned:", o.name)
+            continue
+        if part in SIDED:
+            side = "Left" if o.name.endswith(".l") else "Right" if o.name.endswith(".r") else None
+            if side is None:
+                print("BRAIN no side:", o.name); continue
+            part = f"{side} {part[0].lower()}{part[1:]}"
+        groups.setdefault(part, []).append(o.name)
+    for part, names in sorted(groups.items()):
+        print("BRAIN", part, len(names))
+        base = part.split(" ", 1)[1].capitalize() if part.startswith(("Left ", "Right ")) else part
+        add(part, mesh_from_z(names, part), BRAIN_MAT[base], BRAIN_TRIS.get(base, 3000))
+
+    centre = mean([v.co for o, _ in built.values() for v in o.data.vertices])
+    def colour(part, p):
+        n = noise3(p, 700.0)
+        k = 0.9 + 0.1 * n
+        return (k, k, k)
+    bake_colours(1.0, colour, reach=0.01, self_only={p for p in built if "white matter" in p})
+
+    # Patient's left toward glTF +Z (Blender -Y): the runtime's cut then goes down the midline.
+    rot = Matrix.Rotation(math.radians(-90), 4, "Z")
+    lm = {}
+    for part, (o, _) in built.items():
+        lm[part] = mean([v.co for v in o.data.vertices])
+
+    def explode(part, c):
+        # Output space: front -X, top +Z, patient's left -Y (toward the viewer).
+        side = -1 if part.startswith("Left") else 1 if part.startswith("Right") else 0
+        radial = Vector((c.x, 0, c.z))
+        r = radial.normalized() if radial.length > 1e-6 else Vector((0, 0, 1))
+        if "white matter" in part:
+            return Vector((0, side * 0.03, 0))
+        if side:
+            return r * 0.035 + Vector((0, side * 0.06, 0))
+        table = {"Cerebellum": Vector((0.045, 0, -0.04)), "Brainstem": Vector((0.0, 0, -0.08)),
+                 "Corpus callosum": Vector((0, 0, 0.06)), "Ventricles": Vector((0, 0, 0.035)),
+                 "Thalamus": Vector((0.0, 0, 0.0)), "Basal ganglia": Vector((-0.03, 0, 0.015)),
+                 "Hippocampus and fornix": Vector((0.03, 0, -0.025)), "Amygdala": Vector((-0.035, 0, -0.04))}
+        return table.get(part, r * 0.03)
+    xray = {p for p in built if "lobe" in p or "Insula" in p.capitalize() or p.endswith("insula") or "white matter" in p}
+    finish(centre, rot, explode, lm, xray)
+
+
 if WHAT == "heart":
     heart()
 elif WHAT == "eye":
     eye()
+elif WHAT == "brain":
+    brain()
 else:
-    raise SystemExit("heart or eye")
+    raise SystemExit("heart, eye or brain")
