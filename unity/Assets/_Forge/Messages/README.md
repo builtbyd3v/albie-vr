@@ -54,15 +54,23 @@ without a hub the panels show "Hub offline" and connect by themselves when it ap
 
 ## Look
 
-Hudson's graphite `ForgePanel` frame (64 mm header with the MSG badge, title and a subtitle such as
-`#forge-team · 3 unread`; Content insets 18 / 16 / 78 mm). Inside it, the chat panel uses the module's own colours
-(`ChatUi.Msg*`): a graphite window and sidebar with a violet cast (#201F28, the open conversation #443664, count pills
-#A77BFF), the conversation on #15161A with #D6D6DB text, #A8A8B3 times, #C7A8FF links, #F2C744 for your mentions, #FF7A6B
-for the New line, #8057E6 for Send. Icons (send, lock, caret, sparkle) are white SVGs in `Resources/ChatIcons`, imported
-as sprites and tinted. Bold text is Inter with most of TMP's faux-bold spacing taken back (`ChatUi.SetBold`,
-`ChatText.BoldOpen`): there is one Inter weight. The Mentions cards and the Send / Cancel card keep the module's
-translucent slate (`ChatUi.CardFill`) and accent `ForgeTheme.Messages` (#A77BFF). Inter loads the way Core does
-(`ForgeTheme.Font`, Core/Resources/ForgeLook); TMP's default font is the fallback. One canvas per panel.
+"Graphite + Albie". Every colour and size is in `Scripts/MessagesLook.cs`, to tune after a headset test.
+
+- Frame: Hudson's graphite `ForgePanel` (64 mm header, MSG badge, title, subtitle; Content insets 18 / 16 / 78 mm). Inside,
+  the chat panel keeps its own colours (`ChatUi.Msg*`: violet-cast graphite #201F28, pane #15161A, links #C7A8FF, count
+  pills #A77BFF, New line #FF7A6B). Subtext is 62% white (Core's is 50%).
+- Type: Fredoka (SIL OFL 1.1), the Pet module's dynamic TMP font (`AlbieCaption.DefaultFont`, Pet/Resources/PetFonts).
+  It is made at runtime, so prefabs are saved with Core's Inter and each panel switches to Fredoka in Awake
+  (`ChatUi.ApplyFontAll`). Body text 14 mm. One weight (Medium); bold is TMP faux bold, tightened (`ChatUi.SetBold`).
+- Albie is talking = a white sticker, ink border, lime (#C8DC5A) hard shadow (`ChatUi.AlbieSticker`): his summary line
+  from the last digest above the chat panel, the draft on the Send / Cancel card, the composer's "Albie drafted this".
+- A mention of you = lime: a lime "@you" sticker tag on Mentions cards, a lime mark with ink text in the conversation.
+- Orange (#FA4616) fills Send only (ink text, 5.0:1); it is close to the CAD hue, so it is never a mark.
+- Stickers are flat `ForgeSurface` fills (shadow, border, fill): hard offsets, no blur.
+- Albie's picture (`Resources/AlbiePortrait.png`, his render, 1024 x 750, transparent) peeks over the chat panel's top
+  edge beside his summary sticker, and sits at the top right of the draft card. Drawn by a RawImage at his own aspect
+  (`MessagesLook.PortraitAspect`); it never takes the pointer, and with the texture missing nothing is drawn.
+- Check it: **Forge > Messages > Check Messages** (after Build Prefabs).
 
 ## Files
 
@@ -77,7 +85,9 @@ translucent slate (`ChatUi.CardFill`) and accent `ForgeTheme.Messages` (#A77BFF)
 | `Scripts/MessageCard.cs` | One message on a slate card (`MessageCard.prefab`): Inbox and Thread styles, `Measure` / `Layout`, hover, click. |
 | `Scripts/ChatStore.cs` | Static model: channels (`notify.channels`, GET), per-conversation history cache, user names, "me", the workspace's name, recent messages; `MarkSeen`, `LoadHistory`, `AddOwn` (a sent message, at once), `Provisional`. |
 | `Scripts/ChatData.cs` | REST DTOs (`ChatHistory`, `ChatMe`, `ChatOpenRequest`, ...), `ChatText` (ts maths, clock times and day labels, initials, one '#' per channel name, message markup -> TMP rich text in the accent or the panel's look), `ChatNet.Patch`. |
-| `Scripts/ChatUi.cs`, `ChatButton.cs`, `ChatHitArea.cs` | Colours, type scale and factories (cards, pills, scroll lists), the hover button, the invisible hit area. |
+| `Scripts/MessagesLook.cs` | The look's constants (colours, type scale, sticker and Albie sizes), the font, Albie's picture, contrast maths. |
+| `Scripts/ChatUi.cs`, `ChatButton.cs`, `ChatHitArea.cs` | Colours, type scale and factories (cards, pills, scroll lists, stickers, Albie's picture), the hover button, the invisible hit area. |
+| `Editor/MessagesCheck.cs` | **Forge > Messages > Check Messages**: PASS / FAIL per step (one provider, wire tolerance, contrast, Send once, sticker, Albie, font, brand words). |
 | `Scripts/ForgeInput.cs` | `ForgeInput.TextFieldFocused`: true while the composer has the keyboard (for DesktopRig / pet key handlers to check). |
 | `Scripts/DigestTrigger.cs` | `RequestDigest()` + the floating digest; shared `SpawnAtDesk` / `FaceUser` / `PopIn` / `FoldOut` (the Pet module calls them). |
 | `Scripts/DraftPresenter.cs` | Routes `notify.draft`: composer when the chat panel is open, else a floating `DraftCard`. Self-installs. |

@@ -94,6 +94,10 @@ public class ChatPanel : MonoBehaviour
     TextMeshProUGUI newLabel;
     int shownRows, shownDays;
     ChatComposer composer;
+    // Outside the frame, above its top edge: Albie peeking over it (clipped at the edge) and his summary sticker.
+    RectTransform peek, summary;
+    RawImage peekImage;
+    TextMeshProUGUI summaryText;
 
     // Rendered rich text per message (the store's objects are stable), so a refresh re-renders only new ones.
     readonly Dictionary<NotifyMessage, string> rendered = new Dictionary<NotifyMessage, string>(128);
@@ -125,6 +129,7 @@ public class ChatPanel : MonoBehaviour
         var placeholder = content.Find("Placeholder");
         if (placeholder != null) placeholder.gameObject.SetActive(false);
         Build();
+        ChatUi.ApplyFontAll(gameObject);  // the frame's header too (the prefab is saved with Inter)
     }
 
     void OnEnable()
@@ -220,6 +225,45 @@ public class ChatPanel : MonoBehaviour
         ChatUi.Show(newRoot, false);
         rightEmpty = ChatUi.Text(content, "RightEmpty", 13f, ChatUi.MsgMuted, align: TextAlignmentOptions.Center, wrap: true);
         composer = new ChatComposer(content, this);
+        BuildAlbie();
+    }
+
+    // Albie over the top edge and his summary sticker beside him. Both hang off the panel's root rect, outside its
+    // bounds (so they fold with the panel), and take no pointer: rays and pokes go through to whatever is behind.
+    // The peek sits in a mask that ends at the panel's top edge, so none of him shows through the translucent frame.
+    void BuildAlbie()
+    {
+        var root = (RectTransform)transform;
+        peek = ChatUi.Rect(root, "AlbiePeek");
+        peek.gameObject.AddComponent<RectMask2D>();
+        peek.SetAsFirstSibling();
+        peekImage = ChatUi.Portrait(peek, "Albie", MessagesLook.PeekWidth);
+        ChatUi.Show(peek, peekImage != null);
+
+        summary = ChatUi.Rect(root, "AlbieSummary");
+        ChatUi.AlbieSticker(summary);
+        summaryText = ChatUi.Text(summary, "Line", ChatUi.Body, MessagesLook.Ink, wrap: true);
+        summaryText.overflowMode = TextOverflowModes.Ellipsis;
+        ChatUi.Show(summary, false);
+    }
+
+    void LayoutAlbie()
+    {
+        float w = ((RectTransform)transform).rect.width;
+        if (peekImage != null)
+        {
+            float pw = MessagesLook.PeekWidth;
+            ChatUi.Place(peek, w - MessagesLook.PeekRight - pw, -MessagesLook.PeekShows, pw, MessagesLook.PeekShows);
+            ChatUi.Place(peekImage.rectTransform, 0f, 0f, pw, pw / MessagesLook.PortraitAspect);
+        }
+        if (!summary.gameObject.activeSelf) return;
+        float pad = MessagesLook.StickerPad, shadow = MessagesLook.StickerShadow;
+        float right = peekImage != null ? MessagesLook.PeekRight + MessagesLook.PeekWidth + MessagesLook.SummaryGap : MessagesLook.SummaryLeft;
+        float sw = Mathf.Max(120f, w - MessagesLook.SummaryLeft - right - shadow);
+        float th = Mathf.Min(ChatUi.Height(summaryText, summaryText.text, sw - 2f * pad - 4f), MessagesLook.SummaryMaxLines * 1.25f * ChatUi.Body);
+        float sh = th + 2f * pad;
+        ChatUi.Place(summary, MessagesLook.SummaryLeft, -(MessagesLook.SummaryAbove + shadow + sh), sw, sh);
+        ChatUi.Stretch(summaryText.rectTransform, pad + 2f, pad, pad + 2f, pad);
     }
 
     // ---- Events in: marked, handled once in LateUpdate ----
@@ -379,6 +423,11 @@ public class ChatPanel : MonoBehaviour
         bool noList = shownSide == 0;
         ChatUi.Show(leftEmpty, noList);
         if (noList) leftEmpty.text = !live ? "Connecting…" : ChatStore.ChannelsKnown ? "No conversations" : "Loading…";
+
+        // Albie's summary line from the last digest, while something is unread.
+        string line = ChatStore.TotalUnread > 0 ? ChatStore.DigestLine : null;
+        ChatUi.Show(summary, line != null);
+        if (line != null) summaryText.text = line;
 
         // Header + the frame's subtitle.
         bool dm = channel != null && ChatText.IsDmKind(channel.kind);
@@ -585,6 +634,7 @@ public class ChatPanel : MonoBehaviour
         float w = content.rect.width, h = content.rect.height;
         if (w < 10f || h < 10f) return;
         float sideW = Mathf.Clamp(w * 0.25f, 160f, 230f);
+        LayoutAlbie();
 
         // Sidebar.
         float teamW = Mathf.Min(ChatUi.Width(team, team.text) + 2f, sideW - 2f * SidePad - 20f);

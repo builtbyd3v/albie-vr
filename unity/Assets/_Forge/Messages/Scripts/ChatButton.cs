@@ -24,11 +24,20 @@ public class ChatButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         rest = ForgeTheme.PillOff, hover = ForgeTheme.PillOffHover, on = ForgeTheme.PillOn, onHover = Color.white,
         ink = ForgeTheme.PillOffText, onInk = ForgeTheme.PillOnText, boldOn = true,
     };
-    /// <summary>The primary pill (Send): the accent with dark text.</summary>
+    /// <summary>The primary pill (Send): brand orange with ink text (the only orange in the panels).</summary>
     public static readonly Look Primary = new Look
     {
-        rest = ChatUi.AccentA(0.88f), hover = ChatUi.AccentA(1f), on = ChatUi.AccentA(1f), onHover = ChatUi.AccentA(1f),
-        ink = ChatUi.Ink, onInk = ChatUi.Ink, bold = true,
+        rest = MessagesLook.Orange, hover = MessagesLook.OrangeHover, on = MessagesLook.OrangeHover, onHover = MessagesLook.OrangeHover,
+        ink = MessagesLook.Ink, onInk = MessagesLook.Ink, bold = true,
+    };
+    /// <summary>A quiet button on Albie's white sticker (the composer draft's Cancel): ink text, a faint ink fill when pointed at.</summary>
+    public static readonly Look OnSticker = new Look
+    {
+        rest = new Color(MessagesLook.Ink.r, MessagesLook.Ink.g, MessagesLook.Ink.b, 0.06f),
+        hover = new Color(MessagesLook.Ink.r, MessagesLook.Ink.g, MessagesLook.Ink.b, 0.14f),
+        on = new Color(MessagesLook.Ink.r, MessagesLook.Ink.g, MessagesLook.Ink.b, 0.18f),
+        onHover = new Color(MessagesLook.Ink.r, MessagesLook.Ink.g, MessagesLook.Ink.b, 0.22f),
+        ink = MessagesLook.Ink, onInk = MessagesLook.Ink, bold = true,
     };
     /// <summary>Conversation and mention rows: the module's card fill, lighter when pointed at, solid when selected.</summary>
     public static readonly Look Row = new Look
@@ -57,11 +66,11 @@ public class ChatButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         rest = new Color(0.17f, 0.18f, 0.20f), hover = new Color(0.23f, 0.24f, 0.26f), on = new Color(0.23f, 0.24f, 0.26f),
         onHover = new Color(0.23f, 0.24f, 0.26f), ink = ChatUi.MsgText, onInk = Color.white,
     };
-    /// <summary>Send with something to send: the Send colour.</summary>
+    /// <summary>Send with something to send: brand orange, ink arrow.</summary>
     public static readonly Look SendOn = new Look
     {
         rest = ChatUi.MsgSend, hover = ChatUi.MsgSendHover, on = ChatUi.MsgSendHover, onHover = ChatUi.MsgSendHover,
-        ink = Color.white, onInk = Color.white,
+        ink = MessagesLook.Ink, onInk = MessagesLook.Ink,
     };
     /// <summary>Send with an empty field: no fill, a grey arrow.</summary>
     public static readonly Look SendOff = new Look

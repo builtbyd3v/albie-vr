@@ -44,6 +44,7 @@ public class MentionsPanel : MonoBehaviour
         empty = ChatUi.Text(content, "Empty", ChatUi.Body, ChatUi.Subtext, align: TextAlignmentOptions.Center, wrap: true);
         template = Resources.Load<MessageCard>("MessageCard");
         if (template == null) Debug.LogWarning("[MentionsPanel] Resources/MessageCard.prefab not found; run Forge > Messages > Build Prefabs.");
+        ChatUi.ApplyFontAll(gameObject);
     }
 
     void OnEnable()
@@ -113,7 +114,7 @@ public class MentionsPanel : MonoBehaviour
                 while (cards.Count <= i) cards.Add(NewCard());
                 var m = items[i];
                 ChatUi.Show(cards[i], true);
-                cards[i].Bind(m, MessageCard.Style.Inbox, ChatText.Render(m.text, ChatStore.MeId, ChatStore.NameOf, ChatUi.Accent),
+                cards[i].Bind(m, MessageCard.Style.Inbox, ChatText.Render(m.text, ChatStore.MeId, ChatStore.NameOf, MessagesLook.Lime),
                     ChannelLabel(m));
             }
         }

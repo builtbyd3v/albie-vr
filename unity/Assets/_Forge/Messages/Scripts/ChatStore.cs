@@ -25,6 +25,8 @@ public static class ChatStore
     public static string MeName { get; private set; }
     /// <summary>The workspace's name (the sidebar header), or null until the hub says.</summary>
     public static string TeamName { get; private set; }
+    /// <summary>Albie's summary line from the last notify.digest with something new, or null (the chat panel's sticker).</summary>
+    public static string DigestLine { get; private set; }
 
     /// <summary>The list or a count changed (notify.channels, a local seen, a live message).</summary>
     public static event Action ChannelsChanged;
@@ -53,7 +55,7 @@ public static class ChatStore
         userNames.Clear();
         echoes.Clear();
         ChannelsKnown = channelsRequested = meRequested = false;
-        MeId = MeName = TeamName = null;
+        MeId = MeName = TeamName = DigestLine = null;
         ChannelsChanged = null;
         HistoryChanged = null;
         MessageAdded = null;
@@ -356,8 +358,10 @@ public static class ChatStore
 
     static void OnDigest(NotifyDigest d)
     {
-        if (d?.messages == null) return;
-        for (int i = 0; i < d.messages.Count; i++) Note(d.messages[i]);
+        if (d == null) return;
+        DigestLine = d.count > 0 && !string.IsNullOrEmpty(d.line) ? d.line : null;
+        if (d.messages != null) for (int i = 0; i < d.messages.Count; i++) Note(d.messages[i]);
+        ChannelsChanged?.Invoke();  // the Mentions panel shows the line
     }
 
     /// <summary>Learn the sender's name and keep the message in <see cref="Recent"/> (deduped by channel + ts).</summary>

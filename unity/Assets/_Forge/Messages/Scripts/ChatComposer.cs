@@ -8,7 +8,7 @@ using UnityEngine.UI;
 /// The chat panel's composer, a rounded message box: a rounded field with a grey edge ("Message #general"),
 /// a toolbar inside it (Ask Albie on the left, the green Send arrow on the right, grey while there is nothing to send),
 /// a status line under it ("Sending…", "Sent", errors) and, for a draft Albie wrote, a banner above it ("Albie drafted
-/// this", Cancel). Built at runtime under the panel's Content by <see cref="ChatPanel"/>, which lays it out and ticks it.
+/// this", Cancel) drawn as Albie's white sticker (<see cref="ChatUi.AlbieSticker"/>). Built at runtime under the panel's Content by <see cref="ChatPanel"/>, which lays it out and ticks it.
 /// Sending: text you typed becomes a draft (POST /messages/drafts with the open conversation) that is sent at once
 /// (POST .../send), since you wrote it yourself. A draft from Albie (notify.draft) lands in the field as editable text
 /// with Send / Cancel; Send PATCHes the text first when you changed it, and its files (a CAD design's STEP, STL, drawing,
@@ -22,11 +22,12 @@ using UnityEngine.UI;
 /// </summary>
 public class ChatComposer
 {
-    const float BoxH = 84f, FieldTop = 9f, FieldH = 40f, ToolH = 26f, BannerH = 30f, FilesH = 18f, CaptionH = 18f, Gap = 6f;
-    const float Corner = 9f, Edge = 1.2f, SendW = 34f, StatusSeconds = 2.5f, TextSize = 13f;
+    const float BoxH = 84f, FieldTop = 9f, FieldH = 40f, ToolH = 26f, BannerH = 36f, FilesH = 18f, CaptionH = 18f, Gap = 6f;
+    const float Corner = 9f, Edge = 1.2f, SendW = 34f, StatusSeconds = 2.5f, TextSize = MessagesLook.Body;
+    const float BannerGap = Gap + MessagesLook.StickerShadow;  // room under the sticker for its hard shadow
 
     /// <summary>Height (mm) the composer takes: the box and status line, plus the banner while Albie's draft is in it.</summary>
-    public float Height => (HasDraft ? BannerHeight + Gap : 0f) + BoxH + CaptionH;
+    public float Height => (HasDraft ? BannerHeight + BannerGap : 0f) + BoxH + CaptionH;
 
     // The banner grows by a line while the draft carries files.
     float BannerHeight => BannerH + (filesLine.Length > 0 ? FilesH : 0f);
@@ -59,17 +60,16 @@ public class ChatComposer
 
         // Albie's draft banner (shown only with a draft).
         banner = ChatUi.Rect(root, "Banner");
-        bannerFill = ChatUi.Surface(banner, "Fill", ChatUi.AccentA(0.16f), 8f);
-        ChatUi.Stretch(bannerFill.rectTransform, 0f, 0f, 0f, 0f);
-        var sparkle = ChatUi.Icon(banner, "Sparkle", "sparkle", ChatUi.Accent);
-        ChatUi.Place(sparkle.rectTransform, 10f, (BannerH - 15f) * 0.5f, 15f, 15f);
-        bannerLabel = ChatUi.Text(banner, "Label", 12f, ChatUi.MsgText);
+        bannerFill = ChatUi.AlbieSticker(banner);
+        var sparkle = ChatUi.Icon(banner, "Sparkle", "sparkle", MessagesLook.Ink);
+        ChatUi.Place(sparkle.rectTransform, 12f, (BannerH - 15f) * 0.5f, 15f, 15f);
+        bannerLabel = ChatUi.Text(banner, "Label", ChatUi.Small, MessagesLook.Ink);
         bannerLabel.overflowMode = TextOverflowModes.Ellipsis;
         bannerText = bannerLabel.rectTransform;
-        files = ChatUi.Text(banner, "Files", 11f, ChatUi.Accent);
+        files = ChatUi.Text(banner, "Files", ChatUi.Small, MessagesLook.InkSoft);
         files.overflowMode = TextOverflowModes.Ellipsis;
         ChatUi.Show(files, false);
-        cancel = ChatButton.CreatePill(banner, "Cancel", ChatButton.Ghost, Cancel, 22f, 11.5f);
+        cancel = ChatButton.CreatePill(banner, "Cancel", ChatButton.OnSticker, Cancel, 26f, ChatUi.Small);
         ChatUi.Show(banner, false);
 
         // The box: a grey edge around the field colour, the text area and the toolbar inside.
@@ -101,7 +101,7 @@ public class ChatComposer
         field.textComponent = text;
         field.placeholder = placeholder;
         field.lineType = TMP_InputField.LineType.MultiLineSubmit;  // Enter sends; the Quest keyboard's Done too
-        if (ForgeTheme.Font != null) field.fontAsset = ForgeTheme.Font;
+        if (ChatUi.Font != null) field.fontAsset = ChatUi.Font;
         field.pointSize = TextSize;
         field.richText = false;
         field.customCaretColor = true;
@@ -140,12 +140,13 @@ public class ChatComposer
         float by = 0f;
         if (HasDraft)
         {
-            ChatUi.Place(banner, 0f, 0f, w, BannerHeight);
+            float bw = w - MessagesLook.StickerShadow;  // the hard shadow sticks out on the right
+            ChatUi.Place(banner, 0f, 0f, bw, BannerHeight);
             Vector2 c = cancel.Rect.sizeDelta;
-            ChatUi.PlaceRight(cancel.Rect, 6f, (BannerH - c.y) * 0.5f, c.x, c.y);
-            ChatUi.Place(bannerText, 32f, 0f, Mathf.Max(20f, w - 32f - c.x - 16f), BannerH);
-            ChatUi.Place(files.rectTransform, 32f, BannerH - 6f, Mathf.Max(20f, w - 44f), FilesH);
-            by = BannerHeight + Gap;
+            ChatUi.PlaceRight(cancel.Rect, 8f, (BannerH - c.y) * 0.5f, c.x, c.y);
+            ChatUi.Place(bannerText, 34f, 0f, Mathf.Max(20f, bw - 34f - c.x - 18f), BannerH);
+            ChatUi.Place(files.rectTransform, 34f, BannerH - 8f, Mathf.Max(20f, bw - 46f), FilesH);
+            by = BannerHeight + BannerGap;
         }
         ChatUi.Place(box, 0f, by, w, BoxH);
         ChatUi.Place(fieldRect, 14f, FieldTop, w - 28f, FieldH);
@@ -420,7 +421,7 @@ public class ChatComposer
         {
             canSend = can;
             send.SetLook(can ? ChatButton.SendOn : ChatButton.SendOff);
-            sendIcon.color = can ? Color.white : ChatUi.MsgMuted;
+            sendIcon.color = can ? MessagesLook.Ink : ChatUi.MsgMuted;
         }
         askAlbie.Interactable = live && channel != null;
         cancel.Interactable = live && !sending;

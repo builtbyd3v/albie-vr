@@ -10,6 +10,8 @@ using UnityEngine.UI;
 /// - ChatPanel.prefab: team-chat ForgePanel variant, panel id "messages", slot Main
 /// - MentionsPanel.prefab: ForgePanel variant, panel id "messages-mentions", slot Left (mentions and unread notifications)
 /// - DraftCard.prefab: ForgePanel variant, panel id "messages-draft", the Send / Cancel card while the chat panel is closed
+/// Look: <see cref="MessagesLook"/> ("Graphite + Albie"). Texts are saved with Core's Inter; the panels switch them to
+/// Fredoka in Awake (Fredoka is the Pet module's dynamic TMP font, made at runtime, so it can't be saved in a prefab).
 /// GUIDs are kept on rebuild (SaveAsPrefabAsset over the same path). Same technique as CAD/Editor/CadPrefabBuilder.cs;
 /// no scene is touched. The old MessagesPanel.prefab is deleted if it is still around.
 /// </summary>
@@ -54,7 +56,7 @@ public static class MessagesPrefabBuilder
         var frame = ChatUi.Card(rect, ChatUi.CardCorner, raycast: true);
         var shadow = rect.Find("Shadow").GetComponent<ForgeSurface>();
 
-        var accent = ChatUi.PillSurface(rect, "Accent", ChatUi.Accent);
+        var accent = ChatUi.PillSurface(rect, "Accent", MessagesLook.Lime);
         ChatUi.Place(accent.rectTransform, 2f, 10f, 3f, MessageCard.InboxHeight - 20f);
         accent.gameObject.SetActive(false);
 
@@ -83,9 +85,12 @@ public static class MessagesPrefabBuilder
         ChatUi.Place(meta.rectTransform, 52f, 60f, 200f, 15f);
         meta.gameObject.SetActive(false);
 
+        var tag = ChatUi.MentionTag(rect, "MentionTag");
+        tag.gameObject.SetActive(false);
+
         var card = root.AddComponent<MessageCard>();
         SetRefs(card, ("shadow", shadow), ("frame", frame), ("accent", accent), ("bubble", bubble), ("initial", initial),
-            ("nameText", name), ("timeText", time), ("body", body), ("meta", meta));
+            ("nameText", name), ("timeText", time), ("body", body), ("meta", meta), ("mentionTag", tag));
         PrefabUtility.SaveAsPrefabAsset(root, CardPath);
         Object.DestroyImmediate(root);
     }
@@ -107,7 +112,7 @@ public static class MessagesPrefabBuilder
         Object.DestroyImmediate(go);
     }
 
-    // The Send / Cancel card: a small ForgePanel with a slate sheet, opaque Inter text and two pills.
+    // The Send / Cancel card: a small ForgePanel with a slate sheet, the draft on Albie's sticker and two pills.
     static void BuildDraftCard()
     {
         var go = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(ForgePrefabBuilder.PanelPath));
@@ -135,23 +140,29 @@ public static class MessagesPrefabBuilder
         replying.text = "Replying to Hudson: is the demo build ready by 3?";
         ChatUi.Band(replying.rectTransform, 30f, 16f, 14f, 14f);
 
-        var body = ChatUi.Text(content, "Body", ChatUi.Body, ChatUi.TextColor, wrap: true);
+        // Albie wrote it: his white sticker with the lime hard shadow, ink text. Room on the right and below for the shadow.
+        var bubble = ChatUi.Rect(content, "AlbieSticker");
+        ChatUi.Stretch(bubble, DraftCard.StickerSide, DraftCard.StickerTop, DraftCard.StickerSide + MessagesLook.StickerShadow,
+            DraftCard.StickerBottom);
+        ChatUi.AlbieSticker(bubble);
+        var body = ChatUi.Text(bubble, "Body", ChatUi.Body, MessagesLook.Ink, wrap: true);
         body.overflowMode = TextOverflowModes.Ellipsis;
         body.text = "Yes, I'll ping you when it's pushed.";
-        ChatUi.Stretch(body.rectTransform, 14f, 50f, 14f, 50f);
+        float pad = DraftCard.BodyPad;
+        ChatUi.Stretch(body.rectTransform, pad + 2f, pad, pad + 2f, pad);
 
         var status = ChatUi.Text(content, "Status", ChatUi.Small, ChatUi.Subtext);
         status.overflowMode = TextOverflowModes.Ellipsis;
-        BottomLeft(status.rectTransform, 14f, 12f, 150f, 26f);
+        BottomLeft(status.rectTransform, 14f, 15f, 150f, 26f);
 
-        var cancel = ChatButton.CreatePill(content, "Cancel", ChatButton.Pill, null);
-        var send = ChatButton.CreatePill(content, "Send", ChatButton.Primary, null);
-        BottomRight(send.Rect, 14f, 10f, send.Rect.sizeDelta.x, ForgeTheme.PillHeight);
-        BottomRight(cancel.Rect, 14f + send.Rect.sizeDelta.x + 8f, 10f, cancel.Rect.sizeDelta.x, ForgeTheme.PillHeight);
+        var cancel = ChatButton.CreatePill(content, "Cancel", ChatButton.Pill, null, MessagesLook.ButtonH, MessagesLook.ButtonText);
+        var send = ChatButton.CreatePill(content, "Send", ChatButton.Primary, null, MessagesLook.ButtonH, MessagesLook.ButtonText);
+        BottomRight(send.Rect, 14f, 10f, send.Rect.sizeDelta.x, MessagesLook.ButtonH);
+        BottomRight(cancel.Rect, 14f + send.Rect.sizeDelta.x + 10f, 10f, cancel.Rect.sizeDelta.x, MessagesLook.ButtonH);
 
         var card = go.AddComponent<DraftCard>();
-        SetRefs(card, ("sheet", sheet), ("header", header), ("replying", replying), ("body", body), ("status", status),
-            ("send", send.Button), ("cancel", cancel.Button));
+        SetRefs(card, ("sheet", sheet), ("header", header), ("replying", replying), ("body", body), ("bubble", bubble),
+            ("status", status), ("send", send.Button), ("cancel", cancel.Button));
         PrefabUtility.SaveAsPrefabAsset(go, DraftPath);
         Object.DestroyImmediate(go);
     }

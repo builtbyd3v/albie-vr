@@ -238,12 +238,12 @@ public static class ChatText
         return h & 0x7fffffff;
     }
 
-    /// <summary>How mentions and links look: the Mentions cards' accent, or the panel's own (blue links, yellow for you).</summary>
+    /// <summary>How mentions and links look: the Mentions cards' accent, or the panel's own (violet links, a lime mark for you).</summary>
     public enum Look { Accent, Panel }
 
     // The panel look: links and other people's mentions blue on a faint blue, the user's own mentions and @here
-    // yellow on a faint yellow, inline code orange on a faint white.
-    const string LinkHex = "#C7A8FF", LinkBgHex = "#A77BFF26", MeHex = "#F2C744", MeBgHex = "#F2C74438";
+    // as a lime sticker mark with ink text, inline code amber on a faint white.
+    const string LinkHex = "#C7A8FF", LinkBgHex = "#A77BFF26", MeHex = MessagesLook.MentionInkHex, MeBgHex = MessagesLook.MentionMarkHex;
     const string CodeOpen = "<color=#E8912D><mark=#FFFFFF12>", CodeClose = "</mark></color>";
     // Bold without most of TMP's faux-bold letter spacing (ChatUi.SetBold does the same for whole texts).
     public const string BoldOpen = "<b><cspace=-0.055em>", BoldClose = "</cspace></b>";

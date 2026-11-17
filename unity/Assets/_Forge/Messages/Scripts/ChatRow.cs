@@ -18,7 +18,7 @@ public class ChatRow : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     public const float PadL = 16f, AvatarSize = 32f, TextX = 58f, PadR = 18f;
     const float NameY = 6f, NameH = 19f, BodyY = 26f, ContY = 3f, BottomPad = 6f, RepliesH = 20f, MinLine = 17f;
-    const float NameSize = 13.5f, BodySize = 13f, TimeSize = 10.5f, AskH = 24f;
+    const float NameSize = MessagesLook.RowName, BodySize = MessagesLook.RowBody, TimeSize = MessagesLook.RowTime, AskH = 24f;
 
     public NotifyMessage Message { get; private set; }
     /// <summary>A follow-up: no avatar or name, the text right under the previous message.</summary>

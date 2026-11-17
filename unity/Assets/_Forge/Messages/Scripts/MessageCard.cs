@@ -8,7 +8,8 @@ using UnityEngine.EventSystems;
 /// Two styles: <see cref="Style.Inbox"/> (Mentions panel): initials bubble, name + channel,
 /// relative time, up to two lines of text; hover lifts it 1 cm toward the viewer and makes it opaque; click opens the
 /// conversation. <see cref="Style.Thread"/> (the chat panel's message list): bubble, name, time, the whole text,
-/// "N replies" when the hub reports a thread, the user's own rows tinted. Mentions of the user get a thin accent strip.
+/// "N replies" when the hub reports a thread, the user's own rows tinted. Mentions of the user get a thin lime strip and,
+/// on Inbox cards, the lime "@you" sticker tag (<see cref="ChatUi.MentionTag"/>).
 /// Owners size the card: <see cref="Measure"/> gives the height for a width, <see cref="Layout"/> places the children.
 /// Hover and click arrive as uGUI pointer events from the mouse (DesktopRig) and Interaction SDK rays / pokes alike.
 /// </summary>
@@ -25,6 +26,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     [SerializeField] TMP_Text timeText;
     [SerializeField] TMP_Text body;
     [SerializeField] TMP_Text meta;           // Thread: "3 replies"; Inbox: hidden
+    [SerializeField] RectTransform mentionTag; // Inbox: the "@you" sticker on mentions (null on a prefab built before it)
 
     public const float InboxHeight = 72f;
     public const float LiftMm = 10f;          // 1 cm toward the viewer (canvas -Z)
@@ -49,6 +51,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     {
         rect = (RectTransform)transform;
         if (body != null) body.textWrappingMode = TextWrappingModes.Normal;
+        ChatUi.ApplyFontAll(gameObject);
     }
 
     /// <summary>
@@ -78,6 +81,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         body.fontSize = ChatUi.Body;
         body.overflowMode = style == Style.Inbox ? TextOverflowModes.Ellipsis : TextOverflowModes.Overflow;
         if (accent != null) ChatUi.Show(accent, m.mentionsMe && !m.isMe);
+        if (mentionTag != null) ChatUi.Show(mentionTag, style == Style.Inbox && m.mentionsMe && !m.isMe);
         if (meta != null)
         {
             bool replies = style == Style.Thread && m.replyCount.HasValue && m.replyCount.Value > 0;
@@ -120,7 +124,15 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         if (nameText != null) ChatUi.Place(nameText.rectTransform, nameX, inbox ? 8f : NameY, Mathf.Max(20f, w - nameX - PadX - TimeW), LineH);
         float bodyY = inbox ? 26f : BodyY;
         float bodyH = inbox ? h - bodyY - 8f : Mathf.Max(12f, h - bodyY - BodyBottom - (meta != null && meta.gameObject.activeSelf ? MetaH : 0f));
-        ChatUi.Place(body.rectTransform, nameX, bodyY, Mathf.Max(20f, w - nameX - PadX), bodyH);
+        float tagW = 0f;
+        if (mentionTag != null && mentionTag.gameObject.activeSelf)
+        {
+            // Bottom right, clear of its own hard shadow; the text gives up the tag's width.
+            Vector2 t = mentionTag.sizeDelta;
+            ChatUi.PlaceRight(mentionTag, PadX + MessagesLook.TagShadow, h - 8f - MessagesLook.TagShadow - t.y, t.x, t.y);
+            tagW = t.x + MessagesLook.TagShadow + 6f;
+        }
+        ChatUi.Place(body.rectTransform, nameX, bodyY, Mathf.Max(20f, w - nameX - PadX - tagW), bodyH);
         if (meta != null && meta.gameObject.activeSelf) ChatUi.Place(meta.rectTransform, nameX, bodyY + bodyH, Mathf.Max(20f, w - nameX - PadX), MetaH);
     }
 

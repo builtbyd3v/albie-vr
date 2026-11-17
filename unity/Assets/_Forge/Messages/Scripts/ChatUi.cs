@@ -5,8 +5,9 @@ using UnityEngine.UI;
 /// <summary>
 /// The Messages module's look and small UI factories, in the style of CAD's CadUi: Hudson's graphite ForgePanel frame
 /// outside, and inside it the module's own card fill (the slightly lighter translucent slate the digest cards always had:
-/// 0.12 / 0.15 / 0.21 at 0.8 alpha, opaque Inter text, soft shadow, rounded) for message rows, conversation rows, the
-/// composer and the Mentions rows. Text colours from <see cref="ForgeTheme"/>, accent = ForgeTheme.Messages.
+/// 0.12 / 0.15 / 0.21 at 0.8 alpha, opaque Fredoka text, soft shadow, rounded) for message rows, conversation rows, the
+/// composer and the Mentions rows. The brand look (Fredoka, lime, orange, stickers, type scale) is <see cref="MessagesLook"/>;
+/// the module accent stays ForgeTheme.Messages.
 /// 1 canvas unit = 1 mm; rects are placed from their parent's top left with y down.
 /// </summary>
 public static class ChatUi
@@ -18,8 +19,8 @@ public static class ChatUi
     public static readonly Color CardFillHover = new Color(0.14f, 0.17f, 0.24f, 0.92f);
     public static readonly Color CardFillOn = new Color(0.17f, 0.20f, 0.28f, 1f);
     public static readonly Color Shadow = new Color(0f, 0f, 0f, 0.28f);
-    public static Color TextColor => ForgeTheme.PanelText;                          // white 95%
-    public static Color Subtext => ForgeTheme.PanelSubtext;                    // white 50%
+    public static Color TextColor => MessagesLook.Text;                        // white 95%
+    public static Color Subtext => MessagesLook.Subtext;                       // white 62%
     public static readonly Color Muted = new Color(1f, 1f, 1f, 0.68f);
     public static readonly Color Ink = ForgeTheme.PillOnText;                   // dark text on a light / accent pill
     public static Color White(float a) => new Color(1f, 1f, 1f, a);
@@ -51,8 +52,8 @@ public static class ChatUi
     public static readonly Color MsgLine = new Color(1f, 1f, 1f, 0.09f);
     public static readonly Color MsgLink = new Color(0.78f, 0.66f, 1f);              // #C7A8FF, links and #channels
     public static readonly Color MsgNew = new Color(1f, 0.48f, 0.42f);               // #FF7A6B, the "New" line
-    public static readonly Color MsgSend = new Color(0.50f, 0.34f, 0.90f);          // Send: deep MSG violet
-    public static readonly Color MsgSendHover = new Color(0.58f, 0.42f, 0.97f);
+    public static Color MsgSend => MessagesLook.Orange;                              // Send: brand orange
+    public static Color MsgSendHover => MessagesLook.OrangeHover;
     public static readonly Color MsgBorder = new Color(1f, 1f, 1f, 0.16f);           // the composer's edge
     public static readonly Color MsgBorderFocus = new Color(0.655f, 0.482f, 1f, 0.75f);
     public static readonly Color MsgField = new Color(0.115f, 0.118f, 0.14f);
@@ -87,7 +88,8 @@ public static class ChatUi
 
     // ---- Type (mm) ----
 
-    public const float Title = 17f, Name = 13f, Body = 12.5f, Small = 11.5f, Overline = 11f, Time = 10.5f, Pill = 12f;
+    public const float Title = MessagesLook.Title, Name = MessagesLook.Name, Body = MessagesLook.Body, Small = MessagesLook.Small,
+        Overline = MessagesLook.Overline, Time = MessagesLook.Time, Pill = MessagesLook.Pill;
     public const float CardCorner = 14f, RowCorner = 10f;
 
     // ---- Rects ----
@@ -183,16 +185,29 @@ public static class ChatUi
 
     public const float BoldTighten = 5.5f;
 
-    /// <summary>Inter (Core's ForgeLook asset) when it exists, else TMP's default font.</summary>
+    /// <summary>The panels' font: Fredoka in Play mode (<see cref="MessagesLook.Font"/>), else Core's Inter, else TMP's default.</summary>
+    public static TMP_FontAsset Font => MessagesLook.Font != null ? MessagesLook.Font : ForgeTheme.Font;
+
     public static void ApplyFont(TMP_Text t)
     {
         if (t == null) return;
-        var font = ForgeTheme.Font;
-        if (font != null)
+        var font = Font;
+        if (font != null && t.font != font)
         {
             t.font = font;
             t.fontSharedMaterial = font.material;
         }
+    }
+
+    /// <summary>
+    /// Every text under <paramref name="root"/> (the ForgePanel header included) in the panels' font. Prefab texts are
+    /// saved with Inter (see <see cref="MessagesLook.Font"/>), so the panels call this once in Awake. Not per frame.
+    /// </summary>
+    public static void ApplyFontAll(GameObject root)
+    {
+        if (root == null || MessagesLook.Font == null) return;
+        foreach (var t in root.GetComponentsInChildren<TMP_Text>(true)) ApplyFont(t);
+        foreach (var f in root.GetComponentsInChildren<TMP_InputField>(true)) f.fontAsset = Font;
     }
 
     /// <summary>Overline: 11 mm caps, wide tracking, 50% ("CHANNELS", "NEW FOR YOU").</summary>
@@ -245,6 +260,57 @@ public static class ChatUi
         Stretch(fill.rectTransform, 0f, 0f, 0f, 0f);
         fill.raycastTarget = raycast;
         return fill;
+    }
+
+    /// <summary>
+    /// A sticker on <paramref name="rect"/>: three flat fills, no blur. A hard shadow offset down-right by
+    /// <paramref name="shadowOffset"/> mm, an ink border, and the fill inset by <paramref name="border"/> mm. Returns the
+    /// fill (put the text in <paramref name="rect"/> over it). Albie's sticker: white with a lime shadow; a mention tag:
+    /// lime with an ink shadow (<see cref="MessagesLook"/>). The shadow reaches outside the rect, so leave it room.
+    /// </summary>
+    public static ForgeSurface Sticker(RectTransform rect, Color fillColor, Color shadowColor, float corner, float border,
+        float shadowOffset)
+    {
+        var shadow = Surface(rect, "StickerShadow", shadowColor, corner);
+        Stretch(shadow.rectTransform, shadowOffset, shadowOffset, -shadowOffset, -shadowOffset);
+        var edge = Surface(rect, "StickerBorder", MessagesLook.Ink, corner);
+        Stretch(edge.rectTransform, 0f, 0f, 0f, 0f);
+        var fill = Surface(rect, "StickerFill", fillColor, Mathf.Max(0f, corner - border));
+        Stretch(fill.rectTransform, border, border, border, border);
+        return fill;
+    }
+
+    /// <summary>
+    /// Albie's render, <paramref name="width"/> mm wide at his own proportions (<see cref="MessagesLook.PortraitAspect"/>),
+    /// placed by the caller. Never takes the pointer, so rays and pokes reach what is behind him. Null (nothing drawn)
+    /// when the texture is missing.
+    /// </summary>
+    public static RawImage Portrait(Transform parent, string name, float width)
+    {
+        var tex = MessagesLook.AlbiePortrait;
+        if (tex == null) return null;
+        var img = Rect(parent, name).gameObject.AddComponent<RawImage>();
+        img.texture = tex;
+        img.raycastTarget = false;
+        img.rectTransform.sizeDelta = new Vector2(width, width / MessagesLook.PortraitAspect);
+        return img;
+    }
+
+    /// <summary>Albie's white sticker with the lime shadow.</summary>
+    public static ForgeSurface AlbieSticker(RectTransform rect) =>
+        Sticker(rect, MessagesLook.StickerWhite, MessagesLook.Lime, MessagesLook.StickerCorner, MessagesLook.StickerBorder,
+            MessagesLook.StickerShadow);
+
+    /// <summary>The mention tag ("@you"): a small lime sticker with an ink shadow and ink text. Returns its root.</summary>
+    public static RectTransform MentionTag(Transform parent, string name)
+    {
+        var rt = Rect(parent, name);
+        Sticker(rt, MessagesLook.Lime, MessagesLook.Ink, MessagesLook.TagCorner, MessagesLook.TagBorder, MessagesLook.TagShadow);
+        var label = Text(rt, "Label", MessagesLook.TagText, MessagesLook.Ink, bold: true, align: TextAlignmentOptions.Center);
+        label.text = MessagesLook.MentionTagText;
+        Stretch(label.rectTransform, 0f, 0f, 0f, 0f);
+        rt.sizeDelta = new Vector2(Width(label, label.text) + 16f, MessagesLook.TagH);
+        return rt;
     }
 
     public static ChatHitArea Hit(Transform parent, string name)
