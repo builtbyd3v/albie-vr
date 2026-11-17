@@ -82,3 +82,27 @@ def test_ml_github_asks_first_then_clones_and_opens(tmp_path, monkeypatch):
         assert opened == [str(tmp_path / "data" / "ml" / "github" / "tiny")]
         assert "error" in await tools.call("ml_github", {"query": ""})
     asyncio.run(flow())
+
+
+def test_without_the_gh_cli_lookups_use_the_rest_api_with_the_token(monkeypatch):
+    sent = []
+
+    class Answer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return None
+
+        def read(self):
+            return b'{"full_name": "me/mine", "stargazers_count": 3}'
+
+    def fake_urlopen(request, timeout, context):
+        sent.append((request.full_url, request.get_header("Authorization")))
+        return Answer()
+
+    monkeypatch.setattr(github.shutil, "which", lambda name: None)
+    monkeypatch.setattr(github.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    assert github.find("me/mine")["full_name"] == "me/mine"
+    assert sent == [("https://api.github.com/repos/me/mine", "Bearer tok")]

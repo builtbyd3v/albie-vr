@@ -13,7 +13,8 @@ using UnityEngine.UI;
 /// <item>Sample: the bundled project in <see cref="CodeProject"/>, with Albie's highlight and note, Undo and Reset
 /// (tap twice). Albie drives it through <see cref="CodeTools"/>. With the hub off this is the only view.</item>
 /// <item>Repo and PRs (hub live): the project's GitHub repo and its pull requests as diffs, read-only, from
-/// <see cref="GitHubView"/>. Albie drives them through <see cref="GitHubTools"/>.</item>
+/// <see cref="GitHubView"/>, through Albie's cloud or the laptop hub. Albie's github_ tools run there too
+/// (hub/code_browser/tools.py) and tell the panel what to show.</item>
 /// </list>
 /// The view follows whichever of the two Albie last acted on; the tabs switch it by hand. The THING CONTROLLER block
 /// stays at the bottom of the left column in every view.
@@ -110,6 +111,7 @@ public class CodePanel : MonoBehaviour
         UpdateScrollCues();
         if (code == null) return;
         GitHubView.SyncProject();
+        if ((GitHubView.Reachable && GitHubView.CurrentSource != null) != connected) dirty = true;  // the cloud came or went
         if (notice != null && Time.unscaledTime > noticeUntil)
         {
             notice = null;
@@ -348,7 +350,7 @@ public class CodePanel : MonoBehaviour
     {
         bool sampleMoved = SampleMoved();
         bool repoMoved = GitHubView.Version != shownVersion;
-        bool nowConnected = ForgeNet.Status == ForgeNetStatus.Live && GitHubView.CurrentSource != null;
+        bool nowConnected = GitHubView.Reachable && GitHubView.CurrentSource != null;
         if (nowConnected != connected)
         {
             connected = nowConnected;
@@ -385,7 +387,7 @@ public class CodePanel : MonoBehaviour
         merge.Rect.gameObject.SetActive(pullRequest);
         // With no repo on screen, a source control problem (no token, no repos) still has to be readable somewhere.
         string line = sample ? CodeProject.Status : GitHubView.StatusText;
-        if (sample && !connected && string.IsNullOrEmpty(line) && ForgeNet.Status == ForgeNetStatus.Live) line = GitHubView.StatusText;
+        if (sample && !connected && string.IsNullOrEmpty(line) && GitHubView.Reachable) line = GitHubView.StatusText;
         status.text = notice ?? line;
         RefreshControllerState();
     }

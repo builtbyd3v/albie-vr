@@ -11,7 +11,8 @@ using UnityEngine.Networking;
 /// <see cref="ForgeNet"/> is in Mock mode and the cloud answers, REST paths under <see cref="Prefixes"/> go to
 /// <see cref="BaseUrl"/> with the app key (<c>x-albie-key</c>) and this headset's id (<c>x-albie-device</c>), and the
 /// events the hub would broadcast (cad.model_updated, ml.metrics, pet.say ...) are polled from <c>GET /events</c> and
-/// injected into ForgeNet as if the hub had sent them. Everything else stays on MockRest and the mocks.
+/// injected into ForgeNet as if the hub had sent them. The code panel's GitHub repos (/code/) come from here too.
+/// Everything else stays on MockRest and the mocks.
 /// <see cref="UrlPref"/> set to an empty string, or the cloud unreachable (no internet, asleep): nothing changes, the mocks keep
 /// working. Albie's CAD and ML voice tools (Resources/AlbieTools/cloud.json) then answer that they need the cloud.
 /// Installs itself.
@@ -21,7 +22,7 @@ public class ForgeCloud : MonoBehaviour
     const string DefaultUrl = "https://builtbyd3v-albie-cloud.hf.space";  // cloud-py/deploy.sh; PlayerPrefs overrides it
     public const string UrlPref = "Albie.CloudUrl";      // e.g. http://192.168.1.20:8080 to test against a laptop
     public const string DevicePref = "Albie.DeviceId";
-    static readonly string[] Prefixes = { "/cad/", "/ml/", "/tools/", "/events" };
+    static readonly string[] Prefixes = { "/cad/", "/ml/", "/code/", "/tools/", "/events" };
     const float PollS = 1f, RetryS = 30f;
 
     static ForgeCloud instance;
@@ -100,7 +101,7 @@ public class ForgeCloud : MonoBehaviour
     {
         if (instance == null || !Available)
         {
-            done(AlbieTools.Error("Changing 3D designs and training models needs Albie's cloud, and it isn't reachable right now."));
+            done(AlbieTools.Error("That needs Albie's cloud, and it isn't reachable right now."));
             return;
         }
         instance.StartCoroutine(instance.Tool(name, args ?? new JObject(), done));

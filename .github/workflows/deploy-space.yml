@@ -9,6 +9,7 @@ on:
       - 'cloud-py/**'
       - 'hub/cad/**'
       - 'hub/ml/**'
+      - 'hub/code_browser/**'
       - 'hub/events.py'
       - 'hub/agent/events.py'
       - 'forge-sdk/forge/**'
