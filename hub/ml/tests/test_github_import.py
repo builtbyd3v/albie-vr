@@ -76,7 +76,7 @@ def test_import_endpoint_inspects_folder_and_train_starts_only_approved_worker(m
     assert argv[argv.index("--dataset") + 1] == "cifar10"
     assert argv[argv.index("--model") + 1] == "smallcnn"
     assert argv[argv.index("--epochs") + 1] == "5"
-    assert kwargs["cwd"].name == "gatorhack-dubz"
+    assert kwargs["cwd"] == Path(__file__).resolve().parents[3]
     assert "FORGE_RUN_ID" in kwargs["env"] and "FORGE_HUB" in kwargs["env"]
 
 

@@ -28,8 +28,8 @@ namespace Forge.Pet
     /// its task is done; the others' areas stop short of the line while it exists.
     ///
     /// Workspace gate (Main): the egg / picker and the N / X keys only work while the desk mode gateModeId ("code") is open
-    /// (CrewAllowed); when it closes the crew stays on the desk, keeps its antics, but its speech bubbles are muted until the
-    /// mode returns. Albie is never muted; the hub's crew.spawn / crew.dismiss are never gated. Scenes without a Workspace
+    /// (CrewAllowed); an active coding workflow or its open panel also permits crew captions. Otherwise the crew stays on
+    /// the desk with muted bubbles. Albie is never muted; the hub's crew.spawn / crew.dismiss are never gated. Scenes without a Workspace
     /// (the sandboxes) are never gated.
     /// </summary>
     [DisallowMultipleComponent]
@@ -87,7 +87,11 @@ namespace Forge.Pet
         /// <summary>Raised after an agent hatched or left.</summary>
         public event Action Changed;
         /// <summary>Hatching from the egg / keyboard is available: the gate mode is open, or there is no gate / no Workspace.</summary>
-        public bool CrewAllowed => string.IsNullOrEmpty(gateModeId) || !PetWorkspace.HasWorkspace || PetWorkspace.ActiveMode == gateModeId;
+        public bool CrewAllowed => WorkflowWindowOpen || workflowRunning || string.IsNullOrEmpty(gateModeId) || !PetWorkspace.HasWorkspace || PetWorkspace.ActiveMode == gateModeId;
+        /// <summary>The coding workflow can show the crew without opening the Code workspace.</summary>
+        public static bool WorkflowWindowOpen { get; internal set; }
+        bool workflowRunning;
+        IDisposable workflowEvents;
 
         readonly List<AlbieCrewMember> _members = new List<AlbieCrewMember>(AlbieAgentTypes.All.Length);
         readonly List<AlbieController> _agents = new List<AlbieController>(AlbieAgentTypes.All.Length + 1);
@@ -106,7 +110,7 @@ namespace Forge.Pet
         Vector2 _leadRestSeconds, _leadShortPause;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => Instance = null;
+        static void ResetStatics() { Instance = null; WorkflowWindowOpen = false; }
 
         void Awake()
         {
@@ -115,13 +119,22 @@ namespace Forge.Pet
             if (lead != null) _leadBridge = lead.GetComponent<AlbieAgentBridge>();
         }
 
-        void Start() => WhistleButton.AnyPressed += OnWhistle;
+        void Start()
+        {
+            WhistleButton.AnyPressed += OnWhistle;
+            workflowEvents = ForgeNet.On("build.updated", token =>
+            {
+                string state = (string)token["state"];
+                workflowRunning = state == "planning" || state == "awaiting_plan" || state == "building" || state == "verifying" || state == "shipping";
+            }, true);
+        }
 
         void OnEnable() { hatchAction.Enable(); dismissAction.Enable(); }
         void OnDisable() { hatchAction.Disable(); dismissAction.Disable(); }
 
         void OnDestroy()
         {
+            workflowEvents?.Dispose();
             if (_source != null) _source.EventReceived -= OnHubEvent;
             WhistleButton.AnyPressed -= OnWhistle;
             if (Instance == this) Instance = null;
@@ -252,9 +265,9 @@ namespace Forge.Pet
             {
                 _lastAllowed = allowed;
                 for (int i = 0; i < _members.Count; i++) if (_members[i] != null) _members[i].SetMuted(!allowed);
-                if (_members.Count > 0) Debug.Log("[AlbieCrew] " + (allowed ? "Code mode open: crew unmuted." : "Code mode closed: crew muted."), this);
+                if (_members.Count > 0) Debug.Log("[AlbieCrew] " + (allowed ? "Coding workspace active: crew unmuted." : "Coding workspace closed: crew muted."), this);
             }
-            if (allowed && !TypedSpeechToText.AnyListening)   // sandbox text box open: N / X are letters
+            if (allowed && !TypedSpeechToText.AnyListening && !global::DesktopRig.TypingInField)
             {
                 if (hatchAction.WasPressedThisFrame()) HatchFromKeyboard();
                 if (dismissAction.WasPressedThisFrame()) DismissLast();

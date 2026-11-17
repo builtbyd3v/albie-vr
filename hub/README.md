@@ -243,12 +243,14 @@ that member's turn without touching Albie's.
 1. **Plan.** One Claude call (`ml/setup/llm.py`: `claude-opus-5-5`, structured output, the server-side fallback for
    declines) turns the goal into 3 to 5 steps, each owned by a crew type: one or two Builder steps, then Tester,
    Scribe, and a Reviewer last. Albie shows the plan on a card. With no `ANTHROPIC_API_KEY` (or `FAKE_AGENT=1`) it uses
-   a default plan of builder, tester, scribe, reviewer.
+   a default plan of builder, tester, scribe, reviewer. Implementation waits for **Approve plan**.
 2. **Crew.** The types the plan needs hatch in Unity (`crew.spawn`), so the user sees who is working.
 3. **Build.** The steps run in order, each as that crew member's own Claude runner turn (the same runner as
    `assign_task`, with the member's bubbles and progress), in one workspace for the build so each step sees the last
    one's files. Every step that changed files is committed with the member's name. The Reviewer only reads.
-4. **Ship.** Albie's "Built" card has **Open pull request** and **Not now**. Nothing leaves the hub until the user
+4. **Verify and review.** Failed steps, missing reviewer approval, failing tests and zero discovered tests block readiness.
+   The hub runs independent checks, then makes the committed diff and test output available for inspection.
+5. **Ship.** Albie's "Built" card has **Open pull request** and **Not now**. Nothing leaves the hub until the user
    taps it or says yes to `build_ship` (asked first without `confirm`, then called with `confirm: true`). Then the
    branch is pushed and a pull request opened into the repo's default branch (`code_browser.open_pr`).
 
@@ -256,18 +258,25 @@ that member's turn without touching Albie's.
 |---|---|
 | `BUILD_REPO=owner/name` | The demo account's repo. Each build clones it, works on `albie/build-<slug>-<id>`, puts the project in `builds/<slug>/`. Needs `GITHUB_TOKEN` with write access (hub env only, never the APK; passed to git per command, never written to `.git/config`). Unset: a new local repo, kept on the hub, nothing to ship. |
 | `BUILD_DIR` | Where workspaces go (default `hub/.data/builds`). |
+| `BUILD_EXECUTOR` | `claude` for the existing Claude Agent SDK, or `openhands` for a Docker-backed executor in a separate Python environment. |
 
-Albie's lead-only tools: `build_start {goal}`, `build_status`, `build_ship {confirm}`, `build_cancel`. REST, for
-watching or testing without a headset: `POST /agent/builds {goal}`, `GET /agent/builds`, `GET /agent/builds/{id}`,
-`POST /agent/builds/{id}/cancel`. There is no REST route that ships, on purpose. One build runs at a time; builds are
-kept in memory (their workspaces stay on disk). Tests: `tests/agent/test_build.py` (a scripted crew, a local bare repo
-as the remote).
+Albie's lead-only tools: `build_start {goal, repo?, backend?}`, `build_approve {confirm}`, `build_status`, `build_review`,
+`build_ship {confirm}`, `build_cancel`. An explicit `repo` changes that repository at its root on a new branch; omitting
+it creates a new project under the configured destination's `builds/` folder (or locally when no destination is set).
+REST supports start/list/status, plan approval, diff review, cancellation and device-confirmed publication. Publication
+rejects browser Origin headers; the desktop page only offers plan approval and review. One build runs at a time.
+History is persisted; interrupted runs are marked failed after restart. See [the workflow guide](../docs/AGENT_ORCHESTRATION.md).
+Tests use a scripted crew and local bare Git remotes, including actual commits, pushes and independent test execution.
 
 **Watching a build:** open `http://<hub>/agent/build` (for example `http://127.0.0.1:8017/agent/build`). It starts a
 build from a goal and shows the live one: the plan, each crew member's step with its live progress line ("Editing
 tipcalc/cli.py"), how long it took, its commit, and the result; then the pull request link once it's open. It can stop a
 build, but not ship one: the pull request is opened from Albie's card in the headset, or by saying yes. With
 `FAKE_AGENT=1` the crew is simulated, which is handy for checking the page without spending Claude calls.
+
+**In Unity:** Home menu → Tools → Agents → **Project workflow** opens the spatial workflow panel. **New task** accepts a goal and
+optional owner/repo. The plan, current crew member, paged diff, checks and explicit **Publish branch and open PR** action
+are available in the same panel. The voice path opens it with `os_open {kind: system, id: workflow}`.
 
 ### Albie runs the workspace (views, CAD, files to Slack)
 

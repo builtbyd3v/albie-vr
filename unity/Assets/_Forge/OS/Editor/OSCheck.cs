@@ -72,7 +72,7 @@ ok &= Check(sb, "the OS kit has every prefab, theme and icon the OS asks for", K
 ok &= Check(sb, "every entry has a snake_case id, a title, an icon the kit resolves and an open action", EntriesComplete);
 ok &= Check(sb, "ids and titles are unique on each tab", EntriesUnique);
 ok &= Check(sb, "every status line and open flag answers without throwing and reads like the UI", StatusDelegates);
-ok &= Check(sb, "the tabs hold the seven tools (Drive included), the four starter projects and every artifact template", TabsHoldWhatTheSpecSays);
+ok &= Check(sb, "the tabs hold the eight tools (Drive and Agents included), the four starter projects and every artifact template", TabsHoldWhatTheSpecSays);
 ok &= Check(sb, "os_open's description names every tool id and kind", OsOpenDescription);
 ok &= Check(sb, "the table button is a finger-sized target", TableButtonSize);
 ok &= Check(sb, "the planner tree is valid: no problems, every path ends in a plan within three questions", PlannerTree);
@@ -742,8 +742,8 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             EnsureRegistered();
             var missing = new List<string>();
 
-            // The seven tools, the Drive tile (the hand transmitter, spec 5.8) among them: all required.
-            foreach (string id in new[] { "cad", "code", "train", "notebook", "drive", "messages", "gestures" })
+            // The eight tools, including the Drive transmitter and Agents workflow entry: all required.
+            foreach (string id in new[] { "cad", "code", "train", "notebook", "drive", "messages", "gestures", "agents" })
                 if (OSRegistry.Find(OSTab.Tools, id) == null) missing.Add("tool " + id);
 
             foreach (string id in new[] { "proj_truck", "proj_quadcopter", "proj_rocket", "proj_classifier" })

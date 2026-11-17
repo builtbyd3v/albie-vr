@@ -222,7 +222,7 @@ namespace Forge.Pet
         {
             if (autoPlace && !_byDock && Time.time >= _nextPlaceCheck) { _nextPlaceCheck = Time.time + 0.5f; UpdatePlacement(); }
 
-            if (whistleAction != null && whistleAction.WasPressedThisFrame() && !TypedSpeechToText.AnyListening) Press();   // sandbox text box open: F is a letter
+            if (whistleAction != null && whistleAction.WasPressedThisFrame() && !TypedSpeechToText.AnyListening && !global::DesktopRig.TypingInField) Press();
 
             Mouse mouse = Mouse.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame) TryMousePress(mouse);

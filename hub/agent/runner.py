@@ -49,6 +49,19 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+
+class AgentTurnError(RuntimeError):
+    """A provider failure whose message is safe and useful in the spatial status panel."""
+
+
+def result_failure(message: ResultMessage) -> AgentTurnError:
+    text = (message.result or "").lower()
+    if any(word in text for word in ("invalid api key", "authentication", "not authenticated", "unauthorized", "invalid_api_key")):
+        return AgentTurnError("Claude credentials were rejected. Update ANTHROPIC_API_KEY on the hub.")
+    if any(word in text for word in ("credit balance", "insufficient credits", "billing")):
+        return AgentTurnError("Claude could not run because the provider account needs credits.")
+    return AgentTurnError("Claude did not finish this task. Check its model, credentials and the hub logs.")
+
 QA_TOOLS = ["Read", "Grep", "Glob"]
 CODE_TOOLS = ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
 DOCS_TOOLS = ["Read", "Grep", "Glob", "Edit", "Write"]
@@ -70,7 +83,7 @@ CODE_DENY = [
 # Secrets the hub holds for its own calls (GitHub, Slack, Grok voice, Hugging Face). A Claude turn runs the Claude CLI
 # with a shell, and the SDK starts it with the hub's whole environment; its env option can override values but not
 # remove them, so each of these is passed as "". ANTHROPIC_API_KEY stays: the CLI may need it to run at all.
-HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "XAI_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_USER_TOKEN",
+HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "XAI_API_KEY", "OPENHANDS_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_USER_TOKEN",
               "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
 
 
@@ -343,9 +356,9 @@ async def run_turn(
         return await _run_code(project, text, emit, pet_id, control, agent)
     except asyncio.CancelledError:
         raise
-    except Exception:
+    except Exception as exc:
         log.exception("agent turn failed (pet=%s project=%s)", pet_id, project.id)
-        msg = "Sorry, something went wrong while I was thinking."
+        msg = str(exc) if isinstance(exc, AgentTurnError) else "Sorry, something went wrong while I was thinking."
         await emit(ev.error(pet_id, msg))
         return msg
 
@@ -406,7 +419,7 @@ async def _run_qa(
                     return ""
                 if msg.is_error:
                     log.error("qa result error: subtype=%s errors=%s", msg.subtype, msg.errors)
-                    raise RuntimeError(f"agent result error: {msg.subtype}")
+                    raise result_failure(msg)
                 final = (msg.result or current).strip()
     if _cancelled(control):
         return ""
@@ -457,7 +470,7 @@ async def _run_code(
                     return ""
                 if msg.is_error:
                     log.error("code result error: subtype=%s errors=%s", msg.subtype, msg.errors)
-                    raise RuntimeError(f"agent result error: {msg.subtype}")
+                    raise result_failure(msg)
                 summary = (msg.result or last_text).strip()
     if _cancelled(control):
         return ""

@@ -10,7 +10,9 @@
     body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
     h1 { margin: 0 0 .3rem; } h2 { margin: 0 0 .4rem; font-size: 1.3rem; } p { color: var(--muted); line-height: 1.5; margin: .3rem 0; }
     section, .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin: 1rem 0; }
-    textarea, button { font: inherit; border-radius: 6px; padding: .55rem; }
+    textarea, input, button { font: inherit; border-radius: 6px; padding: .55rem; }
+    input { display: block; width: 95%; background: #0e1824; color: white; border: 1px solid #8194a8; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
     textarea { width: 100%; min-height: 3.6rem; resize: vertical; box-sizing: border-box; background: #0e1824; border: 1px solid #8194a8; color: #fff; }
     button { background: var(--ok); color: #0a211b; border: 0; font-weight: 700; cursor: pointer; margin: .5rem .4rem 0 0; }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -45,6 +47,8 @@
     <h2 id="new-h">New build</h2>
     <label for="goal" class="meta">What should the crew build?</label>
     <textarea id="goal" placeholder="a command-line tip calculator in Python"></textarea>
+    <label for="repo" class="meta">Existing GitHub repository (optional owner/repo)</label>
+    <input id="repo" maxlength="200" placeholder="Leave blank to use the hub destination">
     <div id="examples"></div>
     <button id="start" type="button">Build it</button>
     <p id="message" role="status" aria-live="polite"></p>
@@ -57,12 +61,15 @@
     <p id="where" class="meta"></p>
     <div id="steps" class="steps"></div>
     <div id="end"></div>
+    <button id="approve" type="button" hidden>Approve implementation plan</button>
+    <button id="review" type="button" class="secondary">Review changes and checks</button>
+    <pre id="diff" hidden></pre>
     <button id="cancel" type="button" class="secondary" hidden>Stop the build</button>
   </section>
 
   <section class="history" aria-labelledby="hist-h">
     <h2 id="hist-h">Earlier builds</h2>
-    <div id="history"><p>None yet. Builds are kept in memory until the hub restarts.</p></div>
+    <div id="history"><p>None yet. Build history is saved on the hub.</p></div>
   </section>
 
   <script>
@@ -96,12 +103,12 @@
     function show(b) {
       current = b.id; $('board').hidden = false;
       $('title').textContent = b.title || 'Planning…';
-      $('state').textContent = b.state; $('state').className = 'pill s-' + b.state;
+      $('state').textContent = b.state + (b.simulated ? ' · simulated' : ''); $('state').className = 'pill s-' + b.state;
       $('clock').textContent = seconds(b.created_at, b.finished_at);
       $('goalline').textContent = 'Asked for: ' + b.goal;
       $('summary').textContent = b.summary && b.summary !== b.goal ? b.summary : '';
       const plan = b.planned_by === 'claude' ? 'Planned by Claude.' : b.planned_by === 'default' ? 'Default plan (no Claude key on the hub, or a simulated run).' : '';
-      $('where').textContent = [plan, b.repo ? `On ${b.repo}, branch ${b.branch}, in ${b.folder}/.` : 'Kept on the hub (no repo set, so no pull request).'].filter(Boolean).join(' ');
+      $('where').textContent = b.demo ? 'Fixed scripted sample. No API keys or provider calls. GitHub publishing disabled.' : [plan, b.repo ? `On ${b.repo}, branch ${b.branch}, in ${b.folder}/.` : 'Kept on the hub (no repo set, so no pull request).'].filter(Boolean).join(' ');
       $('steps').replaceChildren(...b.steps.map(stepCard));
       if (!b.steps.length && b.state === 'planning') $('steps').replaceChildren(el('p', 'live', 'Albie is planning the steps…'));
       const end = $('end'); end.replaceChildren();
@@ -111,6 +118,8 @@
         const p = el('p', 'callout', 'Pull request #' + b.pr_number + ' is open: '); const a = el('a', null, b.pr_url); a.href = b.pr_url; a.target = '_blank'; a.rel = 'noopener'; p.append(a); end.append(p);
       }
       if (b.error) end.append(el('p', 'error', b.error));
+      (b.verification || []).forEach(c => end.append(el('p', c.state === 'passed' ? 'callout' : 'error', c.state + ': ' + c.command.join(' ') + '\n' + c.output)));
+      $('approve').hidden = b.state !== 'awaiting_plan';
       $('cancel').hidden = DONE.includes(b.state);
     }
 
@@ -119,7 +128,7 @@
       try {
         const all = await request('/agent/builds');
         const list = $('history'); list.replaceChildren();
-        if (!all.length) list.append(el('p', null, 'None yet. Builds are kept in memory until the hub restarts.'));
+        if (!all.length) list.append(el('p', null, 'None yet. Build history is saved on the hub.'));
         all.forEach(b => { const btn = el('button', null, `${b.title || b.goal} · ${b.state} · ${new Date(b.created_at).toLocaleTimeString()}`); btn.type = 'button'; btn.onclick = () => { current = b.id; refresh(); }; list.append(btn); });
         const b = all.find(x => x.id === current) || all[0];
         if (b) show(b);
@@ -135,7 +144,7 @@
     $('start').onclick = async () => {
       const goal = $('goal').value.trim(); if (!goal) { $('message').textContent = 'Say what to build first.'; return; }
       $('start').disabled = true; $('message').textContent = '';
-      try { const b = await request('/agent/builds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal }) }); current = b.id; $('goal').value = ''; }
+      try { const b = await request('/agent/builds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goal, repo: $('repo').value.trim() || null }) }); current = b.id; $('goal').value = ''; }
       catch (e) { $('message').textContent = e.message; }
       refresh();
     };
@@ -144,6 +153,18 @@
       try { await request('/agent/builds/' + encodeURIComponent(current) + '/cancel', { method: 'POST' }); }
       catch (e) { $('message').textContent = e.message; }
       finally { $('cancel').disabled = false; refresh(); }
+    };
+    $('approve').onclick = async () => {
+      if (!current) return;
+      $('approve').disabled = true;
+      try { await request('/agent/builds/' + encodeURIComponent(current) + '/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) }); }
+      catch (e) { $('message').textContent = e.message; }
+      finally { $('approve').disabled = false; refresh(); }
+    };
+    $('review').onclick = async () => {
+      if (!current) return;
+      try { const r = await request('/agent/builds/' + encodeURIComponent(current) + '/review'); $('diff').hidden = false; $('diff').textContent = r.files.join('\n') + '\n\n' + r.diff + (r.truncated ? '\n[diff truncated]' : ''); }
+      catch (e) { $('message').textContent = e.message; }
     };
     refresh();
   </script>
