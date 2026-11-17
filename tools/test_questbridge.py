@@ -368,5 +368,79 @@ class CaseFileTest(unittest.TestCase):
         self.assertIn('Debug.Log($"[AppLifecycle] back ({why}) after', life)
 
 
+STUB_ADB = r"""#!/bin/bash
+# Fake adb for quest-record.sh tests: logs every call, keeps "device" files in $STUB_REMOTE.
+echo "$*" >> "$STUB_LOG"
+[ "$1" = "devices" ] && { echo "List of devices attached"; printf "%b" "$STUB_DEVICES"; exit 0; }
+[ "$1" = "-s" ] && shift 2
+case "$1 $2" in
+  "shell screenrecord") f="${@: -1}"; touch "$STUB_REMOTE/$(basename "$f")"; sleep 0.3 ;;
+  "logcat "*) echo "I Unity : [AppLifecycle] away (headset off)"; exec sleep 30 ;;
+  "pull "*) touch "$3" ;;
+  "shell ls"*) for f in "$STUB_REMOTE"/*.mp4; do [ -e "$f" ] && echo "/sdcard/$(basename "$f")"; done ;;
+  "shell rm"*) rm -f "$STUB_REMOTE"/*.mp4 ;;
+esac
+exit 0
+"""
+
+
+class RecordScriptTest(unittest.TestCase):
+    """tools/quest-record.sh against a fake adb (the real one and the headset are never touched)."""
+    SCRIPT = os.path.join(TOOLS, "quest-record.sh")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = self.tmp.name
+        self.adb, self.log, self.remote, self.out = (os.path.join(d, n) for n in ("adb", "calls.log", "remote", "out"))
+        os.makedirs(self.remote)
+        with open(self.adb, "w") as f:
+            f.write(STUB_ADB)
+        os.chmod(self.adb, 0o755)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_script(self, devices, *cmd):
+        env = dict(os.environ, ADB=self.adb, STUB_LOG=self.log, STUB_REMOTE=self.remote, STUB_DEVICES=devices)
+        p = subprocess.run(["bash", self.SCRIPT, "--out", self.out, "--", *cmd], env=env, capture_output=True, text=True, timeout=60)
+        calls = ""
+        if os.path.exists(self.log):
+            with open(self.log) as f:
+                calls = f.read()
+        return p.returncode, p.stdout + p.stderr, calls
+
+    def test_no_device_exits_2(self):
+        code, out, calls = self.run_script("", "true")
+        self.assertEqual(code, 2, out)
+        self.assertIn("no headset found", out)
+        self.assertNotIn("screenrecord", calls)
+
+    def test_unauthorized_only_counts_as_none(self):
+        code, out, _ = self.run_script("1WMHH000000000\tunauthorized\n", "true")
+        self.assertEqual(code, 2, out)
+
+    def test_two_devices_exit_3(self):
+        code, out, calls = self.run_script("AAA\tdevice\nBBB\tdevice\n", "true")
+        self.assertEqual(code, 3, out)
+        self.assertNotIn("screenrecord", calls)
+
+    def test_records_runs_pulls_cleans_up(self):
+        code, out, calls = self.run_script("1WMHH000000000\tdevice\n", "sh", "-c", "sleep 1; exit 5")
+        self.assertEqual(code, 5, out)  # the command's own exit code
+        self.assertIn("-s 1WMHH000000000 shell screenrecord --size 1280x720 --bit-rate 8000000 --time-limit 180 /sdcard/albie-rec-", calls)
+        self.assertIn("logcat -v threadtime -T 1 Unity:V AndroidRuntime:E *:S", calls)
+        self.assertIn("pkill -INT -f /sdcard/albie-rec-", calls)
+        self.assertIn("shell rm -f /sdcard/albie-rec-", calls)
+        shots = sorted(f for f in os.listdir(self.out) if f.startswith("screen-"))
+        self.assertGreaterEqual(len(shots), 2, out)  # 0.3 s fake segments: chained while the command ran
+        self.assertEqual(shots[0], "screen-01.mp4")
+        self.assertEqual(os.listdir(self.remote), [], "videos left on the headset")
+        with open(os.path.join(self.out, "unity.log")) as f:
+            self.assertIn("[AppLifecycle] away", f.read())
+        self.assertIn(os.path.join(self.out, "screen-01.mp4"), out)
+        for word in ("install", "uninstall", "settings put", "setprop", "logcat -c", "reboot"):
+            self.assertNotIn(word, calls)
+
+
 if __name__ == "__main__":
     unittest.main()
