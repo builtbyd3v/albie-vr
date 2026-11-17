@@ -130,17 +130,22 @@ def training_now() -> int:
 class DeviceML(MLService):
     """The device's copy of the cloud's ML project. Runs post their live events back to this device."""
 
-    def __init__(self, repo: Path, device: str) -> None:
+    def __init__(self, repo: Path, device: str, built: Path) -> None:
         super().__init__(repo)
         self.template = self.repo
         self.clones = repo.parent / "github"  # where ml_github clones for this device (MLTools.github)
+        self.built = built.resolve()  # ml_new's projects: reviewed templates plus downloaded data, no foreign code
         self.ingest_url = f"http://127.0.0.1:{PORT}/_in/{INTERNAL}/{device}"
 
     def open_project(self, path: str) -> Path:
         target = Path(path).resolve()
-        if target != self.template and not target.is_relative_to(self.clones.resolve()):
-            raise Conflict("the cloud trains only this headset's project and the repos Albie cloned for it")
+        if not self.allowed(target):
+            raise Conflict("the cloud trains only this headset's project, the repos Albie cloned for it "
+                           "and the projects he built for it")
         return super().open_project(path)
+
+    def allowed(self, path: Path) -> bool:
+        return path == self.template or path.is_relative_to(self.clones.resolve()) or path.parent == self.built
 
     def start_training(self, epochs: int, hub_url: str) -> str:
         if not self.training_active() and training_now() >= MAX_TRAINING:
@@ -150,17 +155,24 @@ class DeviceML(MLService):
 
 class DeviceMLTools(MLTools):
     def resolve(self, name: str) -> Path:
-        """A repo cloned for this device by name or path; anything else is the device's own project."""
+        """A path, or a repo cloned or a project built for this device, by name. With no name, the one it used
+        last (kept across a restart or the Space's sleep), else its own copy of the cloud's project."""
         svc = self.svc
         given = Path(name) if name else None
         if given is not None and given.is_absolute() and given.is_dir():
             return given
+        recent = [p for p in (Path(r).resolve() for r in self.recent()) if svc.allowed(p)]
         key = (name or "").lower().replace(" ", "").replace("-", "").replace("_", "")
-        if key and svc.clones.is_dir():
-            for clone in sorted(svc.clones.iterdir()):
-                if clone.is_dir() and key in clone.name.lower().replace("-", "").replace("_", ""):
-                    return clone
-        return svc.repo if not name else svc.template
+        if not key:
+            return recent[0] if recent else svc.repo
+        candidates = list(recent)
+        for root in (svc.clones, svc.built):
+            if root.is_dir():
+                candidates += sorted(p for p in root.iterdir() if p.is_dir())
+        for path in candidates:
+            if key in path.name.lower().replace("-", "").replace("_", ""):
+                return path
+        return svc.template
 
 
 def copy_template(dest: Path) -> None:
@@ -233,7 +245,7 @@ class Device:
         self.cad = CadService(root / "cad", HUB / "cad" / "parts" / "rocket.py", self.bus)
         self.cad._worker = POOL
         copy_template(root / "ml" / ML_TEMPLATE.name)
-        self.ml = DeviceML(root / "ml" / ML_TEMPLATE.name, device_id)
+        self.ml = DeviceML(root / "ml" / ML_TEMPLATE.name, device_id, root / "ml" / "new")
         app = FastAPI(title=f"Albie cloud device {device_id}")
         app.state.bus, app.state.cad, app.state.ml = self.bus, self.cad, self.ml
         app.state.ml_llm = proxy_llm if CLAUDE_PROXY_URL else no_llm

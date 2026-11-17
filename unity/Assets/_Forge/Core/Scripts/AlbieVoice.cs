@@ -67,6 +67,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "github_approve_pr and github_merge_pr first read the pull request back: ask 'approve it?' or 'merge it?' and only after a yes call again with confirm true. " +
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
+        "Starting a new machine-learning project or model ('start an RNN project', 'build a CNN on handwritten digits') is one call, ml_new, never artifact_create; it downloads the data, writes the code, opens the ML desk and trains by itself. " +
         "To make, build or show something, call artifact_create. Use a template when one fits: 'make me a slalom' or an obstacle course is template slalom, " +
         "'a hoop course' is template hoop_course, 'what shipped this week' is template repo_activity, and the tool lists the others. For anything else, " +
         "write the manifest and scene yourself in the same call, as the tool's guide says. You choose positions inside the artifact (pos in metres from its " +

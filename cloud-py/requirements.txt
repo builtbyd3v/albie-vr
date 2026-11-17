@@ -12,3 +12,4 @@ numpy==2.5.4
 httpx==0.28.1  # forge SDK: training runs post their live events back
 aiohttp==3.14.5  # code browser: GitHub's REST API
 certifi==2026.10.23
+pyarrow==26.0.1  # ml_new reads Hugging Face Parquet exports (hub/ml/hf_data.py)

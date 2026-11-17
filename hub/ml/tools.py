@@ -23,7 +23,7 @@ from typing import Any
 from agent import events as ev
 from agent import speech as agent_speech
 
-from . import github, improve
+from . import github, hf_data, improve, new_project
 from .router import _stop_tail, service, start_run, start_setup
 from .service import Conflict, NotFound
 from .setup.adapt import ROOT
@@ -52,6 +52,25 @@ TOOLS: list[dict[str, Any]] = [
          "query": {"type": "string", "description": "the repo as the user said it, owner/repo, or a GitHub URL"},
          "confirm": {"type": "boolean", "description": "true only after the user said yes to the repo you found"}},
          "required": ["query"]}},
+    {"name": "ml_new",
+     "description": "Start a NEW machine-learning project from scratch, for any request to make, build, start or "
+                    "train a new model or ML project ('start an RNN project', 'build a CNN on handwritten digits', "
+                    "'train a transformer on movie reviews'); never artifact_create, ml_open or delegate for these. "
+                    "It picks a Hugging Face dataset, downloads a sample, writes the project's code (an RNN, LSTM, "
+                    "GRU, Transformer, CNN or MLP; text or image classification) and starts training: the ML desk "
+                    "opens by itself in about 10 to 30 seconds and the curves go live. Pass what the user said. "
+                    "Then say in one short sentence what you're building from the result (model, dataset, classes); "
+                    "the score is spoken when it finishes. Don't call ml_open or ml_train after it.",
+     "parameters": {"type": "object", "properties": {
+         "request": {"type": "string", "description": "the user's own words for the project"},
+         "model": {"type": "string", "enum": ["rnn", "lstm", "gru", "transformer", "cnn", "mlp"],
+                   "description": "the model the user named, if any"},
+         "dataset": {"type": "string", "description": "a Hugging Face dataset id (owner/name) or what the data is "
+                                                      "about ('movie reviews', 'handwritten digits'), if the user said"},
+         "task": {"type": "string", "enum": ["text_classification", "image_classification"],
+                  "description": "only if the user was clear about text or images"},
+         "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8)"}},
+         "required": ["request"]}},
     {"name": "ml_status",
      "description": "The open ML project: whether it's training, and the last run's numbers (validation "
                     "accuracy, train/val gap, weakest classes). Use it for 'how's my model doing?'.",
@@ -130,6 +149,8 @@ class MLTools:
                 return await self.open(str(args.get("project") or "").strip())
             if name == "ml_github":
                 return await self.github(str(args.get("query") or "").strip(), args.get("confirm") is True)
+            if name == "ml_new":
+                return await self.new(args)
             if name == "ml_status":
                 return self.status()
             if name == "ml_improve":
@@ -143,7 +164,8 @@ class MLTools:
             if name == "ml_train":
                 epochs = args.get("epochs")
                 return self.train(10 if epochs is None else int(epochs))
-        except (improve.ImproveError, Conflict, NotFound, ValueError) as e:
+        except (improve.ImproveError, Conflict, NotFound, ValueError, new_project.NewProjectError,
+                hf_data.DatasetError) as e:
             return {"error": str(e)}
         return {"error": f"Unknown ML tool {name!r}"}
 
@@ -218,6 +240,68 @@ class MLTools:
                                      "if yes, call ml_github again with confirm true."}
         path = await asyncio.to_thread(github.clone, found["full_name"], self.recent_path.parent / "github")
         return {"repo": found["full_name"], **await self.open(str(path))}
+
+    # --- a new project from a sentence (ml_new) ---------------------------------------------------
+    def new_root(self) -> Path:
+        return self.recent_path.parent / "new"
+
+    async def new(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Plan now (a second or two: the dataset's layout, no rows), then build, open and train in the background."""
+        building = getattr(self.state, "ml_building", None)
+        if building is not None and not building.done():
+            raise Conflict("I'm still building the last project; give me a moment")
+        running = getattr(self.state, "ml_setup", None)
+        if running is not None and not running.done():
+            raise Conflict("I'm still setting up a project; give me a moment")
+        if self.svc.training_active():
+            raise Conflict("a run is still training; wait for it to finish, or tell me to stop it")
+        epochs = new_project.DEFAULT_EPOCHS if args.get("epochs") is None else int(args["epochs"])
+        if not 1 <= epochs <= 30:
+            raise ValueError("epochs must be between 1 and 30")
+        model = args.get("model")
+        p = await asyncio.to_thread(new_project.plan, model=str(model) if model else None,
+                                    dataset=str(args.get("dataset") or "").strip() or None, task=args.get("task") or None,
+                                    request=str(args.get("request") or ""))
+        task = asyncio.create_task(self._build_new(p, epochs))
+        self.state.ml_building = task
+        self.jobs.add(task)
+        task.add_done_callback(self.jobs.discard)
+        return {**new_project.describe(p), "epochs": epochs, "status": "building",
+                "note": "Downloading the data and writing the code now. Say in one short sentence what you're "
+                        "building (model, dataset, what it tells apart). The ML desk opens by itself and the "
+                        "training curves go live; the score is spoken when it's done."}
+
+    async def _build_new(self, p: dict[str, Any], epochs: int) -> None:
+        svc = self.svc
+        try:
+            path = await asyncio.to_thread(new_project.build, p, self.new_root(), lambda _: None, epochs)
+        except Exception as e:  # noqa: BLE001 - say it instead of failing silently
+            log.exception("ml_new build failed")
+            await self.say(f"I couldn't get {p['dataset']} from Hugging Face: {e}")
+            return
+        try:
+            svc.open_project(str(path))
+            _stop_tail(self.state)
+            start_setup(self.state, open_desk=True)
+        except Conflict as e:
+            await self.say(f"I built the project but couldn't open it: {e}")
+            return
+        while not self.state.ml_setup.done():
+            await asyncio.sleep(0.25)
+        if svc.project.get("status") != "ready":
+            await self.say(f"I built the project but it didn't pass its checks: "
+                           f"{svc.project.get('error') or svc.project.get('status')}")
+            return
+        self.remember(svc.repo)
+        try:
+            run_id = start_run(self.state, epochs)
+        except Conflict as e:
+            await self.say(f"The project is ready, but I couldn't start training: {e}")
+            return
+        what = "texts" if p["task"] == "text_classification" else "images"
+        rows = json.loads((path / "project.json").read_text())["rows"]["train"]
+        await self.say(f"Got {rows:,} {what}. Training the {p['model_name']} now; watch the curves.")
+        self._announce(run_id, {})
 
     def _last_run(self) -> dict[str, Any]:
         try:

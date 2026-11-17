@@ -21,6 +21,12 @@ COPY forge-sdk/forge forge-sdk/forge
 COPY ml-examples/text-classification ml-examples/text-classification
 COPY cloud-py cloud-py
 
+# ml_new ("start an RNN project"): the datasets it reaches for, sampled once here (~25 MB; it reads them from this
+# cache first), so the demo's new projects don't wait on, or get rate-limited by, Hugging Face. A failure only
+# means those projects download live.
+ENV FORGE_HF_CACHE=/app/hf-cache
+RUN PYTHONPATH=/app/hub python -m ml.new_project warm || echo "ml_new cache warm failed; new projects download live"
+
 # The shared AG News subset (~30 MB) and a first 4-epoch run, so "open my ML project" has a score at once.
 RUN cd ml-examples/text-classification \
     && PYTHONPATH=/app/forge-sdk python data.py \
