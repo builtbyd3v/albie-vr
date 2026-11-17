@@ -155,7 +155,9 @@ public static class ChatStore
     static void ReplaceChannels(List<ChatChannel> list)
     {
         Channels.Clear();
-        if (list != null) for (int i = 0; i < list.Count; i++) if (list[i] != null && !string.IsNullOrEmpty(list[i].id)) Channels.Add(list[i]);
+        if (list != null)
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] != null && !string.IsNullOrEmpty(list[i].id) && !Unsupported(list[i].source, list[i].id)) Channels.Add(list[i]);
         ChannelsKnown = true;
         ChannelsChanged?.Invoke();
     }
@@ -166,7 +168,7 @@ public static class ChatStore
     /// </summary>
     public static void Provisional(string id, string name, string kind)
     {
-        if (string.IsNullOrEmpty(id) || Find(id) != null) return;
+        if (string.IsNullOrEmpty(id) || Find(id) != null || Unsupported(null, id)) return;
         Channels.Add(new ChatChannel { id = id, name = string.IsNullOrEmpty(name) ? id : name, kind = string.IsNullOrEmpty(kind) ? "channel" : kind });
         ChannelsChanged?.Invoke();
     }
@@ -178,26 +180,22 @@ public static class ChatStore
         return null;
     }
 
-    /// <summary>The conversation to show first for one provider: default, else unread, else first.</summary>
-    public static ChatChannel DefaultChannel(bool imessage = false)
+    /// <summary>The conversation to show first: default, else unread, else first.</summary>
+    public static ChatChannel DefaultChannel()
     {
-        for (int i = 0; i < Channels.Count; i++)
-            if (IsProvider(Channels[i], imessage) && Channels[i].isDefault) return Channels[i];
-        for (int i = 0; i < Channels.Count; i++)
-            if (IsProvider(Channels[i], imessage) && Channels[i].unread > 0) return Channels[i];
-        for (int i = 0; i < Channels.Count; i++) if (IsProvider(Channels[i], imessage)) return Channels[i];
-        return null;
+        for (int i = 0; i < Channels.Count; i++) if (Channels[i].isDefault) return Channels[i];
+        for (int i = 0; i < Channels.Count; i++) if (Channels[i].unread > 0) return Channels[i];
+        return Channels.Count > 0 ? Channels[0] : null;
     }
 
-    public static bool IsProvider(ChatChannel channel, bool imessage)
-    {
-        if (channel == null) return false;
-        bool byId = !string.IsNullOrEmpty(channel.id) && channel.id.StartsWith("im:", StringComparison.Ordinal);
-        return imessage ? channel.source == "imessage" || byId : channel.source != "imessage" && !byId;
-    }
+    /// <summary>
+    /// Wire tolerance: the laptop hub can still emit items of a provider this app does not show (that provider's
+    /// source tag, or its "im:" conversation ids). They are dropped where they arrive, without a warning.
+    /// </summary>
+    public static bool Unsupported(string source, string channel = null) =>
+        source == DroppedSource || (!string.IsNullOrEmpty(channel) && channel.StartsWith("im:", StringComparison.Ordinal));
 
-    public static bool IsIMessageSource(string source, string channel = null) => source == "imessage" ||
-        (!string.IsNullOrEmpty(channel) && channel.StartsWith("im:", StringComparison.Ordinal));
+    const string DroppedSource = "imessage";  // wire tolerance only: the hub's tag for the provider the app dropped
 
     public static int TotalUnread
     {
@@ -239,7 +237,7 @@ public static class ChatStore
     /// </summary>
     public static void LoadHistory(string channelId, bool earlier = false)
     {
-        if (string.IsNullOrEmpty(channelId) || loading.Contains(channelId) || !Available) return;
+        if (string.IsNullOrEmpty(channelId) || loading.Contains(channelId) || !Available || Unsupported(null, channelId)) return;
         string path = "/messages/history?channel=" + Uri.EscapeDataString(channelId) + "&limit=50";
         if (earlier)
         {
@@ -291,7 +289,7 @@ public static class ChatStore
 
     static void OnMessage(NotifyMessage m)
     {
-        if (m == null || string.IsNullOrEmpty(m.channel)) return;
+        if (m == null || string.IsNullOrEmpty(m.channel) || Unsupported(m.source, m.channel)) return;
         Note(m);
         var list = History(m.channel);
         bool appended = false;
@@ -329,7 +327,7 @@ public static class ChatStore
     /// </summary>
     public static void AddOwn(string channelId, string text, string ts, string threadTs = null)
     {
-        if (string.IsNullOrEmpty(channelId) || string.IsNullOrEmpty(ts) || string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrEmpty(channelId) || string.IsNullOrEmpty(ts) || string.IsNullOrEmpty(text) || Unsupported(null, channelId)) return;
         var list = History(channelId);
         if (list != null && IndexOf(list, ts) >= 0) return;
         var c = Find(channelId);
@@ -346,12 +344,11 @@ public static class ChatStore
             ts = ts,
             threadTs = threadTs,
             isMe = true,
-            source = IsIMessageSource(null, channelId) ? "imessage" : "slack",
+            source = "slack",
         });
     }
 
-    // notify.sent: the only signal for an iMessage send (the hub emits no notify.message for those), and a fallback for
-    // a post whose notify.message is missing. A thread reply lands without its thread here; notify.message has it.
+    // notify.sent: a fallback for a post whose notify.message is missing. A thread reply lands without its thread here; notify.message has it.
     static void OnSent(NotifySent s)
     {
         if (s != null) AddOwn(s.channel, s.text, s.ts);
@@ -366,7 +363,7 @@ public static class ChatStore
     /// <summary>Learn the sender's name and keep the message in <see cref="Recent"/> (deduped by channel + ts).</summary>
     static void Note(NotifyMessage m)
     {
-        if (m == null) return;
+        if (m == null || Unsupported(m.source, m.channel)) return;
         if (!string.IsNullOrEmpty(m.user) && !string.IsNullOrEmpty(m.userName)) userNames[m.user] = m.userName;
         if (m.isMe && !string.IsNullOrEmpty(m.user) && string.IsNullOrEmpty(MeId)) MeId = m.user;
         for (int i = 0; i < Recent.Count; i++)

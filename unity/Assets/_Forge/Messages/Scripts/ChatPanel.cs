@@ -13,15 +13,11 @@ using UnityEngine.UI;
 /// header ('#' name or avatar + person, topic), the messages as <see cref="ChatRow"/>s (oldest at the top, grouped
 /// by sender, day dividers, a red "New" line above what was unread when it opened, "Load earlier" when the hub has
 /// more, auto-scroll to the bottom unless you scrolled up) and the <see cref="ChatComposer"/>.
-/// The same component with <see cref="iMessagePanel"/> on is the iMessage panel (IMessagePanel.prefab, added to MSG mode
-/// by <see cref="MessagesLayout"/> when the hub has iMessage): only iMessage conversations, Messages' look (a "Messages"
-/// list with round avatars and the last line, blue selection, the conversation as <see cref="MessageCard"/> bubbles,
-/// yours blue on the right).
 /// Data comes from <see cref="ChatStore"/> (notify.channels / notify.message / GET history); showing a conversation
 /// and new messages in it POST /seen. A message's hover "Ask Albie" (and the composer's) sends messages.focus.
-/// Each provider has one open panel (<see cref="Active"/> for team chat, <see cref="IMessageActive"/>; pick with
-/// <see cref="ForChannel"/> / <see cref="ForSource"/>): the Mentions panel, DraftPresenter and ChatRemote (Albie's
-/// messages_open) route through it. Lists are rebuilt only when data or the panel's size changes; rows are pooled.
+/// One panel is open at a time (<see cref="Active"/>; <see cref="ForChannel"/> / <see cref="ForSource"/> return it, or null
+/// for an item the app does not show, see <see cref="ChatStore.Unsupported"/>): the Mentions panel, DraftPresenter and
+/// ChatRemote (Albie's messages_open) route through it. Lists are rebuilt only when data or the panel's size changes; rows are pooled.
 /// Live hub only: offline it says so.
 /// </summary>
 public class ChatPanel : MonoBehaviour
@@ -33,32 +29,24 @@ public class ChatPanel : MonoBehaviour
     const float WindowCorner = 12f, PaneInset = 6f, PaneCorner = 10f;
     const float TeamH = 44f, SectionH = 28f, SideRowH = 28f, SideRowGap = 2f, SidePad = 8f;
     const float HeaderH = 48f, DayH = 36f, NewH = 22f, ComposerPad = 14f, GroupSeconds = 300f;
-    const float IMessageRowH = 50f, BubbleGap = 6f;
-    static readonly Color IMessageWindow = new Color(0.11f, 0.11f, 0.12f), IMessagePane = new Color(0.04f, 0.04f, 0.05f);
 
     /// <summary>The open Chat panel (MSG mode open), or null.</summary>
     public static ChatPanel Active { get; private set; }
-    /// <summary>The open iMessage panel (MSG mode open on a hub with iMessage), or null.</summary>
-    public static ChatPanel IMessageActive { get; private set; }
     /// <summary>Enabled Chat panels in the scene.</summary>
     public static int ActiveCount { get; private set; }
     public static event Action ActiveChanged;
     /// <summary>A conversation to open as soon as a panel comes up (set by a Mentions row before opening MSG mode).</summary>
     public static string PendingChannel { get; set; }
 
-    [Tooltip("When enabled, this panel only shows iMessage conversations. Leave disabled for team chat.")]
-    public bool iMessagePanel;
-
     /// <summary>The ForgePanel this lives on; null in a bare test scene.</summary>
     public ForgePanel Panel { get; private set; }
     /// <summary>Id of the open conversation, or null.</summary>
     public string Selected => selected;
-    public bool IsIMessagePanel => iMessagePanel;
 
     sealed class SideRow
     {
         public ChatButton button;
-        public TextMeshProUGUI glyph, name, count, preview;
+        public TextMeshProUGUI glyph, name, count;
         public Image lockIcon;
         public ForgeSurface avatar, pill;
         public TextMeshProUGUI avatarText;
@@ -72,12 +60,12 @@ public class ChatPanel : MonoBehaviour
         public TextMeshProUGUI label;
     }
 
-    enum ItemKind : byte { Message, Bubble, Day, New }
+    enum ItemKind : byte { Message, Day, New }
 
     struct Item
     {
         public ItemKind kind;
-        public int index;  // into rows (Message), cards (Bubble) or days
+        public int index;  // into rows (Message) or days
     }
 
     RectTransform content;
@@ -105,10 +93,6 @@ public class ChatPanel : MonoBehaviour
     ForgeSurface newLine;
     TextMeshProUGUI newLabel;
     int shownRows, shownDays;
-    // iMessage bubbles (MessageCard.prefab, IMessage style).
-    MessageCard template;
-    readonly List<MessageCard> cards = new List<MessageCard>(MaxRows);
-    int shownCards;
     ChatComposer composer;
 
     // Rendered rich text per message (the store's objects are stable), so a refresh re-renders only new ones.
@@ -129,7 +113,6 @@ public class ChatPanel : MonoBehaviour
     static void ResetStatics()
     {
         Active = null;
-        IMessageActive = null;
         ActiveCount = 0;
         ActiveChanged = null;
         PendingChannel = null;
@@ -147,8 +130,7 @@ public class ChatPanel : MonoBehaviour
     void OnEnable()
     {
         ActiveCount++;
-        if (iMessagePanel) IMessageActive = this;
-        else Active = this;
+        Active = this;
         ChatStore.Ensure();
         ChatStore.ChannelsChanged += OnChannels;
         ChatStore.HistoryChanged += OnHistory;
@@ -180,17 +162,16 @@ public class ChatPanel : MonoBehaviour
         composer?.Disabled();
         ActiveCount = Mathf.Max(0, ActiveCount - 1);
         if (Active == this) Active = null;
-        if (IMessageActive == this) IMessageActive = null;
         ActiveChanged?.Invoke();
     }
 
-    /// <summary>The open panel that shows <paramref name="channel"/> ("im:..." is iMessage), or null.</summary>
-    public static ChatPanel ForChannel(string channel) => ChatStore.IsIMessageSource(null, channel) ? IMessageActive : Active;
+    /// <summary>The open panel that shows <paramref name="channel"/>, or null (closed, or a conversation the app does not show).</summary>
+    public static ChatPanel ForChannel(string channel) => ChatStore.Unsupported(null, channel) ? null : Active;
 
-    /// <summary>The open panel for a draft's or message's source ("imessage" or team chat), or null.</summary>
-    public static ChatPanel ForSource(string source) => source == "imessage" ? IMessageActive : Active;
+    /// <summary>The open panel for a draft's or message's source, or null (closed, or a source the app does not show).</summary>
+    public static ChatPanel ForSource(string source) => ChatStore.Unsupported(source) ? null : Active;
 
-    bool MatchesChannel(string channel) => ChatStore.IsIMessageSource(null, channel) == iMessagePanel;
+    static bool MatchesChannel(string channel) => !ChatStore.Unsupported(null, channel);
 
     // ---- Build (once) ----
 
@@ -198,15 +179,14 @@ public class ChatPanel : MonoBehaviour
     {
         if (built) return;
         built = true;
-        // The window: aubergine everywhere (Messages: near-black), the conversation a dark rounded pane on it.
-        window = ChatUi.Surface(content, "Window", iMessagePanel ? IMessageWindow : ChatUi.MsgWindow, WindowCorner);
+        // The window: aubergine everywhere, the conversation a dark rounded pane on it.
+        window = ChatUi.Surface(content, "Window", ChatUi.MsgWindow, WindowCorner);
         ChatUi.Stretch(window.rectTransform, 0f, 0f, 0f, 0f);
 
         // Sidebar.
         team = ChatUi.Text(content, "Team", 15f, Color.white, bold: true);
         team.overflowMode = TextOverflowModes.Ellipsis;
         teamCaret = ChatUi.Icon(content, "TeamCaret", "caret", ChatUi.MsgSideText);
-        ChatUi.Show(teamCaret, !iMessagePanel);
         sideScroll = ChatUi.ScrollList(content, "Conversations", out sideContent);
         channelsHead = ChatUi.Text(sideContent, "ChannelsHead", 12.5f, ChatUi.MsgSideText);
         channelsHead.text = "Channels";
@@ -217,7 +197,7 @@ public class ChatPanel : MonoBehaviour
         leftEmpty = ChatUi.Text(content, "LeftEmpty", ChatUi.Small, ChatUi.MsgSideText, wrap: true);
 
         // Conversation.
-        pane = ChatUi.Surface(content, "Pane", iMessagePanel ? IMessagePane : ChatUi.MsgPane, PaneCorner);
+        pane = ChatUi.Surface(content, "Pane", ChatUi.MsgPane, PaneCorner);
         headGlyph = ChatUi.Text(content, "HeadGlyph", 17f, ChatUi.MsgName, bold: true, align: TextAlignmentOptions.Center);
         headGlyph.text = "#";
         headLock = ChatUi.Icon(content, "HeadLock", "lock", ChatUi.MsgName);
@@ -239,11 +219,6 @@ public class ChatPanel : MonoBehaviour
         newLabel.text = "New";
         ChatUi.Show(newRoot, false);
         rightEmpty = ChatUi.Text(content, "RightEmpty", 13f, ChatUi.MsgMuted, align: TextAlignmentOptions.Center, wrap: true);
-        if (iMessagePanel)
-        {
-            template = Resources.Load<MessageCard>("MessageCard");
-            if (template == null) Debug.LogWarning("[ChatPanel] Resources/MessageCard.prefab not found; run Forge > Messages > Build Prefabs.");
-        }
         composer = new ChatComposer(content, this);
     }
 
@@ -268,7 +243,7 @@ public class ChatPanel : MonoBehaviour
 
     void OnDraft(NotifyDraft d)
     {
-        if (ForSource(d != null ? d.source : null) == this) composer.ReceiveDraft(d);
+        if (d != null && !ChatStore.Unsupported(d.source, d.channel) && Active == this) composer.ReceiveDraft(d);
     }
 
     void OnSent(NotifySent s) => composer.OnSent(s);
@@ -370,29 +345,25 @@ public class ChatPanel : MonoBehaviour
 
         if (selected == null)
         {
-            var first = ChatStore.DefaultChannel(iMessagePanel);
+            var first = ChatStore.DefaultChannel();
             if (first != null) { Open(first.id); dataDirty = false; }
         }
         var channel = ChatStore.Find(selected);
 
-        // Sidebar. Team chat: the workspace, channels A-Z, then DMs in the hub's order (unread first, then most recent).
-        // iMessage: "Messages", every chat in the hub's order, no sections.
-        team.text = iMessagePanel ? "Texts" : string.IsNullOrEmpty(ChatStore.TeamName) ? "Messages" : ChatStore.TeamName;
+        // Sidebar: the workspace, channels A-Z, then DMs in the hub's order (unread first, then most recent).
+        team.text = string.IsNullOrEmpty(ChatStore.TeamName) ? "Messages" : ChatStore.TeamName;
         order.Clear();
-        if (!iMessagePanel)
+        for (int i = 0; i < ChatStore.Channels.Count; i++)
         {
-            for (int i = 0; i < ChatStore.Channels.Count; i++)
-            {
-                var c = ChatStore.Channels[i];
-                if (ChatStore.IsProvider(c, false) && !ChatText.IsDmKind(c.kind)) order.Add(c);
-            }
-            order.Sort(ByName);
+            var c = ChatStore.Channels[i];
+            if (!ChatText.IsDmKind(c.kind)) order.Add(c);
         }
+        order.Sort(ByName);
         channelSide = order.Count;
         for (int i = 0; i < ChatStore.Channels.Count; i++)
         {
             var c = ChatStore.Channels[i];
-            if (ChatStore.IsProvider(c, iMessagePanel) && (iMessagePanel || ChatText.IsDmKind(c.kind))) order.Add(c);
+            if (ChatText.IsDmKind(c.kind)) order.Add(c);
         }
         shownSide = order.Count;
         for (int i = 0; i < shownSide; i++)
@@ -403,8 +374,8 @@ public class ChatPanel : MonoBehaviour
         for (int i = shownSide; i < sideRows.Count; i++) ChatUi.Show(sideRows[i].button, false);
         ChatUi.Show(channelsHead, channelSide > 0);
         ChatUi.Show(channelsCaret, channelSide > 0);
-        ChatUi.Show(dmsHead, !iMessagePanel && shownSide > channelSide);
-        ChatUi.Show(dmsCaret, !iMessagePanel && shownSide > channelSide);
+        ChatUi.Show(dmsHead, shownSide > channelSide);
+        ChatUi.Show(dmsCaret, shownSide > channelSide);
         bool noList = shownSide == 0;
         ChatUi.Show(leftEmpty, noList);
         if (noList) leftEmpty.text = !live ? "Connecting…" : ChatStore.ChannelsKnown ? "No conversations" : "Loading…";
@@ -413,22 +384,19 @@ public class ChatPanel : MonoBehaviour
         bool dm = channel != null && ChatText.IsDmKind(channel.kind);
         bool locked = channel != null && channel.kind == "private";
         headName.text = channel != null ? ChatText.PlainName(channel) : "";
-        headTopic.text = channel == null ? "" : iMessagePanel ? "Text messages" : !string.IsNullOrEmpty(channel.topic) ? channel.topic : "";
-        ChatUi.Show(headGlyph, channel != null && !dm && !locked && !iMessagePanel);
+        headTopic.text = channel == null || string.IsNullOrEmpty(channel.topic) ? "" : channel.topic;
+        ChatUi.Show(headGlyph, channel != null && !dm && !locked);
         ChatUi.Show(headLock, locked);
-        bool avatar = dm || (iMessagePanel && channel != null);
-        ChatUi.Show(headAvatar, avatar);
-        if (avatar)
+        ChatUi.Show(headAvatar, dm);
+        if (dm)
         {
-            headAvatar.Pill = iMessagePanel;  // Messages' contacts are round, team chat's squares
             headAvatarText.text = channel.kind == "group-dm" ? GroupCount(channel) : ChatText.Initials(channel.name);
             headAvatar.color = ChatUi.BubbleColor(channel.name ?? channel.id);
         }
         if (Panel != null)
         {
             int unread = 0;
-            for (int i = 0; i < ChatStore.Channels.Count; i++)
-                if (ChatStore.IsProvider(ChatStore.Channels[i], iMessagePanel)) unread += ChatStore.Channels[i].unread;
+            for (int i = 0; i < ChatStore.Channels.Count; i++) unread += ChatStore.Channels[i].unread;
             Panel.Subtitle = channel == null ? (ChatStore.Demo ? "Demo conversations" : live ? "" : "Connecting…")
                 : ChatText.DisplayName(channel) + " · " + (unread == 0 ? "all read" : unread == 1 ? "1 unread" : unread + " unread");
         }
@@ -443,7 +411,7 @@ public class ChatPanel : MonoBehaviour
             unreadAtOpen = 0;
         }
         items.Clear();
-        shownRows = shownDays = shownCards = 0;
+        shownRows = shownDays = 0;
         bool newShown = false;
         if (list != null)
         {
@@ -469,20 +437,6 @@ public class ChatPanel : MonoBehaviour
                     newShown = true;
                     items.Add(new Item { kind = ItemKind.New });
                 }
-                if (iMessagePanel)
-                {
-                    if (template != null)
-                    {
-                        while (cards.Count <= shownCards) cards.Add(NewCard());
-                        var card = cards[shownCards];
-                        ChatUi.Show(card, true);
-                        card.Bind(m, MessageCard.Style.IMessage, Rendered(m));
-                        items.Add(new Item { kind = ItemKind.Bubble, index = shownCards++ });
-                    }
-                    prev = m;
-                    prevDay = day;
-                    continue;
-                }
                 bool grouped = !newDay && !isNew && prev != null && prev.user == m.user && !string.IsNullOrEmpty(m.user)
                                && ChatText.Ts(m.ts) - ChatText.Ts(prev.ts) < GroupSeconds && !ChatText.IsThreadReply(m)
                                && !ChatText.IsThreadReply(prev);
@@ -496,7 +450,6 @@ public class ChatPanel : MonoBehaviour
             }
         }
         for (int i = shownRows; i < rows.Count; i++) ChatUi.Show(rows[i], false);
-        for (int i = shownCards; i < cards.Count; i++) ChatUi.Show(cards[i], false);
         for (int i = shownDays; i < days.Count; i++) ChatUi.Show(days[i].root, false);
         ChatUi.Show(newRoot, newShown);
         bool more = list != null && ChatStore.HasMore(selected);
@@ -506,14 +459,13 @@ public class ChatPanel : MonoBehaviour
             loadEarlier.SetText(loading ? "Loading…" : "Load earlier messages");
             loadEarlier.Interactable = !loading;
         }
-        bool empty = shownRows == 0 && shownCards == 0;
+        bool empty = shownRows == 0;
         ChatUi.Show(rightEmpty, empty);
         if (empty)
         {
             rightEmpty.text = !live ? "Connecting…"
                 : selected == null ? "Pick a conversation"
                 : loading || list == null ? "Loading…"
-                : iMessagePanel ? "No messages here yet"
                 : dm ?"This conversation is just between you and " + ChatText.PlainName(channel) + ".\n<size=85%><alpha=#AA>Say hi below."
                 : "This is the very beginning of " + ChatText.DisplayName(channel) + ".";
         }
@@ -544,8 +496,7 @@ public class ChatPanel : MonoBehaviour
     {
         if (rendered.TryGetValue(m, out string s)) return s;
         if (rendered.Count > 400) rendered.Clear();
-        s = iMessagePanel ? ChatText.Render(m.text, ChatStore.MeId, ChatStore.NameOf, ChatUi.Accent)
-            : ChatText.RenderPanel(m.text, ChatStore.MeId, ChatStore.NameOf);
+        s = ChatText.RenderPanel(m.text, ChatStore.MeId, ChatStore.NameOf);
         rendered[m] = s;
         return s;
     }
@@ -553,22 +504,17 @@ public class ChatPanel : MonoBehaviour
     SideRow NewSideRow()
     {
         var r = new SideRow();
-        r.button = ChatButton.Create(sideContent, "Conversation", iMessagePanel ? ChatButton.IMessageRow : ChatButton.SideRow,
-            iMessagePanel ? 10f : 6f, null);
+        r.button = ChatButton.Create(sideContent, "Conversation", ChatButton.SideRow, 6f, null);
         r.button.Button.onClick.AddListener(() => Open(r.id));
         r.glyph = ChatUi.Text(r.button.transform, "Hash", 14f, ChatUi.MsgSideText, align: TextAlignmentOptions.Center);
         r.glyph.text = "#";
         r.lockIcon = ChatUi.Icon(r.button.transform, "Lock", "lock", ChatUi.MsgSideText);
         r.avatar = ChatUi.Surface(r.button.transform, "Avatar", ChatUi.BubbleColors[0], 4f);
-        r.avatar.Pill = iMessagePanel;
-        r.avatarText = ChatUi.Text(r.avatar.transform, "Initials", iMessagePanel ? 12f : 8f, Color.white, bold: true, align: TextAlignmentOptions.Center);
+        r.avatarText = ChatUi.Text(r.avatar.transform, "Initials", 8f, Color.white, bold: true, align: TextAlignmentOptions.Center);
         ChatUi.Stretch(r.avatarText.rectTransform, 0f, 0f, 0f, 0f);
         r.name = ChatUi.Text(r.button.transform, "Name", 13f, ChatUi.MsgSideText);
         r.name.overflowMode = TextOverflowModes.Ellipsis;
-        r.preview = ChatUi.Text(r.button.transform, "Preview", 11f, ChatUi.MsgMuted);
-        r.preview.overflowMode = TextOverflowModes.Ellipsis;
-        ChatUi.Show(r.preview, iMessagePanel);
-        r.pill = ChatUi.PillSurface(r.button.transform, "Unread", iMessagePanel ? ChatUi.IMessageBlue : ChatUi.MsgBadge);
+        r.pill = ChatUi.PillSurface(r.button.transform, "Unread", ChatUi.MsgBadge);
         r.count = ChatUi.Text(r.pill.transform, "Count", 10.5f, Color.white, bold: true, align: TextAlignmentOptions.Center);
         ChatUi.Stretch(r.count.rectTransform, 0f, 0f, 0f, 0f);
         return r;
@@ -586,26 +532,16 @@ public class ChatPanel : MonoBehaviour
         r.name.color = ink;
         r.glyph.color = ink;
         r.lockIcon.color = ink;
-        ChatUi.Show(r.glyph, !dm && !locked && !iMessagePanel);
+        ChatUi.Show(r.glyph, !dm && !locked);
         ChatUi.Show(r.lockIcon, locked);
-        bool avatar = dm || iMessagePanel;
-        ChatUi.Show(r.avatar, avatar);
-        if (avatar)
+        ChatUi.Show(r.avatar, dm);
+        if (dm)
         {
             r.avatarText.text = c.kind == "group-dm" ? GroupCount(c) : ChatText.Initials(c.name);
             r.avatar.color = ChatUi.BubbleColor(c.name ?? c.id);
         }
-        if (iMessagePanel)
-        {
-            // Messages' list: the last line under the name.
-            var history = ChatStore.History(c.id);
-            var latest = history != null && history.Count > 0 ? history[history.Count - 1] : null;
-            string last = latest != null ? (latest.isMe ? "You: " : "") + latest.text : c.lastText;
-            r.preview.text = string.IsNullOrEmpty(last) ? "Text message" : last.Replace('\n', ' ');
-            r.preview.color = on ? ChatUi.White(0.8f) : ChatUi.MsgMuted;
-        }
         // A count for DMs and for mentions; a channel that is only unread just goes bold.
-        bool badge = unread && (dm || c.mentions > 0 || iMessagePanel);
+        bool badge = unread && (dm || c.mentions > 0);
         ChatUi.Show(r.pill, badge);
         if (badge)
         {
@@ -629,21 +565,12 @@ public class ChatPanel : MonoBehaviour
         else composer.ShowStatus("Albie is reading it…");
     }
 
-    // An iMessage bubble; tapping it asks Albie about it, like a chat row's toolbar.
-    MessageCard NewCard()
-    {
-        var card = Instantiate(template, msgContent);
-        card.name = "Bubble";
-        card.Clicked += c => AskAlbie(c.Message);
-        return card;
-    }
-
     DayDivider NewDay()
     {
         var d = new DayDivider { root = ChatUi.Rect(msgContent, "Day") };
         d.line = ChatUi.Surface(d.root, "Line", ChatUi.MsgLine, 0f);
         d.edge = ChatUi.PillSurface(d.root, "Edge", ChatUi.White(0.16f));
-        d.fill = ChatUi.PillSurface(d.edge.transform, "Fill", iMessagePanel ? IMessagePane : ChatUi.MsgPane);
+        d.fill = ChatUi.PillSurface(d.edge.transform, "Fill", ChatUi.MsgPane);
         ChatUi.Stretch(d.fill.rectTransform, 1.2f, 1.2f, 1.2f, 1.2f);
         d.label = ChatUi.Text(d.edge.transform, "Label", 11f, ChatUi.MsgName, bold: true, align: TextAlignmentOptions.Center);
         ChatUi.Stretch(d.label.rectTransform, 0f, 0f, 0f, 0f);
@@ -670,12 +597,12 @@ public class ChatPanel : MonoBehaviour
             if (i == 0 && channelSide > 0) y = Section(channelsHead, channelsCaret, y);
             if (i == channelSide) y = Section(dmsHead, dmsCaret, y + (i > 0 ? 8f : 0f));
             var r = sideRows[i];
-            float rowH = iMessagePanel ? IMessageRowH : SideRowH;
+            float rowH = SideRowH;
             ChatUi.Band(r.button.Rect, y, rowH, SidePad, SidePad);
-            float iconX = 10f, iconW = iMessagePanel ? 34f : 16f, avatarS = iMessagePanel ? 34f : 17f;
+            float iconX = 10f, iconW = 16f, avatarS = 17f;
             ChatUi.Place(r.glyph.rectTransform, iconX, 0f, iconW, rowH);
             ChatUi.Place(r.lockIcon.rectTransform, iconX + 2f, (rowH - 12f) * 0.5f, 12f, 12f);
-            ChatUi.Place(r.avatar.rectTransform, iconX - (iMessagePanel ? 4f : 0f), (rowH - avatarS) * 0.5f, avatarS, avatarS);
+            ChatUi.Place(r.avatar.rectTransform, iconX, (rowH - avatarS) * 0.5f, avatarS, avatarS);
             float right = 8f;
             if (r.pill.gameObject.activeSelf)
             {
@@ -683,13 +610,8 @@ public class ChatPanel : MonoBehaviour
                 ChatUi.PlaceRight(r.pill.rectTransform, right, (rowH - 17f) * 0.5f, pw, 17f);
                 right += pw + 6f;
             }
-            float textX = iconX + iconW + (iMessagePanel ? 4f : 8f);
-            if (iMessagePanel)
-            {
-                ChatUi.Band(r.name.rectTransform, 7f, 19f, textX, right);
-                ChatUi.Band(r.preview.rectTransform, 27f, 17f, textX, right);
-            }
-            else ChatUi.Band(r.name.rectTransform, 0f, rowH, textX, right);
+            float textX = iconX + iconW + 8f;
+            ChatUi.Band(r.name.rectTransform, 0f, rowH, textX, right);
             y += rowH + SideRowGap;
         }
         sideContent.sizeDelta = new Vector2(0f, Mathf.Max(h - TeamH, y + 8f));
@@ -700,7 +622,7 @@ public class ChatPanel : MonoBehaviour
         ChatUi.Place(pane.rectTransform, px, py, pw2, ph);
         float hx = px + 18f;
         bool avatarHead = headAvatar.gameObject.activeSelf;
-        float headS = iMessagePanel ? 30f : 24f;
+        float headS = 24f;
         float iconW2 = avatarHead ? headS : 16f;
         ChatUi.Place(headGlyph.rectTransform, hx - 2f, py, iconW2, HeaderH);
         ChatUi.Place(headLock.rectTransform, hx, py + (HeaderH - 15f) * 0.5f, 15f, 15f);
@@ -744,19 +666,6 @@ public class ChatPanel : MonoBehaviour
                     ChatUi.PlaceRight(newLabel.rectTransform, 12f, 0f, 30f, NewH);
                     y += NewH;
                     break;
-                case ItemKind.Bubble:
-                {
-                    // Messages: as wide as the text needs, at most three quarters; yours on the right.
-                    var card = cards[it.index];
-                    float maxW = Mathf.Min(pw2 * 0.76f, 360f);
-                    float bw = Mathf.Min(maxW, Mathf.Max(90f, card.PreferredBubbleWidth(maxW)));
-                    float bh = card.Measure(bw);
-                    float bx = card.Message != null && card.Message.isMe ? pw2 - bw - 14f : 14f;
-                    ChatUi.Place((RectTransform)card.transform, bx, y, bw, bh);
-                    card.Layout(bw, bh);
-                    y += bh + BubbleGap;
-                    break;
-                }
                 default:
                 {
                     var row = rows[it.index];

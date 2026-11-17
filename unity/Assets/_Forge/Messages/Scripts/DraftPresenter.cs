@@ -52,7 +52,7 @@ public class DraftPresenter : MonoBehaviour
 
     void OnDraft(NotifyDraft d)
     {
-        if (d == null || string.IsNullOrEmpty(d.draftId)) return;
+        if (d == null || string.IsNullOrEmpty(d.draftId) || ChatStore.Unsupported(d.source, d.channel)) return;  // not shown here
         if (ChatPanel.ForSource(d.source) != null) return;  // the matching panel handles it in its composer
         if (card != null)
         {

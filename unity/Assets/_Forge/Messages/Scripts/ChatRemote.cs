@@ -3,12 +3,13 @@ using UnityEngine;
 
 /// <summary>
 /// Albie opens a conversation ("open my chat with Adrian", "pull up #general": the hub's messages_open tool). The hub's
-/// ws <c>messages.open {pet_id, request_id, channel, channel_name, kind}</c> shows it on its provider's panel (team chat, or
-/// iMessage for an <c>im:</c> chat; <see cref="ChatPanel.ForChannel"/>), opening MSG mode when it is closed (like tapping
+/// ws <c>messages.open {pet_id, request_id, channel, channel_name, kind}</c> shows it on the chat panel
+/// (<see cref="ChatPanel.ForChannel"/>), opening MSG mode when it is closed (like tapping
 /// a Mentions card does), and this answers <c>messages.opened {pet_id, request_id, channel, ok, reason?}</c> in the same frame, so Albie says what really happened. reason: <c>not_at_desk</c> (the
 /// Workspace only opens at a desk) or <c>no_workspace</c>. A conversation the list doesn't have yet (a DM the hub just
 /// opened) gets a row right away (<see cref="ChatStore.Provisional"/>). Installs itself on scene load into any scene
-/// with a DeskPresence, like <see cref="DraftPresenter"/>.
+/// with a DeskPresence, like <see cref="DraftPresenter"/>. A conversation the app does not show
+/// (<see cref="ChatStore.Unsupported"/>) gets no answer at all; the hub's own wait for the reply times out.
 /// </summary>
 public class ChatRemote : MonoBehaviour
 {
@@ -33,7 +34,7 @@ public class ChatRemote : MonoBehaviour
 
     void OnOpen(ChatOpenRequest req)
     {
-        if (req == null || string.IsNullOrEmpty(req.channel)) return;
+        if (req == null || string.IsNullOrEmpty(req.channel) || ChatStore.Unsupported(null, req.channel)) return;
         string reason = Show(req.channel, req.channelName, req.kind);
         ForgeNet.Send(OpenedType, new ChatOpened
         {

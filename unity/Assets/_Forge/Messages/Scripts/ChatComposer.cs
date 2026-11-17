@@ -14,8 +14,7 @@ using UnityEngine.UI;
 /// with Send / Cancel; Send PATCHes the text first when you changed it, and its files (a CAD design's STEP, STL, drawing,
 /// parts list) show on the banner and go up with it. Albie rewording the open draft (messages_edit_draft) replaces the
 /// text in the field. Nothing leaves without a Send. What was sent goes into the conversation at once
-/// (<see cref="ChatStore.AddOwn"/>), without waiting for the provider. On the iMessage panel the box is Messages' rounded grey
-/// field with a blue Send.
+/// (<see cref="ChatStore.AddOwn"/>), without waiting for the provider.
 /// Keyboard: on the Quest TMP_InputField opens the system keyboard when poked; on desktop the keyboard types into it.
 /// The Interaction SDK's PointableCanvasModule never sends OnUpdateSelected (that is where TMP reads key events), so
 /// <see cref="Tick"/> sends it while the field is focused; <see cref="ForgeInput.TextFieldFocused"/> mirrors the focus
@@ -38,7 +37,6 @@ public class ChatComposer
     readonly TMP_InputField field;
     readonly TextMeshProUGUI text, placeholder, caption, bannerLabel, files;
     readonly Image sendIcon;
-    readonly bool imessage;                    // on the iMessage panel: Messages' look
     string filesLine = "";                     // the Albie draft's attachments in one line (on the banner), "" for none
     readonly ChatButton send, askAlbie, cancel;
     BaseEventData updateEvent;
@@ -57,7 +55,6 @@ public class ChatComposer
     public ChatComposer(Transform parent, ChatPanel owner)
     {
         this.owner = owner;
-        imessage = owner.IsIMessagePanel;
         root = ChatUi.Rect(parent, "Composer");
 
         // Albie's draft banner (shown only with a draft).
@@ -77,10 +74,9 @@ public class ChatComposer
 
         // The box: a grey edge around the field colour, the text area and the toolbar inside.
         box = ChatUi.Rect(root, "Box");
-        float corner = imessage ? 22f : Corner;
-        edge = ChatUi.Surface(box, "Edge", imessage ? ChatUi.White(0.16f) : ChatUi.MsgBorder, corner);
+        edge = ChatUi.Surface(box, "Edge", ChatUi.MsgBorder, Corner);
         ChatUi.Stretch(edge.rectTransform, 0f, 0f, 0f, 0f);
-        fill = ChatUi.Surface(box, "Fill", imessage ? ChatUi.IMessageComposer : ChatUi.MsgField, corner - Edge);
+        fill = ChatUi.Surface(box, "Fill", ChatUi.MsgField, Corner - Edge);
         ChatUi.Stretch(fill.rectTransform, Edge, Edge, Edge, Edge);
 
         fieldRect = ChatUi.Rect(box, "Field");
@@ -93,7 +89,7 @@ public class ChatComposer
         text.richText = false;
         ChatUi.Stretch(text.rectTransform, 0f, 0f, 0f, 0f);
         placeholder = ChatUi.Text(area, "Placeholder", TextSize, ChatUi.MsgMuted, align: TextAlignmentOptions.TopLeft, wrap: true);
-        placeholder.text = imessage ? "Text message" : "Message";
+        placeholder.text = "Message";
         placeholder.overflowMode = TextOverflowModes.Ellipsis;
         ChatUi.Stretch(placeholder.rectTransform, 0f, 0f, 0f, 0f);
 
@@ -164,7 +160,7 @@ public class ChatComposer
     public void SetChannel(ChatChannel c)
     {
         channel = c;
-        placeholder.text = imessage ? "Text message" : c == null ? "Pick a conversation" : "Message " + ChatText.DisplayName(c);
+        placeholder.text = c == null ? "Pick a conversation" : "Message " + ChatText.DisplayName(c);
         RefreshButtons();
     }
 
@@ -175,7 +171,7 @@ public class ChatComposer
         {
             focused = f;
             ForgeInput.TextFieldFocused = f;
-            if (!imessage) edge.color = f ? ChatUi.MsgBorderFocus : ChatUi.MsgBorder;
+            edge.color = f ? ChatUi.MsgBorderFocus : ChatUi.MsgBorder;
         }
         if (f)
         {
@@ -423,7 +419,7 @@ public class ChatComposer
         if (can != canSend)
         {
             canSend = can;
-            send.SetLook(can ? (imessage ? ChatButton.IMessagePrimary : ChatButton.SendOn) : ChatButton.SendOff);
+            send.SetLook(can ? ChatButton.SendOn : ChatButton.SendOff);
             sendIcon.color = can ? Color.white : ChatUi.MsgMuted;
         }
         askAlbie.Interactable = live && channel != null;

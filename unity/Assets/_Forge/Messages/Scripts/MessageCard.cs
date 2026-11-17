@@ -14,7 +14,7 @@ using UnityEngine.EventSystems;
 /// </summary>
 public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 {
-    public enum Style { Inbox, Thread, IMessage }
+    public enum Style { Inbox, Thread }
 
     [SerializeField] ForgeSurface shadow;
     [SerializeField] ForgeSurface frame;      // the slate fill; alpha RestAlpha at rest, 1 on hover (Inbox)
@@ -67,21 +67,17 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         string name = ChatText.SenderName(m);
         if (initial != null) initial.text = ChatText.Initials(m);
         if (bubble != null) bubble.color = ChatUi.BubbleColor(string.IsNullOrEmpty(m.user) ? name : m.user);
-        bool imessage = style == Style.IMessage;
-        ChatUi.Show(bubble, !imessage);
         if (nameText != null)
         {
-            ChatUi.Show(nameText, !imessage);
             nameText.text = style == Style.Inbox && !string.IsNullOrEmpty(channelLabel)
                 ? name + "  <alpha=#80><size=85%>" + channelLabel
                 : m.isMe ? name + "  <alpha=#80><size=85%>you" : name;
         }
         body.text = rendered;
         body.color = Color.white;
-        body.fontSize = imessage ? 13.5f : ChatUi.Body;
+        body.fontSize = ChatUi.Body;
         body.overflowMode = style == Style.Inbox ? TextOverflowModes.Ellipsis : TextOverflowModes.Overflow;
-        if (timeText != null) ChatUi.Show(timeText, !imessage);
-        if (accent != null) ChatUi.Show(accent, !imessage && m.mentionsMe && !m.isMe);
+        if (accent != null) ChatUi.Show(accent, m.mentionsMe && !m.isMe);
         if (meta != null)
         {
             bool replies = style == Style.Thread && m.replyCount.HasValue && m.replyCount.Value > 0;
@@ -103,11 +99,6 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     public float Measure(float w)
     {
         if (CardStyle == Style.Inbox) return InboxHeight;
-        if (CardStyle == Style.IMessage)
-        {
-            float bubbleTextW = Mathf.Max(28f, w - 26f);
-            return Mathf.Max(36f, ChatUi.Height(body, rendered, bubbleTextW) + 20f);
-        }
         if (Mathf.Approximately(w, width)) return measured;
         width = w;
         float textW = Mathf.Max(20f, w - NameX - PadX);
@@ -117,27 +108,9 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         return measured;
     }
 
-    /// <summary>A compact natural bubble width, capped so long messages wrap on phone-like panels.</summary>
-    public float PreferredBubbleWidth(float maxWidth)
-    {
-        if (CardStyle != Style.IMessage) return maxWidth;
-        return Mathf.Clamp(body.GetPreferredValues(rendered).x + 26f, 90f, Mathf.Max(90f, maxWidth));
-    }
-
     /// <summary>Place the children for a card <paramref name="w"/> x <paramref name="h"/> (the owner set the card's rect).</summary>
     public void Layout(float w, float h)
     {
-        if (CardStyle == Style.IMessage)
-        {
-            const float padX = 13f, padY = 8f;
-            if (frame != null)
-            {
-                frame.Corner = 18f;
-                frame.color = Message != null && Message.isMe ? ChatUi.IMessageOutgoing : ChatUi.IMessageIncoming;
-            }
-            ChatUi.Place(body.rectTransform, padX, padY, Mathf.Max(20f, w - padX * 2f), Mathf.Max(16f, h - padY * 2f));
-            return;
-        }
         bool inbox = CardStyle == Style.Inbox;
         float b = inbox ? BubbleI : BubbleT;
         float nameX = inbox ? NameXI : NameX;
@@ -162,9 +135,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         ApplyRest();
     }
 
-    Color RestFill => CardStyle == Style.IMessage
-        ? Message != null && Message.isMe ? ChatUi.IMessageOutgoing : ChatUi.IMessageIncoming
-        : Message != null && Message.isMe ? ChatUi.MeFill : ChatUi.CardFill;
+    Color RestFill => Message != null && Message.isMe ? ChatUi.MeFill : ChatUi.CardFill;
 
     void ApplyRest()
     {
@@ -181,7 +152,7 @@ public class MessageCard : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
     {
         if (Message == null || on == hovered) return;
         hovered = on;
-        if (CardStyle == Style.Thread || CardStyle == Style.IMessage)
+        if (CardStyle == Style.Thread)
         {
             // List rows: just a touch brighter, no motion (the list may be scrolling under the pointer).
             Color c = RestFill;

@@ -47,8 +47,8 @@ without a hub the panels show "Hub offline" and connect by themselves when it ap
   them as one line on the card and on the composer's "Albie drafted this" banner; the hub uploads them with the text on Send.
 - **Albie opens a conversation** ("open my chat with Adrian", "pull up #general": the hub's `messages_open` tool, or
   `POST /messages/open {channel}`). `ChatRemote` (self-installing, like `DraftPresenter`) takes the hub's
-  `messages.open`, shows that conversation on its provider's panel
-  (`ChatPanel.ForChannel`: team chat, or the iMessage panel for an `im:` chat), opening MSG mode when it is closed (like tapping a Mentions
+  `messages.open`, shows that conversation on the chat panel
+  (`ChatPanel.ForChannel`), opening MSG mode when it is closed (like tapping a Mentions
   card), and answers `messages.opened {ok, reason?}` in the same frame (`not_at_desk` away from the desk), so Albie says
   what really happened. A DM the hub just opened gets a row at once (`ChatStore.Provisional`).
 
@@ -84,8 +84,7 @@ translucent slate (`ChatUi.CardFill`) and accent `ForgeTheme.Messages` (#A77BFF)
 | `Scripts/DraftCard.cs` | The Send / Cancel card. |
 | `Scripts/MessagesDeskZone.cs` | Marker + desk-frame `Footprint` the pet keeps clear of while cards float (unchanged). |
 | `Editor/MessagesPrefabBuilder.cs` | **Forge > Messages > Build Prefabs** builds the four prefabs below (and deletes the old MessagesPanel.prefab). |
-| `Resources/ChatPanel.prefab`, `IMessagePanel.prefab` (panel id `messages-imessage`), `MentionsPanel.prefab`, `MessageCard.prefab`, `DraftCard.prefab` | Built, not hand-edited; commit them with their `.meta`s. |
-| `Scripts/MessagesLayout.cs` | Adds the iMessage panel to MSG mode at runtime (center, the chat panel moves right) only when the hub's `/health` reports `imessage.available`; otherwise MSG is unchanged. No scene edit. |
+| `Resources/ChatPanel.prefab`, `MentionsPanel.prefab`, `MessageCard.prefab`, `DraftCard.prefab` | Built, not hand-edited; commit them with their `.meta`s. |
 
 ## Slotting it into Main (Hudson)
 
@@ -111,6 +110,11 @@ nothing in the scene: they add themselves at load when a `DeskPresence` exists.
    DM. Standing away from the desk, Albie says to sit down first.
 
 ## Notes
+
+- One provider only. The laptop hub can still emit items tagged for a provider the app dropped (its `source` tag, or
+  `im:` conversation ids): `ChatStore.Unsupported` drops them where they arrive (channel list, messages, digest,
+  history, own sends), `DraftPresenter` and the panel ignore such drafts, and `ChatRemote` leaves such a
+  `messages.open` unanswered (the hub's wait times out). No warning, no row, no card.
 
 - Everything goes through `ForgeNet` (events + REST) except `PATCH /messages/drafts/{id}`, which ForgeNet lacks:
   `ChatNet.Patch` runs the same `UnityWebRequest` shape on `ForgeNet.Url(path)` from the ForgeNet instance.

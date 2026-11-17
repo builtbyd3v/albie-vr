@@ -30,12 +30,6 @@ public class ChatButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
         rest = ChatUi.AccentA(0.88f), hover = ChatUi.AccentA(1f), on = ChatUi.AccentA(1f), onHover = ChatUi.AccentA(1f),
         ink = ChatUi.Ink, onInk = ChatUi.Ink, bold = true,
     };
-    /// <summary>Apple blue primary action used by the iMessage composer.</summary>
-    public static readonly Look IMessagePrimary = new Look
-    {
-        rest = ChatUi.IMessageBlue, hover = new Color(0.58f, 0.42f, 0.97f), on = ChatUi.IMessageBlue,
-        onHover = new Color(0.58f, 0.42f, 0.97f), ink = Color.white, onInk = Color.white, bold = true,
-    };
     /// <summary>Conversation and mention rows: the module's card fill, lighter when pointed at, solid when selected.</summary>
     public static readonly Look Row = new Look
     {
@@ -49,12 +43,6 @@ public class ChatButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
     public static readonly Look SideRow = new Look
     {
         rest = ChatUi.Clear, hover = ChatUi.MsgSideHover, on = ChatUi.MsgSideOn, onHover = ChatUi.MsgSideOnHover,
-        ink = ChatUi.MsgSideText, onInk = Color.white,
-    };
-    /// <summary>An iMessage panel conversation: no fill until pointed at, Apple's blue when open.</summary>
-    public static readonly Look IMessageRow = new Look
-    {
-        rest = ChatUi.Clear, hover = ChatUi.White(0.07f), on = ChatUi.IMessageBlue, onHover = new Color(0.58f, 0.42f, 0.97f),
         ink = ChatUi.MsgSideText, onInk = Color.white,
     };
     /// <summary>A quiet text button in the conversation (Ask Albie, Cancel, Load earlier).</summary>
