@@ -1,6 +1,6 @@
 # Testing the slalom on a Quest (hands only)
 
-> Written 2026-11-16 by Satyabrata, for whoever tests tonight. Build: `Forge-os-merge.apk`, from branch `satyabrata/os-merge-main` (PR #80 into `feat/albie-os`). It has Hudson's OS menu, the merged Artifacts and ML work, and the new slalom buttons.
+> Written 2026-11-16 by Satyabrata, for whoever tests tonight. Build: `Forge-slalom-board.apk`, from branch `satyabrata/slalom-scoreboard-to-you` (into `feat/albie-os`). It has Hudson's OS menu, the merged Artifacts and ML work, the new slalom buttons, and the scoreboard that comes to you and says where the course is.
 
 ## What the slalom is for
 
@@ -20,7 +20,7 @@ The biology models are things to look at. The slalom is something Albie learns t
 - **Install:**
 
 ```
-adb install -r Forge-os-merge.apk
+adb install -r Forge-slalom-board.apk
 ```
 
 If it fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, an older build signed on another machine is installed. Remove it first:
@@ -36,8 +36,8 @@ The app is listed as **"unity"** under Unknown Sources (the real name and packag
 1. **Open the menu.** Turn your left wrist as if checking a watch and poke the small button with your right index finger. Or use the corner button low in your view, or the round button on a table.
 2. **Tap the Slalom tile** (it says "on your floor").
 3. **Tap Allow** on the sheet that appears in front of you. It asks once, for the room and the truck.
-4. **Look around.** The course is laid where your floor is free, which may be to your side or behind you. Look for orange cones on the floor, a green box (the start, with the orange truck in it) and a white box (the finish). The **scoreboard panel** stands next to the start.
-5. **On the scoreboard, tap "Drive a lap".**
+4. **The scoreboard comes up in front of you.** Its first line says where the course starts, for example "The course starts behind you, about 3 m away. The truck waits in the green box." Albie says the same. The course is laid where your floor is free: look for orange cones, a green box (the start, with the orange truck in it) and a white box (the finish).
+5. **On the scoreboard, tap "Drive a lap"**, then turn to the course.
 6. **Drive the truck through every gate to the white box.**
    - Pinch your right thumb and index finger together: the truck goes. A light pinch crawls.
    - Tilt the pinching hand: pinky side down turns right, thumb side down turns left.
@@ -67,7 +67,7 @@ Write down anything that felt wrong, especially: the pinch too sensitive or too 
 
 ## Known problems (not fixed yet)
 
-- **The course and its scoreboard can land out of view.** In the Editor test the scoreboard stood 78° to the side and 2 m away, next to the start. Look around after Allow.
+- **The scoreboard is not beside the course any more.** It comes to you, so while you drive it may be behind you. You can grab it by its handles and move it.
 - **The pinch thresholds and the tilt for full lock are a first guess.** They have never run on a headset.
 - **Hudson's Drive pad also drives the truck.** If both are on screen, use one.
 - **The hoop course is hidden** from the menu: it is for a drone, and the app has none.
