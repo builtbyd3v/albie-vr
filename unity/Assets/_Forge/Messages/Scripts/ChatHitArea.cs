@@ -6,7 +6,7 @@ using UnityEngine.UI;
 /// (a scroll viewport, so dragging empty space scrolls; a row's hover zone). Same idea as CAD's CadHitArea.
 /// </summary>
 [RequireComponent(typeof(CanvasRenderer))]
-public class SlackHitArea : Graphic
+public class ChatHitArea : Graphic
 {
     protected override void OnPopulateMesh(VertexHelper vh) => vh.Clear();
 }

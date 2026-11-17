@@ -6,11 +6,11 @@ using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
 
-// REST shapes of the Slack panel that aren't /ws events (those are in Core/Net/ForgeEvents.cs: NotifyMessage,
-// SlackChannel, NotifyChannels, NotifyDraft, ...). Contract: PROJECT_CONTEXT 7 / 8.8.
+// REST shapes of the chat panel that aren't /ws events (those are in Core/Net/ForgeEvents.cs: NotifyMessage,
+// ChatChannel, NotifyChannels, NotifyDraft, ...). Contract: PROJECT_CONTEXT 7 / 8.8.
 
 /// <summary>GET /messages/history?channel=&amp;limit=&amp;before= : one conversation, oldest first.</summary>
-public class SlackHistory
+public class ChatHistory
 {
     [JsonProperty("channel")] public string channel;
     [JsonProperty("channel_name")] public string channelName;
@@ -20,13 +20,13 @@ public class SlackHistory
 }
 
 /// <summary>GET /messages/channels.</summary>
-public class SlackChannelList
+public class ChatChannelList
 {
-    [JsonProperty("channels")] public System.Collections.Generic.List<SlackChannel> channels = new System.Collections.Generic.List<SlackChannel>();
+    [JsonProperty("channels")] public System.Collections.Generic.List<ChatChannel> channels = new System.Collections.Generic.List<ChatChannel>();
 }
 
 /// <summary>GET /messages/users/me: who the user token belongs to (so the panel knows which mentions are "me").</summary>
-public class SlackMe
+public class ChatMe
 {
     [JsonProperty("user_id")] public string userId;
     [JsonProperty("name")] public string name;
@@ -36,9 +36,9 @@ public class SlackMe
 
 /// <summary>
 /// ws <c>messages.open</c> (hub -> Unity): Albie's messages_open. Show this conversation, opening MSG mode if needed;
-/// <see cref="SlackRemote"/> answers <c>messages.opened {pet_id, request_id, channel, ok, reason?}</c>.
+/// <see cref="ChatRemote"/> answers <c>messages.opened {pet_id, request_id, channel, ok, reason?}</c>.
 /// </summary>
-public class SlackOpenRequest
+public class ChatOpenRequest
 {
     [JsonProperty("pet_id")] public string petId;
     [JsonProperty("request_id")] public string requestId;
@@ -47,8 +47,8 @@ public class SlackOpenRequest
     [JsonProperty("kind")] public string kind;                 // channel | private | dm | group-dm
 }
 
-/// <summary>ws <c>messages.opened</c> (Unity -> hub): <see cref="SlackRemote"/>'s answer to <see cref="SlackOpenRequest"/>.</summary>
-public class SlackOpened
+/// <summary>ws <c>messages.opened</c> (Unity -> hub): <see cref="ChatRemote"/>'s answer to <see cref="ChatOpenRequest"/>.</summary>
+public class ChatOpened
 {
     [JsonProperty("pet_id")] public string petId;
     [JsonProperty("request_id")] public string requestId;
@@ -58,23 +58,23 @@ public class SlackOpened
 }
 
 /// <summary>POST /messages/drafts/{id}/send.</summary>
-public class SlackSendReply
+public class ChatSendReply
 {
     [JsonProperty("ts")] public string ts;
 }
 
 /// <summary>
-/// Text helpers shared by the Slack panel, the Mentions panel and the cards: Slack ts maths, relative times, initials,
-/// and Slack's message markup (&lt;@U..&gt;, &lt;#C..|name&gt;, &lt;url|label&gt;, &amp;amp;) rendered as TMP rich text.
+/// Text helpers shared by the chat panel, the Mentions panel and the cards: message ts maths, relative times, initials,
+/// and the message markup (&lt;@U..&gt;, &lt;#C..|name&gt;, &lt;url|label&gt;, &amp;amp;) rendered as TMP rich text.
 /// Called when data changes, never per frame.
 /// </summary>
-public static class SlackText
+public static class ChatText
 {
     static readonly char[] LineBreaks = { '\n', '\r' };
     static readonly StringBuilder sb = new StringBuilder(512);
     static string accentHex;
 
-    /// <summary>Slack ts ("1729800000.123456") as seconds; 0 when unparsable.</summary>
+    /// <summary>message ts ("1729800000.123456") as seconds; 0 when unparsable.</summary>
     public static double Ts(string ts) =>
         double.TryParse(ts, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : 0;
 
@@ -163,7 +163,7 @@ public static class SlackText
     public static string Bare(string name) => string.IsNullOrEmpty(name) || name[0] != '#' ? name : name.TrimStart('#');
 
     /// <summary>"#forge-team" for channels (exactly one '#'), the person's (or group's) name for DMs.</summary>
-    public static string DisplayName(SlackChannel c)
+    public static string DisplayName(ChatChannel c)
     {
         if (c == null) return "";
         string name = string.IsNullOrEmpty(c.name) ? c.id : c.name;
@@ -171,7 +171,7 @@ public static class SlackText
     }
 
     /// <summary>What the sidebar row and the header show next to their '#' / lock / avatar: the name with no '#'.</summary>
-    public static string PlainName(SlackChannel c)
+    public static string PlainName(ChatChannel c)
     {
         if (c == null) return "";
         return Bare(string.IsNullOrEmpty(c.name) ? c.id : c.name);
@@ -184,7 +184,7 @@ public static class SlackText
         return s <= 0 ? DateTime.MinValue : DateTimeOffset.FromUnixTimeMilliseconds((long)(s * 1000.0)).LocalDateTime;
     }
 
-    /// <summary>"4:15 PM", like Slack beside a name.</summary>
+    /// <summary>"4:15 PM", beside a name.</summary>
     public static string ClockTime(string ts)
     {
         var t = Local(ts);
@@ -198,7 +198,7 @@ public static class SlackText
         return t == DateTime.MinValue ? "" : t.ToString("h:mm", CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Slack's day divider: "Today", "Yesterday", "Monday", "Wednesday, October 22nd", "March 3rd, 2025".</summary>
+    /// <summary>The day divider: "Today", "Yesterday", "Monday", "Wednesday, October 22nd", "March 3rd, 2025".</summary>
     public static string DayLabel(DateTime day)
     {
         var today = DateTime.Now.Date;
@@ -238,18 +238,18 @@ public static class SlackText
         return h & 0x7fffffff;
     }
 
-    /// <summary>How mentions and links look: the Mentions cards' accent, or Slack's own (blue links, yellow for you).</summary>
-    public enum Look { Accent, Slack }
+    /// <summary>How mentions and links look: the Mentions cards' accent, or the panel's own (violet links, a lime mark for you).</summary>
+    public enum Look { Accent, Panel }
 
-    // Slack's dark theme: links and other people's mentions blue on a faint blue, the user's own mentions and @here
-    // yellow on a faint yellow, inline code orange on a faint white.
-    const string SlackBlue = "#C7A8FF", SlackBlueBg = "#A77BFF26", SlackYellow = "#F2C744", SlackYellowBg = "#F2C74438";
+    // The panel look: links and other people's mentions blue on a faint blue, the user's own mentions and @here
+    // as a lime sticker mark with ink text, inline code amber on a faint white.
+    const string LinkHex = "#C7A8FF", LinkBgHex = "#A77BFF26", MeHex = MessagesLook.MentionMarkHex, MeBgHex = MessagesLook.MentionMarkHex + "33";  // TMP draws a mark over the text, so it stays see-through: lime text on a faint lime
     const string CodeOpen = "<color=#E8912D><mark=#FFFFFF12>", CodeClose = "</mark></color>";
-    // Bold without most of TMP's faux-bold letter spacing (SlackUi.SetBold does the same for whole texts).
+    // Bold without most of TMP's faux-bold letter spacing (ChatUi.SetBold does the same for whole texts).
     public const string BoldOpen = "<b><cspace=-0.055em>", BoldClose = "</cspace></b>";
 
     /// <summary>
-    /// Slack markup to TMP rich text: &lt;@U..&gt; becomes @name (the user's own mentions in the accent, bold), &lt;#C..|x&gt;
+    /// Chat markup to TMP rich text: &lt;@U..&gt; becomes @name (the user's own mentions in the accent, bold), &lt;#C..|x&gt;
     /// becomes #x, &lt;!here&gt; @here, links show their label, HTML entities are unescaped and stray angle brackets are
     /// kept literal. <paramref name="nameOf"/> resolves a user id to a name (null = unknown -> "user").
     /// </summary>
@@ -257,11 +257,11 @@ public static class SlackText
         Render(text, meId, nameOf, accent, Look.Accent);
 
     /// <summary>
-    /// <see cref="Render(string, string, Func{string, string}, Color)"/> in Slack's colours, plus Slack's inline
+    /// <see cref="Render(string, string, Func{string, string}, Color)"/> in the panel's colours, plus inline
     /// formatting: *bold*, _italic_, ~strike~, `code` and ```code blocks```.
     /// </summary>
-    public static string RenderSlack(string text, string meId, Func<string, string> nameOf) =>
-        Render(text, meId, nameOf, default, Look.Slack);
+    public static string RenderPanel(string text, string meId, Func<string, string> nameOf) =>
+        Render(text, meId, nameOf, default, Look.Panel);
 
     // Closing tags waiting at a later index (the formatting pairs found ahead of time); small and reused.
     static readonly int[] closeAt = new int[16];
@@ -280,7 +280,7 @@ public static class SlackText
         {
             if (closes > 0 && TryClose(i, out int skip)) { i += skip; continue; }
             char c = text[i];
-            if (look == Look.Slack && TryOpen(text, i, out int open)) { i += open; continue; }
+            if (look == Look.Panel && TryOpen(text, i, out int open)) { i += open; continue; }
             if (c == '<')
             {
                 int end = text.IndexOf('>', i + 1);
@@ -316,7 +316,7 @@ public static class SlackText
         return true;
     }
 
-    // Slack's inline formatting at i: a marker at a word start, its twin later on the same line at a word end, and no
+    // Inline formatting at i: a marker at a word start, its twin later on the same line at a word end, and no
     // space just inside either. Emits the opening tag and queues the closing one.
     static bool TryOpen(string s, int i, out int skip)
     {
@@ -372,7 +372,7 @@ public static class SlackText
     static void AppendToken(string token, string meId, Func<string, string> nameOf, Look look)
     {
         if (token.Length == 0) return;
-        bool slack = look == Look.Slack;
+        bool panelLook = look == Look.Panel;
         int bar = token.IndexOf('|');
         string head = bar >= 0 ? token.Substring(0, bar) : token;
         string label = bar >= 0 ? token.Substring(bar + 1) : null;
@@ -381,14 +381,14 @@ public static class SlackText
             string id = head.Substring(1);
             string name = label ?? nameOf?.Invoke(id) ?? "user";
             bool me = !string.IsNullOrEmpty(meId) && id == meId;
-            if (slack) Highlight(me ? SlackYellow : SlackBlue, me ? SlackYellowBg : SlackBlueBg, name);
+            if (panelLook) Highlight(me ? MeHex : LinkHex, me ? MeBgHex : LinkBgHex, name);
             else if (me) sb.Append("<b><color=").Append(accentHex).Append(">@").Append(name).Append("</color></b>");
             else sb.Append("<alpha=#D0>@").Append(name).Append("<alpha=#FF>");
         }
         else if (head.StartsWith("#"))
         {
             string name = label ?? head.Substring(1);
-            if (slack) sb.Append("<color=").Append(SlackBlue).Append(">#").Append(name).Append("</color>");
+            if (panelLook) sb.Append("<color=").Append(LinkHex).Append(">#").Append(name).Append("</color>");
             else sb.Append("<alpha=#D0>#").Append(name).Append("<alpha=#FF>");
         }
         else if (head.StartsWith("!"))
@@ -396,12 +396,12 @@ public static class SlackText
             string what = head.Substring(1);
             int caret = what.IndexOf('^');
             if (caret >= 0) sb.Append(label ?? "@group");  // <!subteam^S..|@group>
-            else if (slack) Highlight(SlackYellow, SlackYellowBg, label ?? what);
+            else if (panelLook) Highlight(MeHex, MeBgHex, label ?? what);
             else sb.Append("<b><color=").Append(accentHex).Append(">@").Append(label ?? what).Append("</color></b>");
         }
-        else if (slack)
+        else if (panelLook)
         {
-            sb.Append("<color=").Append(SlackBlue).Append('>').Append(label ?? head).Append("</color>");  // a link
+            sb.Append("<color=").Append(LinkHex).Append('>').Append(label ?? head).Append("</color>");  // a link
         }
         else
         {
@@ -409,7 +409,7 @@ public static class SlackText
         }
     }
 
-    // "@name" in Slack's mention colours. A label that already starts with '@' (<!here|@here>) keeps just the one.
+    // "@name" in the panel's mention colours. A label that already starts with '@' (<!here|@here>) keeps just the one.
     static void Highlight(string color, string background, string name)
     {
         sb.Append("<mark=").Append(background).Append("><color=").Append(color).Append('>');
@@ -430,14 +430,14 @@ public static class SlackText
 /// re-emits notify.draft with edited: true). Same base URL (<see cref="ForgeNet.Url"/>) and the same JSON / callback
 /// shape as ForgeNet.Post; the coroutine runs on the ForgeNet instance. Live hub only: no mock path.
 /// </summary>
-public static class SlackNet
+public static class ChatNet
 {
     public static Coroutine Patch<T>(string path, object body, Action<T> ok, Action<string> fail = null) =>
         ForgeNet.Instance.StartCoroutine(PatchRoutine(path, body, text => ok?.Invoke(JsonConvert.DeserializeObject<T>(text)), fail));
 
     static IEnumerator PatchRoutine(string path, object body, Action<string> ok, Action<string> fail)
     {
-        fail = fail ?? (error => Debug.LogWarning($"[SlackNet] PATCH {path} failed: {error}"));
+        fail = fail ?? (error => Debug.LogWarning($"[ChatNet] PATCH {path} failed: {error}"));
         if (ForgeNet.Status != ForgeNetStatus.Live)
         {
             yield return null;

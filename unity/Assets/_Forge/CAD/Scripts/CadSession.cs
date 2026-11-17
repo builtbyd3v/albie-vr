@@ -160,6 +160,7 @@ public class CadSession : MonoBehaviour
         ForgeEvents.OnCadAction += OnCadAction;
         ForgeNet.StatusChanged += OnNetStatus;
         cloudReady = ForgeNet.On("cloud.ready", _ => { if (Ready && IsMock && mode == Mode.Auto) StartHub(); });  // the cloud came up later
+        ForgeCloud.StateChanged += OnCloudState;
     }
 
     void OnDisable()
@@ -169,6 +170,7 @@ public class CadSession : MonoBehaviour
         ForgeEvents.OnCadRegenFailed -= OnRegenFailed;
         ForgeEvents.OnCadAction -= OnCadAction;
         ForgeNet.StatusChanged -= OnNetStatus;
+        ForgeCloud.StateChanged -= OnCloudState;
         cloudReady?.Dispose();
         cloudReady = null;
     }
@@ -203,7 +205,7 @@ public class CadSession : MonoBehaviour
         if (IsMock)
         {
             if (mocks == null || mocks.parts.Count == 0) { SetStatus("No hub and no mocks."); yield break; }
-            SetStatus("Mock mode (hub off): sliders jump to the nearest stored design.");
+            SetMockStatus();
             RefreshParts();
             ShowMockPart(0);
         }
@@ -725,6 +727,19 @@ public class CadSession : MonoBehaviour
         SetStatus(failure.errorLine.HasValue ? $"{failure.error} (part script line {failure.errorLine})" : failure.error);
         Fail(failure);
         ParamsChanged?.Invoke();  // snap the sliders back to the version that's still up
+    }
+
+    // Mock mode's status line; it says when Albie's cloud is waking or offline (ForgeCloud).
+    void SetMockStatus()
+    {
+        string cloud = ForgeCloud.StatusLine;
+        SetStatus(cloud == null ? "Mock mode (hub off): sliders jump to the nearest stored design."
+                                : cloud + " Stored designs only: sliders jump to the nearest one.");
+    }
+
+    void OnCloudState(CloudState state)
+    {
+        if (Ready && IsMock && mode == Mode.Auto && mocks != null && mocks.parts.Count > 0) SetMockStatus();
     }
 
     void OnNetStatus(ForgeNetStatus status)

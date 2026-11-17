@@ -15,7 +15,7 @@ namespace Forge.Pet
     /// Look-to-talk: the follow-up window only watches the mic (nothing sent). Speech while facing Albie opens a
     /// normal turn; speech while looking elsewhere opens a gated turn (stt.start {require_name}) that the hub answers
     /// only if it names Albie ("Albie, ..."), so teammates talking at the desk are not answered. Facing = within
-    /// lookAngle of its body (plus its apparent size), or within the last lookGrace seconds.
+    /// LookAngle of its body (plus its apparent size), within the last lookGrace seconds, or while it sits on the palm.
     /// Cutting Albie off: facing it stops it at once; otherwise only "Albie, stop" does (the hub decides).
     /// Space / A / the whistle always open a turn.
     /// WakeListener reads UserFacing too: facing Albie answers any hands-free turn, not only in this window.
@@ -23,6 +23,11 @@ namespace Forge.Pet
     [DisallowMultipleComponent]
     public class AlbieFollowUp : MonoBehaviour
     {
+        // Free speech: face Albie and talk. Max angle (degrees) between where the user looks and Albie's body; his
+        // apparent size (~14 deg at the desk) is added on top. Quest 2026-11-03: facing him read 0-16 deg, side talk
+        // 30-62 deg; 15 felt too strict, so 30 (+ size, ~44) catches a loose look and still drops most side talk.
+        const float LookAngle = 30f;
+
         [SerializeField, Tooltip("TTS to follow (ITextToSpeech). Auto-found in children / parents if empty.")]
         MonoBehaviour tts;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
@@ -61,12 +66,10 @@ namespace Forge.Pet
         [Header("Look to talk")]
         [SerializeField, Tooltip("Hands-free speech only counts while the user faces Albie, or names it (\"Albie, ...\"). Buttons and the whistle always work.")]
         bool lookToTalk = true;
-        [SerializeField, Tooltip("Max angle (degrees) between where the user looks and Albie's body (its apparent size is added on top).")]
-        float lookAngle = 40f;   // 25 never fired on the Quest (live 18:3x: facing=False every turn)
         [SerializeField, Tooltip("Looking at Albie this recently (s) still counts: you glance at it, then turn to speak.")]
         float lookGrace = 1.5f;
         [SerializeField, Tooltip("Facing Albie counts as saying its name. Off: every hands-free sentence needs \"Albie\" (at the desk it sits in front of the screen, so looking at the screen read as looking at it). Pair with the hub's VOICE_FACING=1.")]
-        bool lookCountsAsName;
+        bool lookCountsAsName = true;
 
         ITextToSpeech _tts;
         ITalkLevel _talk;
@@ -170,7 +173,12 @@ namespace Forge.Pet
             if (pushToTalk.SessionActive || s == AlbieState.Thinking || s == AlbieState.Working || s == AlbieState.Error) { StopMonitor(); return; }
             if (lookToTalk && StartMonitor()) { _attending = true; _attendUntil = Time.time + listenSeconds; }
             else if (pushToTalk.CanListenHandsFree && GateNextTurn() && pushToTalk.BeginHandsFree(listenSeconds)) _following = true;
-            else if (wanderAwayWhenDone) controller.WanderAway();
+            else
+            {
+                // A gate set for a turn that never opened would gate the next one (the palm's, a button's) instead.
+                if (pushToTalk.Provider is HubSpeechToText gated) gated.RequireName = false;
+                if (wanderAwayWhenDone) controller.WanderAway();
+            }
         }
 
         // The no-monitor fallback (mic busy, other STT) is a follow-up too: gated like CheckSpeech's turns. Live 18:31 it
@@ -195,10 +203,11 @@ namespace Forge.Pet
             if (_monitor != null) { _monitor.StopMonitoring(); _monitor = null; }
         }
 
-        /// <summary>The user looks at Albie, or did within lookGrace. False with look-to-talk off or no camera.</summary>
-        public bool UserFacing => lookToTalk && (FacingNow() || Time.time - _lastLookAt <= lookGrace);
+        /// <summary>The user looks at Albie, or did within lookGrace, or he sits on their palm (the palm gesture called
+        /// him: that conversation is with him wherever they look). False with look-to-talk off or no camera.</summary>
+        public bool UserFacing => lookToTalk && (FacingNow() || Time.time - _lastLookAt <= lookGrace || (controller != null && controller.Perched));
 
-        // Within lookAngle of Albie's body, plus half its apparent size, so it works across the desk and up close.
+        // Within LookAngle of Albie's body, plus half its apparent size, so it works across the desk and up close.
         bool FacingNow()
         {
             var cam = Camera.main;
@@ -210,7 +219,7 @@ namespace Forge.Pet
             float dist = to.magnitude;
             if (dist < 0.1f) return true;
             LastLookAngle = Vector3.Angle(cam.transform.forward, to);
-            LastLookLimit = lookAngle + Mathf.Rad2Deg * Mathf.Atan2(radius, dist);
+            LastLookLimit = LookAngle + Mathf.Rad2Deg * Mathf.Atan2(radius, dist);
             return LastLookAngle <= LastLookLimit;
         }
 
@@ -237,11 +246,19 @@ namespace Forge.Pet
             if (pushToTalk.BeginHandsFree())
             {
                 pushToTalk.MarkSpeechHeard();         // 0.3 s of speech is already in the pre-roll
-                // Quiet at once (free speech: no need to face him; live 11:04 the hub saw facing=False on every turn).
-                if (cutIn) _tts.Stop();
+                // Quiet at once, but only when facing him: side talk over him must not cut him off (or reach Grok).
+                if (cutIn && facing) _tts.Stop();
                 _following = reply;
             }
             else { hub.RequireName = false; hub.StopMonitoring(); }
+        }
+
+        /// <summary>Headset off / back on (AppLifecycle): close the follow-up window and let go of the mic, asking nothing.</summary>
+        public void Halt()
+        {
+            _startAt = _retryAt = -1f;
+            _attending = _following = _speaking = false;
+            StopMonitor();
         }
 
         void OnSessionEnded(bool answered)

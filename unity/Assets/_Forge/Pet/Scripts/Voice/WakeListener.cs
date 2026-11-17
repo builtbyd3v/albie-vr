@@ -30,7 +30,7 @@ namespace Forge.Pet
         AlbieAgentBridge bridge;
         [SerializeField, Tooltip("Auto-found on this GameObject / scene if empty.")]
         PushToTalk pushToTalk;
-        [SerializeField, Tooltip("Look-to-talk cone (its lookAngle). Auto-found on this GameObject / scene if empty.")]
+        [SerializeField, Tooltip("Look-to-talk cone (its LookAngle). Auto-found on this GameObject / scene if empty.")]
         AlbieFollowUp followUp;
 
         [Header("Voice activity detection")]
