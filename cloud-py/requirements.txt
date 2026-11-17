@@ -10,3 +10,4 @@ pillow==13.0.0
 scipy==1.18.1
 numpy==2.5.4
 httpx==0.28.1  # forge SDK: training runs post their live events back
+pyarrow==26.0.1  # ml_new reads Hugging Face Parquet exports (hub/ml/hf_data.py)

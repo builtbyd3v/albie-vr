@@ -13,8 +13,9 @@ using UnityEngine;
 /// </summary>
 public static class VoiceRulesCheck
 {
-    // Make a course, "that didn't work", v1 vs v2, "drive it twice and I'll learn it", train the template.
-    static readonly string[] DemoTools = { "artifact_create", "notebook_mark", "notebook_compare", "brain_record", "template_train" };
+    // Make a course, "that didn't work", v1 vs v2, "drive it twice and I'll learn it", train the template,
+    // "start an RNN project".
+    static readonly string[] DemoTools = { "artifact_create", "notebook_mark", "notebook_compare", "brain_record", "template_train", "ml_new" };
 
     [MenuItem("Forge/Artifacts/Check Voice Rules")]
     static void Menu()

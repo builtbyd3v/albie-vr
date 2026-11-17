@@ -62,6 +62,39 @@ Set optional `GITHUB_TOKEN` in the hub environment to raise GitHub API rate limi
 - **Interpreter:** the repo's `.venv`/`venv`/`env`, else the active conda env, else the hub's own Python; stored as `profile.python`.
 - Tests (`ml/tests/test_setup.py`) use a fake LLM: no key, no cost.
 
+## Albie starts a new project (`ml_new`)
+
+"Albie, start an RNN project" or "build a CNN on handwritten digits": one call, and about 15 to 60 seconds later the ML
+desk is open with a model training on a Hugging Face dataset. It works on the cloud (no laptop) and on the hub.
+
+1. **Plan** (`new_project.plan`, about a second, no rows downloaded): the model from what the user said (RNN, LSTM, GRU,
+   Transformer, CNN or MLP), and the dataset: a named Hugging Face id, else a known phrase (`hf_data.ALIASES`: movie
+   reviews → `stanfordnlp/imdb`, digits → `ylecun/mnist`, ...), else a Hub search, else the default (IMDB for text,
+   Fashion-MNIST for images). `hf_data.inspect` reads the columns (a text or Image column plus a ClassLabel or small
+   int/str label), the splits and the license, and refuses gated or private datasets, or ones with no labels, with a
+   reason Albie says. The tool answers with the plan, so Albie says what he's building.
+2. **Build** (in the background): a sample (4,000 + 500 texts, or 2,000 + 400 images at most 64 px) from the dataset's
+   **Parquet export** (a few CDN downloads, images included; big files by HTTP range, only the row groups needed),
+   with the rows API as fallback. It's balanced across classes and seeded, so the same request gets the same data, and
+   it's cached in `FORGE_HF_CACHE` (the cloud image pre-fills it: `python -m ml.new_project warm`). Then the project
+   folder is written from a **reviewed template** (`templates/text`, `templates/image`): `train.py`, `model.py` (every
+   model; `project.json` picks one), `data.py`, a README and a hand-written `.forge/`. Albie never runs code he wrote.
+3. **Open and train:** the normal setup finds the `.forge/` and passes `forge.check` with no LLM call, the `ml.layout`
+   opens the desk (text or image panels), training streams live, and Albie says the score at the end. The results
+   show the best epoch's checkpoint, the one he reports.
+
+Where: `<data dir>/ml/new/<model>-<dataset>-<time>/` (the cloud: per headset; the 4 newest are kept). The cloud trains
+only its own project and the ones under that headset's `new/` (`cloud-py/app.py` `DeviceML`).
+
+Measured on the cloud app run locally (`cloud-py/app.py` on a Mac CPU, 8 epochs, data cached; from the tool call to
+"Done!"): RNN on IMDB 76% in 14 s; LSTM on emotion 67% in 23 s; GRU on MNIST (row by row) 87% in 10 s; CNN on
+Fashion-MNIST 85% in 18 s; CNN on CIFAR-10 49% in 17 s; Transformer on AG News 71% in 30 s, and "improve it" + "yes"
+took that to 73%. Uncached, the Transformer on Yelp 5-star (downloaded live) was 44% in 60 s.
+Not yet: regression, time series, tabular data, object detection; Albie says so.
+
+"What can I do better?" on one of these: Claude writes the change (the proxy on the cloud), and the cloud's free
+fallback (`cloud-py/text_improve.py`) regularizes an overfitting project or trains a close one twice as long.
+
 ## Albie improves the model (demo)
 
 Voice tools in `tools.py` (registered in `main.py`), with the logic in `improve.py`:

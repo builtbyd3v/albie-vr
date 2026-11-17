@@ -126,13 +126,16 @@ def training_now() -> int:
 class DeviceML(MLService):
     """The device's copy of the cloud's ML project. Runs post their live events back to this device."""
 
-    def __init__(self, repo: Path, device: str) -> None:
+    def __init__(self, repo: Path, device: str, built: Path) -> None:
         super().__init__(repo)
+        self.home = self.repo
+        self.built = built.resolve()  # ml_new's projects: reviewed templates plus downloaded data, no foreign code
         self.ingest_url = f"http://127.0.0.1:{PORT}/_in/{INTERNAL}/{device}"
 
     def open_project(self, path: str) -> Path:
-        if Path(path).resolve() != self.repo:
-            raise Conflict("the cloud trains only its own project")
+        target = Path(path).resolve()
+        if target != self.home and target.parent != self.built:
+            raise Conflict("the cloud trains only its own project and the ones Albie built for this headset")
         return super().open_project(path)
 
     def start_training(self, epochs: int, hub_url: str) -> str:
@@ -143,7 +146,13 @@ class DeviceML(MLService):
 
 class DeviceMLTools(MLTools):
     def resolve(self, name: str) -> Path:
-        return self.svc.repo  # one project per device: whatever the user called it
+        """The project this headset used last (one ml_new built, kept across a restart or the Space's sleep),
+        else its copy of the cloud's own project. A name picks among them; anything else is the last one."""
+        svc = self.svc
+        mine = [p for p in (Path(r).resolve() for r in self.recent()) if p == svc.home or p.parent == svc.built]
+        key = name.lower().replace(" ", "").replace("-", "").replace("_", "")
+        named = [p for p in mine if key and key in p.name.lower().replace("-", "").replace("_", "")]
+        return (named or mine or [svc.repo])[0]
 
 
 def copy_template(dest: Path) -> None:
@@ -216,7 +225,7 @@ class Device:
         self.cad = CadService(root / "cad", HUB / "cad" / "parts" / "rocket.py", self.bus)
         self.cad._worker = POOL
         copy_template(root / "ml" / ML_TEMPLATE.name)
-        self.ml = DeviceML(root / "ml" / ML_TEMPLATE.name, device_id)
+        self.ml = DeviceML(root / "ml" / ML_TEMPLATE.name, device_id, root / "ml" / "new")
         app = FastAPI(title=f"Albie cloud device {device_id}")
         app.state.bus, app.state.cad, app.state.ml = self.bus, self.cad, self.ml
         app.state.ml_llm = proxy_llm if CLAUDE_PROXY_URL else no_llm

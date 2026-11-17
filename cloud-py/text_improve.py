@@ -4,9 +4,15 @@ Claude isn't reachable: hub/ml/improve.py's `scripted` path, for this project in
 The run overfits from about epoch 3 (val loss rises while train accuracy heads to 100%), so the change fights that:
 weight decay, label smoothing, a cosine learning rate and fewer epochs. The patch is made from the project's own
 train.py, so the forge lines stay exactly as they are (improve.check_proposal).
+
+A project Albie built with ml_new (hub/ml/templates, a project.json beside train.py) gets the same three fixes when
+it overfits, worded for its model and data. When it doesn't (a train/val gap under 5 points), regularizing only costs
+accuracy, so it trains twice as long with a cosine learning rate instead (measured: LSTM on MNIST 88% -> 93%, CNN on
+Fashion-MNIST 83% -> 86%).
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 EDITS = [
@@ -27,9 +33,20 @@ EDITS = [
 ]
 
 
-def patched(train_py: Path) -> str:
+# ml_new's templates have the same lines, except the per-epoch bookkeeping the scheduler steps before.
+STEP = ("        if val_acc > best_acc:\n", "        sched.step()\n        if val_acc > best_acc:\n")
+BUILT_EDITS = EDITS[:3] + [STEP, EDITS[4]]
+LONGER_EDITS = [
+    ("    opt = torch.optim.Adam(model.parameters(), lr=args.lr)\n",
+     "    opt = torch.optim.Adam(model.parameters(), lr=args.lr)\n"
+     "    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)\n"),
+    STEP,
+]
+
+
+def patched(train_py: Path, edits: list[tuple[str, str]] = EDITS) -> str:
     text = train_py.read_text()
-    for old, new in EDITS:
+    for old, new in edits:
         if old not in text:
             raise ValueError(f"train.py changed; can't find {old.strip()!r}")
         text = text.replace(old, new, 1)
@@ -41,6 +58,8 @@ def plan(d: dict, repo: Path) -> dict:
     gap = d.get("train_val_gap")
     seen = (f"It's overfitting: {d['train_acc']:.0%} on training but {d['val_acc']:.0%} on validation."
             if gap is not None and gap > 0.05 else f"It tops out at {d.get('best_val_acc', 0):.0%} on validation.")
+    if (repo / "project.json").is_file():
+        return built_plan(d, repo, seen)
     return {
         "diagnosis": seen + " The word embeddings memorize the 12,000 headlines after two or three epochs.",
         "changes": [
@@ -53,4 +72,39 @@ def plan(d: dict, repo: Path) -> dict:
         "train_args": [],
         "epochs": 5,
         "expected": "a smaller train/val gap and about the same or better validation accuracy in under a minute",
+    }
+
+
+def built_plan(d: dict, repo: Path, seen: str) -> dict:
+    """A project ml_new built: regularize it if it overfits, else train it longer, worded for its model and data."""
+    project = json.loads((repo / "project.json").read_text())
+    model = {"rnn": "RNN", "lstm": "LSTM", "gru": "GRU", "cnn": "CNN", "mlp": "MLP"}.get(project.get("model"), "Transformer")
+    what = "texts" if project.get("task") == "text_classification" else "images"
+    n = (project.get("rows") or {}).get("train") or 0
+    epochs = int(d.get("epochs") or 8)
+    gap = d.get("train_val_gap")
+    if gap is not None and gap > 0.05:
+        return {
+            "diagnosis": f"{seen} The {model} starts memorizing the {n:,} training {what} after a few epochs.",
+            "changes": [
+                {"title": "Weight decay with AdamW", "why": "keeps the weights small, so the model can't memorize examples"},
+                {"title": "Label smoothing", "why": "stops it chasing total certainty on every training example"},
+                {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle"},
+            ],
+            "patches": [{"path": "train.py", "content": patched(repo / "train.py", BUILT_EDITS)}],
+            "train_args": [],
+            "epochs": epochs,
+            "expected": "a smaller train/val gap and about the same or better validation accuracy in under a minute",
+        }
+    longer = min(2 * epochs, 20)
+    return {
+        "diagnosis": f"{seen} Training and validation are close, so the {model} is still learning: it needs more time, not less capacity.",
+        "changes": [
+            {"title": f"{longer} epochs instead of {epochs}", "why": "it was still improving when training stopped"},
+            {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle into a better minimum"},
+        ],
+        "patches": [{"path": "train.py", "content": patched(repo / "train.py", LONGER_EDITS)}],
+        "train_args": [],
+        "epochs": longer,
+        "expected": "a few points better validation accuracy, in about twice the time",
     }
