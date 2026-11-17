@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Albie agent workflow</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #111722; color: #edf3fa; }
+    body { max-width: 880px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: .3rem; } p { color: #b9c8d9; line-height: 1.5; }
+    section, .task { background: #1d2938; border: 1px solid #3b4d63; border-radius: 12px; padding: 1rem; margin: 1rem 0; }
+    label { display: block; font-weight: 600; margin: .75rem 0 .3rem; }
+    input, textarea, select, button { font: inherit; border-radius: 6px; padding: .55rem; }
+    input, textarea, select { background: #0e1824; border: 1px solid #8194a8; color: #fff; box-sizing: border-box; }
+    textarea { width: 100%; min-height: 5rem; resize: vertical; }
+    button { background: #92dcca; color: #0a211b; border: 0; font-weight: 700; cursor: pointer; margin: .4rem .4rem 0 0; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .secondary { background: #d7e4f0; } pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+    .error { color: #ffb7ad; } .state { font-weight: 700; text-transform: capitalize; }
+  </style>
+</head>
+<body>
+  <h1>Albie agent workflow</h1>
+  <p>Run independent Claude agents in parallel against a configured project. This first version supports read-only research and review; it does not edit files. Results stay in memory until the hub restarts.</p>
+  <section>
+    <label for="project">Project</label><select id="project"></select>
+    <div id="inputs"></div>
+    <button id="add" type="button" class="secondary">Add task</button>
+    <button id="run" type="button">Run workflow</button>
+    <p id="message" role="status" aria-live="polite"></p>
+  </section>
+  <section>
+    <h2>Workflow results</h2>
+    <p id="backend">No workflow started.</p>
+    <label for="workflow">Workflow ID</label><input id="workflow" autocomplete="off">
+    <button id="load" type="button" class="secondary">Load workflow</button>
+    <div id="results" aria-live="polite"></div>
+  </section>
+  <script>
+    const $ = id => document.getElementById(id);
+    let activeId = null, timer = null, loading = false;
+    const roles = ['scout', 'reviewer', 'sentinel'];
+    function addTask(role = 'scout', value = '') {
+      if ($('inputs').children.length >= 6) return;
+      const box = document.createElement('div'); box.className = 'task';
+      const label = document.createElement('label'); label.textContent = 'Agent role';
+      const select = document.createElement('select'); select.setAttribute('aria-label', 'Agent role');
+      roles.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; select.append(o); }); select.value = role;
+      const promptLabel = document.createElement('label'); promptLabel.textContent = 'Task';
+      const prompt = document.createElement('textarea'); prompt.setAttribute('aria-label', 'Task instruction'); prompt.value = value;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'secondary'; remove.textContent = 'Remove task';
+      remove.onclick = () => { if ($('inputs').children.length > 1) box.remove(); };
+      box.append(label, select, promptLabel, prompt, remove); $('inputs').append(box);
+    }
+    async function request(url, options) {
+      const response = await fetch(url, options); const data = await response.json();
+      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Please check the task inputs.');
+      return data;
+    }
+    function display(w) {
+      $('workflow').value = w.id;
+      $('backend').textContent = w.backend === 'simulated' ? 'SIMULATED RUN — no Claude request was sent.' : 'Live Claude run · read-only';
+      $('results').replaceChildren();
+      w.tasks.forEach(t => {
+        const box = document.createElement('article'); box.className = 'task';
+        const head = document.createElement('h3'); head.textContent = t.role + ' · ' + t.state;
+        const prompt = document.createElement('p'); prompt.textContent = t.instruction;
+        const content = document.createElement('pre'); content.textContent = t.state === 'cancelled' ? 'Task cancelled.' : t.error || t.result || t.progress || (t.state === 'queued' ? 'Waiting to start…' : 'Working…');
+        box.append(head, prompt, content);
+        if (t.state === 'queued' || t.state === 'running') {
+          const stop = document.createElement('button'); stop.className = 'secondary'; stop.textContent = 'Stop task';
+          stop.onclick = async () => { stop.disabled = true; try { await request(`/agent/workflows/${w.id}/tasks/${t.id}/cancel`, {method:'POST'}); await refresh(); } catch (e) { $('message').textContent = e.message; stop.disabled = false; } };
+          box.append(stop);
+        }
+        $('results').append(box);
+      });
+      if (w.tasks.every(t => ['completed', 'failed', 'cancelled'].includes(t.state))) { clearInterval(timer); timer = null; }
+    }
+    async function refresh() {
+      if (!activeId || loading) return; loading = true;
+      try { display(await request('/agent/workflows/' + encodeURIComponent(activeId))); }
+      catch (e) { clearInterval(timer); timer = null; $('message').textContent = e.message; }
+      finally { loading = false; }
+    }
+    function watch(id) { activeId = id; clearInterval(timer); timer = setInterval(refresh, 1000); refresh(); }
+    $('add').onclick = () => addTask();
+    $('load').onclick = () => { $('message').textContent = ''; if ($('workflow').value.trim()) watch($('workflow').value.trim()); };
+    $('run').onclick = async () => {
+      $('run').disabled = true; $('message').textContent = '';
+      try {
+        const tasks = [...$('inputs').children].map(box => ({role: box.querySelector('select').value, instruction: box.querySelector('textarea').value}));
+        const w = await request('/agent/workflows', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({project_id:$('project').value || null, tasks})});
+        watch(w.id);
+      } catch (e) { $('message').textContent = e.message; }
+      finally { $('run').disabled = false; }
+    };
+    addTask('scout', 'Find the main entry point and explain how the project starts.');
+    addTask('reviewer', 'Review the current changes and report any bugs or missing tests.');
+    request('/agent/projects').then(projects => {
+      projects.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.textContent = p.id + (p.available ? '' : ' (unavailable)'); o.disabled = !p.available; $('project').append(o); });
+      if (!projects.some(p => p.available)) { $('run').disabled = true; $('message').textContent = 'No configured project is available. Set up hub/config/projects.yaml.'; }
+    }).catch(e => { $('run').disabled = true; $('message').textContent = e.message; });
+  </script>
+</body>
+</html>
