@@ -1,0 +1,181 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3771929633699896757
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8144538031465005708}
+  - component: {fileID: 5852946797518219709}
+  m_Layer: 0
+  m_Name: DemoDrone
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8144538031465005708
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3771929633699896757}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 6473166412570807432}
+  - {fileID: 7616814737187348422}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5852946797518219709
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3771929633699896757}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b729339c835a4f84697c75827428d3f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Demo.DemoDrone
+  body: {fileID: 7040359958661431311}
+  cam: {fileID: 7415897839668039488}
+  additive: {fileID: 2100000, guid: 88c5e1aed0401f94e844b47e34c0bf77, type: 2}
+  hoverSpan: 0.3
+  maxSpeed: 1.5
+  minAltitude: 0.5
+  wallClearance: 0.4
+  followHeightBelowHead: 0.1
+--- !u!1 &7722386184041899866
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6473166412570807432}
+  - component: {fileID: 7040359958661431311}
+  m_Layer: 0
+  m_Name: Body
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6473166412570807432
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7722386184041899866}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8144538031465005708}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7040359958661431311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7722386184041899866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a94cd4c6710098a4eb6d3a67ef8c7838, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Demo.DroneBody
+  glb: {fileID: 4900000, guid: a7e05604a431a3146bed5f5329b93260, type: 3}
+  metadata: {fileID: 4900000, guid: 137bbb8bc96a85447b9d2189aa149536, type: 3}
+  version: 7
+  span: 0.3
+  additive: {fileID: 2100000, guid: 88c5e1aed0401f94e844b47e34c0bf77, type: 2}
+  cameraBody: {fileID: 2100000, guid: 2569d2eef83a54e46a298dc40e5cfe6d, type: 2}
+  cameraLens: {fileID: 2100000, guid: 624232deca989384caf8aa8d24780881, type: 2}
+  softDot: {fileID: 0}
+--- !u!1001 &7127494848010015616
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8144538031465005708}
+    m_Modifications:
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2917634642823636146, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+      propertyPath: m_Name
+      value: DroneCam
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+--- !u!114 &7415897839668039488 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 289212267181923520, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+  m_PrefabInstance: {fileID: 7127494848010015616}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0a98c0bf6d8323844b9c44f14d721f62, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Forge.Demo.DroneCamWindow
+--- !u!4 &7616814737187348422 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 819002472173620294, guid: f54ece5f0444ec64cb06929750d3abc3, type: 3}
+  m_PrefabInstance: {fileID: 7127494848010015616}
+  m_PrefabAsset: {fileID: 0}
