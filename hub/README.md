@@ -236,6 +236,33 @@ branch are kept and named in the summary. Albie says so out loud (voice mode) an
 Unity is the source of truth for who exists (`crew.roster`); an `agent.ask` whose `pet_id` is a crew member runs
 that member's turn without touching Albie's.
 
+### Builds: "Albie, build me a ..." (the crew end to end)
+
+`agent/build.py` turns one request into a finished project and, after a yes, a pull request:
+
+1. **Plan.** One Claude call (`ml/setup/llm.py`: `claude-opus-5-5`, structured output, the server-side fallback for
+   declines) turns the goal into 3 to 5 steps, each owned by a crew type: one or two Builder steps, then Tester,
+   Scribe, and a Reviewer last. Albie shows the plan on a card. With no `ANTHROPIC_API_KEY` (or `FAKE_AGENT=1`) it uses
+   a default plan of builder, tester, scribe, reviewer.
+2. **Crew.** The types the plan needs hatch in Unity (`crew.spawn`), so the user sees who is working.
+3. **Build.** The steps run in order, each as that crew member's own Claude runner turn (the same runner as
+   `assign_task`, with the member's bubbles and progress), in one workspace for the build so each step sees the last
+   one's files. Every step that changed files is committed with the member's name. The Reviewer only reads.
+4. **Ship.** Albie's "Built" card has **Open pull request** and **Not now**. Nothing leaves the hub until the user
+   taps it or says yes to `build_ship` (asked first without `confirm`, then called with `confirm: true`). Then the
+   branch is pushed and a pull request opened into the repo's default branch (`code_browser.open_pr`).
+
+| Env | What |
+|---|---|
+| `BUILD_REPO=owner/name` | The demo account's repo. Each build clones it, works on `albie/build-<slug>-<id>`, puts the project in `builds/<slug>/`. Needs `GITHUB_TOKEN` with write access (hub env only, never the APK; passed to git per command, never written to `.git/config`). Unset: a new local repo, kept on the hub, nothing to ship. |
+| `BUILD_DIR` | Where workspaces go (default `hub/.data/builds`). |
+
+Albie's lead-only tools: `build_start {goal}`, `build_status`, `build_ship {confirm}`, `build_cancel`. REST, for
+watching or testing without a headset: `POST /agent/builds {goal}`, `GET /agent/builds`, `GET /agent/builds/{id}`,
+`POST /agent/builds/{id}/cancel`. There is no REST route that ships, on purpose. One build runs at a time; builds are
+kept in memory (their workspaces stay on disk). Tests: `tests/agent/test_build.py` (a scripted crew, a local bare repo
+as the remote).
+
 ### Albie runs the workspace (views, CAD, files to Slack)
 
 From the desk with nothing open: "Albie, open the quadcopter. Expand it. Now the rocket, show me it flying. Make the

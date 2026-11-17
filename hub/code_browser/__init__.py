@@ -302,6 +302,16 @@ async def approve_pr(owner: str, repo: str, number: int) -> Done:
     return Done(note=f"Pull request #{number} approved.")
 
 
+async def open_pr(owner: str, repo: str, head: str, title: str, body: str) -> dict:
+    """Open a pull request from branch `head` into the repo's default branch, as the demo account (only a repo it
+    owns). Returns {number, url, base}. A refusal (no commits, the branch isn't pushed) is a 409 with GitHub's reason."""
+    async with _session() as s:
+        path = await _repo(s, owner, repo)
+        base = str(_owned[f"{owner}/{repo}".lower()].get("default_branch") or "main")
+        data = await _write(s, "POST", f"{path}/pulls", {"title": title, "head": head, "base": base, "body": body})
+    return {"number": data.get("number"), "url": data.get("html_url"), "base": base}
+
+
 async def merge_pr(owner: str, repo: str, number: int) -> Done:
     async with _session() as s:
         data = await _write(s, "PUT", f"{await _repo(s, owner, repo)}/pulls/{number}/merge", {})

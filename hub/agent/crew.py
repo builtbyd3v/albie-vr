@@ -314,7 +314,11 @@ def lead_rules() -> str:
               "the user names a crew member or asks for parallel help: its work stays on its own branch until it "
               "lands, so open, create and edit files yourself. For parallel read-only research without characters, "
               "workflow_start accepts independent tasks and workflow_status returns their results; "
-              "say the workflow ID and do not claim a simulated result is live. These workflows do not edit files.")
+              "say the workflow ID and do not claim a simulated result is live. These workflows do not edit files. "
+              "When the user asks you to build or make a whole new project ('build me a ...'), use build_start: you "
+              "plan it, the crew hatches and builds, tests, documents and reviews it in turn, and you'll get a card "
+              "when it's ready. Never open the pull request on your own: call build_ship without confirm, ask, and "
+              "only after a clear yes call it with confirm true.")
 
 
 tools.register(TOOLS, call_tool, lead_only=True)
