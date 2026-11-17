@@ -77,7 +77,7 @@ One APK times ML A's on-device work on the headset, so nobody has to rig timers 
 3. Open it, put the headset on and keep still for about 20 s. The panel 1 m ahead shows the results, starting with **HOLDS THE FRAME RATE** or **DROPS FRAMES**. A, X, a trigger or a pinch runs it again.
 4. To get the numbers off the headset:
    - live: `adb logcat -s Unity | grep QuestTiming`;
-   - or the JSON files: `adb pull /sdcard/Android/data/com.UnityTechnologies.com.unity.template.urpblank/files/quest_timing/`.
+   - or the JSON files: `adb pull /sdcard/Android/data/com.albie.vr/files/quest_timing/`.
 
    Paste the JSON into PROJECT_CONTEXT 16.8.
 

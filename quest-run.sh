@@ -5,7 +5,7 @@
 set -e
 ADB=/Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb
 APK=${1:-unity/Builds/AlbieStandalone.apk}
-PKG=com.UnityTechnologies.com.unity.template.urpblank
+PKG=com.albie.vr
 LOG=unity/Logs/quest-$(date +%m%d-%H%M).log
 
 "$ADB" start-server >/dev/null
