@@ -145,7 +145,7 @@ namespace Forge.ML
             classAccEvents = ForgeNet.On("ml.class_acc", OnLiveClassAccuracy);
             probeEvents = ForgeNet.On("ml.probe", OnLiveProbe);
             projectEvents = ForgeNet.On("ml.project_state", OnProjectState);
-            cloudEvents = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNetStatus.Live));  // same start as the hub's
+            cloudEvents = ForgeNet.On("cloud.ready", _ => { Notice = null; OnNetStatus(ForgeNetStatus.Live); });  // same start as the hub's
         }
         void Start() { if (IsLive) OnNetStatus(ForgeNetStatus.Live); }
         void OnDisable()
@@ -251,7 +251,7 @@ namespace Forge.ML
         {
             if (!IsLive)
             {
-                Notice = "Training needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
+                Notice = CloudNotice("Training") ?? "Training needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
                 Changed?.Invoke();
                 return;
             }
@@ -273,6 +273,12 @@ namespace Forge.ML
             }
             ForgeNet.Post("/ml/train", new { epochs }, _ => { TrainPending = false; Changed?.Invoke(); },
                 e => { TrainPending = false; Notice = "Training didn't start: " + HubDetail(e); Changed?.Invoke(); Debug.LogWarning("[ML] Train failed: " + e); });
+        }
+        // Hub off and Albie's cloud waking or offline: say so (and Albie says when it's back), else null.
+        static string CloudNotice(string what)
+        {
+            string line = ForgeCloud.Ask();
+            return line == null ? null : $"{what} needs the hub or Albie's cloud. {line}";
         }
         public void ImportGitHub(string url)
         {

@@ -41,7 +41,7 @@ public static class MessagesTools
     static JObject Open(JObject args) => Guard(() =>
     {
         var c = MessagesDemo.Find((string)args["channel"]);
-        string reason = SlackRemote.Show((string)c["id"], (string)c["name"], (string)c["kind"]);
+        string reason = ChatRemote.Show((string)c["id"], (string)c["name"], (string)c["kind"]);
         if (reason != null) throw new ArgumentException(reason == "not_at_desk" ? "the user has to sit down at the desk first" : "there's no workspace to show it in");
         return new JObject { ["opened"] = c["name"], ["kind"] = c["kind"] };
     });
@@ -58,14 +58,14 @@ public static class MessagesTools
             if (replyTo == null) throw new ArgumentException($"no message with ts {replyTs}");
         }
         else if (!string.IsNullOrEmpty(target)) channel = MessagesDemo.Find(target);
-        else if (SlackPanel.Active != null && SlackPanel.Active.Selected != null) channel = MessagesDemo.Find(SlackPanel.Active.Selected);
+        else if (ChatPanel.Active != null && ChatPanel.Active.Selected != null) channel = MessagesDemo.Find(ChatPanel.Active.Selected);
         else throw new ArgumentException("say who the message is for");
-        SlackStore.Provisional((string)channel["id"], (string)channel["name"], (string)channel["kind"]);  // a DM made just now
+        ChatStore.Provisional((string)channel["id"], (string)channel["name"], (string)channel["kind"]);  // a DM made just now
 
         var result = new JObject();
-        if (args.Value<bool?>("open_messenger") == true && SlackPanel.Active == null)
+        if (args.Value<bool?>("open_messenger") == true && ChatPanel.Active == null)
         {
-            string reason = SlackRemote.Show((string)channel["id"], (string)channel["name"], (string)channel["kind"]);
+            string reason = ChatRemote.Show((string)channel["id"], (string)channel["name"], (string)channel["kind"]);
             if (reason != null) result["view_error"] = reason;
         }
         var d = MessagesDemo.CreateDraft(channel, text, replyTo);

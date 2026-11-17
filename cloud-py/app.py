@@ -272,7 +272,11 @@ async def device(device_id: str) -> Device:
             await d.start()
             DEVICES[device_id] = d
             while len(DEVICES) > MAX_DEVICES:  # its files stay on disk; it reloads on its next request
-                DEVICES.popitem(last=False)
+                _, old = DEVICES.popitem(last=False)
+                try:
+                    await old.cad.stop()  # the shared POOL ignores it; a device's own worker would close here
+                except Exception:  # noqa: BLE001 - a failed close must not fail the new device's request
+                    log.exception("closing evicted device %s failed", old.id)
         return DEVICES[device_id]
 
 
