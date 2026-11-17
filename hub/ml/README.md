@@ -113,6 +113,46 @@ which the deploy sets as the Space's `GITHUB_TOKEN`.
 "What can I do better?" on one of these: Claude writes the change (the proxy on the cloud), and the cloud's free
 fallback (`cloud-py/text_improve.py`) regularizes an overfitting project or trains a close one twice as long.
 
+## Fine-tuning a pretrained model from Hugging Face (`ml_new` with `base_model`)
+
+"Albie, fine-tune distilbert on movie reviews": the same `ml_new` flow, but the project's `model.py` loads an
+encoder from the Hub and adds a new classification head, so training starts from pretrained weights instead of
+random ones. It works on the cloud and the hub, and the headset's ML desk is unchanged (still
+`text_classification`, the same panels and curves).
+
+- **Which models:** encoder families in `hf_data.ENCODER_TYPES` (BERT, DistilBERT, RoBERTa, ALBERT, ELECTRA,
+  DeBERTa, XLM-R, MiniLM, ModernBERT...). Say a family ("distilbert", "roberta"), an id (`owner/name`), or pass
+  `base_model`. The default is `microsoft/xtremedistil-l6-h256-uncased` (12.7M parameters: about a minute on a
+  CPU), so "fine-tune a model" needs no model name.
+- **Which data:** any Hugging Face **text classification** dataset the words point at, not just movie reviews:
+  "tweet sentiment" -> `cardiffnlp/tweet_eval`, "news topics" -> `fancyzhx/ag_news`, "toxic comments" ->
+  `Heliosoph/Jigsaw-Toxic-Comments`, "handwritten digits" -> `ylecun/mnist` (images, from scratch only).
+- **Refused, with a reason Albie says:** generative models (GPT, Llama, Mistral, T5, BART), vision models (ViT,
+  CLIP, ResNet), models with no tokenizer or no PyTorch/safetensors weights, and gated/private models. A model
+  named in the request is refused by name instead of silently falling back to the default encoder. Image
+  fine-tuning isn't offered yet: images still train from scratch with a CNN.
+- **Rows and epochs:** 2,000 train / 400 val (fewer forwards and backwards through the encoder than the
+  from-scratch template's 4,000/500) and 3 epochs by default. `ml_new` speaks that it may take a couple of minutes.
+- **Measured on this laptop's CPU** (2026-11-17, IMDB, 2 classes): the default XTREMEDistil model at 2,000/400
+  rows reaches **80.5% validation accuracy in 19.4 s per epoch** (1 epoch; 80.5% per class). The from-scratch RNN
+  baseline on 4,000/500 rows reaches 73.2% in 3.3 s for two epochs.
+- **The weights:** the first run downloads the base model and tokenizer from the Hub into `HF_HOME` and reuses
+  them. The cloud image warms the default model at build time; the hub warms on first use.
+- **Everything else is the same project:** `.forge/` is hand-written, `forge.check` and the ML desk work
+  unchanged, `ml_improve`/`ml_apply` read the same `project.json` and `train.py`, and `ml_publish` opens the PR
+  with the code, the results and the base model's id and license.
+
+`project.json` carries `model: "hf"`, `base_model`, `model_name`, `lr: 3e-5` and `batch_size: 32`. The template is
+`hub/ml/templates/pretrained/` (`model.py`, `data.py`, `train.py`, `.forge/adapter.py`); it wraps the encoder so the
+existing Forge contract sees one input tensor (token ids), derives the attention mask itself, and exposes
+`encode`/`head` for the desk's features.
+
+**Trying it in the headset:** start the hub as usual, stand at the ML desk, and say *"Albie, fine-tune distilbert on
+movie reviews"* (or *"fine-tune a model on movie reviews"*). The desk unfolds when the project passes its checks;
+the first run downloads the model, then the curves stream. Ask *"what can I do better?"* and *"yes"* for the normal
+improve/retrain loop, or *"push it to GitHub"* for the PR. No APK rebuild is needed: these tools live on the hub
+(and the cloud), and the request sentence is enough even with the older tool schema on the headset.
+
 ## Albie improves the model (demo)
 
 Voice tools in `tools.py` (registered in `main.py`), with the logic in `improve.py`:

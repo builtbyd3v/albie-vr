@@ -35,6 +35,10 @@ Needs: the HF Space paused (the cloud cases expect it offline) and a room scan w
 1. Headset off for 2 minutes, then on. Albie says welcome back. Log: `[AppLifecycle] away (`, `[AlbieVoice] suspended`, `[AppLifecycle] back (... ) after 1xx s`.
 2. Face Albie and talk (costs voice credits). Log: `[AlbieVoice] connected ...`, then `[AlbieVoice] idle: closing the voice session` about 35 s after his last word.
 3. Pinch-drive a lap of the slalom. Then `python3 tools/questbridge.py call brain_status` shows `completed_laps` of 1 or more.
+4. With the hub running on the laptop, stand at the ML desk and say "Albie, fine-tune distilbert on movie reviews".
+   The desk unfolds when the project passes its checks, the first run downloads the model (tell the person it may
+   take a minute), then the curves stream and the score is spoken at the end. Say "Albie, start an RNN project on
+   movie reviews" for the from-scratch path. Log: `ml_new`, then `forge.check` passing and the run's epochs.
 
 ## Where things land
 

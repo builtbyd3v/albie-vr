@@ -353,6 +353,206 @@ def find(words: str = "", dataset: str | None = None, task: str | None = None) -
     return inspect(DEFAULTS[task or "text_classification"], words, task)
 
 
+# --- pretrained models ---------------------------------------------------------------------------------------
+#
+# A new project can fine-tune an encoder from the Hub instead of training from scratch (ml_new with a
+# base_model). Only encoders are accepted: the template adds a classifier head to AutoModel, so a generative
+# model (GPT, Llama, T5) would be used for the wrong job. The config decides; the tokenizer's files must be
+# there too, and the weights must be PyTorch or safetensors.
+
+MODEL_API = "https://huggingface.co/api/models"
+MODEL_ID = re.compile(r"^(?:[A-Za-z0-9][\w.-]*/)?[A-Za-z0-9][\w.-]*$")
+# Encoder families AutoModel can load and that have a tokenizer; the template fine-tunes any of these.
+ENCODER_TYPES = {"bert", "distilbert", "roberta", "albert", "electra", "deberta", "deberta-v2", "xlm-roberta",
+                 "camembert", "xlnet", "longformer", "mpnet", "mobilebert", "squeezebert", "funnel", "modernbert"}
+GENERATIVE_TYPES = {"gpt2", "gpt_neo", "gptj", "gpt_neox", "llama", "mistral", "mixtral", "falcon", "opt", "bloom",
+                    "t5", "mt5", "bart", "mbart", "pegasus", "marian", "whisper", "wav2vec2", "vit", "clip", "blip",
+                    "sam", "stable-diffusion"}
+GENERATIVE_PIPELINES = ("text-generation", "text2text-generation", "summarization", "translation",
+                        "automatic-speech-recognition", "text-to-image")
+TOKENIZER_FILES = ("tokenizer.json", "tokenizer_config.json", "vocab.txt", "spiece.model",
+                   "sentencepiece.bpe.model", "vocab.json")
+WEIGHT_FILES = ("pytorch_model.bin", "model.safetensors")
+# What people call a model -> one that is known to load and is small enough to train on a CPU.
+MODEL_ALIASES: list[tuple[tuple[str, ...], str]] = [
+    (("xtremedistil", "extreme distil", "small bert"), "microsoft/xtremedistil-l6-h256-uncased"),
+    (("distilbert", "distil bert"), "distilbert-base-uncased"),
+    (("minilm", "mini lm"), "microsoft/MiniLM-L12-H384-uncased"),
+    (("roberta",), "roberta-base"),
+    (("albert",), "albert-base-v2"),
+    (("electra",), "google/electra-small-discriminator"),
+    (("deberta",), "microsoft/deberta-v3-xsmall"),
+    (("bert tiny", "tiny bert"), "google/bert_uncased_L-2_H-128_A-2"),
+    (("bert",), "bert-base-uncased"),
+]
+DEFAULT_MODEL = "microsoft/xtremedistil-l6-h256-uncased"  # 12.7M parameters: fast on a CPU, still a real encoder
+
+
+@dataclass
+class ModelInfo:
+    model: str
+    license: str | None
+    downloads: int | None
+    model_type: str
+    local: bool = False
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def model_alias(words: str) -> str | None:
+    """The model a phrase names ("a distilbert" -> distilbert-base-uncased); None if it names none."""
+    said = " " + (words or "").lower() + " "
+    for phrases, model in MODEL_ALIASES:
+        if any(re.search(rf"\b{re.escape(p)}", said) for p in phrases):
+            return model
+    return None
+
+
+def search_models(words: str, limit: int = 6) -> list[str]:
+    """Model ids for what the user said, most downloaded first; gated, private and disabled ones are skipped."""
+    tries = [words] + sorted({w for w in re.findall(r"[a-z0-9]{4,}", (words or "").lower())} - {"model", "fine", "tune"},
+                             key=len, reverse=True)
+    found: list[str] = []
+    for query in tries:
+        if not query:
+            continue
+        try:
+            rows = get_json(f"{MODEL_API}?{_q(search=query, sort='downloads', direction=-1, limit=limit)}")
+        except DatasetError:
+            continue
+        for row in rows:
+            if not row.get("gated") and not row.get("private") and not row.get("disabled") and row["id"] not in found:
+                found.append(row["id"])
+        if len(found) >= limit:
+            break
+    return found[:limit]
+
+
+def _license(data: dict[str, Any]) -> str | None:
+    license_ = (data.get("cardData") or {}).get("license")
+    if isinstance(license_, list):
+        license_ = ", ".join(map(str, license_))
+    if not license_:
+        license_ = next((t.split(":", 1)[1] for t in data.get("tags", []) if t.startswith("license:")), None)
+    return license_
+
+
+def _remote_card(model: str) -> dict[str, Any]:
+    """The model's Hub record, with its config.json fetched when the API doesn't carry one."""
+    data = get_json(f"{MODEL_API}/{urllib.parse.quote(model, safe='/')}")
+    if data.get("private") or data.get("gated") or data.get("disabled"):
+        raise DatasetError(f"{model} needs a sign-in or an access request on Hugging Face")
+    config = data.get("config") or {}
+    if not config.get("model_type"):
+        try:
+            config = get_json(f"https://huggingface.co/{urllib.parse.quote(model, safe='/')}/resolve/main/config.json")
+        except DatasetError:
+            config = {}
+    files = {str(s.get("rfilename") or "") for s in data.get("siblings") or []}
+    return {"config": config, "files": files, "license": _license(data), "downloads": data.get("downloads"),
+            "pipeline_tag": data.get("pipeline_tag") or ""}
+
+
+def _local_card(path: Path) -> dict[str, Any]:
+    config_path = path / "config.json"
+    if not config_path.is_file():
+        raise DatasetError(f"{path} isn't a Hugging Face model folder (no config.json)")
+    try:
+        config = json.loads(config_path.read_text())
+    except ValueError as e:
+        raise DatasetError(f"{path}/config.json isn't valid JSON: {e}") from None
+    files = {p.name for p in path.iterdir()}
+    return {"config": config, "files": files, "license": None, "downloads": None, "pipeline_tag": ""}
+
+
+def _inspect(model: str, card: dict[str, Any], local: bool) -> ModelInfo:
+    config = card["config"]
+    kind = str(config.get("model_type") or "").lower()
+    arch = " ".join(str(a) for a in config.get("architectures") or [])
+    pipeline = card["pipeline_tag"]
+    if kind in GENERATIVE_TYPES or pipeline in GENERATIVE_PIPELINES:
+        raise DatasetError(f"{model} is a generative ({pipeline or kind}) model; I fine-tune encoder models "
+                           "like BERT, DistilBERT or RoBERTa as a text classifier")
+    if not kind:
+        raise DatasetError(f"{model}'s config doesn't name a model type, so Hugging Face's loader can't read it")
+    if kind not in ENCODER_TYPES and "SequenceClassification" not in arch:
+        raise DatasetError(f"{model} is a {kind} model; I fine-tune encoder models like BERT, DistilBERT or RoBERTa")
+    files = card["files"]
+    if not any(f in files for f in TOKENIZER_FILES) and not any(f.endswith("tokenizer.json") for f in files):
+        raise DatasetError(f"{model} has no tokenizer I can use")
+    if not any(f in files for f in WEIGHT_FILES) and not any(f.endswith((".safetensors", ".bin")) for f in files):
+        raise DatasetError(f"{model} has no PyTorch or safetensors weights")
+    return ModelInfo(model=str(model), license=card["license"], downloads=card["downloads"], model_type=kind,
+                     local=local)
+
+
+def inspect_model(model: str) -> ModelInfo:
+    """A pretrained model that can be fine-tuned as a text classifier; raises DatasetError with the reason.
+    A local folder (the tests' tiny model) is read from disk; a Hub id is read from its API and config.json."""
+    model = (model or "").strip()
+    local = Path(model).expanduser()
+    if local.is_dir():
+        return _inspect(str(local.resolve()), _local_card(local), local=True)
+    model = model.removeprefix("https://huggingface.co/").strip("/")
+    if not MODEL_ID.match(model):
+        raise DatasetError(f"{model!r} doesn't look like a Hugging Face model id (owner/name)")
+    return _inspect(model, _remote_card(model), local=False)
+
+
+# Named models that aren't text encoders: refused by name, before any Hub search, so "fine-tune gpt2" doesn't
+# silently fall back to the default encoder. Word boundaries keep "gpt" out of "gpt2" (the entries are longest
+# first) and "opt" out of "optimize".
+GENERATIVE_NAMES = ("stable diffusion", "command-r", "mixtral", "mistral", "llama", "falcon", "gemma", "bloom",
+                    "qwen", "whisper", "gpt2", "gpt-2", "gpt", "opt", "t5", "mt5", "bart", "mbart", "pegasus", "phi")
+VISION_NAMES = ("vision transformer", "vit", "clip", "resnet", "yolo")
+
+
+def refuse_named_model(words: str) -> None:
+    """Raise DatasetError when the words name a model this template can't use, with the reason to say."""
+    said = " " + (words or "").lower() + " "
+    for name in GENERATIVE_NAMES:
+        if re.search(rf"\b{re.escape(name)}\b", said):
+            raise DatasetError(f"{name} is a generative model; I fine-tune encoder models like BERT, DistilBERT "
+                               "or RoBERTa as a text classifier")
+    for name in VISION_NAMES:
+        if re.search(rf"\b{re.escape(name)}\b", said):
+            raise DatasetError(f"{name} is a vision model; image fine-tuning isn't supported yet (images train "
+                               "from scratch with a CNN)")
+
+
+def find_model(words: str = "", model: str | None = None) -> ModelInfo:
+    """The pretrained model the user meant: one they named, else a known family, else a Hub search, else the
+    small default. Only encoders that pass `inspect_model` are returned."""
+    if model:
+        named = model.strip()
+        if Path(named).expanduser().is_dir() or "/" in named:
+            return inspect_model(named)
+        refuse_named_model(named)
+        known = model_alias(named)
+        if known:
+            return inspect_model(known)
+        reasons: list[str] = []
+        for candidate in search_models(named):
+            try:
+                return inspect_model(candidate)
+            except DatasetError as e:
+                reasons.append(f"{candidate}: {e}")
+        raise DatasetError(f"no Hugging Face model for {named!r} that I can fine-tune"
+                           + (f" ({reasons[0]})" if reasons else ""))
+    refuse_named_model(words)
+    known = model_alias(words)
+    if known:
+        return inspect_model(known)
+    return inspect_model(DEFAULT_MODEL)
+
+
+def model_name(model: str) -> str:
+    """The part of a model id people say: microsoft/xtremedistil-l6-h256-uncased -> xtremedistil-l6-h256-uncased."""
+    return model.rstrip("/").split("/")[-1]
+
+
 # --- fetch --------------------------------------------------------------------------------------------------
 #
 # Parquet first: Hugging Face converts every dataset it can read to Parquet, and a split is one or a few files on

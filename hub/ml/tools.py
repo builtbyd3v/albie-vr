@@ -58,21 +58,28 @@ TOOLS: list[dict[str, Any]] = [
     {"name": "ml_new",
      "description": "Start a NEW machine-learning project from scratch, for any request to make, build, start or "
                     "train a new model or ML project ('start an RNN project', 'build a CNN on handwritten digits', "
-                    "'train a transformer on movie reviews'); never artifact_create, ml_open or delegate for these. "
+                    "'train a transformer on movie reviews', 'fine-tune distilbert on movie reviews'). "
                     "It picks a Hugging Face dataset, downloads a sample, writes the project's code (an RNN, LSTM, "
-                    "GRU, Transformer, CNN or MLP; text or image classification) and starts training: the ML desk "
-                    "opens by itself in about 10 to 30 seconds and the curves go live. Pass what the user said. "
+                    "GRU, Transformer, CNN or MLP from scratch, or a pretrained Hugging Face encoder fine-tuned with a "
+                    "new head) and starts training: the ML desk opens by itself in about 10 to 30 seconds and the "
+                    "curves go live (a pretrained model's first run also downloads its weights, so it can take a "
+                    "couple of minutes). Pass what the user said; pass base_model when they named a Hugging Face "
+                    "model to fine-tune (e.g. 'distilbert', 'roberta-base', 'google/electra-small-discriminator'). "
                     "Then say in one short sentence what you're building from the result (model, dataset, classes); "
                     "the score is spoken when it finishes. Don't call ml_open or ml_train after it.",
      "parameters": {"type": "object", "properties": {
          "request": {"type": "string", "description": "the user's own words for the project"},
-         "model": {"type": "string", "enum": ["rnn", "lstm", "gru", "transformer", "cnn", "mlp"],
-                   "description": "the model the user named, if any"},
+         "model": {"type": "string", "enum": ["rnn", "lstm", "gru", "transformer", "cnn", "mlp", "hf"],
+                   "description": "the model the user named, if any ('hf' = fine-tune a pretrained encoder)"},
+         "base_model": {"type": "string", "description": "the Hugging Face model to fine-tune: an id "
+                                                        "(owner/name), a family ('distilbert', 'roberta'), or a "
+                                                        "model name the user said. Leave it out to train from scratch"},
          "dataset": {"type": "string", "description": "a Hugging Face dataset id (owner/name) or what the data is "
                                                       "about ('movie reviews', 'handwritten digits'), if the user said"},
          "task": {"type": "string", "enum": ["text_classification", "image_classification"],
                   "description": "only if the user was clear about text or images"},
-         "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8)"},
+         "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8 from scratch, "
+                                                      "3 when fine-tuning)"},
          "publish": {"type": "boolean", "description": "true if the user also asked to put it on GitHub or open a "
                                                        "pull request; after training Albie asks before opening it"}},
          "required": ["request"]}},
@@ -285,21 +292,25 @@ class MLTools:
             raise Conflict("I'm still setting up a project; give me a moment")
         if self.svc.training_active():
             raise Conflict("a run is still training; wait for it to finish, or tell me to stop it")
-        epochs = new_project.DEFAULT_EPOCHS if args.get("epochs") is None else int(args["epochs"])
-        if not 1 <= epochs <= 30:
+        raw_epochs = args.get("epochs")
+        if raw_epochs is not None and not 1 <= int(raw_epochs) <= 30:
             raise ValueError("epochs must be between 1 and 30")
         model = args.get("model")
+        base_model = str(args.get("base_model") or "").strip() or None
         p = await asyncio.to_thread(new_project.plan, model=str(model) if model else None,
                                     dataset=str(args.get("dataset") or "").strip() or None, task=args.get("task") or None,
-                                    request=str(args.get("request") or ""))
+                                    request=str(args.get("request") or ""), base_model=base_model)
+        epochs = int(raw_epochs) if raw_epochs is not None else new_project.default_epochs(p)
         task = asyncio.create_task(self._build_new(p, epochs, args.get("publish") is True))
         self.state.ml_building = task
         self.jobs.add(task)
         task.add_done_callback(self.jobs.discard)
+        note = ("Downloading the data and writing the code now. " if not p.get("base_model") else
+                "Downloading the data and the pretrained model (the weights are cached after the first time), and "
+                "writing the code now. ")
         return {**new_project.describe(p), "epochs": epochs, "status": "building",
-                "note": "Downloading the data and writing the code now. Say in one short sentence what you're "
-                        "building (model, dataset, what it tells apart). The ML desk opens by itself and the "
-                        "training curves go live; the score is spoken when it's done."}
+                "note": note + "Say in one short sentence what you're building (model, dataset, what it tells apart). "
+                        "The ML desk opens by itself and the training curves go live; the score is spoken when it's done."}
 
     async def _build_new(self, p: dict[str, Any], epochs: int, publish: bool = False) -> None:
         svc = self.svc

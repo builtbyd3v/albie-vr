@@ -42,6 +42,17 @@ LONGER_EDITS = [
      "    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)\n"),
     STEP,
 ]
+# The pretrained template (hub/ml/templates/pretrained) already uses AdamW and a warmup/decay schedule, so the
+# change is more weight decay and label smoothing: a fine-tuned encoder memorizes 2,000 texts fast.
+HF_EDITS = [
+    EDITS[0],
+    EDITS[1],
+    ("    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)\n",
+     "    global LABEL_SMOOTHING\n"
+     "    LABEL_SMOOTHING = args.label_smoothing\n"
+     "    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)\n"),
+    EDITS[4],
+]
 
 
 def patched(train_py: Path, edits: list[tuple[str, str]] = EDITS) -> str:
@@ -78,32 +89,40 @@ def plan(d: dict, repo: Path) -> dict:
 def built_plan(d: dict, repo: Path, seen: str) -> dict:
     """A project ml_new built: regularize it if it overfits, else train it longer, worded for its model and data."""
     project = json.loads((repo / "project.json").read_text())
-    model = {"rnn": "RNN", "lstm": "LSTM", "gru": "GRU", "cnn": "CNN", "mlp": "MLP"}.get(project.get("model"), "Transformer")
+    hf = project.get("model") == "hf"
+    model = project.get("model_name") if hf else \
+        {"rnn": "RNN", "lstm": "LSTM", "gru": "GRU", "cnn": "CNN", "mlp": "MLP"}.get(project.get("model"), "Transformer")
     what = "texts" if project.get("task") == "text_classification" else "images"
     n = (project.get("rows") or {}).get("train") or 0
-    epochs = int(d.get("epochs") or 8)
+    epochs = int(d.get("epochs") or (3 if hf else 8))
     gap = d.get("train_val_gap")
     if gap is not None and gap > 0.05:
+        edits = HF_EDITS if hf else BUILT_EDITS
+        changes = ([{"title": "More weight decay with AdamW", "why": "keeps the fine-tuned weights close to the pretrained ones, so they can't memorize examples"},
+                    {"title": "Label smoothing", "why": "stops it chasing total certainty on every training example"}]
+                   if hf else
+                   [{"title": "Weight decay with AdamW", "why": "keeps the weights small, so the model can't memorize examples"},
+                    {"title": "Label smoothing", "why": "stops it chasing total certainty on every training example"},
+                    {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle"}])
         return {
             "diagnosis": f"{seen} The {model} starts memorizing the {n:,} training {what} after a few epochs.",
-            "changes": [
-                {"title": "Weight decay with AdamW", "why": "keeps the weights small, so the model can't memorize examples"},
-                {"title": "Label smoothing", "why": "stops it chasing total certainty on every training example"},
-                {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle"},
-            ],
-            "patches": [{"path": "train.py", "content": patched(repo / "train.py", BUILT_EDITS)}],
+            "changes": changes,
+            "patches": [{"path": "train.py", "content": patched(repo / "train.py", edits)}],
             "train_args": [],
             "epochs": epochs,
             "expected": "a smaller train/val gap and about the same or better validation accuracy in under a minute",
         }
     longer = min(2 * epochs, 20)
+    edits = HF_EDITS if hf else LONGER_EDITS
+    changes = ([{"title": f"{longer} epochs instead of {epochs}", "why": "it was still improving when training stopped"},
+                {"title": "Label smoothing", "why": "keeps the extra epochs from turning into memorization"}]
+               if hf else
+               [{"title": f"{longer} epochs instead of {epochs}", "why": "it was still improving when training stopped"},
+                {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle into a better minimum"}])
     return {
         "diagnosis": f"{seen} Training and validation are close, so the {model} is still learning: it needs more time, not less capacity.",
-        "changes": [
-            {"title": f"{longer} epochs instead of {epochs}", "why": "it was still improving when training stopped"},
-            {"title": "Cosine learning rate", "why": "big steps first, then small ones to settle into a better minimum"},
-        ],
-        "patches": [{"path": "train.py", "content": patched(repo / "train.py", LONGER_EDITS)}],
+        "changes": changes,
+        "patches": [{"path": "train.py", "content": patched(repo / "train.py", edits)}],
         "train_args": [],
         "epochs": longer,
         "expected": "a few points better validation accuracy, in about twice the time",
