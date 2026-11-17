@@ -223,6 +223,7 @@ public class DebugBridge : MonoBehaviour
         }
         catch (Exception e)
         {
+            if (e is TargetInvocationException && e.InnerException != null) e = e.InnerException;  // say: the real error, not the reflection wrapper
             job.Finish(Fail(id, $"{e.GetType().Name}: {e.Message}"));
         }
     }
@@ -320,6 +321,7 @@ public class DebugBridge : MonoBehaviour
             return "AlbieVoice changed shape: say needs updating (see DebugBridge.Say)";
 
         text = text.Trim();
+        string brevity = (string)brevityNow.GetRawConstantValue();  // read before touching the turn: a throw here must not leave a half-sent turn
         if ((bool)responseActive.GetValue(voice) || (bool)audioStarted.GetValue(voice)) stopSpeech.Invoke(voice, new object[] { "barge_in" });
         turnSeq.SetValue(voice, (int)turnSeq.GetValue(voice) + 1);
         turnOpen.SetValue(voice, false);
@@ -337,7 +339,7 @@ public class DebugBridge : MonoBehaviour
                 ["content"] = new JArray(new JObject { ["type"] = "input_text", ["text"] = text }),
             },
         } });
-        respond.Invoke(voice, new object[] { (string)brevityNow.GetRawConstantValue() });
+        respond.Invoke(voice, new object[] { brevity });
         return null;
     }
 
