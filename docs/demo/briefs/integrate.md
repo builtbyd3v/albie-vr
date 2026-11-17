@@ -10,5 +10,10 @@ Read `docs/demo/briefs/_COMMON.md` and `docs/demo/briefs/director.md` first. You
 5. Write `docs/demo/G2_HANDOFF.md`: how to start the demo on the headset, the laptop remote URL (find the hub's port and the laptop's LAN IP; the hub is started as documented in `docs/SETUP.md`), what each beat should look like, everything known to be fake, placeholder or broken. Keep it to one screen.
 6. Commit your changes (your paths plus fixes, never `git add -A`), then `report-outcome`.
 
+## Known fixes from the orchestrator (do these too)
+- In `Demo/Resources/research_data.json`, "Kestrel" is a real brand: rename "Kestrel V3 Lite" to "Plover V3 Lite".
+- Albie's audio clips don't exist yet (no voice key on this machine). Make sure the Director's no-audio fallback (caption plus timed wait, or live hub speech) runs cleanly, and say in G2_HANDOFF.md that the clips still need recording with `python hub/scripts/demo_record_lines.py` once `XAI_API_KEY` is in `hub/.env`.
+- The drone-cam window's "REC" label overlapped "LOCKED 0.96" in `flight_cam_07_window.png`; check the flight station's latest screenshots, and if it still overlaps, move REC to the other corner.
+
 ## Done when
 APK built (or the exact build error reported), G2_HANDOFF.md written, committed. Then stop: Hudson tests on the headset next and gives the list.
