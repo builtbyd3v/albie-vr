@@ -68,7 +68,7 @@ sh quest-run.sh unity/Builds/AlbieStandalone.apk
 
 It installs the APK, grants mic and room permissions, launches Albie, and records headset logs to `unity/Logs/quest-*.log` until Ctrl+C. Once it launches you can unplug the cable.
 
-Shipping to judges: upload the APK to the Meta VR Developer Dashboard, "Competition" release channel (open item below).
+Shipping to judges: build the signed release APK and upload it to the "Competition" release channel: `docs/RELEASE.md` (dashboard ownership is an open item below).
 
 ## 5. Branches
 
