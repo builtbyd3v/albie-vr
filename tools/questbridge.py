@@ -257,7 +257,7 @@ def evaluate(case, resp, state, lines, elapsed, seq):
 def run_case(conn, case, i, out, a, names):
     tool, cmd = case.get("tool"), case.get("cmd")
     r = {"name": case["name"], "group": case.get("group", ""), "status": "PASS", "reasons": []}
-    r.update({"tool": tool, "args": case.get("args") or {}} if tool else {"cmd": cmd, "cmd_args": case.get("cmd_args") or {}})
+    r.update({"tool": tool, "args": case.get("args") or {}} if tool else {"cmd": cmd, "cmd_args": case.get("cmd_args") or case.get("args") or {}})
     if case.get("manual"):
         r.update(status="SKIP", reasons=["manual: do it on the headset (see the Manual section)"], manual=True)
         return r
@@ -425,6 +425,9 @@ def main(argv=None):
     s.add_argument("--timeout", type=float, default=30)
     s = sub.add_parser("say", help="send Albie a typed sentence")
     s.add_argument("text")
+    s = sub.add_parser("cmd", help="send any bridge command, e.g. cmd hand '{\"gesture\": \"fist\"}'")
+    s.add_argument("name")
+    s.add_argument("json_params", nargs="?", default="{}", help="JSON object of extra request fields")
     s = sub.add_parser("shot", help="save a headset screenshot")
     s.add_argument("out")
     s = sub.add_parser("sweep", help="unattended test run over a case file")
@@ -459,6 +462,11 @@ def main(argv=None):
             if not isinstance(args, dict):
                 raise ValueError("JSON_ARGS must be a JSON object")
             return one(a, "call", tool=a.tool, args=args, timeout_s=a.timeout)
+        if a.cmd == "cmd":
+            params = json.loads(a.json_params)
+            if not isinstance(params, dict):
+                raise ValueError("JSON_PARAMS must be a JSON object")
+            return one(a, a.name, timeout=float(params.get("timeout_s", 30)) + 10, **params)
         if a.cmd == "say":
             return one(a, "say", text=a.text)
         if a.cmd == "sweep":

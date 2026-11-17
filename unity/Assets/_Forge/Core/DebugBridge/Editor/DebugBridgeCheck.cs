@@ -11,7 +11,7 @@ using UnityEngine;
 
 /// <summary>
 /// Forge > Core > Check Debug Bridge: the Main scene in Play mode (desktop rig, voice off, so it costs nothing), a real
-/// TcpClient on 127.0.0.1:<see cref="DebugBridge.Port"/>, one PASS/FAIL line per check. Then leaves Play and enters it
+/// TcpClient on 127.0.0.1:<see cref="DebugBridge.ActivePort"/>, one PASS/FAIL line per check. Then leaves Play and enters it
 /// again, to prove the listener was shut down and the port comes back. Batch (exits 1 on any failure):
 /// <c>Unity -batchmode -projectPath unity -executeMethod DebugBridgeCheck.RunBatch -logFile -</c>
 /// The client runs on a worker thread: the bridge answers from the main thread, which must keep ticking.
@@ -120,7 +120,7 @@ public static class DebugBridgeCheck
                 try
                 {
                     tcp = new TcpClient();
-                    tcp.Connect("127.0.0.1", DebugBridge.Port);
+                    tcp.Connect("127.0.0.1", DebugBridge.ActivePort);
                     break;
                 }
                 catch (SocketException) when (DateTime.UtcNow < until)

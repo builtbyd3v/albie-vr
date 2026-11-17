@@ -29,6 +29,8 @@ using UnityEngine.SceneManagement;
 public partial class DebugBridge : MonoBehaviour
 {
     public const int Port = 8765;
+    /// <summary>The port this run listens on: <see cref="Port"/>, or ALBIE_BRIDGE_PORT in the Editor.</summary>
+    public static int ActivePort { get; private set; } = Port;
     const int LogCapacity = 500;
     const int StackChars = 2000;
     const float DefaultTimeoutS = 30f;
@@ -50,6 +52,13 @@ public partial class DebugBridge : MonoBehaviour
     }
 
     struct LogLine { public long seq; public string type, msg, stack; }
+
+    /// <summary>An extra command: answer exactly once with <c>ok(fields)</c> (fields may be null) or <c>fail(message)</c>, now or later, on the main thread.</summary>
+    public delegate void Command(JObject req, Action<JObject> ok, Action<string> fail);
+    static readonly Dictionary<string, Command> extra = new Dictionary<string, Command>();
+
+    /// <summary>Add a command from another file (same #if guard). Call it from a [RuntimeInitializeOnLoadMethod]; a second Register of a name replaces the first.</summary>
+    public static void Register(string cmd, Command run) => extra[cmd] = run;
 
     TcpListener listener;
     readonly CancellationTokenSource stop = new CancellationTokenSource();
@@ -77,17 +86,20 @@ public partial class DebugBridge : MonoBehaviour
 #endif
         try
         {
-            listener = new TcpListener(IPAddress.Loopback, Port);
+#if UNITY_EDITOR  // several editors on one laptop (or an adb forward holding 8765): ALBIE_BRIDGE_PORT picks another port
+            if (int.TryParse(Environment.GetEnvironmentVariable("ALBIE_BRIDGE_PORT"), out int p)) ActivePort = p;
+#endif
+            listener = new TcpListener(IPAddress.Loopback, ActivePort);
             listener.Start();
         }
         catch (SocketException e)  // the port is taken (another Play session, or an adb forward on this laptop)
         {
-            Debug.LogWarning($"[DebugBridge] can't listen on 127.0.0.1:{Port}: {e.Message}");
+            Debug.LogWarning($"[DebugBridge] can't listen on 127.0.0.1:{ActivePort}: {e.Message}");
             listener = null;
             return;
         }
         new Thread(AcceptLoop) { IsBackground = true, Name = "DebugBridge accept" }.Start();
-        Debug.Log($"[DebugBridge] listening on 127.0.0.1:{Port}");
+        Debug.Log($"[DebugBridge] listening on 127.0.0.1:{ActivePort}");
     }
 
     void OnDestroy() => Stop();
@@ -219,7 +231,10 @@ public partial class DebugBridge : MonoBehaviour
                     break;
                 default:
                     if (cmd != null && RunFeature(cmd, id, job)) break;
-                    job.Finish(Fail(id, cmd == null ? "missing \"cmd\"" : $"unknown cmd '{cmd}'"));
+                    if (cmd != null && extra.TryGetValue(cmd, out var run))
+                        run(job.req, fields => job.Finish(Ok(id, fields ?? new JObject())), message => job.Finish(Fail(id, message)));
+                    else
+                        job.Finish(Fail(id, cmd == null ? "missing \"cmd\"" : $"unknown cmd '{cmd}'"));
                     break;
             }
         }
