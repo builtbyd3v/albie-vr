@@ -58,10 +58,10 @@ namespace Forge.ML
             bool any = r.evaluated > 0;
             Kpi(p, x0, 0, kw, kh, "Accuracy", any ? r.accuracy.ToString("0.0%") : "—", any ? $"{r.correct:N0} of {r.evaluated:N0} images" : "no predictions yet", MLUI.Heat(any ? r.accuracy : -1), null);
             Kpi(p, x0 + kw + 10, 0, kw, kh, "Macro F1", any ? r.macroF1.ToString("0.00") : "—", any ? $"precision {r.macroPrecision:0%}  ·  recall {r.macroRecall:0%}" : "", MLUI.Heat(any ? r.macroF1 : -1), () => ShowTab(Tab.Classes));
-            Kpi(p, x0 + 2 * (kw + 10), 0, kw, kh, "Top-3 accuracy", any ? r.top3.ToString("0.0%") : "—", "true class among the top 3", MLUI.TextColor, null);
-            Kpi(p, x0, kh + 10, kw, kh, "Mean confidence", any ? r.meanConfidence.ToString("0%") : "—", any ? $"right {r.confidenceRight:0%}  ·  wrong {r.confidenceWrong:0%}" : "", MLUI.TextColor, () => ShowTab(Tab.Confidence));
+            Kpi(p, x0 + 2 * (kw + 10), 0, kw, kh, "Top-3", any ? r.top3.ToString("0.0%") : "—", "true class among the top 3", MLUI.TextColor, null);
+            Kpi(p, x0, kh + 10, kw, kh, "Confidence", any ? r.meanConfidence.ToString("0%") : "—", any ? $"right {r.confidenceRight:0%}  ·  wrong {r.confidenceWrong:0%}" : "", MLUI.TextColor, () => ShowTab(Tab.Confidence));
             string calibration = r.CalibrationWord;
-            Kpi(p, x0 + kw + 10, kh + 10, kw, kh, "Calibration error", any ? r.ece.ToString("0.0%") : "—", any ? calibration : "", !any ? MLUI.TextColor : r.ece < 0.05f ? MLUI.Good : r.ece < 0.1f ? MLUI.Warn : MLUI.Bad, () => ShowTab(Tab.Confidence));
+            Kpi(p, x0 + kw + 10, kh + 10, kw, kh, "Calibration", any ? r.ece.ToString("0.0%") : "—", any ? calibration : "", !any ? MLUI.TextColor : r.ece < 0.05f ? MLUI.Good : r.ece < 0.1f ? MLUI.Warn : MLUI.Bad, () => ShowTab(Tab.Confidence));
             Kpi(p, x0 + 2 * (kw + 10), kh + 10, kw, kh, "Mistakes", any ? (r.evaluated - r.correct).ToString("N0") : "—", any ? $"{r.confidentWrong} of them over 90% sure" : "", MLUI.Bad, () => { ShowMistakes(); ShowTab(Tab.Images); });
 
             float listTop = 2 * (kh + 10), listWidth = (w - x0 - 10) * 0.5f;
@@ -78,12 +78,23 @@ namespace Forge.ML
             var text = MLUI.Text(p, value < 0 ? "—" : value.ToString("0.0%"), width - 60, y, 44, 14, 10); text.alignment = TextAlignmentOptions.TopRight;
         }
 
+        // The text keeps its size while it fits its box, and shrinks to this size, then ends in "...", when it doesn't.
+        static void Shrink(TMP_Text t, float smallest)
+        {
+            t.enableAutoSizing = true;
+            t.fontSizeMax = t.fontSize;
+            t.fontSizeMin = smallest;
+            t.overflowMode = TextOverflowModes.Ellipsis;
+        }
+
         void Kpi(RectTransform p, float x, float y, float w, float h, string label, string value, string note, Color color, UnityAction click)
         {
             if (click != null) HoverButton("Kpi " + label, p, x, y, w, h, 0.045f, 12).onClick.AddListener(click);
             else MLUI.Card(p, x, y, w, h, 12);
-            MLUI.Caps(p, label, x + 12, y + 10, w - 24, 14, 9);
+            var caps = MLUI.Caps(p, label, x + 12, y + 10, w - 24, 14, 9);
+            Shrink(caps, 6.5f);  // a caption never runs into the next tile
             var big = MLUI.Text(p, value, x + 12, y + 23, w - 24, 26, 21); big.fontStyle = FontStyles.Bold; big.color = color; big.textWrappingMode = TextWrappingModes.NoWrap;
+            Shrink(big, 12f);
             var small = MLUI.Text(p, note, x + 12, y + 48, w - 24, 12, 8.5f); small.color = MLUI.Faint;
             small.textWrappingMode = TextWrappingModes.NoWrap; small.overflowMode = TextOverflowModes.Truncate;
         }
@@ -92,7 +103,7 @@ namespace Forge.ML
         {
             var r = report;
             MLUI.Card(p, x, y, w, h, 14);
-            MLUI.Caps(p, title, x + 14, y + 12, w - 28);
+            Shrink(MLUI.Caps(p, title, x + 14, y + 12, w - 28), 6.5f);
             float row = Mathf.Min(46f, (h - 34) / 4f);
             int shown = 0;
             for (int k = 0; k < r.classes && shown < 4; k++)

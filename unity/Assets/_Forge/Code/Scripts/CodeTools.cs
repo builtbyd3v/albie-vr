@@ -188,11 +188,11 @@ public static class CodeTools
 
     // ---------------------------------------------------------------- the desk and the voice
 
-    /// <summary>Open the code view if the user is at the desk and another view (or none) is showing.</summary>
+    /// <summary>Open the code view if the user is at the desk (or the OS can open it away from one) and another view (or none) is showing.</summary>
     internal static void OpenView()
     {
         var ws = Workspace.Current;
-        if (ws != null && ws.ActiveMode != "code" && ws.presence != null && ws.presence.AtDesk) ws.Open("code");
+        if (ws != null && ws.ActiveMode != "code" && ws.CanOpen) ws.Open("code");
     }
 
     /// <summary>Hub off: have Albie say this now (AlbieVoice, the local peer). Hub live: the hub speaks for itself.</summary>

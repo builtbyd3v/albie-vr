@@ -22,6 +22,30 @@ public class SimulatedHandSource : MonoBehaviour, IHandSource
     /// <summary>Aim here instead of along the crosshair. For the play-mode test, which has no mouse.</summary>
     public Vector3? AimPoint { get; set; }
 
+    // ---- Test hook for the left hand (used by the OS watch-turn play test) ----
+    // Off by default: the left hand is never tracked in the sandbox. A test sets LeftTestActive = true and a world pose; Read
+    // then reports hand 0 as a tracked, high confidence left hand built by SyntheticHand with that shape, wrist and rotation.
+    // In its wrist frame the hand has fingers along +Z and the back of the hand along +Y (identity = left palm down, fingers
+    // forward). Set it back to false when done. Reset when the app starts, so it never leaks between Play sessions.
+
+    /// <summary>True: hand 0 (left) reads as tracked at <see cref="LeftTestWrist"/>. False (the default): it is not tracked.</summary>
+    public static bool LeftTestActive;
+    /// <summary>World position of the test left wrist.</summary>
+    public static Vector3 LeftTestWrist;
+    /// <summary>World rotation of the test left wrist (identity: palm down, fingers along world +Z).</summary>
+    public static Quaternion LeftTestRotation = Quaternion.identity;
+    /// <summary>Finger shape of the test left hand.</summary>
+    public static HandShape LeftTestShape = HandShape.Relaxed;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetLeftTest()
+    {
+        LeftTestActive = false;
+        LeftTestWrist = Vector3.zero;
+        LeftTestRotation = Quaternion.identity;
+        LeftTestShape = HandShape.Relaxed;
+    }
+
     /// <summary>Change hand shape, as the number keys do. Public for the play-mode test.</summary>
     public void SetShape(HandShape next, bool isPalmUp = false)
     {
@@ -75,6 +99,12 @@ public class SimulatedHandSource : MonoBehaviour, IHandSource
     {
         sample.tracked = false;
         sample.highConfidence = false;
+        if (hand == 0)
+        {
+            // Only a test sets this; otherwise the left hand stays untracked, exactly as before.
+            if (LeftTestActive) SyntheticHand.Build(sample, LeftTestShape, LeftTestWrist, LeftTestRotation, true);
+            return;
+        }
         if (hand != 1) return;
         Transform head = PetUser.Head;
         if (head == null) return;
