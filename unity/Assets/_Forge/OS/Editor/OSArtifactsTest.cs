@@ -20,7 +20,7 @@ namespace Forge.OS.Editor
     /// laid out in the mock living room through <see cref="ArtifactHost.Room"/>. It checks the Artifacts tab (the New
     /// section, then what was made), presses the real tiles with a pointer to make and open the heart, the solar system,
     /// repo activity (through its Allow sheet) and a slalom for the truck project (the brain truck appears and the tile
-    /// says "for RC truck"), closes each from its tile, checks that every artifact panel and volume is movable and tracked
+    /// says "for RC truck"; the heart, made with the truck open, stays standalone), closes each from its tile, checks that every artifact panel and volume is movable and tracked
     /// as a window (Bring windows here and Close all reach it), and checks the text of the open windows. Screenshots go to
     /// Logs/os/. The result is in <see cref="LastResult"/> and a console line "[OSArtifactsTest] N passed, M failed".
     /// </summary>
@@ -422,7 +422,11 @@ namespace Forge.OS.Editor
             Check(shell.Windows.All.Count > 0 && FirstVolume(shell) != null, "the heart is a volume window");
             string heartStatus = Status("heart");
             Check(heartStatus.StartsWith("open", StringComparison.Ordinal), "the heart tile says open (" + heartStatus + ")");
-            Check(heartStatus.Contains("for RC truck"), "made while the truck project is open, the heart is linked and the tile says for RC truck (" + heartStatus + ")");
+            Check(!heartStatus.Contains("for "), "made while the truck project is open, the heart is still standalone: its tile names no project (" + heartStatus + ")");
+            JObject heartManifest = null;
+            try { heartManifest = NotebookFiles.Parse(File.ReadAllText(Path.Combine(ArtifactLibrary.Root, "heart", "manifest.json"))) as JObject; }
+            catch (System.Exception) { }
+            Check(heartManifest != null && heartManifest["links"]?["project"]?.Type != JTokenType.String, "the heart's manifest links to no project");
             windows.BringHere();  // the desk's walls are in the way of where the host puts things in this simulated room
             yield return 2.5f;
             Shot("61_heart_open");

@@ -23,7 +23,77 @@ namespace Forge.Artifacts
         public static string Root => RootOverride ?? Path.Combine(Application.persistentDataPath, "artifacts");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => RootOverride = null;
+        static void ResetStatics()
+        {
+            RootOverride = null;
+            LinkRule = null;
+            scopeProject = null;
+        }
+
+        // ---------------------------------------------------------------- which project a new artifact links to
+
+        /// <summary>
+        /// Decides, in Play mode, which project a new artifact links to (the OS sets it: <c>OSProjects.ProjectForNew</c>), or
+        /// null for none. It gets the manifest as given, before any link is written. Without it (edit-mode checks) a new
+        /// artifact links to the open notebook project only inside <see cref="ForProject{T}"/> or when it is a course for a
+        /// Thing (its <c>links.thing</c> is set). Never by default: an artifact made while a project merely happens to be open
+        /// (a heart, a sim, an imported model) stays standalone.
+        /// </summary>
+        public static Func<JObject, string> LinkRule;
+
+        static string scopeProject;
+
+        /// <summary>The project a step is making an artifact for right now (inside <see cref="ForProject{T}"/>), or null.</summary>
+        public static string ScopeProject => scopeProject;
+
+        /// <summary>
+        /// Runs <paramref name="make"/> with every artifact it makes linked to <paramref name="projectId"/> (when that is the open
+        /// notebook project): the Project window's own steps (its Course, its Launch) use it, so what a project's step makes
+        /// belongs to that project.
+        /// </summary>
+        public static T ForProject<T>(string projectId, Func<T> make)
+        {
+            string before = scopeProject;
+            scopeProject = projectId;
+            try { return make(); }
+            finally { scopeProject = before; }
+        }
+
+        // The project a new artifact links to, or null (see LinkRule).
+        static string ProjectFor(JObject manifest)
+        {
+            if (!NotebookStore.IsOpen) return null;
+            if (LinkRule != null && Application.isPlaying)
+            {
+                try { return LinkRule(manifest); }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                    return null;
+                }
+            }
+            if (scopeProject != null) return scopeProject == NotebookStore.ProjectId ? scopeProject : null;
+            return manifest?["links"]?["thing"]?.Type == JTokenType.String ? NotebookStore.ProjectId : null;
+        }
+
+        // Links the manifest to the project, or takes any project link off it. With no other link left, a template that had
+        // none of its own stays standalone; a course keeps its kind and its links.thing (the brain truck needs it).
+        static void ApplyLink(JObject manifest, string project)
+        {
+            if (!(manifest["links"] is JObject links)) manifest["links"] = links = new JObject();
+            if (project != null)
+            {
+                manifest["kind"] = "project";
+                links["project"] = project;
+                links["project_version"] = NotebookStore.CurrentVersion();
+                return;
+            }
+            links["project"] = JValue.CreateNull();
+            links["project_version"] = JValue.CreateNull();
+            bool any = false;
+            foreach (var link in links.Properties()) any |= link.Value.Type != JTokenType.Null;
+            if (!any && manifest.Value<string>("kind") == "project") manifest["kind"] = "standalone";
+        }
 
         public static string Folder(string id) => Path.Combine(Root, id);
 
@@ -47,8 +117,8 @@ namespace Forge.Artifacts
         }
 
         /// <summary>
-        /// Makes an artifact from a template in the library, linked to the open notebook project if there is one
-        /// (standalone otherwise). <paramref name="inputs"/> become the inputs' defaults; out of range is refused, not
+        /// Makes an artifact from a template in the library, linked to a project only when it belongs to it
+        /// (<see cref="LinkRule"/>); standalone otherwise. <paramref name="inputs"/> become the inputs' defaults; out of range is refused, not
         /// clamped. Making the same thing again changes nothing; a different one bumps the version.
         /// Bad input throws "code: message".
         /// </summary>
@@ -70,12 +140,8 @@ namespace Forge.Artifacts
                     input["default"] = pair.Value.DeepClone();
                 }
 
-            if (NotebookStore.IsOpen)
-            {
-                manifest["kind"] = "project";
-                manifest["links"]["project"] = NotebookStore.ProjectId;
-                manifest["links"]["project_version"] = NotebookStore.CurrentVersion();
-            }
+            // Linked only to a project it belongs to (LinkRule): never to whatever notebook happens to be open.
+            if (NotebookStore.IsOpen) ApplyLink(manifest, ProjectFor(manifest));
             else
             {
                 manifest["kind"] = "standalone";
@@ -87,7 +153,7 @@ namespace Forge.Artifacts
         /// <summary>
         /// Saves an artifact Albie wrote itself (<c>artifact_create {manifest, scene}</c>). Nothing is written unless the
         /// validator passes and this host can build every part; otherwise <paramref name="errors"/> says what to fix, as
-        /// data (C-12 section 9). A project or code artifact made while a notebook is open is linked to that project.
+        /// data (C-12 section 9). A project or code artifact is linked to a project only when it belongs to it (<see cref="LinkRule"/>).
         /// </summary>
         public static Created FromScene(JObject manifest, JObject scene, out List<ArtifactError> errors) =>
             FromScene(manifest, scene, out errors, out _, out _);
@@ -125,12 +191,7 @@ namespace Forge.Artifacts
             scene = (JObject)scene.DeepClone();
             manifest["scene"] = "scene.json";  // the only file Write saves, so the manifest has to name it
             ModelImport.KeepCredits(manifest, SavedManifest(manifest.Value<string>("id")));  // an imported model keeps its attribution
-            if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone")
-            {
-                if (!(manifest["links"] is JObject)) manifest["links"] = new JObject();
-                manifest["links"]["project"] = NotebookStore.ProjectId;
-                manifest["links"]["project_version"] = NotebookStore.CurrentVersion();
-            }
+            if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone") ApplyLink(manifest, ProjectFor(manifest));
             return Write(manifest, scene);
         }
 

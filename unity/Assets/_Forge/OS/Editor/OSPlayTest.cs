@@ -1040,7 +1040,7 @@ namespace Forge.OS.Editor
             Check(shell.MenuOpen, "the menu opened for Build something");
             if (menu != null) rig.LookAt(menu.LastCenter);
             yield return 0.4f;
-            PressButton("Build something", menu);
+            PressButton("New project", menu);
             yield return 1.0f;
             if (!shell.Windows.IsOpen("build"))
             {
@@ -1062,11 +1062,15 @@ namespace Forge.OS.Editor
                 yield return 1.2f;
             }
             Forge.Notebook.NotebookStore.Flush();
-            Check(Forge.Notebook.NotebookStore.IsOpen && Forge.Notebook.NotebookStore.ProjectId == "proj_truck", "Start opened proj_truck in the notebook");
+            // Start makes the person's own truck project (My RC truck), never a plan in the sample.
+            string made = Forge.OS.OSBuildFlow.LastProjectId ?? "";
+            Check(Forge.Notebook.NotebookStore.IsOpen && made.StartsWith("proj_my_truck", StringComparison.Ordinal) && Forge.Notebook.NotebookStore.ProjectId == made,
+                "Start opened the person's own truck project in the notebook (" + Forge.Notebook.NotebookStore.ProjectId + ")");
             OSWindow project = shell.Windows.Find("project");
-            Check(project != null && project.GetComponent<OSProjectWindow>().ProjectId == "proj_truck", "the Project window is open on proj_truck");
+            Check(project != null && project.GetComponent<OSProjectWindow>().ProjectId == made, "the Project window is open on " + made);
             Check(Forge.OS.OSBuildFlow.LastPlanVersion >= 1 && Forge.Notebook.NotebookStore.CurrentPlan != null, "the new plan is saved (version " + Forge.OS.OSBuildFlow.LastPlanVersion + ")");
-            Check(File.Exists(Path.Combine(root, "projects", "proj_truck", "plans", "plan_v0001.json")), "plan_v0001.json is on disk in the scratch notebook");
+            Check(File.Exists(Path.Combine(root, "projects", made, "plans", "plan_v0001.json")), "plan_v0001.json is on disk in the scratch notebook");
+            Check(!File.Exists(Path.Combine(root, "projects", "proj_truck", "plans", "plan_v0001.json")), "the RC truck sample got no plan");
             Check(!shell.Windows.IsOpen("build"), "the card is gone after Start");
             Shot("build_started");
 

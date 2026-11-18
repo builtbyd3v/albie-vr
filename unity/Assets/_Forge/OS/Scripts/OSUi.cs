@@ -420,6 +420,188 @@ namespace Forge.OS
             }
         }
 
+        // ---------------------------------------------------------------- cards, pairs, chips
+
+        /// <summary>The faint plate behind a <see cref="Card"/>: lighter than the window, so a group of controls reads as one thing.</summary>
+        public static readonly Color CardFill = new Color(1f, 1f, 1f, 0.06f);
+        /// <summary>The thin line between the steps of a <see cref="Stepper"/> row.</summary>
+        public static readonly Color StepLine = new Color(1f, 1f, 1f, 0.22f);
+        /// <summary>A step chip is this tall: 52 units, 34 mm, a hand-sized target.</summary>
+        public const float ChipHeight = 52f, ChipMinWidth = 150f;
+
+        /// <summary>
+        /// A card: a rounded plate (the UI Set's rounded material, <see cref="CardFill"/>) holding a column, with
+        /// <paramref name="padding"/> units inside and <paramref name="spacing"/> between its children. It is as tall as what
+        /// it holds and as wide as its parent column. Returns the card, which children go straight into.
+        /// </summary>
+        public static RectTransform Card(Transform parent, float padding = 24f, float spacing = 10f)
+        {
+            var go = new GameObject("Card", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
+            var image = go.AddComponent<Image>();
+            image.color = CardFill;
+            image.raycastTarget = false;
+            Material rounded = RoundedMaterial();
+            if (rounded != null) image.material = rounded;
+            go.AddComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>().borderRadius = new Vector4(20f, 20f, 20f, 20f);
+            var layout = go.AddComponent<VerticalLayoutGroup>();
+            int pad = Mathf.RoundToInt(Mathf.Max(0f, padding));
+            layout.padding = new RectOffset(pad, pad, pad, pad);
+            layout.spacing = Mathf.Max(spacing, 0f);
+            layout.childAlignment = TextAnchor.UpperLeft;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var element = go.AddComponent<LayoutElement>();
+            element.flexibleWidth = 1f;
+            element.flexibleHeight = 0f;
+            Touch(parent);
+            return rect;
+        }
+
+        /// <summary>
+        /// One line of a two-column summary: <paramref name="label"/> (secondary, <paramref name="labelWidth"/> units wide) and
+        /// its value beside it, wrapping in the space left. Returns the value's text.
+        /// </summary>
+        public static TMP_Text Pair(Transform parent, string label, string value, float labelWidth = 200f)
+        {
+            var go = new GameObject("Pair " + label, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.spacing = 16f;
+            row.childAlignment = TextAnchor.UpperLeft;
+            row.childControlWidth = row.childControlHeight = true;
+            row.childForceExpandWidth = row.childForceExpandHeight = false;
+            var element = go.AddComponent<LayoutElement>();
+            element.flexibleWidth = 1f;
+            TMP_Text name = Text(go.transform, label, SmallText, true);
+            var nameLayout = name.GetComponent<LayoutElement>();
+            nameLayout.minWidth = nameLayout.preferredWidth = labelWidth;
+            nameLayout.flexibleWidth = 0f;
+            TMP_Text text = Text(go.transform, value, BodyText);
+            text.GetComponent<LayoutElement>().minWidth = 120f;
+            return text;
+        }
+
+        /// <summary>A small all-capitals tag line ("SAMPLE · LOOK AROUND"), secondary colour, bold.</summary>
+        public static TMP_Text Tag(Transform parent, string text)
+        {
+            TMP_Text tag = Text(parent, text, SmallText, true);
+            tag.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
+            tag.characterSpacing = 4f;
+            return tag;
+        }
+
+        /// <summary>How a step of a <see cref="Stepper"/> row looks.</summary>
+        public enum StepState { Done, Current, Upcoming, Locked }
+
+        /// <summary>A horizontal row of step chips with thin lines between them (<see cref="StepChip"/> fills it).</summary>
+        public static RectTransform Stepper(Transform parent)
+        {
+            var go = new GameObject("Stepper", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.spacing = 8f;
+            row.childAlignment = TextAnchor.LowerLeft;
+            row.childControlWidth = row.childControlHeight = true;
+            row.childForceExpandWidth = row.childForceExpandHeight = false;
+            go.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>
+        /// One step of a <see cref="Stepper"/>: its number and state over a chip button ("2 · next" over Drive). Done steps
+        /// carry a check and are quiet (borderless), the current one is ringed, a locked one is switched off. The chip is
+        /// <see cref="ChipHeight"/> tall and at least <see cref="ChipMinWidth"/> wide. A line joins it to the step before.
+        /// Returns the chip's button (named "Button " + label, like every <see cref="Button"/>).
+        /// </summary>
+        public static Button StepChip(RectTransform stepper, int number, string label, string icon, StepState state, Action onClick)
+        {
+            if (stepper == null) return null;
+            if (stepper.childCount > 0) StepJoin(stepper);
+            var cell = new GameObject("Step " + number, typeof(RectTransform));
+            cell.transform.SetParent(stepper, false);
+            var column = cell.AddComponent<VerticalLayoutGroup>();
+            column.spacing = 6f;
+            column.childAlignment = TextAnchor.UpperCenter;
+            column.childControlWidth = column.childControlHeight = true;
+            column.childForceExpandWidth = column.childForceExpandHeight = false;
+            cell.AddComponent<LayoutElement>().flexibleWidth = 0f;
+
+            string word = state == StepState.Done ? " · done" : state == StepState.Current ? " · next" : state == StepState.Locked ? " · off" : "";
+            TMP_Text caption = Text(cell.transform, number + word, SmallText, state != StepState.Current);
+            caption.alignment = TextAlignmentOptions.Center;
+            caption.textWrappingMode = TextWrappingModes.NoWrap;
+            if (state == StepState.Current) caption.fontStyle = FontStyles.Bold;
+
+            OSButtonStyle style = state == StepState.Done ? OSButtonStyle.Borderless : OSButtonStyle.Secondary;
+            Button chip = Button(cell.transform, label, onClick, style, state == StepState.Done ? "check" : icon);
+            if (chip == null) return null;
+            var chipLayout = chip.GetComponent<LayoutElement>();
+            float width = Mathf.Max(ChipMinWidth, chipLayout != null ? chipLayout.preferredWidth : ChipMinWidth);
+            Size(chip.transform, width, ChipHeight);
+            if (chipLayout != null) chipLayout.flexibleHeight = 0f;
+            caption.GetComponent<LayoutElement>().preferredWidth = width;
+            if (state == StepState.Locked) chip.interactable = false;
+            if (state == StepState.Current)
+            {
+                var ring = new GameObject("Ring", typeof(RectTransform));
+                ring.transform.SetParent(chip.transform, false);
+                var ringRect = (RectTransform)ring.transform;
+                ringRect.anchorMin = Vector2.zero;
+                ringRect.anchorMax = Vector2.one;
+                ringRect.offsetMin = new Vector2(-4f, -4f);
+                ringRect.offsetMax = new Vector2(4f, 4f);
+                ring.AddComponent<LayoutElement>().ignoreLayout = true;
+                var image = ring.AddComponent<Image>();
+                image.sprite = OutlineSprite();
+                image.type = Image.Type.Sliced;
+                image.color = new Color(1f, 1f, 1f, 0.85f);
+                image.raycastTarget = false;
+            }
+            return chip;
+        }
+
+        // The line between two steps: as tall as a chip, the line through its middle, taking the spare width.
+        static void StepJoin(RectTransform stepper)
+        {
+            var go = new GameObject("Join", typeof(RectTransform));
+            go.transform.SetParent(stepper, false);
+            var element = go.AddComponent<LayoutElement>();
+            element.minWidth = 16f;
+            element.preferredWidth = 40f;
+            element.flexibleWidth = 1f;
+            element.minHeight = element.preferredHeight = ChipHeight;
+            var line = new GameObject("Line", typeof(RectTransform));
+            line.transform.SetParent(go.transform, false);
+            var rect = (RectTransform)line.transform;
+            rect.anchorMin = new Vector2(0f, 0.5f);
+            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.sizeDelta = new Vector2(0f, 3f);
+            var image = line.AddComponent<Image>();
+            image.color = StepLine;
+            image.raycastTarget = false;
+        }
+
+        // The UI Set's rounded-box material, from the kit's secondary button (null without the kit: the plate is then square).
+        static Material RoundedMaterial()
+        {
+            OSKit kit = OSKit.Current;
+            if (kit == null || kit.secondaryButton == null) return null;
+            Transform background = kit.secondaryButton.transform.Find("Content/Background");
+            var image = background != null ? background.GetComponent<Image>() : null;
+            return image != null ? image.material : null;
+        }
+
+        /// <summary>Stops a control (a button, a row) from taking spare height in a column.</summary>
+        public static void Rigid(Component control)
+        {
+            if (control == null) return;
+            var layout = control.GetComponent<LayoutElement>();
+            if (layout != null) layout.flexibleHeight = 0f;
+        }
+
         // ---------------------------------------------------------------- confirm
 
         /// <summary>

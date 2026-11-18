@@ -1,6 +1,6 @@
 [
   {"name": "os_answer",
-   "description": "Answer the Build something card that is open in front of the user, with what they said: a choice such as 'RC truck' or 'the second one'. On the plan card the words start, change or cancel do what the buttons do. Call it only when the user actually said an answer. The next question is asked for you, so just confirm in a few words. Returns an error with the choices if the words match none of them.",
+   "description": "Answer the New project card that is open in front of the user, with what they said: a choice such as 'RC truck' or 'the second one'. On the plan card the words start, change or cancel do what the buttons do. Call it only when the user actually said an answer. The next question is asked for you, so just confirm in a few words. Returns an error with the choices if the words match none of them.",
    "parameters": {"type": "object", "properties": {
      "answer": {"type": "string", "description": "the user's own words"}},
      "required": ["answer"]}}

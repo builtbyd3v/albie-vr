@@ -105,9 +105,11 @@ namespace Forge.OS
             }
         }
 
-        // The open project an ML project made now is linked to: one the person opened, and not itself an ML project.
+        // The open project an ML project made now is linked to: one of the person's own they opened, not a sample (a sample stays
+        // as it is) and not itself an ML project.
         static string OpenParent() =>
-            OSProjects.ChosenOpen && OSProjects.KindOf(NotebookStore.ProjectId) != OSProjectKind.Ml ? NotebookStore.ProjectId : null;
+            OSProjects.ChosenOpen && !OSProjects.IsSample(NotebookStore.ProjectId) && OSProjects.KindOf(NotebookStore.ProjectId) != OSProjectKind.Ml
+                ? NotebookStore.ProjectId : null;
 
         /// <summary>Adds the section to the Projects tab, after the projects saved on the headset.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

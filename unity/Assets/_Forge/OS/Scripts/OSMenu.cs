@@ -595,7 +595,7 @@ namespace Forge.OS
 
             // Bottom strip
             float stripX = Pad;
-            stripX = Strip("Build something", "build", OSButtonStyle.Primary, () => OpenSystem("build"), stripX);
+            stripX = Strip("New project", "build", OSButtonStyle.Primary, () => OpenSystem("build"), stripX);
             stripX = Strip("Agents", "agents", OSButtonStyle.Secondary, () => OpenSystem("agents"), stripX);
             stripX = Strip("Settings", "settings", OSButtonStyle.Secondary, () => OpenSystem("settings"), stripX);
             stripX = Strip("Bring windows here", "bring", OSButtonStyle.Secondary, BringWindows, stripX);

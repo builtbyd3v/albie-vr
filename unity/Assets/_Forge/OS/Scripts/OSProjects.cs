@@ -14,10 +14,13 @@ namespace Forge.OS
     public enum OSProjectKind { Truck, Cad, Ml, Generic }
 
     /// <summary>
-    /// The Projects tab. Registers a source with <see cref="OSRegistry"/> that lists the four sample projects (RC truck,
-    /// Quadcopter, Rocket, Image classifier: worked examples under the "Sample projects" heading, each tile saying what it
-    /// shows until it has progress of its own), a Start my own tile (Build something), and every other folder under the
-    /// notebook's <c>projects/</c> folder (the person's own projects, copies of a sample among them). The
+    /// The Projects tab. One way to start a project: the New project tile (Build something: a few questions, then a plan).
+    /// The tab lists, in this order, the New project tile and the person's own projects (every other folder under the
+    /// notebook's <c>projects/</c> folder), then the four samples under their own heading (RC truck, Quadcopter, Rocket,
+    /// Image classifier: finished examples to look around, each tile saying what it shows). A sample is never copied: its
+    /// window's one call to action, Make my own (<see cref="MakeOwn"/>), opens the same New project questions with the
+    /// sample's kind already picked, so the person gets the choices and a real project with its own plan
+    /// ("My RC truck", which follows the sample's loop). The
     /// folder listing and each project's status line are cached: they are read again when something asks (a registry
     /// change, a notebook write, <see cref="Refresh"/>) or after a few seconds, never every frame. A project is open when
     /// <see cref="NotebookStore.ProjectId"/> matches; <see cref="OpenProject"/> always leaves a project open (it switches
@@ -40,15 +43,17 @@ namespace Forge.OS
             public float? runSeconds;
         }
 
-        /// <summary>The heading over the four sample projects on the Projects tab, and the tag on their windows.</summary>
-        public const string SampleSection = "Sample projects";
-        /// <summary>The tag a sample project's window and voice answers carry.</summary>
-        public const string SampleTag = "Sample project";
-        /// <summary>What a sample project is for, in one line (the window and the welcome card say it).</summary>
-        public const string SampleLine = "A worked example. Explore it, keep going, or copy it to make it yours.";
-        /// <summary>The "Start my own" tile beside the samples: it opens Build something.</summary>
+        /// <summary>The heading over the four samples on the Projects tab.</summary>
+        public const string SampleSection = "Samples to look around";
+        /// <summary>The tag a sample's window and voice answers carry.</summary>
+        public const string SampleTag = "Sample";
+        /// <summary>What a sample is for, in one line (the window and the welcome card say it).</summary>
+        public const string SampleLine = "A worked example to look around. Try any step; to keep your work, make your own.";
+        /// <summary>The New project tile, first on the tab: it opens Build something. (The id is kept from the old Start my own tile.)</summary>
         public const string StartOwnId = "start_own";
-        public const string StartOwnTitle = "Start my own";
+        public const string NewProjectTitle = "New project";
+        /// <summary>Old name of <see cref="NewProjectTitle"/>.</summary>
+        public const string StartOwnTitle = NewProjectTitle;
         const string ReadyToStart = "Ready to start";
 
         sealed class Starter
@@ -56,8 +61,10 @@ namespace Forge.OS
             public string id, title, icon, part;
             /// <summary>What this sample shows: the short tile line and the full sentence (window, welcome card, voice).</summary>
             public string tileLine, shows;
-            /// <summary>The goal and test a copy starts with when the sample has no plan saved on this device.</summary>
+            /// <summary>The goal and test of the sample (what it is, in a line).</summary>
             public string goal, test;
+            /// <summary>What Build something calls this kind (its first question's answer).</summary>
+            public OSPlanner.Kind plannerKind;
             public OSProjectKind kind;
             /// <summary>Other names people use for it ("drone", "quad"), matched as whole words by <see cref="Resolve"/>.</summary>
             public string[] aliases;
@@ -69,19 +76,19 @@ namespace Forge.OS
 
         static readonly Starter[] starters =
         {
-            new Starter { id = NotebookStore.DefaultProject, title = "RC truck", icon = "truck", kind = OSProjectKind.Truck, thing = "truck",
+            new Starter { id = NotebookStore.DefaultProject, title = "RC truck", icon = "truck", kind = OSProjectKind.Truck, thing = "truck", plannerKind = OSPlanner.Kind.Truck,
                 tileLine = "Design, drive, train", shows = "Design, course, drive, train an autopilot",
                 goal = "An RC truck that does a slalom around the couch.", test = "Finish the slalom with no cones hit.",
                 aliases = new[] { "truck", "rc truck", "rc car", "car", "slalom" } },
-            new Starter { id = QuadcopterId, title = "Quadcopter", icon = "quadcopter", kind = OSProjectKind.Cad, part = "quadcopter", thing = "drone",
+            new Starter { id = QuadcopterId, title = "Quadcopter", icon = "quadcopter", kind = OSProjectKind.Cad, part = "quadcopter", thing = "drone", plannerKind = OSPlanner.Kind.Drone,
                 tileLine = "Design, fly, learn", shows = "A CAD design that flies, follows you and learns a course",
                 goal = "A quadcopter that flies a hoop course in the room.", test = "Fly through every hoop and land.",
                 aliases = new[] { "quadcopter", "quad", "drone", "quadrotor", "copter" } },
-            new Starter { id = RocketId, title = "Rocket", icon = "rocket", kind = OSProjectKind.Cad, part = "rocket", thing = "rocket",
+            new Starter { id = RocketId, title = "Rocket", icon = "rocket", kind = OSProjectKind.Cad, part = "rocket", thing = "rocket", plannerKind = OSPlanner.Kind.Rocket,
                 tileLine = "Design, sim, launch", shows = "Design, simulate and launch in your room",
                 goal = "A model rocket that flies straight and lands near the pad.", test = "A simulated flight that stays stable.",
                 aliases = new[] { "rocket", "model rocket" } },
-            new Starter { id = ClassifierId, title = "Image classifier", icon = "classifier", kind = OSProjectKind.Ml,
+            new Starter { id = ClassifierId, title = "Image classifier", icon = "classifier", kind = OSProjectKind.Ml, plannerKind = OSPlanner.Kind.Classifier,
                 tileLine = "Find, train, publish", shows = "Find a model, train it, publish",
                 goal = "A model that tells pictures apart.", test = "Most test pictures named right.",
                 aliases = new[] { "classifier", "image classifier", "image model", "model", "ml", "machine learning" } },
@@ -133,6 +140,7 @@ namespace Forge.OS
             NotebookStore.VersionCut += OnNotebook;
             NotebookStore.PlanUpdated += OnNotebook;
             OSRegistry.RegisterSource(OSTab.Projects, Fill);
+            ArtifactLibrary.LinkRule = ProjectForNew;  // a new artifact links to a project only when it belongs to it
         }
 
         /// <summary>Takes the Projects source out again (a check that lists its own sample projects). <see cref="Register"/> puts it back.</summary>
@@ -198,28 +206,62 @@ namespace Forge.OS
                 Debug.Log("[OS] Couldn't list the project folders: " + e.Message);
             }
 
-            // The four sample projects first, under their own heading; then the person's own projects on the next row, led by
-            // Start my own (Build something); then one Machine learning section: the ML projects saved on the headset, and
-            // (from OSMLProjects, registered after this source) the hub's or cloud's ML projects.
-            for (int i = 0; i < starters.Length; i++) AddEntry(starters[i].id, starters[i].title, starters[i].icon, SampleSection);
+            // The person's own first: New project (Build something), then their projects; then the four samples under their own
+            // heading (on the same page while the person has three projects or fewer); then one Machine learning section: the
+            // ML projects saved on the headset, and (from OSMLProjects, registered after this source) the hub's or cloud's.
             entries.Add(new OSEntry
             {
                 id = StartOwnId,
-                title = StartOwnTitle,
+                title = NewProjectTitle,
                 icon = "plus",
                 tab = OSTab.Projects,
                 outline = true,
-                status = () => "Build something new",
+                status = () => NewProjectLine,
                 open = StartOwn,
             });
             for (int i = 0; i < folderIds.Count; i++) AddEntry(folderIds[i], TitleFor(folderIds[i]), IconFor(folderIds[i], "projects"), null);
+            for (int i = 0; i < starters.Length; i++) AddEntry(starters[i].id, starters[i].title, starters[i].icon, SampleSection);
             for (int i = 0; i < mlFolderIds.Count; i++) AddEntry(mlFolderIds[i], TitleFor(mlFolderIds[i]), "classifier", OSMLProjects.Section);
         }
 
-        /// <summary>Start my own: the Build something card (the same flow as the menu strip's button).</summary>
+        /// <summary>The New project tile's line.</summary>
+        public const string NewProjectLine = "Plan it with Albie";
+
+        /// <summary>New project: the Build something card (the same flow as the menu strip's button).</summary>
         public static void StartOwn() => OSBuildFlow.Open();
 
-        // A copy of a sample keeps the sample's icon; anything else gets the fallback.
+        /// <summary>
+        /// Make my own: the New project questions with this sample's kind already picked ("RC truck"), so the person answers
+        /// the rest and Start makes their own project with a plan ("My RC truck"). False when it isn't a sample or the card
+        /// can't open (a scene with no menu).
+        /// </summary>
+        public static bool MakeOwn(string sampleId)
+        {
+            var s = FindStarter(sampleId);
+            if (s == null) return false;
+            return OSBuildFlow.OpenFor(s.plannerKind) != null;
+        }
+
+        /// <summary>"Make my own RC truck": the sample window's one call to action. Null for a project that isn't a sample.</summary>
+        public static string MakeOwnLabel(string sampleId)
+        {
+            var s = FindStarter(sampleId);
+            return s == null ? null : "Make my own " + Lower(s.title);
+        }
+
+        // "RC truck" stays, "Quadcopter" becomes "quadcopter".
+        static string Lower(string title) =>
+            title.Length > 1 && char.IsUpper(title[1]) ? title : char.ToLowerInvariant(title[0]) + title.Substring(1);
+
+        /// <summary>The sample Build something's kind follows (truck, drone, rocket, model), or null for "something else".</summary>
+        public static string SampleForKind(OSPlanner.Kind kind)
+        {
+            for (int i = 0; i < starters.Length; i++)
+                if (starters[i].plannerKind == kind) return starters[i].id;
+            return null;
+        }
+
+        // A project of the person's own that follows a sample keeps the sample's icon; anything else gets the fallback.
         static string IconFor(string id, string fallback)
         {
             var from = FindStarter(CopyOf(id));
@@ -257,18 +299,18 @@ namespace Forge.OS
         /// cloud ML project), or anything else.</summary>
         public static OSProjectKind KindOf(string id)
         {
-            var starter = FindStarter(id) ?? FindStarter(CopyOf(id));  // a copy of a sample works like the sample
+            var starter = FindStarter(id) ?? FindStarter(CopyOf(id));  // a project that follows a sample works like the sample
             if (starter != null) return starter.kind;
             return ProjectMeta.Get(id, "kind") == "ml" || (id != null && id.StartsWith(MlPrefix, StringComparison.Ordinal))
                 ? OSProjectKind.Ml : OSProjectKind.Generic;
         }
 
-        /// <summary>The CAD design a starter (or a copy of one) opens ("quadcopter", "rocket"), or null.</summary>
+        /// <summary>The CAD design a sample (or a project that follows one) opens ("quadcopter", "rocket"), or null.</summary>
         public static string DesignOf(string id) => (FindStarter(id) ?? FindStarter(CopyOf(id)))?.part;
 
         // ---------------------------------------------------------------- sample projects
 
-        /// <summary>True for the four sample projects (RC truck, Quadcopter, Rocket, Image classifier): worked examples to explore or copy.</summary>
+        /// <summary>True for the four sample projects (RC truck, Quadcopter, Rocket, Image classifier): finished examples to look around; Make my own starts the person's own.</summary>
         public static bool IsSample(string id) => FindStarter(id) != null;
 
         /// <summary>What a sample project shows, in one sentence ("Design, simulate and launch in your room"); null for any other project.</summary>
@@ -284,77 +326,17 @@ namespace Forge.OS
             for (int i = 0; i < starters.Length; i++) into.Add(starters[i].id);
         }
 
-        /// <summary>The sample a project was copied from (<see cref="CopySample"/>), or null.</summary>
+        /// <summary>The sample a project of the person's own follows (<see cref="MarkOwn"/>; older ones were copies), or null.</summary>
         public static string CopyOf(string id) => string.IsNullOrEmpty(id) || FindStarter(id) != null ? null : ProjectMeta.Get(id, "copy_of");
 
         /// <summary>
-        /// Make a copy: a new project of the person's own from a sample, "My RC truck" (id <c>proj_my_truck</c>, then
-        /// <c>proj_my_truck_2</c>...). It keeps the sample's plan (goal, test, parts, course; every milestone not done yet)
-        /// and its design link and loop, and none of its history (versions, runs, notes). The copy is opened with its window.
-        /// Returns the new id, or null with a plain sentence in <paramref name="error"/>.
+        /// The id for a new project of the person's own that follows <paramref name="sampleId"/>: <c>proj_my_truck</c>, then
+        /// <c>proj_my_truck_2</c>..., the first no folder, record or open project has. Nothing is written.
         /// </summary>
-        public static string CopySample(string sampleId, out string error)
+        public static string FreeOwnId(string sampleId)
         {
-            error = null;
             var s = FindStarter(sampleId);
-            if (s == null)
-            {
-                error = "Only a sample project can be copied.";
-                return null;
-            }
-            JObject plan = null;
-            if (EnsureOpen(s.id, out _) && NotebookStore.CurrentPlan != null) plan = (JObject)NotebookStore.CurrentPlan.DeepClone();
-
-            string id = FreeCopyId(s);
-            string title = "My " + (s.title.Length > 1 && char.IsUpper(s.title[1]) ? s.title : char.ToLowerInvariant(s.title[0]) + s.title.Substring(1));
-            if (!ProjectMeta.Update(id, meta =>
-                {
-                    meta["title"] = title;
-                    meta["copy_of"] = s.id;
-                    if (s.kind == OSProjectKind.Ml) meta["kind"] = "ml";
-                }))
-            {
-                error = "The copy couldn't be made.";
-                return null;
-            }
-            if (!EnsureOpen(id, out error)) return null;
-
-            string goal = (string)plan?["goal"];
-            string test = plan?["test"] != null && plan["test"].Type == JTokenType.String ? (string)plan["test"] : null;
-            var milestones = new JArray();
-            if (plan?["milestones"] is JArray old)
-                foreach (JToken m in old)
-                    if (m is JObject item)
-                    {
-                        var copy = (JObject)item.DeepClone();
-                        copy["done"] = false;
-                        milestones.Add(copy);
-                    }
-            try
-            {
-                int version = NotebookStore.RevisePlan("Copied from the sample " + s.title + ".",
-                    string.IsNullOrWhiteSpace(goal) ? s.goal : goal, string.IsNullOrWhiteSpace(test) ? s.test : test, milestones);
-                JObject saved = NotebookStore.CurrentPlan;
-                if (plan != null && saved != null && (int?)saved["version"] == version && (plan["parts"] is JArray || plan["course"] != null))
-                {
-                    if (plan["parts"] is JArray parts) saved["parts"] = parts.DeepClone();
-                    if (plan["course"] != null && plan["course"].Type == JTokenType.String) saved["course"] = plan["course"].DeepClone();
-                    NotebookFiles.Write(Path.Combine(NotebookStore.ProjectFolder, "plans", "plan_v" + version.ToString("0000") + ".json"), saved.ToString(Formatting.Indented));
-                }
-            }
-            catch (Exception e)
-            {
-                if (!(e is ArgumentException)) Debug.LogException(e);
-                Debug.Log("[OS] The copy of " + s.id + " has no plan: " + e.Message);
-            }
-            dirty = true;
-            OpenProject(id);
-            return id;
-        }
-
-        // proj_my_truck, then proj_my_truck_2: the first id no folder, record or open project has.
-        static string FreeCopyId(Starter s)
-        {
+            if (s == null) return null;
             NotebookStore.Flush();
             string folder = Path.Combine(NotebookStore.Root ?? NotebookStore.DefaultRoot, "projects");
             string baseId = "proj_my_" + (s.id.StartsWith("proj_", StringComparison.Ordinal) ? s.id.Substring(5) : s.id);
@@ -367,6 +349,31 @@ namespace Forge.OS
                 id = baseId + "_" + n;
             }
             return id;
+        }
+
+        /// <summary>"My RC truck", "My quadcopter": the title of a project of the person's own that follows a sample.</summary>
+        public static string OwnTitle(string sampleId)
+        {
+            var s = FindStarter(sampleId);
+            return s == null ? null : "My " + Lower(s.title);
+        }
+
+        /// <summary>
+        /// Records that <paramref name="id"/> is the person's own project following <paramref name="sampleId"/> (its title, the
+        /// sample, and "ml" for the classifier), so it gets the sample's loop and design. False when it can't be written.
+        /// </summary>
+        public static bool MarkOwn(string id, string sampleId)
+        {
+            var s = FindStarter(sampleId);
+            if (s == null || FindStarter(id) != null) return false;
+            bool ok = ProjectMeta.Update(id, meta =>
+            {
+                meta["title"] = OwnTitle(sampleId);
+                meta["copy_of"] = s.id;
+                if (s.kind == OSProjectKind.Ml) meta["kind"] = "ml";
+            });
+            dirty = true;
+            return ok;
         }
 
         /// <summary>The cloud or hub ML project (its <c>GET /ml/projects</c> name) this project is for, or null.</summary>
@@ -383,19 +390,9 @@ namespace Forge.OS
             return ProjectMeta.Get(id, "title") ?? Pretty(id);
         }
 
-        /// <summary>The starter Build something fills for this kind: the truck, the quadcopter, the rocket or the
-        /// classifier; null for "something else", which gets a new project.</summary>
-        public static string StarterFor(OSPlanner.Kind kind)
-        {
-            switch (kind)
-            {
-                case OSPlanner.Kind.Truck: return NotebookStore.DefaultProject;
-                case OSPlanner.Kind.Drone: return QuadcopterId;
-                case OSPlanner.Kind.Rocket: return RocketId;
-                case OSPlanner.Kind.Classifier: return ClassifierId;
-                default: return null;
-            }
-        }
+        /// <summary>The sample a Build something kind follows: the truck, the quadcopter, the rocket or the classifier; null for
+        /// "something else". Build something never writes into it: Start makes the person's own project that follows it.</summary>
+        public static string StarterFor(OSPlanner.Kind kind) => SampleForKind(kind);
 
         /// <summary>The starter whose courses have this <c>links.thing</c> ("truck", "drone", "rocket"), or null.</summary>
         public static string StarterForThing(string thing)
@@ -428,29 +425,88 @@ namespace Forge.OS
         }
 
         /// <summary>
-        /// Gets the notebook ready for an artifact made from the Artifacts tab, so the library links it to the right project
-        /// or to none, never by default to the truck: a project the person opened stays open and gets it; otherwise a
-        /// course goes to the starter it belongs to (a drone course to the Quadcopter, the slalom to the RC truck, the
-        /// launch pad to the Rocket); anything else is made standalone (the notebook the app opened by itself is closed, and
-        /// any project window opens it again). Returns the project it will link to, or null.
+        /// Gets the notebook ready for an artifact made from the Artifacts tab. Only a course for a Thing can belong to a
+        /// project: it stays with the project the person has open when that project runs the same Thing (a slalom for "My RC
+        /// truck"); with no project chosen it goes to the sample it belongs to (the slalom to the RC truck, a drone course to
+        /// the Quadcopter, the launch pad to the Rocket). Everything else (a heart, a sim, repo activity) is made standalone, and
+        /// nothing is opened or closed for it. Returns the project it will link to, or null. The library applies the same rule
+        /// (<see cref="ProjectForNew"/>).
         /// </summary>
         public static string PrepareForArtifact(string template)
         {
-            if (ChosenOpen) return NotebookStore.ProjectId;
-            string starter = StarterForThing(ThingOfTemplate(template));
-            if (starter != null)
-            {
-                if (EnsureOpen(starter, out string error)) return starter;
-                Debug.Log("[OS] Couldn't open " + starter + " for the new artifact: " + error);
-                return NotebookStore.ProjectId;
-            }
-            if (NotebookStore.IsOpen)
-            {
-                Debug.Log("[OS] No project was chosen, so the new " + template + " is standalone (closed the notebook's default '" + NotebookStore.ProjectId + "').");
-                NotebookStore.Close();
-                dirty = true;
-            }
+            string thing = ThingOfTemplate(template);
+            if (thing == null) return null;
+            if (ChosenOpen) return ThingOfProject(NotebookStore.ProjectId) == thing ? NotebookStore.ProjectId : null;
+            string starter = StarterForThing(thing);
+            if (starter == null) return null;
+            if (EnsureOpen(starter, out string error)) return starter;
+            Debug.Log("[OS] Couldn't open " + starter + " for the new artifact: " + error);
             return null;
+        }
+
+        /// <summary>
+        /// The Thing a project runs ("truck", "drone", "rocket"): its sample's, or the one its own sample follows; for any other
+        /// project that is open, the Thing of the course its plan names. Null when it runs none (the classifier, most others).
+        /// </summary>
+        public static string ThingOfProject(string id)
+        {
+            var starter = FindStarter(id) ?? FindStarter(CopyOf(id));
+            if (starter != null) return starter.thing;
+            if (!IsOpen(id)) return null;
+            JToken course = NotebookStore.CurrentPlan?["course"];
+            return course != null && course.Type == JTokenType.String ? ThingOfTemplate((string)course) : null;
+        }
+
+        /// <summary>The Thing an artifact is a course for: its <c>links.thing</c>, or what its template is for (the launch pad: "rocket"); null for none.</summary>
+        public static string ThingOfArtifact(JObject manifest)
+        {
+            JToken thing = manifest?["links"]?["thing"];
+            if (thing != null && thing.Type == JTokenType.String && !string.IsNullOrEmpty((string)thing)) return (string)thing;
+            JToken template = manifest?["template"];
+            if (template == null || template.Type != JTokenType.String) return null;
+            string name = (string)template;
+            if (name == OSProjectWindow.RocketLaunchTemplate) return "rocket";
+            return ArtifactCourses.IsTemplate(name) ? ArtifactCourses.ThingOf(name) : null;
+        }
+
+        /// <summary>
+        /// The project a saved artifact really belongs to, from its manifest: its <c>links.project</c>, except that an older
+        /// artifact linked to a sample it has nothing to do with (a heart made while the app's RC truck notebook was open says
+        /// proj_truck) counts as standalone. Only a course for the sample's own Thing belongs to a sample. Nothing is rewritten.
+        /// </summary>
+        public static string EffectiveProject(JObject manifest)
+        {
+            JToken link = manifest?["links"]?["project"];
+            if (link == null || link.Type != JTokenType.String) return null;
+            string project = (string)link;
+            if (string.IsNullOrEmpty(project)) return null;
+            var starter = FindStarter(project);
+            if (starter == null) return project;
+            string thing = ThingOfArtifact(manifest);
+            return thing != null && thing == starter.thing ? project : null;
+        }
+
+        /// <summary>
+        /// The library's linking rule (<see cref="ArtifactLibrary.LinkRule"/>), for a new artifact: the project a Project
+        /// window step is making it for (<see cref="ArtifactLibrary.ForProject{T}"/>); otherwise, only while the person is
+        /// working in a project they opened themselves (not the notebook the app opens at start), a course for that project's
+        /// Thing, or an artifact Albie wrote that asks for the project (kind "project" or links.project naming it). Everything
+        /// else is standalone: a biology model, an imported model, a sim or a chart made while a project is open is not that
+        /// project's.
+        /// </summary>
+        public static string ProjectForNew(JObject manifest)
+        {
+            if (!NotebookStore.IsOpen) return null;
+            string open = NotebookStore.ProjectId;
+            string scope = ArtifactLibrary.ScopeProject;
+            if (scope != null) return scope == open ? open : null;
+            if (!ChosenOpen) return null;
+            string thing = ThingOfArtifact(manifest);
+            if (thing != null) return thing == ThingOfProject(open) ? open : null;
+            JToken asked = manifest?["links"]?["project"];
+            bool namesIt = asked != null && asked.Type == JTokenType.String && (string)asked == open;
+            bool isTemplate = manifest?["template"]?.Type == JTokenType.String;
+            return !isTemplate && (namesIt || manifest?.Value<string>("kind") == "project") ? open : null;
         }
 
         /// <summary>True while the open notebook project is one the person opened (not only the truck the notebook opens at start).</summary>
@@ -473,7 +529,7 @@ namespace Forge.OS
 
             string n = OSPlanner.Normalize(raw);
             if (n.StartsWith("proj ", StringComparison.Ordinal)) n = n.Substring(5);
-            // "My RC truck" is the person's copy, not the sample: an exact title of their own project wins before "my" is dropped.
+            // "My RC truck" is the person's own project, not the sample: an exact title of their own project wins before "my" is dropped.
             for (int i = 0; i < entries.Count; i++)
                 if (!entries[i].outline && FindStarter(entries[i].id) == null && OSPlanner.Normalize(entries[i].title) == n) return entries[i].id;
             string[] fillers = { "the ", "my ", "our ", "a " };
@@ -655,7 +711,7 @@ namespace Forge.OS
                 try { manifest = NotebookFiles.Parse(File.ReadAllText(path)) as JObject; }
                 catch (Exception e) when (e is JsonException || e is IOException) { continue; }
                 if (manifest == null || !(manifest["links"] is JObject links)) continue;
-                if ((string)links["project"] != projectId) continue;
+                if (EffectiveProject(manifest) != projectId) continue;  // an old artifact linked to a sample by accident isn't the sample's
 
                 var item = new LinkedArtifact
                 {
@@ -771,8 +827,9 @@ namespace Forge.OS
             ArtifactHost host = ArtifactHost.Current;
             if (brain == null || brain.Body == null || host == null || host.Run == null) return false;
             Pose at = host.SceneOrigin;
-            Vector3 centre = at.position + at.rotation * Vector3.up * brain.Body.sensorHeight;
-            int n = brain.gameObject.scene.GetPhysicsScene().OverlapSphere(centre, Forge.Controllers.MockTruckSim.TruckRadius, startBlockers, brain.Body.obstacles, QueryTriggerInteraction.Ignore);
+            // The body's own scaled values, so a desk course (truck at 1:4 to 1:10) asks about the truck's real sphere.
+            Vector3 centre = at.position + at.rotation * Vector3.up * brain.Body.SenseHeight;
+            int n = brain.gameObject.scene.GetPhysicsScene().OverlapSphere(centre, brain.Body.CrashRadius, startBlockers, brain.Body.obstacles, QueryTriggerInteraction.Ignore);
             if (n == 0) return false;
             what = startBlockers[0] != null ? startBlockers[0].name : "something";
             for (int i = 0; i < startBlockers.Length; i++) startBlockers[i] = null;

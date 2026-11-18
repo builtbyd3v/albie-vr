@@ -11,26 +11,27 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The Project window (window id "project"): the open project's plan card (goal, test, milestones), its versions, what
-    /// is linked to it (its CAD design's version, its last training run, the artifacts with their latest run, the ML
-    /// projects made from it) and its loop, a row of steps that each open the real thing:
+    /// The Project window (window id "project"), built in code in four parts (see <see cref="Rebuild"/>): a header card (a
+    /// SAMPLE or YOUR PROJECT tag, what it is, its test, where it stands); one row with the single primary button (Next: the
+    /// next step, or on a sample "Make my own RC truck", which opens Build something with the sample's kind picked) and the
+    /// quiet Notebook and Send; a steps card with the loop as a stepper of chips (done, next, upcoming, off):
     /// - RC truck: Course, Drive, Train, Autopilot, Code;
     /// - Quadcopter: Design (CAD), Course (a drone course), Fly (the Drive window as the drone's transmitter), Train, Autopilot;
     /// - Rocket: Design (CAD), Simulate (the design's flight), Launch (the <c>rocket_launch</c> artifact);
     /// - Image classifier and every ML project: Data, Train, Results, Publish;
-    /// - anything else: Course (when its plan names one), CAD, Train.
-    /// The next step is the primary button. A step whose feature isn't there (no drone brain yet, no cloud) is switched off
-    /// with a short reason under the row, never a button that does nothing. Every step shows the tool's real result, or its
-    /// error as a plain sentence, in the status line. Versions are cut by <see cref="ProjectSpine"/> (a new design version,
-    /// a finished training run). The window follows the open notebook project and re-reads when the notebook changes.
-    /// The four starters are sample projects: their header says SAMPLE and "Sample project", and a section on top says what
-    /// the sample shows, with Make a copy (<see cref="OSProjects.CopySample"/>) and Start my own (Build something).
+    /// - anything else: Course (when its plan names one), CAD, Train;
+    /// and a two-column summary (plan, versions, last training, last run, artifacts, design, what it follows). A step whose
+    /// feature isn't there (no drone brain yet, no cloud) is switched off with a short reason under the stepper, never a
+    /// button that does nothing. Every step shows the tool's real result, or its error as a plain sentence, in the status
+    /// line. What a step makes (the course, the launch pad) is linked to this project (<see cref="ArtifactLibrary.ForProject{T}"/>).
+    /// A sample's steps run as sample runs (its laps and training go in the sample's notebook, as its history did); nothing
+    /// else is attached to it. Versions are cut by <see cref="ProjectSpine"/>. The window follows the open notebook project.
     /// </summary>
     public sealed class OSProjectWindow : MonoBehaviour
     {
         public const string WindowId = "project";
 
-        static readonly Vector2 SizeMeters = new Vector2(0.78f, 0.80f);
+        static readonly Vector2 SizeMeters = new Vector2(0.78f, 0.76f);
         const float PollSeconds = 0.5f;
         const int MaxMilestones = 4, MaxVersions = 3, MaxArtifacts = 2;
 
@@ -61,6 +62,7 @@ namespace Forge.OS
         readonly List<OSProjects.LinkedArtifact> linked = new List<OSProjects.LinkedArtifact>();
         readonly List<string> hints = new List<string>();
         readonly List<Step> steps = new List<Step>();
+        readonly List<Step> extras = new List<Step>(2);
 
         /// <summary>One button of the loop as last built: its label, its action id, and why it is off (null when it is on).</summary>
         public struct Step
@@ -113,15 +115,18 @@ namespace Forge.OS
         public void Bind(string id)
         {
             if (panel == null || string.IsNullOrEmpty(id)) return;
-            if (id != projectId) statusLine = "";
+            if (id != projectId)
+            {
+                statusLine = "";
+                simulated = dataOpened = false;
+            }
             projectId = id;
-            if (id != projectId) simulated = dataOpened = false;
             kind = OSProjects.KindOf(id);
             design = OSProjects.DesignOf(id);
             mlName = OSProjects.MlProjectOf(id);
             loop = LoopOf(id);
             panel.Title = OSProjects.TitleFor(id);
-            panel.SetBadge(OSProjects.IsSample(id) ? "SAMPLE" : "PROJECT", ForgeTheme.Tool);  // a sample says so in its header
+            panel.SetBadge(OSProjects.IsSample(id) ? "SAMPLE" : "MY PROJECT", ForgeTheme.Tool);  // a sample says so in its header
             Rebuild();
         }
 
@@ -194,6 +199,14 @@ namespace Forge.OS
 
         // ---------------------------------------------------------------- building the window
 
+        // The layout, top to bottom, in OS units (the body is about 1145 x 1086 at this window's size):
+        // 1 a header card: a tag (SAMPLE · LOOK AROUND, or YOUR PROJECT), what the project is (the sample's line, or the
+        //   plan's goal), its test, and where it stands (v2 · slalom passed);
+        // 2 one row of actions: the one primary button (Next: Course for a project of your own; Make my own RC truck on a
+        //   sample, with the next step beside it), then Notebook and Send, quiet;
+        // 3 a steps card: the loop as a stepper, one chip per step (done, next, upcoming, off), why a step is off, the live
+        //   brain line (truck) and the last result;
+        // 4 a summary card, two columns: Plan, Versions, Last training, Last run, Artifacts, Design, Follows / Made from.
         void Rebuild()
         {
             dirty = false;
@@ -202,88 +215,280 @@ namespace Forge.OS
             brainKey = int.MinValue;
             hints.Clear();
             steps.Clear();
+            extras.Clear();
 
             RectTransform body = OSUi.Body(panel);
             if (body == null) return;
             OSUi.Clear(body);
-            RectTransform column = OSUi.Column(body, 14f);
+            RectTransform column = OSUi.Column(body, 18f);
 
             OSProjects.LinkedArtifacts(projectId, linked);
             bool sample = OSProjects.IsSample(projectId);
-            panel.Subtitle = sample ? OSProjects.SampleTag + " · " + OSProjects.ComputeStatus(projectId, linked) : OSProjects.ComputeStatus(projectId, linked);
+            string status = OSProjects.ComputeStatus(projectId, linked);
+            panel.Subtitle = sample ? OSProjects.SampleTag + " · " + status : status;
             bool isOpen = OSProjects.IsOpen(projectId);
 
             availabilityKey = AvailabilityKey();
-            if (sample) BuildSample(OSUi.Section(column, OSProjects.SampleTag));
-            BuildPlan(OSUi.Section(column, PlanHeading(isOpen)), isOpen);
-            BuildVersions(OSUi.Section(column, "Versions"), isOpen);
-            BuildLinked(OSUi.Section(column, "Linked"), isOpen);
-            BuildActions(OSUi.Section(column, "Continue"));
+            string next = NextAction();
+            BuildHeader(OSUi.Card(column, 24f, 8f), sample, isOpen, status);
+            BuildActionRow(column, sample, next);
+            BuildSteps(OSUi.Card(column, 24f, 10f), next);
+            BuildSummary(OSUi.Card(column, 24f, 8f), isOpen);
+            steps.AddRange(extras);  // the loop's steps first, then Notebook and Send (the voice tool reads them in this order)
+            extras.Clear();
             PollBrain();
         }
 
-        // A sample project: what it shows, what a sample is for, and the two ways to make one of your own.
-        void BuildSample(RectTransform section)
-        {
-            OSUi.Text(section, OSProjects.SampleShows(projectId) + ". " + OSProjects.SampleLine, NoteSize, true);
-            RectTransform row = OSUi.Row(section, 48f, 16f);
-            OSUi.Button(row, CopyLabel, () => Do("copy"), OSButtonStyle.Secondary);
-            OSUi.Button(row, OSProjects.StartOwnTitle, () => Do("start_own"), OSButtonStyle.Secondary);
-        }
+        /// <summary>The sample window's one call to action ("Make my own RC truck"): Build something with the sample's kind picked.</summary>
+        public static string MakeOwnLabel(string sampleId) => OSProjects.MakeOwnLabel(sampleId);
 
-        /// <summary>The sample window's button that makes the person's own copy (<see cref="OSProjects.CopySample"/>).</summary>
-        public const string CopyLabel = "Make a copy";
+        /// <summary>Old name of the sample's call to action; it is now <see cref="MakeOwnLabel"/> (a sample is never copied).</summary>
+        public const string CopyLabel = "Make my own";
 
-        static string PlanHeading(bool isOpen)
+        /// <summary>The tag line of a sample's header, and of a project of the person's own.</summary>
+        public const string SampleTagLine = "Sample · look around", OwnTagLine = "Your project";
+
+        // 1 What it is, its test, where it stands.
+        void BuildHeader(RectTransform card, bool sample, bool isOpen, string status)
         {
             JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
-            int? version = plan != null ? (int?)plan["version"] : null;
-            return version.HasValue ? "Plan v" + version.Value : "Plan";
+            string goal = plan != null ? (string)plan["goal"] : null;
+            string test = plan != null && plan["test"] != null && plan["test"].Type == JTokenType.String ? (string)plan["test"] : null;
+            string follows = OSProjects.CopyOf(projectId);
+            string tag = sample ? SampleTagLine
+                : follows != null ? OwnTagLine + " · like the " + OSProjects.TitleFor(follows) + " sample"
+                : OwnTagLine;
+            OSUi.Tag(card, tag);
+            string what = sample ? OSProjects.SampleShows(projectId) + "."
+                : !string.IsNullOrWhiteSpace(goal) ? goal
+                : "No plan written yet. Ask Albie to plan it with you.";
+            TMP_Text lead = OSUi.Text(card, Clip(what, 120), OSUi.TitleText, !sample && string.IsNullOrWhiteSpace(goal));
+            lead.fontStyle = FontStyles.Bold;
+            if (!string.IsNullOrWhiteSpace(test)) OSUi.Text(card, "Test: " + Clip(test, 110), LineSize);
+            OSUi.Text(card, sample ? OSProjects.SampleLine : "Now: " + status, NoteSize, true);
         }
 
-        void BuildPlan(RectTransform section, bool isOpen)
+        // 2 The one primary button, then the quiet ones.
+        void BuildActionRow(RectTransform column, bool sample, string next)
         {
+            RectTransform row = OSUi.Row(column, OSUi.ChipHeight, OSUi.MinGap);
+            OSUi.Rigid(row);
+            string nextLabel = next != null ? LabelOf(next) : null;
+            if (sample)
+            {
+                string own = OSProjects.MakeOwnLabel(projectId);
+                Chip(OSUi.Button(row, own, () => Do("make_own"), OSButtonStyle.Primary, "plus"));
+                if (nextLabel != null && UnavailableOf(next) == null)
+                    Chip(OSUi.Button(row, "Next: " + nextLabel, () => Do(next), OSButtonStyle.Secondary));
+            }
+            else if (nextLabel != null && UnavailableOf(next) == null)
+            {
+                Chip(OSUi.Button(row, "Next: " + nextLabel, () => Do(next), OSButtonStyle.Primary, IconOf(next)));
+            }
+            var spacer = new GameObject("Spacer", typeof(RectTransform));
+            spacer.transform.SetParent(row, false);
+            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            AddAction(row, "Notebook", "notebook", OSButtonStyle.Borderless, OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null, "notebook");
+            // Send drafts the project's latest result to its channel (rc-truck, quadcopter, rocket, image-classifier); the
+            // message panel's Send / Cancel is the confirm, so nothing leaves the headset from this button.
+            AddAction(row, "Send", "send", OSButtonStyle.Borderless, null, "send");
+        }
+
+        static void Chip(Button button)
+        {
+            if (button == null) return;
+            var layout = button.GetComponent<LayoutElement>();
+            OSUi.Size(button.transform, layout != null ? layout.preferredWidth : OSUi.ButtonMinWidth, OSUi.ChipHeight);
+        }
+
+        // 3 The loop as a stepper: what is done, what is next, what is off and why, and the last result.
+        void BuildSteps(RectTransform card, string next)
+        {
+            OSUi.Tag(card, "Steps");
+            RectTransform stepper = OSUi.Stepper(card);
+            LoopSteps(scratchSteps);
+            int current = -1;
+            for (int i = 0; i < scratchSteps.Count; i++)
+                if (scratchSteps[i] == next) { current = i; break; }
+            for (int i = 0; i < scratchSteps.Count; i++)
+            {
+                string action = scratchSteps[i];
+                string off = UnavailableOf(action);
+                OSUi.StepState state = off != null ? OSUi.StepState.Locked
+                    : i == current ? OSUi.StepState.Current
+                    : current >= 0 && i < current ? OSUi.StepState.Done
+                    : OSUi.StepState.Upcoming;
+                string captured = action;
+                OSUi.StepChip(stepper, i + 1, LabelOf(action), IconOf(action), state, () => DoIfOn(captured));
+                steps.Add(new Step { label = LabelOf(action), action = action, unavailable = off });
+                if (off != null) Hint(LabelOf(action), off);
+            }
+            for (int i = 0; i < hints.Count; i++) OSUi.Text(card, hints[i], NoteSize, true);
+            if (kind == OSProjectKind.Truck) brainText = OSUi.Text(card, "", NoteSize, true);
+            statusText = OSUi.Text(card, statusLine.Length > 0 ? statusLine : NextStepLine(), LeadSize);
+        }
+
+        readonly List<string> scratchSteps = new List<string>(6);
+
+        // A tap on a chip: a step that is off does nothing (its reason is already under the stepper).
+        void DoIfOn(string action)
+        {
+            if (UnavailableOf(action) == null) Do(action);
+        }
+
+        // The loop's step ids, in order (Send and Notebook are in the action row).
+        void LoopSteps(List<string> into)
+        {
+            into.Clear();
+            switch (loop)
+            {
+                case Loop.Truck: into.Add("course"); into.Add("drive"); into.Add("train"); into.Add("autopilot"); into.Add("code"); break;
+                case Loop.Quadcopter: into.Add("design"); into.Add("course"); into.Add("fly"); into.Add("train"); into.Add("autopilot"); break;
+                case Loop.Rocket: into.Add("design"); into.Add("simulate"); into.Add("launch"); break;
+                case Loop.Ml: into.Add("data"); into.Add("train"); into.Add("results"); into.Add("publish"); break;
+                default:
+                    // A plan whose test runs on a course (the drone's hover, hoops or landing) gets the step that makes it.
+                    if (PlanCourse() != null) into.Add("course");
+                    into.Add("cad");
+                    into.Add("train");
+                    break;
+            }
+        }
+
+        static string LabelOf(string action)
+        {
+            switch (action)
+            {
+                case "cad": return "CAD";
+                case "make_own": return "Make my own";
+                default: return action.Length == 0 ? action : char.ToUpperInvariant(action[0]) + action.Substring(1);
+            }
+        }
+
+        static string IconOf(string action)
+        {
+            switch (action)
+            {
+                case "course": return "slalom";
+                case "drive": return "drive";
+                case "fly": return "quadcopter";
+                case "train": return "train";
+                case "autopilot": return "truck";
+                case "code": return "code";
+                case "design":
+                case "cad": return "cube";
+                case "simulate": return "physics";
+                case "launch": return "rocket";
+                case "data": return "table";
+                case "results": return "scoreboard";
+                case "publish": return "send";
+                default: return null;
+            }
+        }
+
+        // Why a step is off right now, or null when it can run.
+        string UnavailableOf(string action)
+        {
+            switch (action)
+            {
+                case "drive":
+                case "fly": return OSProjects.FindTool("drive") == null ? DriveMissing : null;
+                case "train":
+                case "autopilot":
+                    if (loop == Loop.Quadcopter) return DroneBrainProblem();
+                    if (loop == Loop.Ml) return action == "train" ? MlCloudOnly() : null;
+                    return null;
+                case "launch": return HasLaunch() ? null : "the launch pad isn't in this build yet.";
+                case "data": return MlCloudOnly();
+                case "results": return HasTraining() ? null : "no training run yet.";
+                case "publish": return !ForgeCloud.Serves("/ml/") ? PublishNeedsCloud : CanPublish() ? null : "only for a model Albie built for you.";
+                default: return null;
+            }
+        }
+
+        // A cloud project's data lives there.
+        string MlCloudOnly() => mlName != null && !ForgeCloud.Serves("/ml/") ? OSProjects.NeedsCloud : null;
+
+        // Steps off for the same reason share one line: "Train, Autopilot: the drone has no brain...".
+        void Hint(string label, string reason)
+        {
+            string tail = ": " + reason;
+            for (int i = 0; i < hints.Count; i++)
+                if (hints[i].EndsWith(tail, StringComparison.Ordinal))
+                {
+                    hints[i] = hints[i].Substring(0, hints[i].Length - tail.Length) + ", " + label + tail;
+                    return;
+                }
+            hints.Add(label + tail);
+        }
+
+        // 4 Where it stands, as a two-column summary.
+        void BuildSummary(RectTransform card, bool isOpen)
+        {
+            OSUi.Tag(card, "Where it stands");
             JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
-            if (plan == null)
-            {
-                OSUi.Text(section, "No plan written yet. Ask Albie to write one with you.", NoteSize, true);
-                return;
-            }
-            string goal = (string)plan["goal"];
-            string test = (string)plan["test"];
-            OSUi.Text(section, "Goal: " + Clip(string.IsNullOrEmpty(goal) ? "not set" : goal, 140), LeadSize);
-            if (!string.IsNullOrEmpty(test)) OSUi.Text(section, "Test: " + Clip(test, 140), LeadSize);
+            OSUi.Pair(card, "Plan", PlanLine(plan));
 
-            var milestones = plan["milestones"] as JArray;
-            if (milestones == null || milestones.Count == 0) return;
-            int shown = Mathf.Min(milestones.Count, MaxMilestones);
-            for (int i = 0; i < shown; i++)
-            {
-                var item = milestones[i] as JObject;
-                if (item == null) continue;
-                bool done = (bool?)item["done"] == true;
-                OSUi.Text(section, (done ? "Done: " : "To do: ") + Clip((string)item["text"] ?? "", 90), LineSize, done);
-            }
-            if (milestones.Count > shown) OSUi.Text(section, "and " + (milestones.Count - shown) + " more", NoteSize, true);
-        }
-
-        void BuildVersions(RectTransform section, bool isOpen)
-        {
             var versions = isOpen ? NotebookStore.Versions : null;
-            if (versions == null || versions.Count == 0)
+            if (versions != null && versions.Count > 0)
             {
-                OSUi.Text(section, "No versions yet. " + VersionRule(loop), NoteSize, true);
-                return;
-            }
-            int shown = Mathf.Min(versions.Count, MaxVersions);
-            for (int i = versions.Count - 1; i >= versions.Count - shown; i--)
-            {
-                JObject v = versions[i];
+                JObject v = versions[versions.Count - 1];
                 int number = (int?)v["version"] ?? 0;
                 string summary = (string)v["summary"];
-                OSUi.Text(section, "v" + number + " · " + Clip(summary ?? "", 64) + " · " + OutcomeOfVersion(number), LineSize, i != versions.Count - 1);
+                OSUi.Pair(card, "Versions", "v" + number + " · " + Clip(summary ?? "", 60) + " · " + OutcomeOfVersion(number)
+                                            + (versions.Count > 1 ? " (" + versions.Count + " in all)" : ""));
             }
-            if (versions.Count > shown) OSUi.Text(section, "and " + (versions.Count - shown) + " earlier", NoteSize, true);
+            else OSUi.Pair(card, "Versions", "none yet. " + VersionRule(loop));
+
+            if (design != null) OSUi.Pair(card, "Design", CadLine(design));
+            string run = isOpen ? LastTrainingLine() : null;
+            if (run != null || loop == Loop.Truck || loop == Loop.Quadcopter || loop == Loop.Ml)
+                OSUi.Pair(card, "Last training", run != null ? Clip(run, 80) : "none yet");
+
+            OSProjects.LinkedArtifact newest = null;
+            for (int i = 0; i < linked.Count; i++)
+                if (linked[i].runId != null && (newest == null || string.CompareOrdinal(linked[i].runId, newest.runId) > 0)) newest = linked[i];
+            if (linked.Count > 0) OSUi.Pair(card, "Last run", newest != null ? Clip(newest.title, 30) + " · " + RunLine(newest) : "no runs yet");
+
+            OSUi.Pair(card, "Artifacts", ArtifactsLine());
+            string from = MlLinksLine(out string fromLabel);
+            if (from != null) OSUi.Pair(card, fromLabel, from);
+        }
+
+        // "v2 · 3 of 7 milestones done · next: A clean lap at 2 m/s or more", or what to do when there is none.
+        static string PlanLine(JObject plan)
+        {
+            if (plan == null) return "No plan written yet. Ask Albie to plan it with you.";
+            int version = (int?)plan["version"] ?? 0;
+            string line = "Plan v" + version;
+            if (!(plan["milestones"] is JArray milestones) || milestones.Count == 0) return line;
+            int done = 0;
+            string upNext = null;
+            foreach (JToken t in milestones)
+            {
+                if (!(t is JObject item)) continue;
+                if ((bool?)item["done"] == true) done++;
+                else if (upNext == null) upNext = (string)item["text"];
+            }
+            line += " · " + done + " of " + milestones.Count + " milestones done";
+            return upNext != null ? line + " · next: " + Clip(upNext, 48) : line;
+        }
+
+        // "Slalom v1, Hoop course v2" (the newest few), or what makes the first one.
+        string ArtifactsLine()
+        {
+            if (linked.Count == 0)
+                return kind == OSProjectKind.Truck ? "No artifacts yet. Course makes the slalom for this project."
+                    : "No artifacts yet. What this project's steps make shows here.";
+            var sb = new System.Text.StringBuilder();
+            int shown = Mathf.Min(linked.Count, MaxArtifacts);
+            for (int i = 0; i < shown; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                sb.Append(Clip(linked[i].title, 28)).Append(" v").Append(linked[i].version);
+            }
+            if (linked.Count > shown) sb.Append(" and ").Append(linked.Count - shown).Append(" more");
+            return sb.ToString();
         }
 
         /// <summary>What cuts a version for this loop, in words. Only what <see cref="ProjectSpine"/> really does.</summary>
@@ -310,50 +515,13 @@ namespace Forge.OS
             return "no attempt yet";
         }
 
-        void BuildLinked(RectTransform section, bool isOpen)
-        {
-            int lines = 0;
-            if (design != null)
-            {
-                OSUi.Text(section, CadLine(design), LineSize);
-                lines++;
-            }
-            string run = isOpen ? LastTrainingLine() : null;
-            if (run != null)
-            {
-                OSUi.Text(section, "Last training: " + Clip(run, 90), LineSize);
-                lines++;
-            }
-            string ml = MlLinksLine();
-            if (ml != null)
-            {
-                OSUi.Text(section, ml, LineSize);
-                lines++;
-            }
-            if (linked.Count == 0)
-            {
-                OSUi.Text(section, kind == OSProjectKind.Truck
-                    ? "No artifacts yet. Tap Course to make the slalom for this project."
-                    : lines == 0 ? "Nothing linked yet. Artifacts made while this project is open link to it."
-                    : "No artifacts yet. Ones made while this project is open link to it.", NoteSize, true);
-                return;
-            }
-            int shown = Mathf.Min(linked.Count, MaxArtifacts);
-            for (int i = 0; i < shown; i++)
-            {
-                var a = linked[i];
-                OSUi.Text(section, Clip(a.title, 40) + " v" + a.version + " · " + RunLine(a), LeadSize);
-            }
-            if (linked.Count > shown) OSUi.Text(section, "and " + (linked.Count - shown) + " more", NoteSize, true);
-        }
-
-        // "CAD: quadcopter v7 · on screen v8, not cut yet": the version the project pins, and what CAD shows now if newer.
+        // "quadcopter v7 · v8 on screen": the version the project pins, and what CAD shows now if newer.
         static string CadLine(string part)
         {
             int pinned = ProjectSpine.PinnedCad(part);
             int shown = ProjectSpine.LastCadPart == part ? ProjectSpine.LastCadVersion : 0;
-            if (pinned == 0 && shown == 0) return "CAD: the " + part + " design isn't open yet.";
-            string line = "CAD: " + part + " v" + (pinned > 0 ? pinned : shown);
+            if (pinned == 0 && shown == 0) return "the " + part + " design isn't open yet.";
+            string line = part + " v" + (pinned > 0 ? pinned : shown);
             if (pinned == 0) line += " (as opened)";
             else if (shown > 0 && shown != pinned) line += " · v" + shown + " on screen";
             return line;
@@ -373,13 +541,16 @@ namespace Forge.OS
             return null;
         }
 
-        // "ML: Digit CNN, made from this project" or "Made from: RC truck".
-        string MlLinksLine()
+        // "Made from: RC truck", "Follows: the RC truck sample", or "ML: Digit CNN, made from it".
+        string MlLinksLine(out string label)
         {
+            label = "Made from";
             string parent = OSProjects.ParentOf(projectId);
-            if (parent != null) return "Made from: " + OSProjects.TitleFor(parent);
+            if (parent != null) return OSProjects.TitleFor(parent);
+            label = "Follows";
             string copied = OSProjects.CopyOf(projectId);
-            if (copied != null) return "Copied from the sample " + OSProjects.TitleFor(copied);
+            if (copied != null) return "the " + OSProjects.TitleFor(copied) + " sample's steps (its history stays in the sample)";
+            label = "ML";
             if (!(ProjectMeta.Read(projectId)?["ml_links"] is JArray links) || links.Count == 0) return null;
             var names = new List<string>(links.Count);
             foreach (JToken t in links)
@@ -387,7 +558,7 @@ namespace Forge.OS
                 string title = (string)t?["title"] ?? (string)t?["name"];
                 if (!string.IsNullOrEmpty(title)) names.Add(title);
             }
-            return names.Count == 0 ? null : "ML: " + Clip(string.Join(", ", names), 70) + (names.Count == 1 ? ", made from it" : ", made from it");
+            return names.Count == 0 ? null : Clip(string.Join(", ", names), 70) + ", made from it";
         }
 
         static string RunLine(OSProjects.LinkedArtifact a)
@@ -402,80 +573,14 @@ namespace Forge.OS
         /// <summary>What the Drive step says in the one case left: the Drive tool is not in the menu's registry (it is registered at start).</summary>
         public const string DriveMissing = "The Drive pad couldn't be found.";
 
-        void BuildActions(RectTransform section)
+        void AddAction(RectTransform row, string label, string action, OSButtonStyle style, string disabledReason, string icon)
         {
-            RectTransform row = OSUi.Row(section, 48f, 16f);
-            string next = NextAction();
-            switch (loop)
-            {
-                case Loop.Truck:
-                    AddStep(row, next, "Course", "course");
-                    AddStep(row, next, "Drive", "drive", OSProjects.FindTool("drive") == null ? DriveMissing : null);
-                    AddStep(row, next, "Train", "train");
-                    AddStep(row, next, "Autopilot", "autopilot");
-                    AddStep(row, next, "Code", "code");
-                    break;
-                case Loop.Quadcopter:
-                {
-                    AddStep(row, next, "Design", "design");
-                    AddStep(row, next, "Course", "course");
-                    AddStep(row, next, "Fly", "fly", OSProjects.FindTool("drive") == null ? DriveMissing : null);
-                    string brain = DroneBrainProblem();
-                    AddStep(row, next, "Train", "train", brain);
-                    AddStep(row, next, "Autopilot", "autopilot", brain);
-                    break;
-                }
-                case Loop.Rocket:
-                    AddStep(row, next, "Design", "design");
-                    AddStep(row, next, "Simulate", "simulate");
-                    AddStep(row, next, "Launch", "launch", HasLaunch() ? null : "the launch pad isn't in this build yet.");
-                    break;
-                case Loop.Ml:
-                {
-                    bool live = ForgeCloud.Serves("/ml/");
-                    string cloudOnly = mlName != null && !live ? OSProjects.NeedsCloud : null;  // a cloud project's data lives there
-                    AddStep(row, next, "Data", "data", cloudOnly);
-                    AddStep(row, next, "Train", "train", cloudOnly);
-                    AddStep(row, next, "Results", "results", HasTraining() ? null : "no training run yet.");
-                    AddStep(row, next, "Publish", "publish", !live ? PublishNeedsCloud : CanPublish() ? null : "only for a model Albie built for you.");
-                    break;
-                }
-                default:
-                    // A plan whose test runs on a course (the drone's hover, hoops or landing) gets the step that makes it.
-                    if (PlanCourse() != null) AddStep(row, next, "Course", "course");
-                    AddStep(row, next, "CAD", "cad");
-                    AddStep(row, next, "Train", "train");
-                    break;
-            }
-            // Send drafts the project's latest result to its channel (rc-truck, quadcopter, rocket, image-classifier); the
-            // message panel's Send / Cancel is the confirm, so nothing leaves the headset from this button.
-            AddAction(row, "Send", "send", OSButtonStyle.Secondary);
-            AddAction(row, "Notebook", "notebook", OSButtonStyle.Secondary, OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null);
-
-            for (int i = 0; i < hints.Count; i++) OSUi.Text(section, hints[i], NoteSize, true);
-            if (kind == OSProjectKind.Truck) brainText = OSUi.Text(section, "", NoteSize, true);
-            statusText = OSUi.Text(section, statusLine.Length > 0 ? statusLine : NextStepLine(), LeadSize);
-        }
-
-        // One step of the loop: the next one is the primary button.
-        void AddStep(RectTransform row, string next, string label, string action, string disabledReason = null) =>
-            AddAction(row, label, action, action == next && disabledReason == null ? OSButtonStyle.Primary : OSButtonStyle.Secondary, disabledReason);
-
-        void AddAction(RectTransform row, string label, string action, OSButtonStyle style, string disabledReason = null)
-        {
-            Button button = OSUi.Button(row, label, () => Do(action), style);
-            steps.Add(new Step { label = label, action = action, unavailable = disabledReason });
+            Button button = OSUi.Button(row, label, () => { if (disabledReason == null) Do(action); }, style, icon);
+            Chip(button);
+            extras.Add(new Step { label = label, action = action, unavailable = disabledReason });
             if (disabledReason == null) return;
             if (button != null) button.interactable = false;
-            // Steps off for the same reason share one line: "Train, Autopilot: the drone has no brain...".
-            string tail = ": " + disabledReason;
-            for (int i = 0; i < hints.Count; i++)
-                if (hints[i].EndsWith(tail, StringComparison.Ordinal))
-                {
-                    hints[i] = hints[i].Substring(0, hints[i].Length - tail.Length) + ", " + label + tail;
-                    return;
-                }
-            hints.Add(label + tail);
+            Hint(label, disabledReason);
         }
 
         // ---------------------------------------------------------------- the next step
@@ -622,27 +727,27 @@ namespace Forge.OS
                     OSProjects.OpenDesign(design, SetStatus);
                     return null;
                 case "dataset": return DoDataset();
-                case "copy": return DoCopy();
+                case "make_own":
+                case "copy": return DoMakeOwn();  // "copy" is the old name: a sample is never copied, Make my own plans a new one
                 case "start_own":
                     OSProjects.StartOwn();
-                    return "Build something is open. Tell Albie what you want to make.";
+                    return "New project is open. Answer a few questions and Albie plans your project.";
                 default: return "I don't know that step.";
             }
         }
 
-        // Make a copy: the window follows the new project (OpenProject rebinds it), then says what was kept.
-        string DoCopy()
+        // Make my own: Build something with the sample's kind picked; Start there makes the person's own project and the
+        // window follows it. The sample is left as it is.
+        string DoMakeOwn()
         {
-            if (!OSProjects.IsSample(projectId)) return "Only a sample project can be copied.";
-            string sampleTitle = OSProjects.TitleFor(projectId);
-            string id = OSProjects.CopySample(projectId, out string error);
-            if (id == null) return error ?? "The copy couldn't be made.";
-            return OSProjects.TitleFor(id) + " is yours: the plan and design came with it, the sample's history didn't. The sample " + sampleTitle + " is still there.";
+            if (!OSProjects.IsSample(projectId)) return "This is already your own project.";
+            if (!OSProjects.MakeOwn(projectId)) return "New project couldn't open right now.";
+            return "New project is open with " + OSProjects.TitleFor(projectId) + " picked. Answer the questions, then tap Start to make " + OSProjects.OwnTitle(projectId) + ".";
         }
 
         string DoCourse()
         {
-            // The project must be open first: the slalom only links to the truck while a notebook is open.
+            // The project must be open first: the slalom links to this project only while its notebook is the open one.
             if (!OSProjects.EnsureOpen(projectId, out string error)) return error;
 
             // The course the plan's test is run on (Build something saves it); the truck's is the slalom when the plan names none.
@@ -657,9 +762,10 @@ namespace Forge.OS
             for (int i = 0; i < linked.Count; i++)
                 if (linked[i].template == course || linked[i].id == course) { made = linked[i]; break; }
 
+            // What this step makes belongs to this project (ArtifactLibrary.ForProject), whatever else is open.
             JObject result = made != null
                 ? AlbieTools.Call("artifact_open", new JObject { ["id"] = made.id })
-                : AlbieTools.Call("artifact_create", new JObject { ["template"] = course });
+                : ArtifactLibrary.ForProject(projectId, () => AlbieTools.Call("artifact_create", new JObject { ["template"] = course }));
             return DescribeCourse(result);
         }
 
@@ -852,7 +958,7 @@ namespace Forge.OS
                 if (linked[i].template == RocketLaunchTemplate || linked[i].id == RocketLaunchTemplate) { made = linked[i]; break; }
             JObject result = made != null
                 ? AlbieTools.Call("artifact_open", new JObject { ["id"] = made.id })
-                : AlbieTools.Call("artifact_create", new JObject { ["template"] = RocketLaunchTemplate });
+                : ArtifactLibrary.ForProject(projectId, () => AlbieTools.Call("artifact_create", new JObject { ["template"] = RocketLaunchTemplate }));
             string problem = (string)result["error"];
             if (problem != null) return OSProjects.Plain(problem);
             JObject opened = result["opened"] as JObject ?? result;  // artifact_create nests the open result

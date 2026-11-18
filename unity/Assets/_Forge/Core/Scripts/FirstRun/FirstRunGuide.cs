@@ -19,7 +19,7 @@ using UnityEngine.InputSystem;
 /// pressed and the dock has come in, the welcome card opens. It is a short onboarding of four pages (<see cref="Pages"/>),
 /// with big Next, Back and Skip buttons (poke, ray and mouse): 1 how to talk to Albie and three things to try; 2 the four
 /// sample projects, what each shows, a button to open each; 3 how a project works (the loop, the truck as the example,
-/// a button to open it); 4 start your own (Build something, or say "Albie, build me a ..."). Each button runs the same
+/// a button to open it); 4 start your own (Build something, or say "Albie, build me a ...", or Make my own on a sample). Each button runs the same
 /// Albie tool the voice model calls (<see cref="AlbieTools"/>), and Albie says how it went
 /// (voice on: albie.say, voice off: pet.say, the caption; the AlbieTips path). Once a slalom truck is out, page 1 adds
 /// the driving hint (<see cref="DriveHint"/>) and Albie says it once.
@@ -62,18 +62,18 @@ public class FirstRunGuide : MonoBehaviour
     public static readonly string[] PageSays =
     {
         CardLine,
-        "These are sample projects. Tap one and I'll show you around.",
+        "These are samples to look around. Tap one and I'll show you.",
         "Every project is a loop: design, test, drive, train, share.",
         "When you're ready, tell me what to build.",
     };
-    public const string SamplesLine = "These are sample projects. Each is part built, so you can see how a project works.";
-    public const string SamplesTapLine = "Tap one to look inside. Yours go right beside them.";
+    public const string SamplesLine = "These are samples: worked examples, part built, to show how a project works.";
+    public const string SamplesTapLine = "Tap one to look inside. Your own projects go first.";
     public const string LoopLine = "Every project is a loop. Here's the truck's:";
     public static readonly string[] LoopSteps = { "1  Design it", "2  Test it in your room", "3  Drive it", "4  Train an autopilot", "5  Share what you made" };
     public const string LoopNote = "I keep notes and versions as you go.";
-    public const string OwnLine = "Ready for your own? Tap Build something, or just say:";
+    public const string OwnLine = "Ready for your own? Tap New project, or say:";
     public const string OwnSay = "\"Albie, build me a ...\"";
-    public const string OwnNote = "Or open a sample and tap Make a copy.";
+    public const string OwnNote = "Or open a sample and tap Make my own.";
 
     /// <summary>A try button: its label (also what to say), the tool it runs, the tool's arguments, and Albie's line when it worked.</summary>
     public sealed class Try
@@ -105,7 +105,7 @@ public class FirstRunGuide : MonoBehaviour
         "Here's the truck. Its steps are along the bottom.", phrase: "Open the truck project");
 
     /// <summary>Page 4: the Build something card.</summary>
-    public static readonly Try OwnTry = new Try("Build something", "os_open", "{\"kind\":\"system\",\"id\":\"build\"}",
+    public static readonly Try OwnTry = new Try("New project", "os_open", "{\"kind\":\"system\",\"id\":\"build\"}",
         "Let's plan it together.", phrase: "Albie, build me a truck");
 
     static Try[] BuildSamples()
@@ -456,9 +456,9 @@ public class FirstRunGuide : MonoBehaviour
         var samples = new JArray();
         foreach (var t in Samples) samples.Add(t.label);
         result["sample_projects"] = samples;
-        result["about_samples"] = SamplesLine + " The user can explore one, keep going, or copy it (project_copy).";
+        result["about_samples"] = SamplesLine + " The user can look around one; Make my own (project_copy) starts their own project with that kind picked.";
         result["project_loop"] = "Design, test in the room, drive or fly, train, share. " + LoopNote;
-        result["start_own"] = "Build something, or say: Albie, build me a ...";
+        result["start_own"] = "New project (the one way to start a project), or say: Albie, build me a ...";
         if (Instance.truckOut) result["driving"] = DriveHint;
         return result;
     }

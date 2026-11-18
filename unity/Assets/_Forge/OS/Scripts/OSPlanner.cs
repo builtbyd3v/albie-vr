@@ -130,6 +130,19 @@ namespace Forge.OS
         }
 
         /// <summary>
+        /// Starts again with the first question already answered with this kind (the sample window's Make my own: "RC truck"),
+        /// so the next question is the kind's own. False when no first answer has that kind.
+        /// </summary>
+        public bool AnswerKind(Kind kind)
+        {
+            Reset();
+            Choice[] first = First.choices;
+            for (int i = 0; i < first.Length; i++)
+                if (first[i].kind == kind) return Answer(i);
+            return false;
+        }
+
+        /// <summary>
         /// Takes the user's own words as the answer to the current question: the path follows the question's free answer,
         /// and the words are kept (clipped) and added to the goal. False when there are no words or no question.
         /// </summary>
@@ -201,8 +214,8 @@ namespace Forge.OS
                     plan.projectBase = "truck";
                     plan.firstStep = "Next step: tap Course to make the course for the truck.";
                     break;
-                // The drone, the rocket and the model fill their starter projects (proj_quadcopter, proj_rocket,
-                // proj_classifier: OSProjects.StarterFor), so projectBase names that starter.
+                // The truck, the drone, the rocket and the model make the person's own project that follows that sample
+                // (proj_my_truck, proj_my_quadcopter...: OSProjects.FreeOwnId); projectBase names the sample's kind.
                 case Kind.Drone:
                     plan.kindTitle = "Quadcopter";
                     plan.projectBase = "quadcopter";

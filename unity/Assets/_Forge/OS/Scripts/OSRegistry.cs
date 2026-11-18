@@ -107,8 +107,8 @@ namespace Forge.OS
             switch (tab)
             {
                 case OSTab.Tools: return "No tools here yet. Ask Albie what he can open.";
-                case OSTab.Projects: return "No projects yet. Tap Build something to start one.";
-                default: return "No artifacts yet. Tap Build something or ask Albie.";
+                case OSTab.Projects: return "No projects yet. Tap New project to start one.";
+                default: return "No artifacts yet. Tap New project or ask Albie.";
             }
         }
     }

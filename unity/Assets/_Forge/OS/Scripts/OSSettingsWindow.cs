@@ -258,6 +258,12 @@ namespace Forge.OS
             // The real state: a saved flag with no panel made yet (or one that was never shown) is not "on" until something is on screen.
             bool shown = display != null && display.gameObject.activeInHierarchy;
             OSUi.Toggle(section, "Gesture display", shown, SetGestureDisplay);
+
+            // Where room courses may go: the whole room, an area drawn on the floor, or the Quest boundary (PlayAreaEditor).
+            RectTransform area = OSUi.Row(section, OSUi.ButtonHeight, 16f);
+            area.name = "Course play area";
+            OSUi.Text(area, "Course play area", OSUi.BodyText);
+            OSUi.Button(area, "Set play area", () => PlayAreaEditor.Open(), OSButtonStyle.Secondary);
         }
 
         static void SetGestureDisplay(bool on)
