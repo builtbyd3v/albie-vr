@@ -81,7 +81,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give " +
         "only the key point, then offer to say more. If the user asks you to do something (make, build, create, show, open, " +
         "close, set, add, remove), call the tool for it first and never say it is done without the tool call; then confirm in one " +
-        "short sentence, under 10 words.";
+        "short sentence, under 10 words. Never say you are doing or starting something ('setting it up now', 'downloading') " +
+        "unless you call its tool in this same reply; if you still need a yes or a detail, ask for it instead.";
     const string BrevityNow =
         " If the user asked you to do something (make, build, create, show, open, close, set, add, remove), call the tool for it in this reply " +
         "first; never say it is done without the tool call, and never say you can't make something before calling artifact_create. " +
