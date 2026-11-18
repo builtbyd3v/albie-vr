@@ -24,6 +24,7 @@ namespace Forge.Artifacts
         public Task<bool> Loading { get; private set; }
 
         GltfImport import;
+        IReadOnlyDictionary<string, GameObject> sceneNodes;  // the artifact's nodes, for the explorer's label hiding
         bool fit;
         readonly CancellationTokenSource cancel = new CancellationTokenSource();
 
@@ -31,6 +32,7 @@ namespace Forge.Artifacts
         {
             var go = new GameObject(n.Value<string>("id"));
             var model = go.AddComponent<ArtifactGltf>();
+            model.sceneNodes = build.Nodes;
             string asset = n.Value<string>("asset");
             // A model brought in with model_import comes in its author's units and origin: it is fitted to the view.
             model.fit = ModelImport.Imported(build.Host != null ? build.Host.OpenManifest : null, asset) != null;
@@ -65,6 +67,7 @@ namespace Forge.Artifacts
             }
             if (fit) ModelImport.Fit(holder.transform);  // before the explorer notes where the model rests
             Explorer = holder.AddComponent<ArtifactExplorer>();
+            Explorer.SceneNodes = sceneNodes;
             Explorer.Initialize();
             Loaded = true;
             if (host != null) host.ModelLoaded();

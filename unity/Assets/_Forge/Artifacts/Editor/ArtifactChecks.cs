@@ -91,6 +91,86 @@ public static class ArtifactChecks
         ExplorationParts();
         HandGrab();
         HandGrabParts();
+        VoiceButtons();
+        VoiceExplore();
+    }
+
+    // ---- voice: what a spoken request presses on each biology template, and the captions Albie narrates ------------
+    static void VoiceButtons()
+    {
+        void Expect(string template, string said, string input)
+        {
+            ArtifactLibrary.TryTemplate(template, out _, out var scene);
+            string got = ArtifactVoiceTools.InputFor(scene, said, out _);
+            Check(got == input, $"{template}: \"{said}\" presses {input}, got {got ?? "nothing"}");
+        }
+        Expect("heart", "show the blood flow", "flow_on");
+        Expect("heart", "hide the blood flow", "flow_off");
+        Expect("heart", "trace the blood", "trace");
+        Expect("heart", "explain how the blood flows", "trace");
+        Expect("heart", "pause the beat", "beat_pause");
+        Expect("heart", "hide labels", "labels_off");
+        Expect("eye", "follow the light", "light");
+        Expect("eye", "how does the eye see", "light");
+        Expect("brain", "tour the lobes", "tour");
+        Expect("cell", "follow a protein", "follow");
+        Expect("plant_cell", "follow the sunlight", "sun");
+        Expect("dna", "explain it", "explain");
+        Expect("dna", "spin it", "spin_on");
+        Expect("dna", "stop spinning", "spin_off");
+        ArtifactLibrary.TryTemplate("heart", out _, out var heart);
+        var steps = ArtifactVoiceTools.WalkthroughFor(heart, "trace");
+        Check(steps.Count == 4 && ((string)steps[0]["text"]).StartsWith("Oxygen-poor") && (double)steps[3]["at_s"] > (double)steps[1]["at_s"],
+            $"tracing the blood gives Albie the four steps in order to explain ({steps.Count})");
+        ArtifactLibrary.TryTemplate("eye", out _, out var eye);
+        Check(ArtifactVoiceTools.WalkthroughFor(eye, "light").Count == 4, "following the light gives the eye's four steps");
+        Check(ArtifactVoiceTools.InputFor(heart, "make me a sandwich", out _) == null, "a request that's no button presses nothing");
+    }
+
+    static void VoiceExplore()
+    {
+        var root = new GameObject("voice explore check");
+        try
+        {
+            var names = new[] { "Mitral valve.001", "Left ventricle", "Right ventricle" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = names[i];
+                go.transform.SetParent(root.transform, false);
+                go.transform.localPosition = new Vector3(i * 0.3f, 0f, 0f);
+                go.transform.localScale = Vector3.one * (i == 0 ? 0.1f : 0.25f);
+            }
+            var e = root.AddComponent<ArtifactExplorer>();
+            e.Initialize();
+            Check(e.FindPart("the mitral valve")?.name == "Mitral valve.001", "\"the mitral valve\" finds the Mitral valve");
+            Check(e.FindPart("left ventricle")?.name == "Left ventricle", "\"left ventricle\" finds the left one, not the right");
+            Check(e.FindPart("ventricle") != null && e.FindPart("spleen") == null, "a part that isn't there isn't found");
+
+            ArtifactVoiceTools.Act(null, e, "separate", new JObject(), out string error);
+            Check(error == null && e.Separated, "\"expand it\" separates the model");
+            ArtifactVoiceTools.Act(null, e, "separate", new JObject(), out error);
+            Check(e.Separated, "asking to expand an expanded model leaves it apart (it doesn't toggle back)");
+            ArtifactVoiceTools.Act(null, e, "cut_open", new JObject(), out error);
+            Check(e.Sectioned, "\"cut it open\" cuts it");
+
+            var valve = root.transform.Find("Mitral valve.001").GetComponent<Renderer>();
+            var ventricle = root.transform.Find("Left ventricle").GetComponent<Renderer>();
+            var valveMat = valve.sharedMaterial; var ventricleMat = ventricle.sharedMaterial;
+            string did = ArtifactVoiceTools.Act(null, e, "focus", new JObject { ["part"] = "mitral valve" }, out error);
+            Check(error == null && did == "showing the Mitral valve" && valve.sharedMaterial == valveMat && ventricle.sharedMaterial != ventricleMat
+                  && ventricle.sharedMaterial.GetColor("_BaseColor").a < 0.5f, "focus keeps the mitral valve solid and makes the rest see-through");
+            ArtifactVoiceTools.Act(null, e, "focus", new JObject { ["part"] = "spleen" }, out error);
+            Check(error != null && error.Contains("Left ventricle"), "focusing a part that isn't there says which parts there are");
+            ArtifactVoiceTools.Act(null, e, "reset", new JObject(), out error);
+            Check(!e.Separated && !e.Sectioned && e.Focused == null && ventricle.sharedMaterial == ventricleMat, "\"reset it\" puts everything back");
+            ArtifactVoiceTools.Act(null, e, "spin it round", new JObject(), out error);
+            Check(error != null, "an unknown action is refused with the list of actions");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+        }
     }
 
     // ---- hands (HandGrabCore) with synthetic hands: no headset needed ------------------------------------------
