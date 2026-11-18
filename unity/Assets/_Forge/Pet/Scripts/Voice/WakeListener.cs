@@ -64,8 +64,9 @@ namespace Forge.Pet
 
         AgentClient _client;
         ITextToSpeech _tts;
-        bool _ttsTalking, _subscribed, _pauseLogged;
+        bool _ttsTalking, _subscribed, _pauseLogged, _micFailed;
         float _pausedSince = -1f;
+        string _pauseStart;                             // what stopped it when the pause began (for the 15 s warning)
 
         AudioClip _clip;
         int _clipSamples, _readPos, _chunkIn, _channels;
@@ -101,6 +102,8 @@ namespace Forge.Pet
         {
             AbortSegment();
             StopMic();
+            _pausedSince = -1f;                         // AppLifecycle holds it while away / unfocused: not a stall
+            _pauseLogged = false;
         }
 
         void OnDestroy()
@@ -140,11 +143,14 @@ namespace Forge.Pet
             if (!want)
             {
                 if (_clip != null) { AbortSegment(); StopMic(); }
-                if (_pausedSince < 0f) _pausedSince = Time.time;
-                if (!_pauseLogged && Time.time - _pausedSince > 15f)   // once per long pause: why it isn't listening
+                if (_pausedSince < 0f) { _pausedSince = Time.time; _pauseStart = PauseReason(sessionBusy); }
+                // Once per long pause: why it isn't listening (now = this frame's blocker, began = the first). Not while
+                // only the short resume delay is left: that is the end of a normal follow-up conversation, and it logged
+                // a false "stall" with every condition clear (live 2026-11-17 19:16:11).
+                if (!_pauseLogged && Time.time - _pausedSince > 15f && PauseReason(sessionBusy) != ResumeDelayReason)
                 {
                     _pauseLogged = true;
-                    Debug.LogWarning($"[WakeListener] not listening for 15 s: names={listenForNames} hub={AlbieAgentBridge.EventSourceIsHub} " +
+                    Debug.LogWarning($"[WakeListener] not listening for 15 s: now={PauseReason(sessionBusy)} began={_pauseStart}; names={listenForNames} hub={AlbieAgentBridge.EventSourceIsHub} " +
                                      $"connected={_client != null && _client.IsConnected} sessionBusy={sessionBusy} (session={pushToTalk != null && pushToTalk.SessionActive} " +
                                      $"monitor={pushToTalk != null && pushToTalk.Provider is HubSpeechToText h1 && h1.IsMonitoring} " +
                                      $"listening={pushToTalk != null && pushToTalk.Provider is HubSpeechToText h2 && h2.IsListening}) ttsTalking={_ttsTalking} " +
@@ -152,11 +158,37 @@ namespace Forge.Pet
                 }
                 return;
             }
+            if (_clip == null && !StartMic())
+            {
+                // Someone else holds the mic (or it failed): try again in 2 s, and count it as a pause for the warning.
+                _micFailed = true;
+                _pausedUntil = Time.time + 2f;
+                if (_pausedSince < 0f) { _pausedSince = Time.time; _pauseStart = PauseReason(false); }
+                return;
+            }
+            _micFailed = false;
             _pausedSince = -1f;
             _pauseLogged = false;
-            if (_clip == null && !StartMic()) { _pausedUntil = Time.time + 2f; return; }
             Pump();
         }
+
+        // Why it isn't listening, first blocker wins (constant strings: no allocation).
+        string PauseReason(bool sessionBusy)
+        {
+            if (!listenForNames) return "names off";
+            if (!AlbieAgentBridge.EventSourceIsHub) return "not hub mode";
+            if (_client == null || !_client.IsConnected) return "not connected";
+            if (!MicPermission.HasPermission) return "no mic permission";
+            if (_ttsTalking) return "Albie speaking";
+            if (sessionBusy)
+                return pushToTalk != null && pushToTalk.SessionActive ? "push-to-talk / hands-free session"
+                     : pushToTalk != null && pushToTalk.Provider is HubSpeechToText h && h.IsMonitoring ? "follow-up mic monitor" : "stt listening";
+            if (_micFailed) return "mic busy (Microphone.Start failed or held elsewhere)";
+            if (Time.time < _pausedUntil) return ResumeDelayReason;
+            return "unknown";
+        }
+
+        const string ResumeDelayReason = "resume delay";
 
         void ResolveClient()
         {

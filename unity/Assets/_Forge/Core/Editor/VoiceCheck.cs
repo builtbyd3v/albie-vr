@@ -18,7 +18,8 @@ using UnityEngine;
 /// the first line means every step passed. The rules: the service's idle messages are not activity; the session closes
 /// FollowUpS + IdleCloseS after Albie's last word; a pause sends nothing, a connect from before it gives up, the next turn
 /// after it connects and the last 8 lines carry over; hands-free speech reaches the service only while the user faces
-/// Albie (30 degree cone, or Albie on the palm); a cold start sends the first words in order. Edit mode runs every step;
+/// Albie (30 degree cone, or Albie on the palm); a cold start sends the first words in order; a heard turn with no reply
+/// is asked once more after RetryS. Edit mode runs every step;
 /// Play mode only the pure ones (a test AlbieVoice would take over ForgeNet.LocalPeer and talk to the running pet).
 /// </summary>
 public static class VoiceCheck
@@ -60,6 +61,7 @@ public static class VoiceCheck
             failed += Step(sb, ref skipped, "4c Speech not facing Albie opens no session", FacingGate);
             failed += Step(sb, ref skipped, "4d A gated turn that fails to open clears RequireName", GateCleared);
             failed += Step(sb, ref skipped, "5  Cold start: frames queued while connecting go out in order", ColdStart);
+            failed += Step(sb, ref skipped, "6  A heard turn with no reply is asked once more after RetryS", HeardTurnRetried);
         }
         finally
         {
@@ -313,6 +315,38 @@ public static class VoiceCheck
         r.Frame(5);
         Expect(s.sent.Count == 7 && Audio(s.sent[6]) == 5, "the next frame didn't go straight out");
         return "session.update, clear, frames 1-4 in order, then frame 5 at once";
+    }
+
+    static string HeardTurnRetried()
+    {
+        if (Application.isPlaying) return PlaySkip;
+        using var r = new Rig();
+        float retry = Const("RetryS");
+        r.WakeTurn(true);
+        r.Frame(1);
+        r.Frame(2);
+        r.Event("stt.stop");  // committed at t = 0
+        var s = r.Last;
+        s.Feed(new JObject { ["type"] = "conversation.item.input_audio_transcription.completed", ["transcript"] = "pull this repo" });
+        r.now = retry - 0.1f;
+        r.Tick();
+        Expect(Count(s, "response.create") == 0, $"asked again at {r.now:0.0} s, before {retry} s");
+        r.now = retry + 0.1f;
+        r.Tick();
+        Expect(Count(s, "response.create") == 1, $"a heard turn with no reply wasn't asked again at {r.now:0.0} s");
+        r.now = 20f;
+        r.Tick();
+        Expect(Count(s, "response.create") == 1, "asked more than once");
+
+        // Control: a turn the service answers is not asked again.
+        r.WakeTurn(true);
+        r.Frame(3);
+        r.Event("stt.stop");
+        s.Feed(Msg("response.created"));
+        r.now = 30f;
+        r.Tick();
+        Expect(Count(s, "response.create") == 1, "an answered turn was asked again");
+        return $"heard, no reply: 0 asks at {retry - 0.1f:0.0} s, 1 at {retry + 0.1f:0.0} s, still 1 at 20 s; an answered turn: 0 more";
     }
 
     // ---- The fake voice service --------------------------------------------------------------------------------
