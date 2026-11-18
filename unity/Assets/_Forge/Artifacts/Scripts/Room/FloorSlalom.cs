@@ -226,7 +226,7 @@ namespace Forge.Artifacts
             return null;
         }
 
-        static string Thing(string label)
+        internal static string Thing(string label)
         {
             switch (label)
             {

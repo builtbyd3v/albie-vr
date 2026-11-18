@@ -50,6 +50,10 @@ The brain of a Thing: the C-19 runner from `docs/CONTROLLER_CONTRACT.md`. Namesp
 | `Scripts/Thing/RayFan.cs` | The ray-fan sensor on real colliders (contract section 2.1): sphere casts, d0 leftmost, 1 = nothing hit. Allocation-free. |
 | `Scripts/Thing/ExampleTruckBody.cs` | A worked `IThingBody`: the mock truck's driving model on a Unity transform, sensing real colliders. |
 | `Editor/ThingRuntimeCheck.cs` | **Forge > Controllers > Check Thing Runtime**: the example truck on a slalom of real colliders. It checks plugging in, sensors against the mock, Albie's tools reaching it, 0 bytes per step, and the real-laps loop (record, save, train, drive). |
+| `Scripts/Transmitter/RcTransmitter*.cs` | **The handheld RC transmitter**, the default way to drive the truck and fly the drone. Built in code and installed by itself; shown when a Thing spawns on a course, by the Drive window and tile, and by `transmitter_show`. Grip it with one or both hands, thumbs on the sticks; put it down and the sticks centre. Writes `stick`/`stick2` on change only (truck: left `stick.y` throttle, right `stick.x` steer; drone: mode 2 as `drone_manual`). |
+| `Scripts/Transmitter/TransmitterMath.cs` | Its arithmetic with no Unity types: thumb offset to stick (radial dead zone, unit circle), anchor clamp, engage and button hysteresis, smoothing, spring, tilt. |
+| `Scripts/Transmitter/TransmitterIsdk.cs`, `TransmitterRaycaster.cs` | The Interaction SDK hand grab (as a who-holds-it signal) and ray (select to summon), and the mouse: click the body to hold it in front of the camera, drag a stick cap, click a button. |
+| `Scripts/Transmitter/TransmitterTools.cs`, `Resources/AlbieTools/transmitter.json` | `transmitter_show`, `transmitter_hide`. |
 
 All three kinds run: manual, graph and learned. Graphs can also hold a `model` node, which is proposed in C-19 section 3.5.
 

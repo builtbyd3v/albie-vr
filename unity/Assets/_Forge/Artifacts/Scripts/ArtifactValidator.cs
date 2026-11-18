@@ -146,7 +146,7 @@ namespace Forge.Artifacts
             Say("not a field: say it in a note widget on a panel, or a text node", "description", "notes", "note", "summary", "author", "tags", "comment", "comments", "about", "info");
             Say("a name shown in the scene is a text node with \"parent\": \"<this node's id>\"", "name", "label", "caption", "title");
             Say("motion under gravity or a swing is a sim node {\"kind\": \"sim\", \"solver\": \"pendulum\", \"bodies\": [{\"node\": \"<id>\", \"length\": 0.2}]}", "mass", "gravity", "rigidbody", "physics", "weight");
-            Say("only bundled models load: a gltf node with an \"asset\" listed in the manifest's assets", "mesh", "model", "url", "src", "file");
+            Say("only bundled models load: a gltf node with an \"asset\" listed in the manifest's assets, or use model_search and model_import for a real model", "mesh", "model", "url", "src", "file");
             return advice;
         }
 
@@ -725,7 +725,7 @@ namespace Forge.Artifacts
                     Add("bad_value", "scene.space", $"unknown space {(Absent(scene["space"]) ? "" : Describe(scene["space"]))}", SpaceHint, Values(ArtifactSchema.Spaces));
                 if (space == "room" && Permission("room") != "read")
                     Add("permission_missing", "permissions.room", "space is room, so permissions.room must be read",
-                        "\"room\" is only for courses a generator lays out on the floor; for anything else use \"space\": \"volume\" and no room permission");
+                        "\"room\" is only for courses a generator lays out on the floor; for anything else use \"space\": \"volume\" and no room permission. " + CourseHint);
                 if (scene.ToString().Length > ArtifactSchema.MaxSceneChars) Add("too_big", "scene", "over the 256 KB limit");
                 if (!ObjectField(scene, "view", "scene") && scene["view"] is JObject view)
                 {
@@ -736,7 +736,7 @@ namespace Forge.Artifacts
                 Generators(space);
                 if (space == "room" && !(scene["generators"] is JArray placed && placed.Count > 0))
                     Add("bad_value", "scene.space", "room needs a generator: positions in the room come only from one, never from the scene",
-                        "use \"space\": \"volume\" (positions in metres around 0,0,0, scaled to fit) and drop permissions.room; \"room\" is for courses a generator lays out on the floor",
+                        "use \"space\": \"volume\" (positions in metres around 0,0,0, scaled to fit) and drop permissions.room; \"room\" is for courses a generator lays out on the floor. " + CourseHint,
                         new[] { "volume", "panel" });
                 var nodesToken = scene["nodes"];
                 if (!Absent(nodesToken) && !(nodesToken is JArray)) Add("bad_value", "nodes", $"must be a list of node objects, found {Describe(nodesToken)}");
@@ -753,6 +753,7 @@ namespace Forge.Artifacts
                 InputRefs(scene["nodes"], "nodes");
             }
 
+            const string CourseHint = "to make a course in the room, don't write a scene: call artifact_create with course: {thing, surface, elements: [...]} and the headset lays it out";
             const string SpaceHint = "use \"volume\" for a thing to look at (it's scaled to fit, positions in metres around 0,0,0), \"panel\" for a flat board; \"room\" is only for courses a generator lays out";
 
             string Permission(string key) => Str(manifest["permissions"], key);
@@ -781,6 +782,12 @@ namespace Forge.Artifacts
                     }
                     ObjectField(generator, "params", $"generators[{i}]");
                     foreach (var slot in fills) slots.Add(id + "." + slot);
+                    if (!(generator["params"] is JObject generatorParams)) continue;
+                    // room_course checks its own params (thing, surface, around, every element); the others only take a surface.
+                    if (type == RoomCourse.Type) RoomCourse.Check(generatorParams, $"generators[{i}].params", true, errors);
+                    else if (!Absent(generatorParams["surface"]) && System.Array.IndexOf(ArtifactSchema.Surfaces, Str(generatorParams, "surface")) < 0)
+                        Add("bad_value", $"generators[{i}].params.surface", $"{Describe(generatorParams["surface"])} isn't a surface",
+                            "use \"floor\", or \"desk\" for the top of a table (the course is made smaller to fit it)", ArtifactSchema.Surfaces);
                 }
             }
 
@@ -1268,6 +1275,8 @@ namespace Forge.Artifacts
                     string target = t.Type == JTokenType.String ? (string)t : null;
                     if (target == null || !nodes.ContainsKey(target)) Add("unknown_ref", path + ".nodes", $"no node {(target != null ? "\"" + target + "\"" : Describe(t))}", null, NodesOfKind(null));
                 }
+                if ((op == "zone_drift" || op == "zone_offset") && Absent(rule["zones"]))
+                    Add("bad_value", path + ".zones", $"{op} needs the zone it measures from", "add \"zones\": \"<a zone node's id>\", like \"finish\"", NodesOfKind("zone"));
                 if (op == "sim") SimMetric(rule, path);
                 else if (op != null && ArtifactSchema.MetricOps.Contains(op) && Absent(scene["run"]))
                     Add("bad_value", path + ".op", $"{op} counts only while a run is scored, and the scene has no run",
@@ -1337,6 +1346,26 @@ namespace Forge.Artifacts
                         if (metric == null || !metrics.Contains(metric)) Add("unknown_ref", "run.finish.needs", $"no metric \"{metric}\"");
                         if (min != null && min.StartsWith("@") && !slots.Contains(min.Substring(1))) Add("unknown_slot", "run.finish.needs", $"no slot \"{min.Substring(1)}\"");
                     }
+                // Host 7: a finish that has to be held (a hover box), and one that needs the Thing nearly still (a bay, a pad).
+                var holdFor = Get(run["finish"], "hold_s");
+                if (!Absent(holdFor))
+                {
+                    if (holdFor.Type == JTokenType.String && ((string)holdFor).StartsWith("$"))
+                    {
+                        if (!numericInputs.Contains(((string)holdFor).Substring(1)))
+                            Add("unknown_input", "run.finish.hold_s", $"no number input \"{((string)holdFor).Substring(1)}\"", "\"$name\" reads manifest.inputs[].name", Names(numericInputs));
+                    }
+                    else if (!(Num(holdFor) is double seconds) || seconds <= 0 || seconds > 600)
+                        Add("bad_value", "run.finish.hold_s", $"must be seconds from above 0 to 600, found {Describe(holdFor)}", "how long the Thing has to stay inside the finish zone; leave it out to finish on entering it");
+                }
+                var slow = Get(run["finish"], "max_speed_ms");
+                if (!Absent(slow))
+                {
+                    if (!(Num(slow) is double limit) || limit <= 0)
+                        Add("bad_value", "run.finish.max_speed_ms", $"must be a speed above 0 in m/s, found {Describe(slow)}", "0.05 counts as stopped for a truck");
+                    else if (Absent(holdFor))
+                        Add("bad_value", "run.finish.max_speed_ms", "only counts with hold_s: stopped means slow for some time", "add \"hold_s\": 1 beside it");
+                }
                 var fails = ObjectList(run, "fail", "run.fail", "an object {reason, ...}");
                 if (fails != null)
                     for (int i = 0; i < fails.Count; i++)

@@ -22,5 +22,20 @@ namespace Forge.Controllers
             var right = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
             return right.sqrMagnitude >= left.sqrMagnitude ? right : left;
         }
+
+        /// <summary>Checks only: stands in for both sticks in <see cref="ReadBoth"/> (left, then right).</summary>
+        public static System.Func<(Vector2 left, Vector2 right)> OverrideBoth;
+
+        /// <summary>
+        /// Both thumbsticks, for a Thing with four axes (the drone: the left stick climbs and turns, the right flies
+        /// forward and sideways). Each: x +1 right, y +1 forward. Zero with hands, or with no OVRManager in the scene.
+        /// </summary>
+        public static void ReadBoth(out Vector2 left, out Vector2 right)
+        {
+            if (OverrideBoth != null) { (left, right) = OverrideBoth(); return; }
+            if (OVRManager.instance == null) { left = right = Vector2.zero; return; }
+            left = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch);
+            right = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
+        }
     }
 }

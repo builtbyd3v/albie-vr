@@ -16,12 +16,13 @@ public sealed class CadPanelFooter
 
     public readonly RectTransform Root;
     public readonly TextMeshProUGUI Hint;
-    readonly CadButton undo, expand, explode, demo, reassemble, lifeSize;
+    readonly CadButton undo, expand, explode, demo, reassemble, lifeSize, launch;
     readonly RectTransform[] rects = new RectTransform[4];
 
     public bool HintShown => Hint.gameObject.activeSelf;
     public bool ReassembleShown => reassemble.gameObject.activeSelf;
-    public bool LifeSizeShown => lifeSize.gameObject.activeSelf;
+    /// <summary>The pill on the right of the line above the footer: Life size on the stage, or a rocket's Launch in room.</summary>
+    public bool LifeSizeShown => lifeSize.gameObject.activeSelf || launch.gameObject.activeSelf;
 
     public CadPanelFooter(RectTransform parent, CadParamsPanel owner)
     {
@@ -44,6 +45,10 @@ public sealed class CadPanelFooter
         lifeSize = CadButton.Create(parent, "LifeSize", CadButton.Pill, 0f, owner.ToggleLifeSize, pill: true);
         lifeSize.AddLabel("Life size", 12f);
         lifeSize.gameObject.SetActive(false);
+        // A design with a flight sim (the rocket): launch it in the room, the rocket_launch artifact (sliders, wind, a saved run).
+        launch = CadButton.Create(parent, "LaunchInRoom", CadButton.Pill, 0f, owner.LaunchInRoom, pill: true);
+        launch.AddLabel("Launch in room", 12f);
+        launch.gameObject.SetActive(false);
     }
 
     CadButton Button(string label, CadButton.Look look, UnityEngine.Events.UnityAction click, System.Action<CadShape, Color> icon)
@@ -81,6 +86,8 @@ public sealed class CadPanelFooter
         lifeSize.SetText(s.lifeSize ? "Fit to stage" : "Life size");
         lifeSize.Active = s.lifeSize;
         lifeSize.Interactable = !flying;
+        CadUi.Show(launch, !s.expanded && s.p != null && s.p.Has("flight"));
+        launch.Interactable = !s.building && !running;
         bool hint = hasDemo && !running && !string.IsNullOrEmpty(blocked);
         Hint.text = hint ? CadUi.Clean(blocked) : "";
         CadUi.Show(Hint, hint);
@@ -97,6 +104,12 @@ public sealed class CadPanelFooter
     /// <summary>The Life size pill on the line above the footer, at its right; its width (0 if hidden).</summary>
     public float PlaceLifeSize(float y, float h, float width)
     {
+        if (launch.gameObject.activeSelf)
+        {
+            float lw = CadUi.Width(launch.Label, "Launch in room") + 26f;
+            CadUi.Place(launch.Rect, width - lw, y + (h - ReassembleH) * 0.5f, lw, ReassembleH);
+            return lw;
+        }
         if (!lifeSize.gameObject.activeSelf) return 0f;
         float w = Mathf.Max(CadUi.Width(lifeSize.Label, "Fit to stage"), CadUi.Width(lifeSize.Label, "Life size")) + 26f;
         CadUi.Place(lifeSize.Rect, width - w, y + (h - ReassembleH) * 0.5f, w, ReassembleH);

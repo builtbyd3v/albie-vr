@@ -24,6 +24,7 @@ namespace Forge.Artifacts
         public Task<bool> Loading { get; private set; }
 
         GltfImport import;
+        bool fit;
         readonly CancellationTokenSource cancel = new CancellationTokenSource();
 
         public static GameObject Build(JObject n, ArtifactBuild build)
@@ -31,6 +32,8 @@ namespace Forge.Artifacts
             var go = new GameObject(n.Value<string>("id"));
             var model = go.AddComponent<ArtifactGltf>();
             string asset = n.Value<string>("asset");
+            // A model brought in with model_import comes in its author's units and origin: it is fitted to the view.
+            model.fit = ModelImport.Imported(build.Host != null ? build.Host.OpenManifest : null, asset) != null;
             if (asset != null && build.Assets.TryGetValue(asset, out var bytes)) model.Loading = model.Load(bytes, build.Host);
             else model.Problem = $"\"{asset}\" wasn't read";
             return go;
@@ -60,6 +63,7 @@ namespace Forge.Artifacts
                 if (texture != null && Mathf.Max(texture.width, texture.height) > ArtifactSchema.MaxTextureSize)
                     Debug.LogWarning($"[Artifacts] {name}: a {texture.width}x{texture.height} texture is over {ArtifactSchema.MaxTextureSize} px");
             }
+            if (fit) ModelImport.Fit(holder.transform);  // before the explorer notes where the model rests
             Explorer = holder.AddComponent<ArtifactExplorer>();
             Explorer.Initialize();
             Loaded = true;
@@ -87,7 +91,7 @@ namespace Forge.Artifacts
     {
         /// <summary>
         /// Each asset a <c>gltf</c> node names, by path, or null with <paramref name="error"/>: <c>asset_missing</c>,
-        /// <c>too_big</c>, <c>hash_mismatch</c>, or <c>bad_value</c> for a file that isn't a binary glTF.
+        /// <c>too_big</c> (bytes, triangles or texture size), <c>hash_mismatch</c>, or <c>bad_value</c> for a file that isn't a binary glTF.
         /// </summary>
         public static Dictionary<string, byte[]> Resolve(ArtifactPackage package, out ArtifactError error)
         {
@@ -128,6 +132,13 @@ namespace Forge.Artifacts
                 if (bytes.Length < 12 || bytes[0] != 'g' || bytes[1] != 'l' || bytes[2] != 'T' || bytes[3] != 'F')
                 {
                     error = new ArtifactError("bad_value", at, $"{path} isn't a binary glTF (.glb)");
+                    return null;
+                }
+                // Quest limits, from the file's own header before anything is built: triangles, texture size, compression.
+                string heavy = ModelImportGlb.TooHeavy(bytes);
+                if (heavy != null)
+                {
+                    error = new ArtifactError("too_big", at, $"{path} is too heavy for the headset: {heavy}", "pick a lighter model");
                     return null;
                 }
                 read[path] = bytes;

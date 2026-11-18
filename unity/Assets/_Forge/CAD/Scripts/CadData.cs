@@ -160,6 +160,10 @@ public class CadFlight
     [JsonProperty("sample_dt_s")] public float sampleDtS;
     [JsonProperty("events")] public List<CadFlightEvent> events = new List<CadFlightEvent>();      // time order
     [JsonProperty("samples")] public List<CadFlightSample> samples = new List<CadFlightSample>();  // pad to landing
+    [JsonProperty("model")] public string model;                       // "rocketpy", or "simplified" (hub without RocketPy); null before
+    [JsonProperty("wind_mps")] public float windMps;                   // steady wind along the launch heading (GET /cad/flight?wind=)
+    [JsonProperty("stability_margin_cal")] public float? stabilityMarginCal;  // RocketPy's static margin at liftoff
+    [JsonProperty("flight_time_s")] public float flightTimeS;          // = landing_time_s
 
     /// <summary>
     /// The flight's moments (sim seconds) with the Fly demo's fallbacks for older flights: landing, apogee, burnout, the

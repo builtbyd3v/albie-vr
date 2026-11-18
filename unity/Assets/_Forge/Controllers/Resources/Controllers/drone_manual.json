@@ -1,0 +1,14 @@
+{
+  "schema": "albie.controller/1",
+  "name": "drone_manual",
+  "kind": "manual",
+  "version": 1,
+  "thing": "drone",
+  "bindings": [
+    { "input": "stick.y", "actuator": "fly.forward", "scale": 1.0, "deadzone": 0.08, "expo": 0.3 },
+    { "input": "stick.x", "actuator": "fly.right", "scale": 1.0, "deadzone": 0.08, "expo": 0.3 },
+    { "input": "stick2.y", "actuator": "fly.climb", "scale": 1.0, "deadzone": 0.12 },
+    { "input": "stick2.x", "actuator": "fly.yaw", "scale": 1.0, "deadzone": 0.15, "expo": 0.5 }
+  ],
+  "notes": "The drone by hand. The right stick (stick) flies forward and sideways, the left stick (stick2) climbs and turns. The Drive window's two pads, a Touch controller's sticks, the pinch sticks and the keyboard all write these four inputs. Speed and tilt are capped by the body, so there is no speed limit here."
+}

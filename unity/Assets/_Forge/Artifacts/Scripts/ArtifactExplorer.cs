@@ -67,6 +67,14 @@ namespace Forge.Artifacts
                 if (first) { bounds = b; first = false; }
                 else bounds.Encapsulate(b);
             }
+            // No readable mesh (a skinned or unreadable model): it still turns about its own middle.
+            if (first)
+                foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+                {
+                    var b = Local(renderer.bounds);
+                    if (first) { bounds = b; first = false; }
+                    else bounds.Encapsulate(b);
+                }
             centre = bounds.center;
             radius = Mathf.Max(bounds.extents.magnitude, 1e-4f);
             float volume = Mathf.Max(Volume(bounds), 1e-12f);

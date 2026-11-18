@@ -972,7 +972,7 @@ public static class AuthoringCheck
         Gate("A7", "artifacts.json has artifact_create", tool != null);
         if (tool == null) return;
         string guide = (string)tool["description"];
-        Gate("A7", $"the guide is about 4.5k characters ({guide.Length})", guide.Length >= 3500 && guide.Length <= 5200);
+        Gate("A7", $"the guide is about 5k characters ({guide.Length})", guide.Length >= 3500 && guide.Length <= 5600);  // 5600 since the course templates, course (host 7) and the model_import pointer
 
         var p = tool["parameters"]["properties"];
         var manifest = p["manifest"]["properties"];
@@ -981,7 +981,7 @@ public static class AuthoringCheck
         var widget = node["widgets"]["items"]["properties"];
         var rule = scene["rules"]["items"]["properties"];
         var action = rule["do"]["items"]["properties"];
-        Same("templates", p["template"]["enum"], ArtifactLibrary.Templates);
+        Same("templates", p["template"]["enum"], ArtifactLibrary.Templates.Concat(ArtifactCourses.Templates));
         Same("categories", manifest["category"]["enum"], ArtifactSchema.Categories);
         Same("input types", manifest["inputs"]["items"]["properties"]["type"]["enum"], ArtifactSchema.BuiltInputTypes);
         Same("spaces (room is for templates only)", scene["space"]["enum"], ArtifactSchema.Spaces, NoRoom);

@@ -568,6 +568,13 @@ public class CadParamsPanel : MonoBehaviour
     // On the stage: real size on the floor in front of you, or fitted to the stage again.
     public void ToggleLifeSize() => session.SetLifeSize(!session.LifeSize);
 
+    /// <summary>The rocket's "Launch in room": the rocket_launch artifact, flying this design (RocketLaunchDirector).</summary>
+    public void LaunchInRoom()
+    {
+        string problem = Forge.Artifacts.RocketLaunchDirector.Open();
+        if (problem != null) Debug.LogWarning("[CadParamsPanel] Launch in room: " + problem);
+    }
+
     public void ToggleExplode() => session.SetView(session.View.explode != true, session.View.focusId);
 
     // The demo button says what this design does (Fly / Hover / Run) and Stop while it runs; CadViewer runs it.
