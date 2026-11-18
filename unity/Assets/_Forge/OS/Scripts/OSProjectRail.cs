@@ -14,7 +14,8 @@ namespace Forge.OS
     /// tool of the stage before is put away and this stage's opens, so moving between stages, and going back, is one tap.
     ///
     /// Where it sits: docked under the window the stage at hand opened (the Drive window, the Truck design window, the
-    /// brain trainer) or under the Workspace mode's panels (CAD, the ML desk), pulled in along the line of sight to within a
+    /// brain trainer) or under the Workspace mode's panels (the ML desk; in a mode with a model on the table, CAD, under
+    /// the panel furthest to one side, clear of the model and the table button), pulled in along the line of sight to within a
     /// seated arm's reach so a finger reaches it without it covering the tool; when the stage has no tool up, or docking
     /// would put it too low, it floats low in front of the person. It follows its tool when that moves; once the person
     /// moves the bar it stays where they put it until the stage changes, and if it has been out of sight for a couple of
@@ -27,7 +28,9 @@ namespace Forge.OS
         /// <summary>The name of the home button (an icon button: the project window).</summary>
         public const string HomeIcon = "home";
 
-        const float PlaceSeconds = 0.2f, Reach = 0.55f, DockGap = 0.05f, FloatDistance = 0.5f, FloatDrop = 0.28f;
+        /// <summary>How far from the eyes the docked bar sits at most (m): a seated arm's reach.</summary>
+        internal const float Reach = 0.55f;
+        const float PlaceSeconds = 0.2f, DockGap = 0.05f, FloatDistance = 0.5f, FloatDrop = 0.28f;
         const float MaxDownSine = 0.77f;    // about 50 degrees below straight ahead: lower than that, the bar floats instead
         const float MovedBy = 0.02f, FollowStep = 0.015f, SettleSeconds = 1.2f, LostSeconds = 2f, ViewAngle = 55f;
         const float MinWidthMm = 400f, FallbackHeightMm = 150f;

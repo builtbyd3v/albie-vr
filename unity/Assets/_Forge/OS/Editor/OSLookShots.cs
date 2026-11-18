@@ -853,7 +853,7 @@ namespace Forge.OS.Editor
         }
 
         /// <summary>The section names <see cref="RunOnly"/> takes.</summary>
-        public const string Sections = "table,menu,states,windows,design_gallery,settings,agents,build,projects_flow,drive,modes,artifacts,truck,three,away,closed";
+        public const string Sections = "table,menu,states,windows,design_gallery,settings,agents,build,projects_flow,cad_bar,drive,modes,artifacts,truck,three,away,closed";
 
         static List<Step> Steps() => new List<Step>
         {
@@ -867,6 +867,7 @@ namespace Forge.OS.Editor
             new Step("agents", StepAgents),
             new Step("build", StepBuild),
             new Step("projects_flow", StepProjectsFlow),
+            new Step("cad_bar", StepCadBar),
             new Step("drive", StepDriveIdle),
             new Step("modes", StepModes),
             new Step("artifacts", StepArtifacts),
@@ -1495,6 +1496,73 @@ namespace Forge.OS.Editor
         }
 
         // The old modes beside an OS window, each from where the user sits.
+        // The Design stage of a project with CAD open: where the project bar sits beside the model on the table, and the CAD
+        // panels square on (each tab of the design panel, and the versions list), for reading their text.
+        static IEnumerator<float> StepCadBar()
+        {
+            if (!Ready()) yield break;
+            if (shell.MenuOpen) { shell.CloseMenu(); yield return 0.5f; }
+            OSProjectSession.Current?.End();
+            shell.Windows.CloseAll();
+            OSModes.Close();
+            AlbieTools.Call("artifact_close", new JObject());
+            yield return 0.8f;
+            if (!OSProjects.EnsureOpen(OSProjects.QuadcopterId, out string quadError)) Problem("could not open the quadcopter: " + quadError);
+            OSProjects.OpenProject(OSProjects.QuadcopterId);
+            yield return 1.5f;
+            OSProjectSession.Current?.Go("design");
+            yield return 4.0f;
+            var pts = new List<Vector3>();
+            ModePoints(pts, true);
+            FrameFromHead("cb_bar_docked_cad", "Design on the quadcopter: CAD is open, and the project bar is within reach without covering the model, its labels, the table button or a CAD panel.", pts);
+            OSWindow rail = shell.Windows.Find(OSProjectRail.WindowId);
+            if (rail != null && rail.Panel != null)
+            {
+                var barPts = new List<Vector3>();
+                AddWindow(barPts, rail);
+                FrameFromHead("cb_bar_from_head", "The project bar and what is around it, from the user's eyes in the Design stage: every chip readable, nothing drawn over it.", barPts, 0.45f);
+            }
+            else Unreachable("cb_bar_from_head", "the project bar is not up");
+
+            CadParamsPanel design = UnityEngine.Object.FindFirstObjectByType<CadParamsPanel>();
+            ForgePanel designPanel = design != null ? design.GetComponent<ForgePanel>() : null;
+            if (designPanel == null) Unreachable("cb_design_overview", "the CAD design panel is not there");
+            else
+            {
+                string[] names = { "overview", "parameters", "analysis", "history" };
+                for (int i = 0; i < names.Length; i++)
+                {
+                    design.SetTab(i);
+                    yield return 0.8f;
+                    FrameModePanel("cb_design_" + names[i], "The CAD design panel on its " + names[i] + " tab, square on: no text over another element, nothing cut off, the bottom buttons clear of the list.", designPanel);
+                }
+                design.SetTab(1);
+            }
+            CadVersionsPanel versions = UnityEngine.Object.FindFirstObjectByType<CadVersionsPanel>();
+            ForgePanel versionsPanel = versions != null ? versions.GetComponentInParent<ForgePanel>() : null;
+            if (versionsPanel == null) Unreachable("cb_versions", "the CAD versions panel is not there");
+            else FrameModePanel("cb_versions", "The CAD versions panel square on: the header line, the chart and each row readable.", versionsPanel);
+
+            OSProjectSession.Current?.End();
+            shell.Windows.CloseAll();
+            OSModes.Close();
+            yield return 1.0f;
+        }
+
+        // One panel of the open mode, square on, with the mode's 3D parts (which stand between the camera and it) left out.
+        static void FrameModePanel(string screen, string what, ForgePanel target)
+        {
+            alsoHide.Clear();
+            foreach (Renderer r in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsInactive.Exclude))
+            {
+                if (r == null || r.transform.IsChildOf(target.transform) || r.GetComponentInParent<Canvas>() != null) continue;
+                for (Transform t = r.transform; t != null; t = t.parent)
+                    if (workspace.IsOpenItem(t.gameObject)) { alsoHide.Add(r); break; }
+            }
+            FrameRect(screen, what, (RectTransform)target.transform, 0.88f, 0.45f, 0.9f, 1f, 1f, target.transform);
+            alsoHide.Clear();
+        }
+
         static IEnumerator<float> StepModes()
         {
             if (!Ready()) yield break;

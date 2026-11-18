@@ -373,6 +373,57 @@ namespace Forge.OS
             }
         }
 
+        const float OtherCornerBonus = 1000f, MinSideDegrees = 12f, MaxSideTurnDegrees = 25f, ModelMargin = 0.28f, FallbackBarHalfWidth = 0.25f;
+
+        // A mode with a model on the table (CAD). Under everything is where the model and its labels are, so the bar goes
+        // under a panel off to one side of the model: the side the corner button is not on (Settings puts that button low
+        // on the left or the right), the furthest-out panel there, and further out still when the bar would reach over the
+        // model, its ring or its labels as seen from the eyes. False when the mode has no model or no panel off to a side.
+        static bool SidePanelAnchor(Vector3 eye, List<Workspace.ItemSlot> slots, out Vector3 bottom, out Vector3 top)
+        {
+            bottom = top = Vector3.zero;
+            int model = -1;
+            for (int i = 0; i < slots.Count && model < 0; i++)
+                if (slots[i].isVolume) model = i;
+            if (model < 0) return false;
+            Vector3 toModel = slots[model].center - eye;
+            float modelYaw = Mathf.Atan2(toModel.x, toModel.z) * Mathf.Rad2Deg;
+            OSSettings settings = OSSettings.Current;
+            bool barOnLeft = settings == null || !settings.cornerOnLeft;
+            int best = -1;
+            float bestYaw = 0f, bestScore = 0f;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (slots[i].isVolume || slots[i].size.x <= 0f) continue;
+                Vector3 to = slots[i].center - eye;
+                float yaw = Mathf.DeltaAngle(modelYaw, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg);
+                if (Mathf.Abs(yaw) < MinSideDegrees) continue;  // behind or over the model, not beside it
+                float score = Mathf.Abs(yaw) + ((yaw < 0f) == barOnLeft ? OtherCornerBonus : 0f);
+                if (best >= 0 && score <= bestScore) continue;
+                best = i;
+                bestYaw = yaw;
+                bestScore = score;
+            }
+            if (best < 0) return false;
+
+            Workspace.ItemSlot slot = slots[best];
+            Vector3 center = slot.center;
+            OSShell shell = OSShell.Current;
+            OSWindow bar = shell != null ? shell.Windows.Find(OSProjectRail.WindowId) : null;
+            float barHalfWidth = bar != null && bar.Panel != null ? bar.Panel.SizeMeters.x * 0.5f : FallbackBarHalfWidth;
+            float panelFlat = Mathf.Max(0.05f, new Vector2(center.x - eye.x, center.z - eye.z).magnitude);
+            float modelFlat = Mathf.Max(0.05f, new Vector2(toModel.x, toModel.z).magnitude);
+            float barHalf = Mathf.Atan2(barHalfWidth, Mathf.Min(panelFlat, OSProjectRail.Reach)) * Mathf.Rad2Deg;
+            float modelHalf = Mathf.Atan2(slots[model].size.x * 0.5f + ModelMargin, modelFlat) * Mathf.Rad2Deg;
+            float missing = barHalf + modelHalf - Mathf.Abs(bestYaw);
+            if (missing > 0f)
+                center = eye + Quaternion.AngleAxis(Mathf.Min(missing, MaxSideTurnDegrees) * Mathf.Sign(bestYaw), Vector3.up) * (center - eye);
+            float half = slot.size.y * 0.5f;
+            bottom = center + Vector3.down * half;
+            top = center + Vector3.up * half;
+            return true;
+        }
+
         /// <summary>
         /// Where the bar docks: under the window the stage at hand opened (or the Workspace mode's panels), as its bottom
         /// and top centre, its up direction and its distance from the eyes. False when the stage has no tool up (the bar then floats).
@@ -403,6 +454,11 @@ namespace Forge.OS
             if (mode == null || ws == null || ws.ActiveMode != mode) return false;
             ws.GetSlots(scratch);
             if (scratch.Count == 0) return false;
+            if (SidePanelAnchor(eye, scratch, out bottom, out top))
+            {
+                anchorId = mode.GetHashCode() * 31 + 1;
+                return true;
+            }
             float low = float.MaxValue, high = float.MinValue;
             Vector3 sum = Vector3.zero;
             for (int i = 0; i < scratch.Count; i++)

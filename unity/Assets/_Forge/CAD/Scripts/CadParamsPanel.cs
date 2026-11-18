@@ -392,13 +392,33 @@ public class CadParamsPanel : MonoBehaviour
         session.GetFlight(state.version, demo?.source, f => dataDirty = true);
     }
 
-    float BodyWidth => body.rect.width > 1f ? body.rect.width : 444f;
+    float BodyWidth => body.rect.width > 1f ? body.rect.width : DesignWidth;
+
+    // The body is drawn for a panel 480 mm wide (444 inside). Workspace makes a side panel smaller to keep it clear of the
+    // one beside it (down to 0.6 of its size), so in a narrower panel the whole body is scaled down to fit, not squeezed:
+    // at its drawn width nothing in it runs into anything else.
+    const float DesignWidth = 444f;
+
+    void FitBody()
+    {
+        var root = body.parent as RectTransform;
+        if (root == null) return;
+        float width = root.rect.width, height = root.rect.height;
+        if (width < 1f || height < 1f) return;
+        float scale = Mathf.Min(1f, width / DesignWidth);
+        body.anchorMin = body.anchorMax = new Vector2(0f, 1f);
+        body.pivot = new Vector2(0f, 1f);
+        body.anchoredPosition = new Vector2(0f, BodyTopRaise);
+        body.sizeDelta = new Vector2(width / scale, (height + BodyTopRaise) / scale);
+        body.localScale = new Vector3(scale, scale, 1f);
+    }
 
     // ---- Layout: top to bottom, tabs, banner, verdict / strip / telemetry, the tab, the footer ----
 
     void Layout()
     {
         layoutDirty = false;
+        FitBody();
         float w = BodyWidth, h = body.rect.height > 1f ? body.rect.height : 510f;
         float y = 0f;
         CadUi.Band(tabsRoot, y, TabsH);
