@@ -51,6 +51,22 @@ namespace Forge.OS
 
         public IReadOnlyList<OSWindow> All => windows;
         public int Count => windows.Count;
+        /// <summary>Hidden or minimised adopted panels do not obstruct the user's view.</summary>
+        public bool HasVisibleWindows
+        {
+            get
+            {
+                for (int i = 0; i < windows.Count; i++)
+                {
+                    OSWindow window = windows[i];
+                    if (window == null || !window.gameObject.activeInHierarchy) continue;
+                    if (window.IsGroup) return true;
+                    CanvasGroup group = window.GetComponent<CanvasGroup>();
+                    if (group == null || (group.alpha >= 0.05f && group.blocksRaycasts)) return true;
+                }
+                return false;
+            }
+        }
 
         void OnEnable()
         {
@@ -149,6 +165,7 @@ namespace Forge.OS
             if (string.IsNullOrEmpty(id)) return null;
             if (byId.TryGetValue(id, out OSWindow existing) && existing != null)
             {
+                GetComponent<OSShell>()?.CloseMenu();
                 BringForward(existing);
                 return existing;
             }
@@ -186,6 +203,7 @@ namespace Forge.OS
 
             var window = panel.gameObject.AddComponent<OSWindow>();
             window.Init(this, id, title, panel, null, false, true, null);
+            GetComponent<OSShell>()?.CloseMenu();
             Track(window);
             PanelChrome.Of(panel);  // the panel's own Close (X) and Minimise: ForgePanel.RequestClose comes back here (RouteClose)
             PlaceNew(window);
@@ -208,7 +226,7 @@ namespace Forge.OS
         /// <see cref="BringHere"/> and <see cref="CloseAll"/> reach it. A null <paramref name="root"/> tracks a group (a
         /// Workspace mode) that only has a close action. <paramref name="close"/> does the real closing.
         /// </summary>
-        public OSWindow Adopt(string id, string title, GameObject root, Action close)
+        public OSWindow Adopt(string id, string title, GameObject root, Action close, bool dismissMenu = true)
         {
             if (string.IsNullOrEmpty(id)) return null;
             if (byId.TryGetValue(id, out OSWindow existing) && existing != null) return existing;
@@ -226,6 +244,7 @@ namespace Forge.OS
                 var gesture = window.Panel.GetComponent<GestureWindow>();
                 if (gesture != null) gesture.StaysAway = true;
             }
+            if (dismissMenu) GetComponent<OSShell>()?.CloseMenu();
             Track(window);
             return window;
         }

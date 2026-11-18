@@ -210,17 +210,17 @@ namespace Forge.OS
         {
             GesturePanel display = FindDisplay(false);
             if (display == null || !display.gameObject.activeInHierarchy) return false;
-            Track(display);
+            Track(display, dismissMenu: false);  // reading a tile's status must not dismiss the menu being built
             return true;
         }
 
-        static void Track(GesturePanel display)
+        static void Track(GesturePanel display, bool dismissMenu = true)
         {
             OSShell shell = OSShell.Current;
             if (shell == null || display == null) return;
             OSWindows windows = shell.Windows;
             if (windows.Find(GesturesId) != null) return;
-            windows.Adopt(GesturesId, "Hands", display.gameObject, CloseGestures);
+            windows.Adopt(GesturesId, "Hands", display.gameObject, CloseGestures, dismissMenu);
         }
 
         static void CloseGestures()

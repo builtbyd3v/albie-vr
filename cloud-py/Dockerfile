@@ -1,6 +1,14 @@
 # Albie cloud: CAD + small ML training for headsets with no laptop. Build context: the repo root
 # layout (cloud-py/deploy.sh copies these paths into a Hugging Face Docker Space with this file at its root).
-FROM python:3.12-slim
+FROM node:24-bookworm-slim AS web-runtime
+FROM python:3.12-slim-bookworm
+
+# The bundled Claude CLI is self-contained, but the projects it builds need Node/npm.
+COPY --from=web-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=web-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && node --version && npm --version
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 # ponytail: GL/glib/Xrender are what OCP wheels usually want on slim images; drop them if the build proves otherwise.

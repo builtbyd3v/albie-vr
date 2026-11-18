@@ -665,6 +665,15 @@ namespace Forge.OS.Editor
             var corner = shell.GetComponent<OSCornerButton>();
             Check(corner != null, "the shell has the corner button");
             if (corner == null) yield break;
+            if (shell.Windows.HasVisibleWindows)
+            {
+                yield return 0.3f;
+                Check(!corner.Shown, "open work keeps the floating shortcut out of the view");
+                foreach (float w in EnsureMenuOpen()) yield return w;
+                Check(shell.MenuOpen, "the menu can still be explicitly summoned during a task");
+                shell.CloseMenu();
+                yield break;
+            }
             foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
             Check(corner.Shown, "away from the desk the corner button shows");
             if (corner.Shown)
@@ -1633,7 +1642,7 @@ namespace Forge.OS.Editor
             if (shell.MenuOpen) shell.CloseMenu();
             yield return 0.5f;
             foreach (float w in Until(() => corner.Shown, 3f)) yield return w;
-            Check(corner.Shown, "away from the desk the corner button shows before Settings is opened");
+            Check(corner.Shown == !shell.Windows.HasVisibleWindows, "the shortcut is shown only when there is no visible task");
 
             foreach (float w in EnsureMenuOpen()) yield return w;
             if (menu != null) rig.LookAt(menu.LastCenter);
@@ -1653,8 +1662,7 @@ namespace Forge.OS.Editor
             Check(!shell.MenuOpen, "the strip button closed the menu");
             rig.LookAt(CenterOf(win));
             yield return 0.6f;
-            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
-            Check(corner.Shown, "the corner button is back with the menu closed and Settings open");
+            Check(!corner.Shown, "the corner button stays hidden while Settings is open");
             Shot("settings_corner_on");
 
             Transform row = OSToolsTest.FindDeep(win.transform, "Toggle Corner button");
@@ -1674,8 +1682,8 @@ namespace Forge.OS.Editor
             row = OSToolsTest.FindDeep(win.transform, "Toggle Corner button");
             toggle = row != null ? row.GetComponentInChildren<Toggle>(false) : null;
             pressed = toggle != null && PressButton(toggle.gameObject, "Corner button switch");
-            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
-            Check(pressed && OSSettings.Current.cornerButton && corner.Shown, "switched on again, the corner button is back");
+            yield return 0.3f;
+            Check(pressed && OSSettings.Current.cornerButton && !corner.Shown, "switching it on does not cover the open Settings task");
             if (!OSSettings.Current.cornerButton) { OSSettings.Current.cornerButton = true; OSSettings.Current.Save(); }
         }
 

@@ -51,19 +51,16 @@ namespace Forge.OS
         public const float ReachFarthest = OSSettings.MaxDistance;
         /// <summary>Degrees below eye level it may sit at (the setting is kept inside these).</summary>
         public const float MinDropDegrees = OSSettings.MinDrop, MaxDropDegrees = OSSettings.MaxDrop;
-        // When a panel or a model stands in the way the menu comes at most this much nearer than its setting (m), in steps.
-        const float NearerAtMost = 0.04f;
         // At a desk the plate's lower edge stays this far above the desk top (m), clear of the hands resting on it.
         const float DeskClearMeters = 0.04f;
-        // Turned more than RefaceDegrees from the menu (or moved RefaceMeters from where it was placed) for RefaceHoldSeconds:
-        // it glides round to where the user faces now, in RefaceSeconds.
-        const float RefaceDegrees = 40f, RefaceMeters = 0.35f, RefaceHoldSeconds = 0.6f, RefaceSeconds = 0.3f;
-        const float DistanceStep = 0.02f, ProbeYawDegrees = 10f, ProbeTiltDegrees = 5f;
+        // Only an explicit request can reface the menu; ordinary head tracking never moves it.
+        const float RefaceSeconds = 0.3f;
+        const float ProbeYawDegrees = 10f, ProbeTiltDegrees = 5f;
         // The menu keeps this far in front of a panel's plane (m) and counts a panel's rectangle this much bigger (canvas units).
         const float ClearMarginMeters = 0.05f, ClearMarginUnits = 20f;
         // Cost of a place, in "degrees": turning or tilting costs TurnCost a degree, coming nearer costs one per centimetre.
         const float TurnCost = 2f;
-        const int MaxProbeSteps = 3, MaxTiltSteps = 4, ProbeColumns = 7, ProbeRows = 4;  // tilt steps go down, up, further down, further up
+        const int MaxProbeSteps = 9, MaxTiltSteps = 4, ProbeColumns = 7, ProbeRows = 4;  // tilt steps go down, up, further down, further up
 
         [SerializeField] GameObject visual;
         [SerializeField] RectTransform canvasRoot, plate;
@@ -172,7 +169,6 @@ namespace Forge.OS
             LastCenter = to;
             LastRotation = rotation;
             placedFrom = shell.Head != null ? shell.Head.position : Vector3.zero;
-            turnedFor = 0f;
             HideCoveringContent(shell.Head != null ? shell.Head.position : Vector3.zero, to, rotation, SizeMeters);
             Vector3 from = shell.SummonPoint ?? to;
             transform.SetPositionAndRotation(from, rotation);
@@ -242,40 +238,11 @@ namespace Forge.OS
         }
 
         Vector3 placedFrom;
-        float turnedFor;
 
-        // While it is open and still: if the user has turned well away from it (or walked off) for a moment, it glides round
-        // to where they face now. Only compares a few vectors a frame; the new place is worked out once, when it moves.
-        void Update()
-        {
-            if (motion != null || !Visible || shell == null || !shell.MenuOpen || PanelManipulator.Grabbing > 0)
-            {
-                turnedFor = 0f;
-                return;
-            }
-            Transform head = shell.Head;
-            if (head == null) return;
-            Vector3 toMenu = LastCenter - head.position;
-            toMenu.y = 0f;
-            Vector3 facing = head.forward;
-            facing.y = 0f;
-            bool turned = toMenu.sqrMagnitude > 1e-4f && facing.sqrMagnitude > 1e-4f && Vector3.Angle(facing, toMenu) > RefaceDegrees;
-            bool moved = (head.position - placedFrom).sqrMagnitude > RefaceMeters * RefaceMeters;
-            if (!turned && !moved)
-            {
-                turnedFor = 0f;
-                return;
-            }
-            turnedFor += Time.unscaledDeltaTime;
-            if (turnedFor < RefaceHoldSeconds) return;
-            Reface();
-        }
-
-        /// <summary>Places the open menu again in front of the user, gliding there. For the turn above, and for checks.</summary>
+        /// <summary>Explicitly brings the open menu back within reach. Head motion never calls this.</summary>
         public void Reface()
         {
             if (!Visible || shell == null) return;
-            turnedFor = 0f;
             Pose(out Vector3 to, out Quaternion rotation);
             LastCenter = to;
             LastRotation = rotation;
@@ -328,11 +295,9 @@ namespace Forge.OS
         /// Where the menu sits: within easy poking reach, straight ahead of where the head faces now, turned to face the eyes:
         /// <c>menuDistance</c> from the eyes and <c>menuDropDegrees</c> below eye level, kept inside 0.42 to 0.6 m and 10 to 30
         /// degrees (<see cref="ReachSetting"/>). At a desk the drop is lessened until the plate's lower edge is above the desk top,
-        /// clear of hands resting there. The menu is the system surface, so it is in front of every window and mode panel:
-        /// when a panel stands in the way it comes a little nearer (never nearer than <see cref="ReachNearest"/>), then tilts
-        /// a little down or up, then turns a little to the side, to the cheapest place where nothing is in front of it. With
-        /// no clear place it takes the one with the least in front of it (and hides the model parts that are left in front:
-        /// <see cref="HideCoveringContent"/>), rather than coming close to the face.
+        /// clear of hands resting there. The menu keeps that distance and searches to either side for a place that leaves
+        /// open panels and models visible, including content farther away than the menu. Position and rotation stay fixed
+        /// after opening; head turns never reface it.
         /// </summary>
         void Pose(out Vector3 position, out Quaternion rotation)
         {
@@ -347,12 +312,9 @@ namespace Forge.OS
             float deskTop = DeskTop();
             wantDrop = AboveDesk(eye, flat, wantDistance, wantDrop, size.y, deskTop);
 
-            // Every place worth trying has a cost: coming nearer than the setting costs one per centimetre (at most
-            // NearerAtMost, never nearer than ReachNearest), tilting or turning aside costs TurnCost per degree, so nearer
-            // is preferred to turning. The cheapest place with nothing in front of any part of the plate wins; the settings'
-            // own place costs nothing and is tried first, so with nothing in the way the menu sits where it is set.
-            float nearest = Mathf.Max(ReachNearest, wantDistance - NearerAtMost);
-            float bestDistance = wantDistance, bestCost = float.MaxValue;
+            // Keep the configured reach distance and the desk clearance from main. Search a free angle instead
+            // of covering another task by moving the menu closer to the user's face.
+            float bestCost = float.MaxValue;
             Vector3 bestDirection = Direction(flat, 0f, wantDrop);
             // First a place clear of panels, volumes and the model solids under them. A model's solids can stand nearer than the
             // menu may come (Train's slabs); then the place clear of panels and volumes alone is taken, and the open menu hides
@@ -372,38 +334,26 @@ namespace Forge.OS
                         float yaw = ((k + 1) / 2) * ProbeYawDegrees * (k % 2 == 1 ? 1f : -1f);
                         float turning = TurnCost * (Mathf.Abs(yaw) + Mathf.Abs(drop - wantDrop));
                         if (turning >= bestCost) continue;
-                        for (float d = wantDistance; d >= nearest - 0.001f; d -= DistanceStep)
+                        float placeDrop = AboveDesk(eye, flat, wantDistance, drop, size.y, deskTop);
+                        Vector3 direction = Direction(flat, yaw, placeDrop);
+                        Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
+                        int limit = bestCost == float.MaxValue ? fewestBlocked : 1;
+                        int blocked = BlockedCore(eye, eye + direction * wantDistance, facing, size, meshes, limit, protectWorkspace: true);
+                        if (blocked == 0)
                         {
-                            float placeDrop = AboveDesk(eye, flat, d, drop, size.y, deskTop);
-                            Vector3 direction = Direction(flat, yaw, placeDrop);
-                            Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
-                            float cost = turning + (wantDistance - d) * 100f;
-                            // Once a clear place is known only a count of 0 matters, and before that only a count under the fewest so far:
-                            // the count may stop at that limit (the answer to both questions is the same as with the full count).
-                            int limit = bestCost == float.MaxValue ? fewestBlocked : 1;
-                            int blocked = BlockedCore(eye, eye + direction * d, facing, size, meshes, limit);
-                            if (blocked == 0)
-                            {
-                                if (cost < bestCost)
-                                {
-                                    bestCost = cost;
-                                    bestDirection = direction;
-                                    bestDistance = d;
-                                    fewestBlocked = 0;
-                                }
-                                break;  // nearer only costs more
-                            }
-                            if (bestCost == float.MaxValue && blocked < fewestBlocked)
-                            {
-                                fewestBlocked = blocked;  // nothing clear yet: remember the place with the least in front of it
-                                bestDirection = direction;
-                                bestDistance = d;
-                            }
+                            bestCost = turning;
+                            bestDirection = direction;
+                            fewestBlocked = 0;
+                        }
+                        else if (bestCost == float.MaxValue && blocked < fewestBlocked)
+                        {
+                            fewestBlocked = blocked;
+                            bestDirection = direction;
                         }
                     }
                 }
             }
-            position = eye + bestDirection * bestDistance;
+            position = eye + bestDirection * wantDistance;
             rotation = Quaternion.LookRotation(bestDirection, Vector3.up);
         }
 
@@ -506,10 +456,10 @@ namespace Forge.OS
         /// menu switches the solids that remain in front of it off). For placing the menu and for the play test. The count stops
         /// as soon as it reaches <paramref name="limit"/> (the placement search only needs to know "none" or "fewer than the best so far").
         /// </summary>
-        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes = true, int limit = int.MaxValue)
+        public static int Blocked(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes = true, int limit = int.MaxValue, bool protectWorkspace = false)
         {
             CollectVolumes();
-            return BlockedCore(eye, center, rotation, size, meshes, limit);
+            return BlockedCore(eye, center, rotation, size, meshes, limit, protectWorkspace);
         }
 
         static readonly List<ForgeVolume> volumes = new List<ForgeVolume>();
@@ -565,7 +515,7 @@ namespace Forge.OS
             contentBounds.Add(box);
         }
 
-        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes, int limit)
+        static int BlockedCore(Vector3 eye, Vector3 center, Quaternion rotation, Vector2 size, bool meshes, int limit, bool protectWorkspace = false)
         {
             int blocked = 0;
             Vector3 right = rotation * Vector3.right, up = rotation * Vector3.up;
@@ -582,9 +532,10 @@ namespace Forge.OS
                     if (length < 1e-4f) continue;
                     Vector3 ray = toPoint / length;
                     bool covered = false;
-                    for (int i = 0; i < panels.Count && !covered; i++) covered = PanelCovers(panels[i], eye, ray, length);
-                    for (int i = 0; i < volumes.Count && !covered; i++) covered = VolumeCovers(volumes[i], eye, ray, length);
-                    for (int i = 0; meshes && i < contentBounds.Count && !covered; i++) covered = RayMeetsBounds(contentBounds[i], eye, ray, length);
+                    float reach = protectWorkspace ? float.PositiveInfinity : length;
+                    for (int i = 0; i < panels.Count && !covered; i++) covered = PanelCovers(panels[i], eye, ray, reach);
+                    for (int i = 0; i < volumes.Count && !covered; i++) covered = VolumeCovers(volumes[i], eye, ray, reach);
+                    for (int i = 0; meshes && i < contentBounds.Count && !covered; i++) covered = RayMeetsBounds(contentBounds[i], eye, ray, reach);
                     if (covered && ++blocked >= limit) return blocked;
                 }
             }

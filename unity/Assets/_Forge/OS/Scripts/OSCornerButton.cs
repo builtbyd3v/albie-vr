@@ -5,14 +5,11 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The corner button: a small round kit button on a dark plate, low in one corner of the view, within arm's reach (0.45 m),
-    /// at a desk and away from one (at a desk it used to leave the menu to the table button, which lies flat on the desk and
-    /// proved hard to find and touch on the headset). It is never locked to the head. It keeps a world-space anchor; when the head has turned more than
-    /// <see cref="recenterDegrees"/> away from the direction the anchor was set for, or has moved more than
-    /// <see cref="recenterMeters"/>, it picks a new anchor and eases there over <see cref="easeSeconds"/> with a smooth
-    /// step. It always faces the head. Pressing it opens the menu (summon value Corner); holding it for a second closes
-    /// everything (<see cref="OSLongPress"/>, the panic exit); it hides while the menu is open,
-    /// while the pet's greeting holds the desk, and when Settings turns it off.
+    /// The corner button: a small round kit button on a dark plate, low in one corner of the view, shown only away from a
+    /// desk. Its position and rotation stay anchored in the room until hidden or explicitly moved in Settings.
+    /// Head turns and leaning never move it. Pressing it opens the menu (summon value Corner); it hides while a task,
+    /// the menu, or the RC transmitter is open, while the pet's greeting holds the desk, and when Settings turns it off.
+    /// Holding it still uses OSLongPress to close everything.
     /// </summary>
     public sealed class OSCornerButton : MonoBehaviour
     {
@@ -20,8 +17,6 @@ namespace Forge.OS
         [Tooltip("Metres from the eyes.")] public float distance = 0.45f;
         [Tooltip("Degrees to the side of the gaze line at rest (left or right from Settings).")] public float sideDegrees = 28f;
         [Tooltip("Degrees below the gaze line at rest.")] public float dropDegrees = 22f;
-        [Tooltip("The head turning this far from the direction the anchor was set for picks a new anchor.")] public float recenterDegrees = 25f;
-        [Tooltip("The head moving this far from where the anchor was set picks a new anchor.")] public float recenterMeters = 0.3f;
         [Tooltip("Seconds to ease to a new anchor.")] public float easeSeconds = 0.4f;
 
         /// <summary>Plate and button sizes in OS units (unitMeters each): the button is about 38 mm.</summary>
@@ -37,7 +32,8 @@ namespace Forge.OS
         bool shown, built, buildFailed, reported;
 
         // The world anchor, the head pose it was set for, and the ease to it.
-        Vector3 anchorPos, setHeadPos, setForward, easeFrom;
+        Vector3 anchorPos, easeFrom;
+        Quaternion anchorRotation;
         float easeT = 1f;
         bool placed, lastLeft;
         int recenters;
@@ -87,7 +83,8 @@ namespace Forge.OS
         {
             if (shell == null) return;
             Transform head = shell.Head;
-            bool want = head != null && !shell.Held && !shell.MenuOpen && OSSettings.Current.cornerButton;
+            bool want = head != null && !shell.AtDesk && !shell.Held && !shell.MenuOpen
+                        && !shell.Windows.HasVisibleWindows && !shell.RcControlsOpen && OSSettings.Current.cornerButton;
             if (want != shown)
             {
                 if (want && !Build())
@@ -109,9 +106,6 @@ namespace Forge.OS
 
             bool left = OSSettings.Current.cornerOnLeft;
             if (left != lastLeft) PickAnchor(head, true);  // Settings moved it to the other corner
-            else if (Vector3.Angle(head.forward, setForward) > recenterDegrees
-                     || (head.position - setHeadPos).sqrMagnitude > recenterMeters * recenterMeters)
-                PickAnchor(head, true);
 
             Vector3 pos = anchorPos;
             if (easeT < 1f)
@@ -122,8 +116,7 @@ namespace Forge.OS
             }
             Transform t = root.transform;
             t.position = pos;
-            Vector3 away = pos - head.position;
-            if (away.sqrMagnitude > 1e-6f) t.rotation = Quaternion.LookRotation(away, Vector3.up);  // canvas faces the head
+            t.rotation = anchorRotation;
         }
 
         // Sets the world anchor for the head's pose now: low in the chosen corner of the view, level with the horizon
@@ -139,8 +132,7 @@ namespace Forge.OS
             Quaternion offset = Quaternion.Euler(dropDegrees, lastLeft ? -sideDegrees : sideDegrees, 0f);
             Vector3 target = head.position + level * offset * Vector3.forward * distance;
 
-            setHeadPos = head.position;
-            setForward = head.forward;
+            anchorRotation = Quaternion.LookRotation(target - head.position, Vector3.up);
             if (ease && placed && root != null)
             {
                 easeFrom = root.transform.position;

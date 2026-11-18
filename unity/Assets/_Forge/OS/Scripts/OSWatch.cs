@@ -287,7 +287,7 @@ namespace Forge.OS
                 if (lostFor >= hideSeconds) armed = true;
             }
 
-            bool blocked = shell.MenuOpen || PanelManipulator.Grabbing > 0 || Time.unscaledTime < quietUntil;
+            bool blocked = shell.MenuOpen || shell.RcControlsOpen || PanelManipulator.Grabbing > 0 || Time.unscaledTime < quietUntil;
 
             if (shown)
             {

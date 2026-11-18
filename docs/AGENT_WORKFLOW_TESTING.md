@@ -157,6 +157,31 @@ The demo launcher deliberately disables provider credentials and publishing even
 
 This live-provider and PR test is still pending. The no-key demo cannot substitute for it.
 
+## Web builds: login-page acceptance
+
+The cloud image includes Node.js 24 and npm as well as Python. The bundled Claude CLI alone does not supply
+the runtime needed by generated web projects. For a laptop hub, install Node/npm and ensure both are on the
+PATH inherited by the running hub. Restart the hub after changing its environment.
+
+Use a real-provider workflow and request a simple login page. The generated project should include
+`package.json`, a lockfile, finite `test` and `build` scripts, and a `.gitignore` for dependencies and build output.
+Verification installs development dependencies (`npm ci` with a lockfile, otherwise `npm install`), runs the
+test script and production build, and records each command separately under **Checks**. A failed installation,
+empty test suite, missing executable, or failed compilation blocks publication. Node tests run in CI mode.
+
+For the acceptance check, submit invalid and valid form values, inspect validation and success messages,
+and confirm the README distinguishes demo UI from real authentication. Only then publish to an owned test
+repository and inspect the returned PR. A browser screenshot alone does not prove authentication works.
+
+The runtime change must be deployed to the HF Space before Quest/cloud tests can use it. The deployment script
+ships committed HEAD, so running it with uncommitted fixes will deploy the old runtime.
+
+On 2026-11-18, a real local-provider attempt for the login page failed before generating files because the
+configured Anthropic credential was rejected. The failure was recorded in the local acceptance-test output (not included in this repository).
+Update `ANTHROPIC_API_KEY` in the ignored `hub/.env` for a local hub, or the corresponding Space secret for a cloud
+build. Do not paste keys into chat or commit them. This is separate from Node/npm availability; a successful
+live-provider login-page build and live GitHub publication remain unverified.
+
 ## Recorded local run — 2026-11-17
 
 - Submitted and approved through the Unity workflow button handlers, using the goal above.

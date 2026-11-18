@@ -200,8 +200,6 @@ MonoBehaviour:
   distance: 0.45
   sideDegrees: 28
   dropDegrees: 22
-  recenterDegrees: 25
-  recenterMeters: 0.3
   easeSeconds: 0.4
 --- !u!114 &8888997474583706820
 MonoBehaviour:
