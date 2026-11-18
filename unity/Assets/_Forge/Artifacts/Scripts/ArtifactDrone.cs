@@ -178,11 +178,13 @@ namespace Forge.Artifacts
         // The course's scale and the design's factors into the body's tuning (from its own base values: never compounds).
         void Retune()
         {
+            // The flight numbers follow the design's parameters (DroneDesign.HasFlight) even before, or without, its mesh;
+            // the swept radius is the mesh's when it is shown. Applied live: a drone flying on a course changes at once.
             var d = Design;
-            bool loaded = d != null && d.Loaded;
-            Body.Retune(CourseScale, loaded ? d.RadiusFullSize : 0f, loaded ? d.AccelK : 1f, loaded ? d.BrakeK : 1f,
-                        loaded ? d.ClimbK : 1f, loaded ? d.YawK : 1f);
-            Body.ThrustToWeight = loaded ? d.ThrustToWeight : float.NaN;
+            bool loaded = d != null && d.Loaded, flies = d != null && d.HasFlight;
+            Body.Retune(CourseScale, loaded ? d.RadiusFullSize : 0f, flies ? d.AccelK : 1f, flies ? d.BrakeK : 1f,
+                        flies ? d.ClimbK : 1f, flies ? d.YawK : 1f, flies ? d.SpeedK : 1f, flies ? d.AgilityK : 1f);
+            Body.ThrustToWeight = flies ? d.ThrustToWeight : float.NaN;
         }
 
         void ZeroSticks()
@@ -297,6 +299,39 @@ namespace Forge.Artifacts
             }
         }
 
+        // ---- Design -> fly ---------------------------------------------------------------------------------------------
+
+        /// <summary>
+        /// "Change the design": opens CAD on the quadcopter with its Parameters tab up, and, with
+        /// <paramref name="changes"/> (CAD parameter name to value), applies them once CAD shows the quadcopter. The drone on
+        /// the course takes the new numbers by itself (<see cref="DroneDesign"/> listens to CAD), even mid-flight, and Albie
+        /// says what changed in flight. <paramref name="report"/> gets one line for a status line (it may be called later).
+        /// The hook for the Drive window's and the project window's "Change the design" buttons.
+        /// </summary>
+        public static void ChangeDesign(Dictionary<string, object> changes = null, System.Action<string> report = null)
+        {
+            Forge.OS.OSProjects.OpenDesign(DroneDesign.Part, line =>
+            {
+                var s = CadSession.Instance;
+                bool onQuad = s != null && s.Ready && s.Params != null && s.Params.part == DroneDesign.Part;
+                if (onQuad || (s != null && s.Ready))
+                    ForgeNet.Inject(ForgeEvents.CadActionType, new JObject { ["action"] = "tab", ["tab"] = "parameters", ["part"] = DroneDesign.Part });
+                if (changes != null && changes.Count > 0 && s != null && s.Ready)
+                {
+                    if (onQuad) s.SetParams(changes, "drone change");
+                    else if (s.isActiveAndEnabled) s.StartCoroutine(ApplyWhenOpen(s, changes));
+                }
+                report?.Invoke(s != null && s.Ready ? line + " Change a slider: the drone on the course flies the new numbers at once." : line);
+            });
+        }
+
+        static System.Collections.IEnumerator ApplyWhenOpen(CadSession s, Dictionary<string, object> changes)
+        {
+            float until = Time.realtimeSinceStartup + 10f;
+            while (Time.realtimeSinceStartup < until && (s == null || s.Params == null || s.Params.part != DroneDesign.Part)) yield return null;
+            if (s != null && s.Params != null && s.Params.part == DroneDesign.Part) s.SetParams(changes, "drone change");
+        }
+
         /// <summary>Flat distance from the drone to the headset, metres, or NaN with no headset camera.</summary>
         public float UserDistance
         {
@@ -386,7 +421,8 @@ namespace Forge.Artifacts
                 ["user_distance_m"] = float.IsNaN(UserDistance) ? (double?)null : System.Math.Round(UserDistance, 2),
                 ["camera_on"] = Cam != null && Cam.On,
                 ["body"] = Design != null && Design.Loaded ? "quadcopter v" + Design.Version + " (" + Design.Source + ")" : "built-in shape (no quadcopter design loaded)",
-                ["design_flight"] = Design != null && Design.Loaded ? Design.Note : null,
+                ["design_flight"] = Design != null && Design.HasFlight ? Design.Note : null,
+                ["design_change"] = Design != null ? Design.LastChange : null,
                 ["course_scale"] = System.Math.Round(CourseScale, 3),
                 ["course"] = host != null ? host.OpenId : null,
                 ["run"] = RunState,
@@ -492,6 +528,24 @@ namespace Forge.Artifacts
                     else { Forge.OS.OSDroneCamWindow.Close(); d.SetCam(false); }
                     return null;
                 }, on ? "The drone cam is on: its virtual view (the scene and the room scan, not the camera passthrough) in a window." : "The drone cam is off.");
+            },
+            ["drone_change_design"] = args =>
+            {
+                Dictionary<string, object> changes = null;
+                if (args?["changes"] is JObject c && c.Count > 0)
+                {
+                    changes = new Dictionary<string, object>();
+                    foreach (var pair in c)
+                        changes[pair.Key] = pair.Value.Type == JTokenType.String ? (object)(string)pair.Value : (double)pair.Value;
+                }
+                ArtifactDrone.ChangeDesign(changes);
+                var live = ArtifactDrone.Live;
+                var result = live != null ? live.ToolState() : new JObject { ["thing"] = null, ["note"] = "No drone course is open: the new design flies next time one is." };
+                result["ok"] = true;
+                result["said"] = changes != null
+                    ? "Opening the quadcopter in CAD and making that change. The drone takes the new numbers as soon as it lands in CAD."
+                    : "The quadcopter is open in CAD on its parameters. Change a slider and the drone on the course flies the new numbers at once.";
+                return result;
             },
             ["drone_status"] = args =>
             {

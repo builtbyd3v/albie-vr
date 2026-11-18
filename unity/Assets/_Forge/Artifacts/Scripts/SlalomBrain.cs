@@ -99,17 +99,18 @@ namespace Forge.Artifacts
         {
             var go = new GameObject("Brain truck");
             go.SetActive(false);  // so ControllerThing's Awake sees the fields set below
-            var shell = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(shell.GetComponent<Collider>());  // the rays mustn't see the truck itself
-            shell.transform.SetParent(go.transform, false);
-            shell.transform.localPosition = new Vector3(0f, 0.04f, 0f);
-            shell.transform.localScale = new Vector3(0.16f, 0.08f, 0.24f);
-            var renderer = shell.GetComponent<Renderer>();
-            if (renderer != null) renderer.sharedMaterial = ArtifactLook.Material("#FF9F1C");
+            // The look: a short-course RC truck built in code (TruckShell), no colliders, so the rays and the crash
+            // sphere don't see the truck itself. It scales with the transform, which Fit sets to the course's 1:N.
+            TruckShell.Build(go.transform, ArtifactLook.Material("#FF6B1A"), ArtifactLook.Material("#FFE14D"),
+                             ArtifactLook.Material("#23262D"), ArtifactLook.Material("#151515"),
+                             ArtifactLook.Material("#FFF4D6", glow: true), ArtifactLook.Material("#6E0A0A", glow: true),
+                             ArtifactLook.Material("#FF2A2A", glow: true), ArtifactLook.Trail());
 
             var brain = go.AddComponent<SlalomBrain>();
             brain.host = host;
             brain.Body = go.AddComponent<ExampleTruckBody>();
+            // The truck drives and looks like the open project's truck design (TruckDesignStore), live.
+            go.AddComponent<TruckDesignLink>();
             brain.Scored = go.AddComponent<ArtifactThing>();
             // The run reads the shell's centre: at the floor the truck sat exactly on the gate zones' bottom face.
             brain.Scored.ProbeHeight = 0.04f;
@@ -242,6 +243,9 @@ namespace Forge.Artifacts
             public float Loss;
             public string Course;
             public bool Slalom;
+            /// <summary>The truck design it was trained on (<see cref="TruckDesign.Fingerprint"/>) and its saved version.</summary>
+            public string Design;
+            public int DesignVersion;
         }
         readonly System.Collections.Generic.List<Round> rounds = new System.Collections.Generic.List<Round>();
         readonly System.Collections.Generic.List<float> loss = new System.Collections.Generic.List<float>(512);
@@ -286,6 +290,25 @@ namespace Forge.Artifacts
             string rehearsed = r.Finished != null && r.Order != null ? $"rehearsal {r.Finished[r.Order[0]]}/{Rehearsal.Starts}" : "no rehearsal";
             return $"v{version} · {r.Laps} laps · loss {r.Loss:0.0000} · {rehearsed}";
         }
+
+        /// <summary>
+        /// Said when the Autopilot's chosen training learned on another truck design than the one on the course now (the
+        /// design was edited since): its laps were driven with other physics, so it may crash. Null when it matches, or
+        /// nothing is trained.
+        /// </summary>
+        public string DesignNote
+        {
+            get
+            {
+                var round = selected > 0 && selected <= rounds.Count ? rounds[selected - 1] : null;
+                if (round == null || round.Design == null || round.Design == TruckDesignStore.Fingerprint) return null;
+                string old = round.DesignVersion > 0 ? "truck v" + round.DesignVersion : "the stock truck";
+                return "Your autopilot learned on the old truck (" + old + "); this design drives differently, so it may crash. Drive two laps to retrain.";
+            }
+        }
+
+        // " (it rolled over: too fast for this design in a tight turn)" after a roll-over, else "".
+        string RolledNote() => Body != null && Body.RolledOver ? " (it rolled over: too fast in a tight turn for this design)" : "";
 
         public string[] InputNames => Thing != null && Thing.Host != null ? Thing.Host.IO.SensorNames : null;
         public float[] InputValues => Thing != null && Thing.Host != null ? Thing.Host.IO.Sensors : null;
@@ -362,7 +385,7 @@ namespace Forge.Artifacts
             script = null;
             ManualInputs.Clear();
             Park();
-            Status = $"lap {outcome} in {(lap != null ? lap.Seconds : 0f):0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
+            Status = $"lap {outcome}{RolledNote()} in {(lap != null ? lap.Seconds : 0f):0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
                      Hint(CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
             if (lapTarget <= 0) return;
             string said = Status;
@@ -450,7 +473,8 @@ namespace Forge.Artifacts
             block["course"] = host != null ? host.OpenId : null;
             block["round"] = rounds.Count + 1;
             rounds.Add(new Round { Files = trainedFiles, Order = order, Finished = rehearsal != null ? (int[])rehearsal.Finished.Clone() : null,
-                                   Laps = CompletedLaps, Loss = cloners[0].TrainLoss, Course = host != null ? host.OpenId : null, Slalom = IsSlalom });
+                                   Laps = CompletedLaps, Loss = cloners[0].TrainLoss, Course = host != null ? host.OpenId : null, Slalom = IsSlalom,
+                                   Design = TruckDesignStore.Fingerprint, DesignVersion = TruckDesignStore.Version });
             selected = rounds.Count;
             TrainingLog.Report("truck_autopilot", 1, block);
             Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + RehearsalLine() + Hint(". P: Autopilot");
@@ -504,7 +528,10 @@ namespace Forge.Artifacts
             Attempts.Clear();
             Drove = null;
             State = Mode.Autopilot;
-            return BeginAttempt();
+            string begin = BeginAttempt();
+            string note = DesignNote;
+            if (begin == null && note != null) Status = note + " " + Status;
+            return begin;
         }
 
         /// <summary>Stops the Autopilot's run and gives the truck back to the manual controller.</summary>
@@ -550,6 +577,8 @@ namespace Forge.Artifacts
                 ["attempts"] = attempts,
                 ["course"] = CourseId,
                 ["selected_version"] = selected,
+                ["design_note"] = DesignNote,
+                ["truck_design_version"] = TruckDesignStore.Version,
                 ["versions"] = Versions(),
             };
         }
@@ -572,8 +601,9 @@ namespace Forge.Artifacts
         void AttemptEnded(bool completed, string how)
         {
             string who = autopilot.UsingFallback ? "the pretrained fallback" : $"candidate {autopilot.Index + 1}";
-            Attempts.Add($"{who} {how}");
+            Attempts.Add($"{who} {how}{RolledNote()}");
             string said = autopilot.RunEnded(Thing.Host, completed);
+            if (!completed && autopilot.Exhausted && DesignNote != null) said += " " + DesignNote;
             if (completed) { Drove = who; State = Mode.Idle; Status = said; Park(); return; }
             if (autopilot.Exhausted) { Drove = "nothing"; State = Mode.Idle; Status = said; Park(); return; }
             Status = said;

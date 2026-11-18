@@ -24,6 +24,37 @@ namespace Forge.Controllers
         /// <summary>A fingertip more than this under a cap's rest top (m) is ignored: it is behind the face, not pressing.</summary>
         public const float MaxPressDepth = 0.016f;
 
+        // ---- Thumb lock: a holding hand's thumb is bound to its stick the moment it grips -------------------------------
+
+        /// <summary>Thumb movement from where it rested at the grip for a full stick (m): a comfortable thumb arc.</summary>
+        public const float ThumbTravel = 0.012f;
+        /// <summary>Radial dead zone (fraction of <see cref="ThumbTravel"/>) and expo for the locked thumb.</summary>
+        public const float ThumbDeadzone = 0.2f, ThumbExpo = 0.3f;
+        /// <summary>A locked thumb lets go (the stick centres) when lifted this far above where it rested (m)...</summary>
+        public const float ThumbLiftRelease = 0.025f;
+        /// <summary>...or slid this far from it across the face (m), as onto a button.</summary>
+        public const float ThumbSlideRelease = 0.028f;
+        /// <summary>A let-go thumb locks again within this height (m) and this radius (m) of where it rested at the grip.</summary>
+        public const float ThumbRelockLift = 0.012f, ThumbRelockRadius = 0.016f;
+        /// <summary>A re-lock re-centres where the thumb lands, at most this far from the grip's neutral (m).</summary>
+        public const float ThumbRecentreMax = 0.004f;
+        /// <summary>The thumb tip rests this far above the cap's top when seated (m): the pad of the thumb is on the cap.</summary>
+        public const float ThumbSeatHeight = 0.006f;
+        /// <summary>At a grip it moves in the hands at most this far (m) so the sticks sit under the thumbs.</summary>
+        public const float SeatMaxShift = 0.05f;
+
+        static readonly ThumbTuning Thumb = new ThumbTuning
+        {
+            Travel = ThumbTravel, Deadzone = ThumbDeadzone, Expo = ThumbExpo,
+            LiftRelease = ThumbLiftRelease, SlideRelease = ThumbSlideRelease,
+            RelockLift = ThumbRelockLift, RelockRadius = ThumbRelockRadius,
+            RecentreMax = ThumbRecentreMax, Grace = LostGraceSeconds,
+        };
+
+        // Hand h's thumb works stick h (left hand, left stick).
+        readonly ThumbLock[] locks = new ThumbLock[2];
+        readonly bool[] atEnd = new bool[2];
+
         enum GripKind { None, Palm, Pinch }
 
         struct HandState
@@ -36,6 +67,8 @@ namespace Forge.Controllers
             public Vector3 offPos;
             public Quaternion offRot;
             public bool Held => own || sdk;
+            // A pinch hold uses the thumb to hold it: that thumb can't also be on a stick.
+            public bool ThumbFree => Held && !(own && kind == GripKind.Pinch);
         }
 
         readonly HandState[] hands = new HandState[2];
@@ -74,9 +107,18 @@ namespace Forge.Controllers
 
         void ReleaseAll()
         {
-            for (int h = 0; h < 2; h++) { hands[h].own = false; hands[h].sdk = false; }
+            for (int h = 0; h < 2; h++) { hands[h].own = false; hands[h].sdk = false; locks[h].Release(); }
             lastMask = 0;
         }
+
+        // Where a seated thumb tip sits over stick s, in the transmitter's frame.
+        static Vector3 SeatPoint(int s)
+        {
+            Vector2 p = StickPivot(s);
+            return new Vector3(p.x, CapTopY + ThumbSeatHeight, p.y);
+        }
+
+        static Vector3 Neutral(in ThumbLock l) => new Vector3(l.Ox, l.Oy, l.Oz);
 
         IHandSource Source()
         {
@@ -166,9 +208,47 @@ namespace Forge.Controllers
             if (mask == lastMask) return;
             int before = lastMask;
             lastMask = mask;
-            // Who holds it changed: every holding hand keeps the transmitter where it is now, so nothing jumps.
-            Vector3 p = measurePos;
+            int added = mask & ~before;
+            // Who holds it changed. Seat it in the hands: slide it (in its own frame, no turn) so each holding thumb's stick
+            // is under that thumb, averaged over the thumbs, at most SeatMaxShift. A thumb already seated counts where its
+            // neutral is, so a second hand joining moves it only half way for its own thumb.
+            Vector3 shift = Vector3.zero;
+            int seated = 0;
+            for (int h = 0; h < 2; h++)
+            {
+                ref HandState s = ref hands[h];
+                if (!s.ThumbFree || !s.tracked) continue;
+                Vector3 at = (added & (1 << h)) == 0 && locks[h].Seated ? Neutral(locks[h]) : Local(s.thumb);
+                shift += at - SeatPoint(h);
+                seated++;
+            }
+            if (seated > 0)
+            {
+                shift /= seated;
+                if (shift.sqrMagnitude > SeatMaxShift * SeatMaxShift) shift = shift.normalized * SeatMaxShift;
+            }
+            // Thumbs: a new grip locks its thumb where it rests (that is the stick's centre); a kept one keeps its
+            // deflection through the slide; a hand that let go (or holds by pinching) frees its thumb.
+            bool clicked = false;
+            for (int h = 0; h < 2; h++)
+            {
+                ref HandState s = ref hands[h];
+                if (!s.ThumbFree || !s.tracked) { if (!s.Held || !s.ThumbFree) locks[h].Release(); continue; }
+                if ((added & (1 << h)) != 0 || !locks[h].Seated)
+                {
+                    Vector3 n = Local(s.thumb) - shift;
+                    locks[h].Grip(n.x, n.y, n.z);
+                    atEnd[h] = false;
+                    Seat(h);
+                    clicked = true;
+                }
+                else locks[h].Shift(shift.x, shift.y, shift.z);
+            }
+            if (clicked) Click(false);
+            // Every holding hand keeps the transmitter where it is now (plus the seat slide), so nothing else jumps.
             Quaternion r = measureRot;
+            Vector3 p = measurePos + r * shift;
+            measurePos = p;
             for (int h = 0; h < 2; h++)
             {
                 ref HandState s = ref hands[h];
@@ -177,9 +257,10 @@ namespace Forge.Controllers
                 s.offRot = inv * r;
                 s.offPos = inv * (p - s.pos);
             }
-            // A thumb only drives while its hand holds; an index finger only while it doesn't. Drop the ones that switched.
+            // An index finger drives a stick only while its hand doesn't hold (a holding hand's thumb is locked instead).
             for (int st = 0; st < 2; st++)
-                if (owner[st] >= 0 && ownerThumb[st] != hands[owner[st]].Held) owner[st] = -1;
+                if (owner[st] >= 0 && hands[owner[st]].Held) owner[st] = -1;
+            if (before == 0 && mask != 0) PickedUp();
             tiltValid = false;
             tiltArmAt = Time.unscaledTime + TiltSettleSeconds;
             if (mask != 0)
@@ -229,6 +310,26 @@ namespace Forge.Controllers
             for (int st = 0; st < 2; st++)
             {
                 Vector2 pivot = StickPivot(st);
+                // The holding hand's thumb, locked on its stick since the grip.
+                ref ThumbLock lk = ref locks[st];
+                if (lk.Seated && mouseStick != st)
+                {
+                    ref HandState th = ref hands[st];
+                    Vector3 tl = th.tracked ? Local(th.thumb) : Vector3.zero;
+                    int happened = lk.Step(th.tracked, th.lostFor, tl.x, tl.y, tl.z, in Thumb, out float tx, out float ty);
+                    if (happened == ThumbLock.LockedNow) { Seat(st); Click(false); }
+                    if (lk.Locked)
+                    {
+                        owner[st] = -1;
+                        raw[st] = new Vector2(tx, ty);
+                        driven[st] = true;
+                        // The end of the stick's travel: a tick, once, until it comes back in.
+                        float m2 = tx * tx + ty * ty;
+                        if (!atEnd[st] && m2 >= 0.94f) { atEnd[st] = true; Seat(st); Click(true); }
+                        else if (atEnd[st] && m2 < 0.7f) atEnd[st] = false;
+                        continue;
+                    }
+                }
                 int o = owner[st];
                 if (o >= 0)
                 {
@@ -258,9 +359,10 @@ namespace Forge.Controllers
                 for (int h = 0; h < 2; h++)
                 {
                     ref HandState hs = ref hands[h];
-                    if (!hs.tracked || owner[1 - st] == h) continue;
-                    bool thumb = hs.Held;
-                    Vector3 local = Local(thumb ? hs.thumb : hs.index);
+                    // A holding hand's thumb is locked (above), its index is round the body: neither pushes a stick here.
+                    if (!hs.tracked || hs.Held || owner[1 - st] == h) continue;
+                    const bool thumb = false;
+                    Vector3 local = Local(hs.index);
                     float dx = local.x - pivot.x, dz = local.z - pivot.y;
                     float height = local.y - CapTopY, across = Mathf.Sqrt(dx * dx + dz * dz);
                     if (!TransmitterMath.Engaged(false, height, across, CaptureRadius, EngageHeight, ReleaseRadius, ReleaseHeight)) continue;
@@ -279,7 +381,7 @@ namespace Forge.Controllers
             {
                 if (!tiltValid) { tiltRef = measureRot; tiltValid = true; }
                 int st = mask == 1 ? 1 : 0;  // held in the left hand: the right stick tilts, and the other way round
-                if (owner[st] < 0 && mouseStick != st)
+                if (owner[st] < 0 && mouseStick != st && !locks[st].Locked)
                 {
                     Vector3 up = Quaternion.Inverse(tiltRef) * (measureRot * Vector3.up);
                     float pitch = Mathf.Atan2(up.z, up.y) * Mathf.Rad2Deg;   // far edge down: forward
@@ -306,7 +408,8 @@ namespace Forge.Controllers
                 for (int f = 0; f < 2; f++)
                 {
                     bool thumb = f == 0;
-                    if (thumb && ((owner[0] == h && ownerThumb[0]) || (owner[1] == h && ownerThumb[1]))) continue;
+                    // A thumb locked on its stick isn't pressing; one slid off it (onto the button) or lifted is free to.
+                    if (thumb && locks[h].Locked) continue;
                     Vector3 local = Local(thumb ? hs.thumb : hs.index);
                     float dx = local.x - at.x, dz = local.z - at.y;
                     float a = Mathf.Sqrt(dx * dx + dz * dz), depth = top - local.y;

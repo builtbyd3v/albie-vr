@@ -227,6 +227,7 @@ namespace Forge.Controllers
             gliding = false;
             if (model != null) model.SetActive(false);
             HandsTransmitter.TransmitterInUse = false;
+            StopFreeDrive();
             Debug.Log("[Transmitter] hidden");
         }
 
@@ -238,6 +239,8 @@ namespace Forge.Controllers
                 owner[s] = -1;
                 stick[s] = raw[s] = Vector2.zero;
                 driven[s] = false;
+                // A locked thumb lets go: it takes the stick again once it is back where it rested (re-centred there).
+                if (locks[s].Locked) { locks[s].Locked = false; locks[s].LastX = locks[s].LastY = 0f; }
             }
             mouseStick = -1;
             ZeroWritten();
@@ -270,7 +273,142 @@ namespace Forge.Controllers
         void PutDown()
         {
             HandsTransmitter.TransmitterInUse = false;
+            HoverOnLetGo();
             if (FindRest(out Vector3 rest, out Quaternion flat)) StartGlide(rest, flat);
+        }
+
+        // Let go of while flying the drone by hand: the sticks centre (Update) and it brakes to a hover where it is.
+        // Not while it flies itself (follow-me, flying home): that is the drone's, and the transmitter didn't move it.
+        void HoverOnLetGo()
+        {
+            if (target != Target.Drone || !flownByHand) return;
+            flownByHand = false;
+            var drone = ArtifactDrone.Live;
+            if (drone == null || drone.Body.State != DroneBody.Phase.Flying || drone.Body.Returning) return;
+            if (drone.Follower != null && drone.Follower.Active) return;
+            drone.Body.Hold();
+        }
+
+        // ---- Making it obviously do something ----------------------------------------------------------------------------
+
+        bool flownByHand;      // the transmitter wrote a non-zero stick to the drone since it was picked up
+        float stickUpFor;      // the left stick held up while the drone is landed (s): a take-off
+        bool stickUpFired;
+        float nextSay;
+        string lastSaid;
+        const float SayGapSeconds = 30f;
+
+        // Picked up (from nobody holding it): when there is nothing it can drive yet, the screen already says what to
+        // do (UpdateScreen); Albie says it too, once in a while.
+        void PickedUp()
+        {
+            flownByHand = false;
+            string line = null;
+            if (target == Target.None) line = "Open a course to drive the truck.";
+            else if (target == Target.Drone)
+            {
+                var drone = ArtifactDrone.Live;
+                if (drone != null && drone.Body.State == DroneBody.Phase.Landed) line = "Tap Take off, or push the left stick up.";
+                else if (drone != null && drone.Body.State == DroneBody.Phase.Crashed) line = "It crashed. Press Reset on the transmitter.";
+            }
+            else if (target == Target.Truck && brain != null)
+            {
+                if (brain.State == SlalomBrain.Mode.Autopilot) line = "The Autopilot is driving. Press Reset to take the truck back.";
+                else if (brain.State == SlalomBrain.Mode.Training) line = "I'm training on your laps. The truck is yours again in a moment.";
+                else if (brain.Body != null && brain.Body.Crashed) line = "The truck crashed. Press Reset on the transmitter.";
+            }
+            if (line == null) return;
+            float now = Time.unscaledTime;
+            if (line == lastSaid && now < nextSay) return;
+            lastSaid = line;
+            nextSay = now + SayGapSeconds;
+            FirstRunGuide.Say(line);
+        }
+
+        // The drone, landed: pushing the climb stick (left) up for a moment takes off, as A does.
+        void StickTakeOff(float dt)
+        {
+            var drone = target == Target.Drone && HeldMask() != 0 ? ArtifactDrone.Live : null;
+            if (drone == null || drone.Body.State != DroneBody.Phase.Landed || stick[0].y < 0.8f)
+            {
+                stickUpFor = 0f;
+                if (stick[0].y < 0.3f) stickUpFired = false;
+                return;
+            }
+            stickUpFor += dt;
+            if (stickUpFor < 0.35f || stickUpFired) return;
+            stickUpFired = true;
+            Flash(PressA());
+        }
+
+        // ---- Free driving: the brain truck between laps ------------------------------------------------------------------
+
+        // SlalomBrain parks the truck between runs (its ControllerThing stops ticking), so between laps the sticks moved
+        // nothing. Held with the brain idle, the transmitter ticks it itself on the manual controller: it drives, it is not
+        // recorded (the lap recorder records only between BeginLap and EndLap) and no run is armed, so nothing is scored.
+        // A lap, training or the Autopilot take the truck over (State is not Idle) and this stands down without touching
+        // it. Let go, it keeps ticking until the truck has coasted to a stop, then parks it again.
+        bool freeDriving;
+        ControllerFile manualFile;
+
+        bool CanFreeDrive => target == Target.Truck && brain != null && brain.isActiveAndEnabled && !brain.Hidden
+                             && brain.State == SlalomBrain.Mode.Idle && brain.Thing != null && brain.Thing.Host != null;
+
+        /// <summary>True while the transmitter drives the brain truck between laps (not recorded).</summary>
+        public bool FreeDriving => freeDriving;
+
+        void FreeDrive()
+        {
+            bool can = CanFreeDrive;
+            if (!can) { if (freeDriving) freeDriving = false; return; }  // a lap or the Autopilot has it now: hands off
+            bool moving = brain.Body != null && !brain.Body.Crashed && Mathf.Abs(brain.Body.Speed) > 0.02f;
+            bool want = Held || stick[0] != Vector2.zero || stick[1] != Vector2.zero || (freeDriving && moving);
+            if (want == freeDriving) return;
+            if (want)
+            {
+                // After an Autopilot run the winner stays attached: the hands drive on the manual controller.
+                var host = brain.Thing.Host;
+                if (host.File == null || host.File.Kind != "manual")
+                {
+                    if (manualFile == null)
+                    {
+                        var asset = Resources.Load<TextAsset>("Mocks/controllers/truck_manual");
+                        manualFile = asset != null ? ControllerFile.Parse(asset.text, out _) : null;
+                    }
+                    if (manualFile == null || host.Attach(manualFile) != null) return;
+                }
+                brain.Thing.tickInFixedUpdate = true;
+                freeDriving = true;
+            }
+            else StopFreeDrive();
+        }
+
+        void StopFreeDrive()
+        {
+            if (!freeDriving) return;
+            freeDriving = false;
+            if (CanFreeDrive) brain.Thing.tickInFixedUpdate = false;  // parked again, as SlalomBrain leaves it
+        }
+
+        // ---- Feel: a click and a little seat when a thumb locks, a tick at the end of a stick's travel ------------------
+
+        AudioSource clicker;
+        AudioClip lockClip, endClip;
+        readonly float[] seatUntil = new float[2];
+        float ledFlashUntil;
+        const float SeatSeconds = 0.12f;
+
+        void Seat(int s)
+        {
+            float until = Time.unscaledTime + SeatSeconds;
+            seatUntil[s] = until;
+            ledFlashUntil = until;
+        }
+
+        void Click(bool end)
+        {
+            if (clicker == null) return;
+            clicker.PlayOneShot(end ? endClip : lockClip, end ? 0.35f : 0.6f);
         }
 
         static readonly RaycastHit[] restHits = new RaycastHit[8];
@@ -312,7 +450,9 @@ namespace Forge.Controllers
             Fingers(now);
             MouseStick();
             StepSticks(dt);
+            StickTakeOff(dt);
             WriteChannels();
+            FreeDrive();
             HandsTransmitter.TransmitterInUse = Held || owner[0] >= 0 || owner[1] >= 0 || mouseStick >= 0;
             PlaceSticks();
             PlaceButtons();
@@ -414,6 +554,7 @@ namespace Forge.Controllers
                     Put(StickY, stick[1].y);
                     Put(Stick2X, stick[0].x);
                     Put(Stick2Y, stick[0].y);
+                    if (stick[0] != Vector2.zero || stick[1] != Vector2.zero) flownByHand = true;
                     break;
                 case Target.Truck:
                 case Target.OtherTruck:
@@ -428,6 +569,9 @@ namespace Forge.Controllers
         {
             if (channel < 0) return;
             value = Mathf.Clamp(value, -1f, 1f);
+            // Someone cleared the channels (a lap's end, the Drive window's Stop, ManualInputs.Clear): what this wrote is
+            // gone, so a stick held still is written again rather than left at zero until it moves.
+            if (written[channel] != 0f && ManualInputs.Values[channel] == 0f) written[channel] = 0f;
             if (!TransmitterMath.Changed(written[channel], value, WriteEpsilon)) return;
             ManualInputs.Values[channel] = value;
             written[channel] = value;
@@ -471,7 +615,11 @@ namespace Forge.Controllers
 
         void Press(int control)
         {
-            string said = control == ModeSwitch ? FlipMode() : control == ButtonA ? PressA() : PressB();
+            Flash(control == ModeSwitch ? FlipMode() : control == ButtonA ? PressA() : PressB());
+        }
+
+        void Flash(string said)
+        {
             if (said == null) return;
             flash = said;
             flashUntil = Time.unscaledTime + 2.2f;

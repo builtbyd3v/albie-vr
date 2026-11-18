@@ -234,9 +234,24 @@ public class CadSession : MonoBehaviour
 
     // Commands (the same ones Albie's tools call on the hub)
 
+    /// <summary>
+    /// Every parameter change asked for on this device (a slider, a preset), before it is built: the open design's part id
+    /// and the values asked for. In mock mode the version shown is only the nearest stored one, so a listener that needs
+    /// the values themselves (the flyable drone's physics, <c>DroneDesign</c>) reads them here. Additive; nothing else changes.
+    /// </summary>
+    public static event Action<string, Dictionary<string, object>> ParamsRequested;
+
+    void RaiseParamsRequested(Dictionary<string, object> changes)
+    {
+        if (changes == null || changes.Count == 0 || ParamsRequested == null) return;
+        try { ParamsRequested(Params?.part, changes); }
+        catch (Exception e) { Debug.LogException(e); }
+    }
+
     /// <param name="what">The change in words for the panel's building state ("Fin count 4"); optional.</param>
     public void SetParams(Dictionary<string, object> changes, string what = null)
     {
+        RaiseParamsRequested(changes);
         if (IsMock) { MockChange(NearestMock(changes), what); return; }
         BeginBuild(what);
         SetStatus("Regenerating...");
@@ -246,6 +261,7 @@ public class CadSession : MonoBehaviour
     public void ApplyPreset(CadPreset preset)
     {
         if (preset == null) return;
+        RaiseParamsRequested(preset.parameters);
         if (IsMock) { MockChange(NearestMock(preset.parameters), preset.name); return; }
         BeginBuild(preset.name);
         SetStatus($"Applying {preset.name}...");

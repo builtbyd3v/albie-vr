@@ -30,7 +30,8 @@ namespace Forge.Controllers
         readonly GameObject[] controlCollider = new GameObject[3];
         Transform switchLever;
         Renderer led;
-        Material ledGreen, ledAmber, ledRed, ledOff;
+        Material ledGreen, ledAmber, ledRed, ledOff, ledFlash, padOn, padFlash;
+        readonly Renderer[] thumbPad = new Renderer[2];
         TextMeshPro screen, stickLabelL, stickLabelR, buttonLabelA, buttonLabelB, modeLabel;
         AudioSource horn;
         BoxCollider bodyCollider;
@@ -125,6 +126,9 @@ namespace Forge.Controllers
             ledAmber = ArtifactLook.Material("#FFB020", true);
             ledRed = ArtifactLook.Material("#FF4040", true);
             ledOff = ArtifactLook.Material("#2A2F36");
+            ledFlash = ArtifactLook.Material("#E8FFF0", true);
+            padOn = ArtifactLook.Material("#3FCF86", true);
+            padFlash = ArtifactLook.Material("#C8FFE0", true);
 
             model = new GameObject("Model");
             model.SetActive(false);  // the Interaction SDK's components are injected before they wake
@@ -174,6 +178,20 @@ namespace Forge.Controllers
                 var sc = cap.AddComponent<SphereCollider>();
                 sc.radius = 0.014f;
                 sc.isTrigger = true;
+                // The thumb pad: a thin glowing ring on the cap while a thumb is locked on it (it flashes as it locks).
+                var pad = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                pad.name = "Thumb pad";
+                pad.layer = IgnoreRaycastLayer;
+                Kill(pad.GetComponent<Collider>());
+                pad.transform.SetParent(pivot, false);
+                pad.transform.localPosition = new Vector3(0f, 0.0251f, 0f);
+                pad.transform.localScale = new Vector3(0.0165f, 0.0003f, 0.0165f);
+                var pr = pad.GetComponent<MeshRenderer>();
+                pr.sharedMaterial = padOn;
+                pr.shadowCastingMode = ShadowCastingMode.Off;
+                pr.receiveShadows = false;
+                pad.SetActive(false);
+                thumbPad[s] = pr;
                 stickPivot[s] = pivot;
                 capCollider[s] = cap;
                 parts[1 + s] = sc;
@@ -271,6 +289,14 @@ namespace Forge.Controllers
             horn.minDistance = 0.6f;
             horn.clip = HornClip();
 
+            // The clicks: a soft low one when a thumb locks, a short high tick at the end of a stick's travel.
+            clicker = hornGo.AddComponent<AudioSource>();
+            clicker.playOnAwake = false;
+            clicker.spatialBlend = 0.8f;
+            clicker.minDistance = 0.4f;
+            lockClip = ClickClip("Transmitter lock", 1400f, 0.018f);
+            endClip = ClickClip("Transmitter end", 3200f, 0.008f);
+
             TransmitterIsdk.Add(this, model, bodyCollider);
             model.AddComponent<TransmitterRaycaster>().Init(this);
             model.SetActive(true);
@@ -301,6 +327,25 @@ namespace Forge.Controllers
             return t;
         }
 
+        // A click: a sine burst with a fast attack and an exponential tail, plus a touch of noise for the "plastic".
+        static AudioClip ClickClip(string name, float freq, float seconds)
+        {
+            const int rate = 22050;
+            int n = Mathf.Max(8, (int)(rate * seconds));
+            var data = new float[n];
+            var rng = new System.Random(7);
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)rate;
+                float env = Mathf.Clamp01(t * 4000f) * Mathf.Exp(-t / (seconds * 0.25f));
+                float noise = (float)rng.NextDouble() * 2f - 1f;
+                data[i] = 0.5f * env * (0.8f * Mathf.Sin(2f * Mathf.PI * freq * t) + 0.2f * noise);
+            }
+            var clip = AudioClip.Create(name, n, 1, rate, false);
+            clip.SetData(data, 0);
+            return clip;
+        }
+
         static AudioClip HornClip()
         {
             const int rate = 22050;
@@ -325,11 +370,23 @@ namespace Forge.Controllers
 
         void PlaceSticks()
         {
+            float now = Time.unscaledTime;
             for (int s = 0; s < 2; s++)
             {
                 if (stickPivot[s] == null) continue;
                 Vector2 v = stick[s];
                 stickPivot[s].localRotation = Quaternion.Euler(v.y * StickTiltDegrees, 0f, -v.x * StickTiltDegrees);
+                // A thumb locking (or reaching the end) seats the cap: it dips a millimetre for a moment.
+                bool seating = now < seatUntil[s];
+                Vector3 lp = stickPivot[s].localPosition;
+                float y = PivotY - (seating ? 0.0012f : 0f);
+                if (lp.y != y) stickPivot[s].localPosition = new Vector3(lp.x, y, lp.z);
+                var pad = thumbPad[s];
+                if (pad == null) continue;
+                bool on = locks[s].Locked;
+                if (pad.gameObject.activeSelf != on) pad.gameObject.SetActive(on);
+                Material m = seating ? padFlash : padOn;
+                if (on && pad.sharedMaterial != m) pad.sharedMaterial = m;
             }
         }
 
@@ -354,7 +411,8 @@ namespace Forge.Controllers
         {
             if (led == null) return;
             Material m;
-            if (target == Target.None) m = ledRed;
+            if (now < ledFlashUntil) m = ledFlash;
+            else if (target == Target.None) m = ledRed;
             else if (!Held) m = ledAmber;
             else
             {
@@ -447,6 +505,8 @@ namespace Forge.Controllers
             if (target == Target.Truck && brain != null)
             {
                 if (brain.State == SlalomBrain.Mode.Lap) return 20 + Mathf.Min(brain.CompletedLaps, 9) * 10 + Mathf.Min(brain.LapTarget, 9) + 100;
+                if (brain.State == SlalomBrain.Mode.Idle)
+                    return brain.Body != null && brain.Body.Crashed ? 16 : freeDriving ? 17 : 12;
                 return 12 + (int)brain.State;
             }
             return target == Target.OtherTruck ? 19 : 0;
@@ -465,7 +525,7 @@ namespace Forge.Controllers
                     case DroneBody.Phase.Flying: return "FLYING";
                     case DroneBody.Phase.Landing: return "LANDING";
                     case DroneBody.Phase.Crashed: return "CRASHED · PRESS RESET";
-                    default: return "LANDED · PRESS TAKE OFF";
+                    default: return "TAP TAKE OFF (A)";
                 }
             }
             if (target == Target.Truck && brain != null)
@@ -477,10 +537,12 @@ namespace Forge.Controllers
                         return laps > 0 ? "LAP " + Mathf.Min(brain.CompletedLaps + 1, laps) + " OF " + laps : "RECORDING A LAP";
                     case SlalomBrain.Mode.Training: return "TRAINING THE BRAIN";
                     case SlalomBrain.Mode.Autopilot: return "AUTOPILOT DRIVING";
-                    default: return "PARKED · RECORD A LAP TO DRIVE";
+                    default:
+                        if (brain.Body != null && brain.Body.Crashed) return "CRASHED · PRESS RESET";
+                        return freeDriving ? "FREE DRIVE · NOT RECORDED" : "READY · GRAB TO DRIVE";
                 }
             }
-            return target == Target.OtherTruck ? "READY" : "";
+            return target == Target.OtherTruck ? "READY" : "TO DRIVE THE TRUCK";
         }
 
         // Link strength: how far the Thing is from the transmitter (it's simulated; this is just a readable cue).

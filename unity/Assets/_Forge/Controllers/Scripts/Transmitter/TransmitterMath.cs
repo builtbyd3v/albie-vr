@@ -102,5 +102,123 @@ namespace Forge.Controllers
 
         /// <summary>A grip from finger curl, with hysteresis: closes at <paramref name="close"/>, opens below <paramref name="open"/>.</summary>
         public static bool Gripping(bool was, float curl, float close, float open) => was ? curl >= open : curl >= close;
+
+        /// <summary>
+        /// <see cref="StickFromOffset"/> with expo on the length: <c>(1 - expo) m + expo m^3</c>, so small thumb movements
+        /// are fine control and the end is still exactly 1. <paramref name="expo"/> 0 is linear.
+        /// </summary>
+        public static void ThumbStick(float dx, float dz, float travel, float deadzone, float expo, out float x, out float y)
+        {
+            StickFromOffset(dx, dz, travel, deadzone, out x, out y);
+            float m = (float)Math.Sqrt(x * x + y * y);
+            if (m < 1e-6f || expo <= 0f) return;
+            float e = Math.Min(1f, expo);
+            float k = ((1f - e) * m + e * m * m * m) / m;
+            x *= k;
+            y *= k;
+        }
+    }
+
+    /// <summary>The thumb lock's distances (m) and times (s): see <see cref="ThumbLock"/>.</summary>
+    public struct ThumbTuning
+    {
+        /// <summary>Thumb movement across the face from the neutral for a full stick, and the radial dead zone (a fraction of it).</summary>
+        public float Travel, Deadzone, Expo;
+        /// <summary>A locked thumb lets go when it lifts this far above the neutral, or slides this far from it across the face.</summary>
+        public float LiftRelease, SlideRelease;
+        /// <summary>A let-go thumb locks again within this height of the neutral and this far from it across the face.</summary>
+        public float RelockLift, RelockRadius;
+        /// <summary>A thumb that locks again re-centres where it lands, pulled back to within this of the grip's neutral.</summary>
+        public float RecentreMax;
+        /// <summary>A tracking gap up to this long holds the stick where it was; longer, it centres.</summary>
+        public float Grace;
+    }
+
+    /// <summary>
+    /// One thumb bound to its stick while its hand holds the transmitter. <see cref="Grip"/> takes the thumb tip's position
+    /// (in the transmitter's frame) as the stick's neutral, so the thumb never has to find the cap. Each frame
+    /// <see cref="Step"/> reads the thumb's movement from the neutral across the face (x right, z forward) as the stick.
+    /// Lifting the thumb well off, or sliding it well away (onto a button), lets go: the stick centres. Coming back near the
+    /// neutral locks again, re-centred where it lands (within <see cref="ThumbTuning.RecentreMax"/> of the grip's neutral).
+    /// A tracking gap holds the last value for <see cref="ThumbTuning.Grace"/>, then centres. No Unity types, no allocations.
+    /// </summary>
+    public struct ThumbLock
+    {
+        /// <summary>Its hand holds the transmitter and the thumb is bound to the stick.</summary>
+        public bool Seated;
+        /// <summary>The thumb is on the stick now (it drives it).</summary>
+        public bool Locked;
+        /// <summary>The neutral it drives from now.</summary>
+        public float Nx, Ny, Nz;
+        /// <summary>The neutral captured at the grip (a re-lock is pulled back towards it).</summary>
+        public float Ox, Oy, Oz;
+        /// <summary>The last value it gave (held through a short tracking gap).</summary>
+        public float LastX, LastY;
+
+        public const int None = 0, LockedNow = 1, LetGo = 2;
+
+        /// <summary>The hand closed on the transmitter: the thumb is where the stick's centre is.</summary>
+        public void Grip(float x, float y, float z)
+        {
+            Seated = Locked = true;
+            Nx = Ox = x; Ny = Oy = y; Nz = Oz = z;
+            LastX = LastY = 0f;
+        }
+
+        /// <summary>The hand let go.</summary>
+        public void Release()
+        {
+            Seated = Locked = false;
+            LastX = LastY = 0f;
+        }
+
+        /// <summary>The transmitter moved in the hands by (<paramref name="x"/>, <paramref name="y"/>, <paramref name="z"/>) in its own frame: the neutral moves the other way, so the thumb's deflection is unchanged.</summary>
+        public void Shift(float x, float y, float z)
+        {
+            Nx -= x; Ny -= y; Nz -= z;
+            Ox -= x; Oy -= y; Oz -= z;
+        }
+
+        /// <summary>
+        /// One frame: the thumb tip at (<paramref name="px"/>, <paramref name="py"/>, <paramref name="pz"/>) in the
+        /// transmitter's frame, or not tracked for <paramref name="lostFor"/> s. Gives the stick (x right, y forward) and
+        /// returns <see cref="LockedNow"/>, <see cref="LetGo"/> or <see cref="None"/>.
+        /// </summary>
+        public int Step(bool tracked, float lostFor, float px, float py, float pz, in ThumbTuning t, out float x, out float y)
+        {
+            x = y = 0f;
+            if (!Seated) return None;
+            if (!tracked)
+            {
+                if (Locked && lostFor <= t.Grace) { x = LastX; y = LastY; return None; }
+                if (!Locked) return None;
+                Locked = false;
+                LastX = LastY = 0f;
+                return LetGo;
+            }
+            int happened = None;
+            if (Locked)
+            {
+                float dx = px - Nx, dz = pz - Nz;
+                if (py - Ny > t.LiftRelease || dx * dx + dz * dz > t.SlideRelease * t.SlideRelease)
+                {
+                    Locked = false;
+                    LastX = LastY = 0f;
+                    return LetGo;
+                }
+            }
+            else
+            {
+                float dx = px - Ox, dz = pz - Oz, dy = py - Oy;
+                if (dy > t.RelockLift || dy < -2f * t.RelockLift || dx * dx + dz * dz > t.RelockRadius * t.RelockRadius) return None;
+                TransmitterMath.ClampAnchor(dx, dz, t.RecentreMax, out float ax, out float az);
+                Nx = Ox + ax; Ny = Oy; Nz = Oz + az;
+                Locked = true;
+                happened = LockedNow;
+            }
+            TransmitterMath.ThumbStick(px - Nx, pz - Nz, t.Travel, t.Deadzone, t.Expo, out x, out y);
+            LastX = x; LastY = y;
+            return happened;
+        }
     }
 }

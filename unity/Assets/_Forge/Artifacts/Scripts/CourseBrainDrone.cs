@@ -9,7 +9,10 @@ namespace Forge.Artifacts
     /// The drone's learning loop on any drone course (hoop course, hover, landing, a room course for the drone): the
     /// peer of the truck's <see cref="SlalomBrain"/>, behind the same <see cref="IBrainLoop"/> (the <c>brain_*</c> and
     /// <c>autopilot_*</c> tools, the scoreboard's <c>drive_lap</c>/<c>albie_drives</c> buttons, the Controller brain panel).
-    /// - A lap is a scored run of the open course flown by hand (drone_manual: sticks, pads, keys, hands). Each physics
+    /// - A lap is a scored run of the open course flown by hand (drone_manual: the transmitter, sticks, pads, keys, hands:
+    ///   whatever writes <see cref="ManualInputs"/>; the row is what the manual controller commanded). Every hand flight
+    ///   of a scored run counts, not only one started with Record: taking off from the start arms a run, and the brain
+    ///   records it as the next lap by itself (<see cref="Passive"/>), so flying the course twice is enough to train. Each physics
     ///   step while it flies, the course features (<see cref="DroneCourseMath"/>: the run engine's next target, the
     ///   drone's velocity, in the course's frame) are recorded with what the pilot commanded, turned into that frame.
     ///   The order of the targets is recorded too: the course line the rehearsal flies.
@@ -20,7 +23,10 @@ namespace Forge.Artifacts
     /// - <see cref="StartAutopilot"/> flies the chosen version's candidates best-first, each a scored run, until one
     ///   completes. A version no candidate of which passed rehearsal is refused, with why: it never flies badly on purpose.
     ///   <see cref="StartFollowLine"/> is the non-learned course-line follower, only ever on explicit request and named so.
-    /// - Hand-back: any stick past <see cref="HandBack"/>, Stop, or <c>autopilot_off</c> gives the drone back to the
+    /// - Progress is in <see cref="Status"/> ("recording lap 1 of 2", "training v2: 45%", "v2 ready: passed 4 of 5
+    ///   practice flights") and Albie says each step's result (<see cref="Say"/>).
+    /// - Hand-back: a stick moved past <see cref="HandBack"/> from where it rested when the Autopilot took off, for
+    ///   <see cref="HandBackSeconds"/> (a held transmitter's resting thumbs never count), Stop, or <c>autopilot_off</c> gives the drone back to the
     ///   manual controller, hovering where it is. A crash, or <see cref="RunTimeoutS"/>, ends the run.
     /// Drives the drone only through <see cref="ArtifactDrone"/>'s public commands and its controller host.
     /// </summary>
@@ -32,8 +38,14 @@ namespace Forge.Artifacts
         public const float RunTimeoutS = 90f;
         /// <summary>A stick moved this far during the Autopilot takes the drone back.</summary>
         public const float HandBack = 0.3f;
-        /// <summary>Fewer recorded rows than this is too little flying to learn from.</summary>
-        public const int MinRows = 150;
+        /// <summary>How long a stick has to stay moved before it takes the drone back (a twitch or a thumb settling does not).</summary>
+        public const float HandBackSeconds = 0.15f;
+        /// <summary>The first seconds of an Autopilot run, in which the resting stick values are learned (they don't hand back).</summary>
+        public const float HandBackGraceSeconds = 0.5f;
+        /// <summary>Fewer recorded rows than this is too little flying to learn from (2 s of flying at 50 Hz).</summary>
+        public const int MinRows = 100;
+        /// <summary>Completed laps needed to train.</summary>
+        public const int MinLaps = 2;
         const int Hz = 50, MaxSeconds = 120, Capacity = Hz * MaxSeconds;
         public enum Mode { Idle, Lap, Training, Autopilot }
 
@@ -42,6 +54,12 @@ namespace Forge.Artifacts
         public string Status { get; private set; } = "drone brain: open a drone course, then fly a lap by hand";
         public string Drove { get; private set; }
         public readonly List<string> Attempts = new List<string>();
+        /// <summary>True while the lap being recorded is a hand flight the brain picked up by itself (no Record call).</summary>
+        public bool Passive { get; private set; }
+        /// <summary>The last line Albie said for this loop (checks read it).</summary>
+        public string LastSaid { get; private set; }
+        /// <summary>Hook for checks: what Albie would say (null: <see cref="FirstRunGuide.Say"/>).</summary>
+        public static System.Action<string> SayHook;
 
         /// <summary>One training: its candidates, rehearsal and provenance.</summary>
         public sealed class Version
@@ -55,6 +73,8 @@ namespace Forge.Artifacts
             public int[] Finished, Order;
             public bool Ready;
             public JObject Training;
+            /// <summary>The design's flight numbers it was trained on (DroneDesign.Note), or null.</summary>
+            public string Design;
         }
         public readonly List<Version> Versions = new List<Version>();
 
@@ -75,6 +95,12 @@ namespace Forge.Artifacts
         readonly List<float> lapTimes = new List<float>();
         int lapTarget;
         bool chainAutopilot;
+        string recordedRunId;   // the run a lap was last recorded from (a passive lap starts once per run)
+        int lastPct = -1;
+        ArtifactZone[] zones;   // the course's zones at the lap's start, for each target's box
+        readonly float[] restSticks = new float[4];
+        float handBackFor;
+        bool designChanged;
 
         BehaviourCloner[] cloners;
         int training, lastEpoch;
@@ -119,7 +145,17 @@ namespace Forge.Artifacts
             host.Shown += OnHostShown;
             host.Closed += OnHostClosed;
             host.Fired += OnHostButton;
+            if (drone.Design != null) drone.Design.FlightChanged += OnDesignChanged;
             OnHostShown(host);
+        }
+
+        // The drone's design changed (CAD): it flies differently now, and a trained version learned the old one.
+        void OnDesignChanged(string numbers, string said)
+        {
+            if (Versions.Count == 0) return;
+            designChanged = true;
+            if (State == Mode.Idle)
+                Status = "the design changed (" + numbers + "): the Autopilot learned the old one. Fly two laps and train again for the new design";
         }
 
         void OnDestroy()
@@ -129,6 +165,7 @@ namespace Forge.Artifacts
             host.Shown -= OnHostShown;
             host.Closed -= OnHostClosed;
             host.Fired -= OnHostButton;
+            if (Drone != null && Drone.Design != null) Drone.Design.FlightChanged -= OnDesignChanged;
         }
 
         bool OnCourse => Drone != null && !Drone.Hidden && host != null && host.Run != null && ArtifactDrone.IsDroneCourse(host);
@@ -164,7 +201,8 @@ namespace Forge.Artifacts
             else if (input == "albie_drives" || input == "albie_flies")
             {
                 if (State != Mode.Idle) { Status = "busy: " + ModeName; return; }
-                if (CompletedLaps < 2) Record(2 - CompletedLaps, true);
+                DropPassive();
+                if (CompletedLaps < MinLaps) Record(MinLaps - CompletedLaps, true);
                 else chainAutopilot = Train() == null;
             }
         }
@@ -176,6 +214,7 @@ namespace Forge.Artifacts
 
         public string Record(int laps, bool thenAutopilot)
         {
+            DropPassive();
             if (State != Mode.Idle) return Status = "busy: " + ModeName;
             if (!OnCourse) return Status = NoCourse;
             lapTarget = CompletedLaps + Mathf.Clamp(laps, 1, 10);
@@ -197,13 +236,52 @@ namespace Forge.Artifacts
             var run = host.Run;
             if (run == null || (run.State != ArtifactRunState.Armed && run.State != ArtifactRunState.Running))
                 return Status = "the course did not arm a run; press Fly again on its panel";
+            StartRecording(run, false);
+            Status = $"recording lap {CompletedLaps + 1} of {lapTarget}: fly through every target in order, then the finish";
+            return null;
+        }
+
+        void StartRecording(ArtifactRun run, bool passive)
+        {
             rows = 0; idle = 0f; lapSeconds = 0f; havePending = false;
             lapTargets.Clear();
+            zones = Object.FindObjectsByType<ArtifactZone>(FindObjectsSortMode.None);  // once a lap, for the targets' boxes
             runStarted = Time.time;
+            recordedRunId = run.RunId;
+            Passive = passive;
             State = Mode.Lap;
-            int left = lapTarget - CompletedLaps;
-            Status = $"lap: fly the course by hand, through every target in order ({left} more completed lap{(left == 1 ? "" : "s")} to go; recording)";
-            return null;
+        }
+
+        // A hand flight of a scored run, with nothing else going on: it is the next lap (the Drive window's Take off, the
+        // transmitter, the project's Fly step all fly this way). Checked each frame in Idle, no allocations.
+        void MaybeRecordPassive()
+        {
+            var run = host != null ? host.Run : null;
+            if (run == null || (run.State != ArtifactRunState.Armed && run.State != ArtifactRunState.Running)) return;
+            if (run.RunId == recordedRunId) return;
+            var b = Drone.Body;
+            if (b.State != DroneBody.Phase.Flying || b.Following || b.Returning || !OnManual) return;
+            StartRecording(run, true);
+            int n = CompletedLaps + 1;
+            Status = $"recording lap {n} of {Mathf.Max(MinLaps, n)}: fly through every target in order, then the finish";
+        }
+
+        bool OnManual
+        {
+            get
+            {
+                var h = Drone.Thing.Host;
+                return manualFile != null ? ReferenceEquals(h.File, manualFile) : ReferenceEquals(h.Current, manualController);
+            }
+        }
+
+        // A lap the brain picked up by itself makes way for an explicit command (its run goes on, unrecorded).
+        void DropPassive()
+        {
+            if (State != Mode.Lap || !Passive) return;
+            Passive = false;
+            State = Mode.Idle;
+            rows = 0;
         }
 
         public string StopRecording()
@@ -216,8 +294,10 @@ namespace Forge.Artifacts
             return null;
         }
 
-        void EndLap(string outcome)
+        void EndLap(string outcome, string reason = null)
         {
+            bool passive = Passive;
+            Passive = false;
             State = Mode.Idle;
             if (rows > 0)
             {
@@ -237,8 +317,27 @@ namespace Forge.Artifacts
                     lapTimes.Add(lapSeconds);
                 }
             }
-            if (outcome == "completed") Drone.Land();
-            Status = $"lap {outcome} in {lapSeconds:0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}";
+            if (outcome == "completed" && !passive) Drone.Land();
+            int done = CompletedLaps, want = Mathf.Max(MinLaps, lapTarget);
+            if (outcome == "completed")
+            {
+                Status = done < MinLaps
+                    ? $"lap {done} of {want} recorded ({lapSeconds:0.0} s). Fly {MinLaps - done} more, through every target in order"
+                    : lapTarget > done
+                        ? $"lap {done} of {want} recorded ({lapSeconds:0.0} s)"
+                        : $"lap {done} recorded ({lapSeconds:0.0} s): {done} laps, enough to train. Tap Train" + (chainAutopilot ? " (training now)" : "");
+                Say(done < MinLaps
+                    ? $"Lap {done} recorded, {lapSeconds:0} seconds. Fly the course once more and I can learn it."
+                    : lapTarget > done ? $"Lap {done} of {want} recorded. Once more."
+                    : chainAutopilot ? $"Lap {done} recorded. That's enough: I'm training on your laps now."
+                    : $"Lap {done} recorded. That's {done} laps: tap Train and I'll learn to fly it.");
+            }
+            else if (rows > 0 || !passive)
+            {
+                string why = Why(outcome, reason);
+                Status = $"that lap didn't count ({why}); {done} completed lap{(done == 1 ? "" : "s")} so far";
+                if (outcome != "aborted" || !passive) Say($"That lap didn't count: {why}. Fly it again from the start.");
+            }
             if (lapTarget <= 0) return;
             if (CompletedLaps < lapTarget)
             {
@@ -252,22 +351,80 @@ namespace Forge.Artifacts
             chainAutopilot = Train() == null;
         }
 
+        static string Why(string outcome, string reason)
+        {
+            switch (reason ?? outcome)
+            {
+                case "missed_hoop": case "missed_gate": return "a target was missed: they count in order, so go back through the one you skipped or start again";
+                case "crashed": return "it crashed";
+                case "timeout": case "timed out": return "it ran out of time";
+                case "closed": return "the course closed";
+                case "aborted": return "it was stopped before the finish";
+                default: return reason ?? outcome;
+            }
+        }
+
+        /// <summary>Albie says it (voice on: albie.say; off: the caption). Once per event, never per frame.</summary>
+        void Say(string line)
+        {
+            if (string.IsNullOrEmpty(line) || line == LastSaid) { LastSaid = line; return; }
+            LastSaid = line;
+            if (SayHook != null) { SayHook(line); return; }
+            if (Application.isPlaying) FirstRunGuide.Say(line);
+        }
+
         // ---- Training ------------------------------------------------------------------------------------------------
 
         public string Train()
         {
+            DropPassive();
             if (State != Mode.Idle) return Status = "busy: " + ModeName;
-            if (set == null || CompletedLaps < 2) return Status = $"fly 2 completed laps of this course first ({CompletedLaps} so far): fewer is too little to learn from";
+            if (set == null || CompletedLaps < MinLaps)
+                return Status = $"fly {MinLaps} completed laps of this course first ({CompletedLaps} so far): take off from the start and fly through every target in order to the finish";
             int n = RowCount;
-            if (n < MinRows) return Status = $"only {n} steps of flying recorded ({MinRows} needed): fly another lap or two first";
-            cloners = new BehaviourCloner[Candidates];
-            for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(set, new BehaviourCloner.Options { Seed = i + 1 });
-            training = 0; lastEpoch = 0; rehearsal = null;
+            if (n < MinRows) return Status = $"only {n} steps of flying recorded ({MinRows} needed): fly another lap first";
+            try
+            {
+                cloners = new BehaviourCloner[Candidates];
+                for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(set, new BehaviourCloner.Options { Seed = i + 1 });
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                cloners = null;
+                return Status = "training could not start: " + e.Message;
+            }
+            training = 0; lastEpoch = 0; rehearsal = null; lastPct = -1;
             loss.Clear();
-            building = new Version { Number = Versions.Count + 1, Laps = CompletedLaps, Rows = n, Course = setCourse };
+            building = new Version { Number = Versions.Count + 1, Laps = CompletedLaps, Rows = n, Course = setCourse,
+                                     Design = Drone.Design != null && Drone.Design.HasFlight ? Drone.Design.Note : null };
             State = Mode.Training;
-            Status = $"training v{building.Number}: {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows)";
+            Status = $"training v{building.Number}: 0% ({Candidates} candidates on {CompletedLaps} laps, {n} steps)";
+            Say($"Training on your {CompletedLaps} laps. It takes a few seconds; then I'll try it on five practice flights.");
             return null;
+        }
+
+        // Training, time-sliced; an exception ends it with the reason instead of leaving it training forever.
+        void TrainTick()
+        {
+            try { TrainStep(); }
+            catch (System.Exception e)
+            {
+                Debug.LogException(e);
+                State = Mode.Idle;
+                building = null;
+                chainAutopilot = false;
+                Status = "training stopped: " + e.Message;
+                Say("Training stopped with an error: " + e.Message);
+                return;
+            }
+            if (State != Mode.Training || building == null) return;
+            int pct = Mathf.RoundToInt(TrainProgress * 100f);
+            if (pct == lastPct) return;
+            lastPct = pct;
+            Status = rehearsal != null
+                ? $"training v{building.Number}: {pct}% (practice flights on the course line)"
+                : $"training v{building.Number}: {pct}% (candidate {Mathf.Min(training + 1, Candidates)} of {Candidates})";
         }
 
         void TrainStep()
@@ -281,7 +438,7 @@ namespace Forge.Artifacts
                 training++; lastEpoch = 0;
                 if (training < cloners.Length) return;
                 string error = BeginRehearsal();
-                if (error != null) { State = Mode.Idle; Status = error; chainAutopilot = false; return; }
+                if (error != null) { State = Mode.Idle; Status = error; chainAutopilot = false; Say("Training didn't work: " + error); return; }
                 return;
             }
             if (rehearsal != null && !rehearsal.Step(BudgetMs)) return;
@@ -310,7 +467,6 @@ namespace Forge.Artifacts
             foreach (var t in lapTimes) mean += t;
             mean = lapTimes.Count > 0 ? mean / lapTimes.Count : 30f;
             rehearsal = new DroneRehearsal(v.Policies, courseLine, sim, b.takeoffHeight, Mathf.Max(20f, 2.5f * mean));
-            Status = $"rehearsing v{v.Number}'s {Candidates} candidates on the course line";
             return null;
         }
 
@@ -353,9 +509,13 @@ namespace Forge.Artifacts
             Versions.Add(v);
             selected = v.Number;
             TrainingLog.Report("drone_autopilot", v.Number, block);
+            designChanged = false;
             Status = v.Ready
-                ? $"trained v{v.Number}: in rehearsal the best candidate finished {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights, so it can fly"
+                ? $"v{v.Number} ready: passed {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights. Tap Autopilot"
                 : NotReady(v);
+            Say(v.Ready
+                ? $"Version {v.Number} is ready: it passed {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights." + (chainAutopilot ? " Watch it fly." : " Tap Autopilot to watch it fly.")
+                : NotReadySaid(v));
             if (!chainAutopilot) return;
             chainAutopilot = false;
             if (v.Ready) StartAutopilot();
@@ -364,15 +524,24 @@ namespace Forge.Artifacts
         static string NotReady(Version v)
         {
             string how = v.Finished != null
-                ? $"in rehearsal its best candidate finished only {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights"
+                ? $"passed {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights ({DroneRehearsal.MinFinishes} needed)"
                 : "there was no course line to rehearse on";
-            return $"v{v.Number} isn't ready to fly: {how}. Fly a couple more clean laps and train again, or ask for \"follow the course line\" (not learned)";
+            return $"v{v.Number} isn't ready: {how}. Fly two cleaner laps and train again, or tap Follow course line (not learned)";
+        }
+
+        static string NotReadySaid(Version v)
+        {
+            string how = v.Finished != null
+                ? $"it passed only {v.Finished[v.Order[0]]} of {DroneRehearsal.Starts} practice flights, and it needs {DroneRehearsal.MinFinishes}"
+                : "I had no course line to practise it on";
+            return $"Version {v.Number} isn't ready: {how}. Fly two smoother laps and I'll train again. Or I can follow the course line instead: that's a plain line follower, not learned.";
         }
 
         // ---- Autopilot -----------------------------------------------------------------------------------------------
 
         public string StartAutopilot()
         {
+            DropPassive();
             if (State != Mode.Idle) return Status = "busy: " + ModeName;
             if (!OnCourse) return Status = NoCourse;
             if (selected <= 0 || selected > Versions.Count) return Status = "train first: fly 2 laps, then train";
@@ -393,8 +562,10 @@ namespace Forge.Artifacts
         /// <summary>The non-learned course-line follower, only on explicit request. Never presented as a trained model.</summary>
         public string StartFollowLine()
         {
+            DropPassive();
             if (State != Mode.Idle) return Status = "busy: " + ModeName;
             if (!OnCourse) return Status = NoCourse;
+            if (courseLine == null && !CourseBeacon.HasTarget && host.Run == null) return Status = "this course has no targets to follow";
             followLine = true;
             flyOrder = new[] { 0 };
             attempt = 0;
@@ -422,8 +593,10 @@ namespace Forge.Artifacts
                 error = "the course did not arm a run";
             if (error != null) { AttachManual(); State = Mode.Idle; return Status = error; }
             runStarted = Time.time;
+            handBackFor = 0f;
             State = Mode.Autopilot;
-            Status = $"Autopilot: {Who} flying (any stick takes it back)";
+            recordedRunId = run.RunId;  // not a hand lap
+            Status = $"Autopilot: {Who} flying (move a stick to take it back)" + (designChanged && !followLine ? "; it learned the old design" : "");
             return null;
         }
 
@@ -461,6 +634,8 @@ namespace Forge.Artifacts
                 AttachManual();
                 Drone.Land();
                 Status = $"{who} flew the course: keeping it";
+                Say(followLine ? "The course-line follower flew the course. That one isn't learned, it just flies from target to target."
+                               : $"Version {selected} flew the course by itself.");
                 return;
             }
             attempt++;
@@ -470,7 +645,8 @@ namespace Forge.Artifacts
                 State = Mode.Idle;
                 AttachManual();
                 if (!Drone.Body.Crashed) Drone.Stop();
-                Status = $"{who} {how}, and no candidate is left. Fly more laps and train again";
+                Status = $"{who} {how}, and no candidate is left. Fly two more laps and train again, or tap Follow course line (not learned)";
+                Say(followLine ? $"The course-line follower {how}." : $"The Autopilot {how}, and no trained candidate is left. Fly two more laps and I'll train again, or I can follow the course line instead (not learned).");
                 return;
             }
             string said = $"{who} {how}: trying {Who}";
@@ -495,8 +671,27 @@ namespace Forge.Artifacts
             if (stick2Y >= 0) v[stick2Y] = 0f;
         }
 
-        // The body's own test for "the pilot took over" (every manual stick channel), at this loop's threshold.
-        static bool SticksTouched() => DroneBody.SticksActive(HandBack);
+        // "The pilot took over": a manual stick channel moved past HandBack from where it rested when the Autopilot started,
+        // for HandBackSeconds. The resting values are learned over the first HandBackGraceSeconds, so a held transmitter
+        // whose thumbs sit a little off centre (or a pad left touched) doesn't hand back at once. No allocations.
+        bool SticksTouched(float dt)
+        {
+            var v = ManualInputs.Values;
+            int c0 = stickX, c1 = stickY, c2 = stick2X, c3 = stick2Y;
+            bool grace = Time.time - runStarted < HandBackGraceSeconds;
+            bool moved = false;
+            for (int i = 0; i < 4; i++)
+            {
+                int c = i == 0 ? c0 : i == 1 ? c1 : i == 2 ? c2 : c3;
+                float now = c >= 0 && c < v.Length ? v[c] : 0f;
+                if (grace) { restSticks[i] = now; continue; }
+                float d = now - restSticks[i];
+                if (d > HandBack || d < -HandBack) moved = true;
+            }
+            if (grace) { handBackFor = 0f; return false; }
+            handBackFor = moved ? handBackFor + dt : 0f;
+            return handBackFor >= HandBackSeconds;
+        }
 
         // ---- The frame -----------------------------------------------------------------------------------------------
 
@@ -506,33 +701,48 @@ namespace Forge.Artifacts
             if (cam != null) pilotYaw = cam.transform.eulerAngles.y;
             switch (State)
             {
+                case Mode.Idle:
+                    if (OnCourse && lapTarget <= 0 && !chainAutopilot) MaybeRecordPassive();
+                    break;
                 case Mode.Lap:
-                    if (RunOver(out bool completed, out string how)) EndLap(completed ? "completed" : how == "crashed" ? "crashed" : "aborted");
+                    if (RunOver(out bool completed, out string how, out string reason))
+                        EndLap(completed ? "completed" : reason == "crashed" ? "crashed" : "aborted", reason ?? how);
                     break;
                 case Mode.Training:
-                    TrainStep();
+                    TrainTick();
                     break;
                 case Mode.Autopilot:
-                    if (SticksTouched()) { Halt("handed back"); Status = "you took the sticks: the drone is yours, hovering where it was"; break; }
+                    if (SticksTouched(Time.deltaTime))
+                    {
+                        Halt("handed back");
+                        Status = "you took the sticks: the drone is yours, hovering where it was";
+                        Say("You've got it: the drone is yours again, hovering where it was.");
+                        break;
+                    }
                     if (Drone.Body.Following) { Halt("handed to follow-me"); Status = "follow-me took over: the Autopilot stopped"; break; }
-                    if (RunOver(out bool done, out string why)) AttemptEnded(done, why);
+                    if (RunOver(out bool done, out string why, out _)) AttemptEnded(done, why);
                     break;
             }
         }
 
-        bool RunOver(out bool completed, out string how)
+        bool RunOver(out bool completed, out string how, out string reason)
         {
-            completed = false; how = null;
+            completed = false; how = null; reason = null;
             var run = host != null ? host.Run : null;
             if (run == null || Drone.Hidden) { how = "closed"; return true; }
+            // Someone re-armed the course (its Fly again, artifact_run) under this run: this one is over.
+            if (run.RunId != recordedRunId) { how = "aborted"; return true; }
             if (run.State == ArtifactRunState.Finished)
             {
                 completed = run.Outcome == "completed";
+                reason = completed ? null : run.Reason;
                 how = completed ? "completed" : $"{run.Outcome} ({run.Reason ?? "-"})";
                 return true;
             }
-            if (Drone.Body.Crashed) { run.Abort(); how = "crashed"; return true; }
-            if (Time.time - runStarted > RunTimeoutS) { run.Abort(); how = "timed out"; return true; }
+            if (Drone.Body.Crashed) { run.Abort(); how = "crashed"; reason = "crashed"; return true; }
+            // A lap the brain picked up by itself is the person's flight: the course's own time limit ends it, not ours.
+            if (State == Mode.Lap && Passive) return false;
+            if (Time.time - runStarted > RunTimeoutS) { run.Abort(); how = "timed out"; reason = "timeout"; return true; }
             return false;
         }
 
@@ -581,7 +791,24 @@ namespace Forge.Artifacts
                 float dx = last[0] - local.x, dy = last[1] - local.y, dz = last[2] - local.z;
                 if (dx * dx + dy * dy + dz * dz < 0.0025f) return;
             }
-            lapTargets.Add(new[] { local.x, local.y, local.z });  // once per target, not per step
+            // Once per target, not per step: its centre and, when it is a zone of the course, that zone's box, which is what
+            // the run scores (a hoop counts anywhere in its opening), so the rehearsal asks no more than the run did.
+            var zone = ZoneAt(CourseBeacon.Target);
+            if (zone == null) { lapTargets.Add(new[] { local.x, local.y, local.z }); return; }
+            Vector3 half = Vector3.Scale(zone.Size * 0.5f, zone.transform.lossyScale);
+            lapTargets.Add(new[] { local.x, local.y, local.z, Mathf.Abs(half.x), Mathf.Abs(half.y), Mathf.Abs(half.z),
+                                   Mathf.DeltaAngle(CourseYaw, zone.transform.eulerAngles.y) });
+        }
+
+        ArtifactZone ZoneAt(Vector3 centre)
+        {
+            if (zones == null) return null;
+            for (int i = 0; i < zones.Length; i++)
+            {
+                var z = zones[i];
+                if (z != null && (z.transform.position - centre).sqrMagnitude < 1e-4f) return z;
+            }
+            return null;
         }
 
         Vector3 ToCourse(Vector3 world)

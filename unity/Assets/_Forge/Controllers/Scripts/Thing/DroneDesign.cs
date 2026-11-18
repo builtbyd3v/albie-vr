@@ -9,7 +9,15 @@ namespace Forge.Controllers
     /// The flyable drone's body IS the project's quadcopter design: this loads the current version of the CAD library's
     /// <c>quadcopter</c> design (the same GLB and metadata the CAD viewer shows, through <see cref="CadModel"/> and glTFast)
     /// under <see cref="DroneBody.Visual"/>, in place of <see cref="DroneShell"/>'s primitives, and takes the design's
-    /// numbers into the flight model (modestly, each factor capped; see <see cref="Note"/>).
+    /// parameters into the flight model (<see cref="DroneFlightModel"/>: mass, thrust to weight, top speed, climb, turn
+    /// rate and agility from arm count and length, props, motors, plate, battery and payload; see <see cref="Note"/>).
+    ///
+    /// Physics follows the parameter values themselves, not the mesh: a slider or preset asked for on this device
+    /// (<see cref="CadSession.ParamsRequested"/>) retunes the drone at once, even while it flies on a course. In mock
+    /// mode, where CAD only shows the nearest stored version, the drone still flies the values asked for (the mesh is the
+    /// nearest version); a version reached any other way (undo, history, the hub's build, Albie's cad_set_params) flies
+    /// that version's own values. Each change is one line of before/after numbers (<see cref="LastChange"/>) and Albie
+    /// says what changed in flight (<see cref="LastSaid"/>).
     ///
     /// Where the design comes from, in order (re-checked once a second, nothing per frame):
     /// 1. <see cref="CadSession.Latest"/> when it is the quadcopter: the hub's or Albie's cloud's current version when the
@@ -28,8 +36,6 @@ namespace Forge.Controllers
         /// <summary>Widest it is shown, metres: a design bigger than this is scaled down to it.</summary>
         public const float MaxSpan = 0.45f;
         public const float AssembleSeconds = 1.6f;
-        // The reference design the arcade tuning was made for: the factors are 1 here.
-        const float ArmRefMm = 110f, TwrRef = 8f, MassRefG = 450f;
         const float PollSeconds = 1f;
 
         /// <summary>Raised when the body or its flight factors change (ArtifactDrone retunes the body).</summary>
@@ -48,6 +54,22 @@ namespace Forge.Controllers
         public float ClimbK { get; private set; } = 1f;
         public float YawK { get; private set; } = 1f;
         public float ThrustToWeight { get; private set; } = float.NaN;
+        /// <summary>Top-speed and agility factors (1 = the reference design).</summary>
+        public float SpeedK { get; private set; } = 1f;
+        public float AgilityK { get; private set; } = 1f;
+        /// <summary>True once the flight numbers come from a design's parameters (with or without its mesh).</summary>
+        public bool HasFlight { get; private set; }
+        /// <summary>The parameters the drone flies now, and their flight numbers.</summary>
+        public DroneFlightModel.Spec Spec { get; private set; }
+        public DroneFlightModel.Flight Flight { get; private set; }
+        /// <summary>The last change as before/after numbers ("389 → 601 g · ... · turns 90 → 52 °/s"), or null.</summary>
+        public string LastChange { get; private set; }
+        /// <summary>What Albie last said about a change ("Longer arms: steadier, turns 42% slower."), or null.</summary>
+        public string LastSaid { get; private set; }
+        /// <summary>Raised after the flight numbers change from an earlier set (the change line, then what Albie says). The drone's brain listens.</summary>
+        public event Action<string, string> FlightChanged;
+        /// <summary>Seconds a slider asked for in mock mode still governs the stored version CAD then shows.</summary>
+        public const float RequestHoldSeconds = 4f;
         /// <summary>One plain line on what the design changes in flight, for the Drive window.</summary>
         public string Note { get; private set; } = "";
         /// <summary>Where the drone cam sits (front edge of the body), in the look's frame. Never null after Awake.</summary>
@@ -82,10 +104,17 @@ namespace Forge.Controllers
             Nose.localRotation = Quaternion.identity;
         }
 
-        void OnDisable() => Hook(null);
+        void OnEnable() => CadSession.ParamsRequested += OnRequested;
+
+        void OnDisable()
+        {
+            CadSession.ParamsRequested -= OnRequested;
+            Hook(null);
+        }
 
         void OnDestroy()
         {
+            CadSession.ParamsRequested -= OnRequested;
             Hook(null);
             model?.Dispose();
             model = null;
@@ -102,7 +131,9 @@ namespace Forge.Controllers
 
         void OnCad(CadUpdate update)
         {
-            if (update != null && update.info != null && update.info.part == Part) Consider(update.info, update.glb, update.metadata, update.generation, SessionLabel(hooked));
+            if (update == null || update.info == null || update.info.part != Part) return;
+            FromVersion(update.info, hooked != null && hooked.IsMock);
+            Consider(update.info, update.glb, update.metadata, update.generation, SessionLabel(hooked));
         }
 
         static string SessionLabel(CadSession s) => s != null && !s.IsMock ? "CAD (live)" : "CAD (mock mode)";
@@ -118,7 +149,9 @@ namespace Forge.Controllers
             Hook(s);
             if (s != null && s.Latest != null && s.Latest.info != null && s.Latest.info.part == Part)
             {
-                OnCad(s.Latest);
+                // The poll only fills in a design not seen yet; a change arrives as ModelChanged (or a request).
+                if (!HasFlight) FromVersion(s.Latest.info, s.IsMock);
+                Consider(s.Latest.info, s.Latest.glb, s.Latest.metadata, s.Latest.generation, SessionLabel(s));
                 return;
             }
             if (Loaded || loading != null) return;  // keep the last quadcopter shown while CAD is on another design
@@ -155,7 +188,9 @@ namespace Forge.Controllers
                 Debug.LogWarning("[Drone] The quadcopter sample's model_updated.json did not parse: " + e.Message);
                 return;
             }
-            if (info != null) Consider(info, v.glb.bytes, v.metadata.text, int.MinValue + 1, "offline sample");
+            if (info == null) return;
+            if (!HasFlight) FromVersion(info, true);
+            Consider(info, v.glb.bytes, v.metadata.text, int.MinValue + 1, "offline sample");
         }
 
         // ---- Loading --------------------------------------------------------------------------------------------------
@@ -279,7 +314,7 @@ namespace Forge.Controllers
             Source = source;
             ShownScale = k;
             RadiusFullSize = span * k * 0.5f + 0.01f;
-            Factors(info);
+            if (!HasFlight) FromVersion(info, false);
             Debug.Log("[Drone] Body is quadcopter v" + info.version + " (" + source + "), " + Mathf.RoundToInt(span * 1000f) + " mm across" + (k < 1f ? ", shown at " + Mathf.RoundToInt(k * 100f) + "%" : "") + ". " + Note);
             Changed?.Invoke();
         }
@@ -333,29 +368,79 @@ namespace Forge.Controllers
 
         // ---- The design's numbers in flight ----------------------------------------------------------------------------
 
-        void Factors(CadModelUpdated info)
+        // Slider values asked for in mock mode, still governing the next stored version CAD shows (and when).
+        Dictionary<string, object> asked;
+        float askedAt = -100f;
+
+        // A slider, a preset (on this device): fly the values asked for now. In mock mode they also outlive the nearest
+        // stored version that CAD shows next, so the physics is what the slider says.
+        void OnRequested(string part, Dictionary<string, object> changes)
         {
-            float arm = Param(info, "arm_length", ArmRefMm);
-            float twr = Metric(info, "twr", float.NaN);
-            float mass = info.analysis != null && info.analysis.massG > 0f ? info.analysis.massG : Metric(info, "mass", MassRefG);
-            // Longer arms put the motors further out: more turning inertia, so a slower, steadier turn.
-            YawK = Mathf.Clamp(Mathf.Sqrt(ArmRefMm / Mathf.Max(10f, arm)), 0.8f, 1.15f);
-            // More thrust per gram: quicker to speed up and to climb.
-            float t = float.IsNaN(twr) ? 1f : Mathf.Clamp(Mathf.Sqrt(twr / TwrRef), 0.8f, 1.2f);
-            AccelK = ClimbK = t;
-            // Heavier: it takes longer to stop.
-            BrakeK = Mathf.Clamp(Mathf.Sqrt(MassRefG / Mathf.Max(50f, mass)), 0.8f, 1.2f);
-            ThrustToWeight = twr;
-            var inv = System.Globalization.CultureInfo.InvariantCulture;
-            Note = "v" + info.version + ": " + Mathf.RoundToInt(arm) + " mm arms, turns " + Percent(YawK, "faster", "slower")
-                 + (float.IsNaN(twr) ? "" : "; " + twr.ToString("0.0", inv) + ":1 thrust, climbs " + Percent(t, "quicker", "slower"))
-                 + "; " + Mathf.RoundToInt(mass) + " g, brakes " + Percent(BrakeK, "harder", "softer") + ".";
+            var s = CadSession.Instance;
+            string open = part ?? (s != null && s.Params != null ? s.Params.part : null);
+            if (open != Part || changes == null) return;
+            if (asked == null || Time.unscaledTime - askedAt > RequestHoldSeconds) asked = new Dictionary<string, object>();
+            foreach (var pair in changes) asked[pair.Key] = pair.Value;
+            askedAt = Time.unscaledTime;
+            Apply((Spec ?? DroneFlightModel.Reference).With(changes), Version > 0 ? "v" + Version + " with your change" : "your change");
         }
 
-        static string Percent(float k, string more, string less)
+        // A version arrived (or was first seen): its own values, unless a mock-mode request just asked for others.
+        void FromVersion(CadModelUpdated info, bool mock)
         {
-            int p = Mathf.RoundToInt((k - 1f) * 100f);
-            return p == 0 ? "as usual" : (p > 0 ? p + "% " + more : -p + "% " + less);
+            IDictionary<string, object> values = info.parameters;
+            if (values == null)
+            {
+                var s = CadSession.Instance;
+                if (s != null && s.Params != null && s.Params.part == Part)
+                {
+                    var d = new Dictionary<string, object>();
+                    foreach (var p in s.Params.parameters) if (p != null && p.name != null) d[p.name] = p.value;
+                    values = d;
+                }
+            }
+            var spec = DroneFlightModel.Reference.With(values);
+            // Mock mode, just after a slider: CAD shows the nearest stored version, but the drone keeps flying what was
+            // asked (the values it flew before, with the changes on top), so the slider is what you feel.
+            if (mock && asked != null && Time.unscaledTime - askedAt <= RequestHoldSeconds) spec = (Spec ?? spec).With(asked);
+            else asked = null;
+            Apply(spec, "v" + info.version);
+        }
+
+        void Apply(DroneFlightModel.Spec spec, string label)
+        {
+            if (spec == null) return;
+            if (HasFlight && spec.SameAs(Spec)) return;
+            var f = DroneFlightModel.Of(spec);
+            bool first = !HasFlight;
+            var was = Spec;
+            var before = Flight;
+            Spec = spec;
+            Flight = f;
+            HasFlight = true;
+            AccelK = f.AccelK; BrakeK = f.BrakeK; ClimbK = f.ClimbK; YawK = f.YawK; SpeedK = f.SpeedK; AgilityK = f.AgilityK;
+            ThrustToWeight = f.Twr;
+            var k = BaseTuning();
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            Note = label + ": " + Mathf.RoundToInt(spec.ArmMm) + " mm arms, " + spec.PropIn.ToString("0.#", inv) + " in props, "
+                 + Mathf.RoundToInt(spec.BatteryMah) + " mAh: " + DroneFlightModel.Describe(f, k) + " (from the design's numbers).";
+            if (!first)
+            {
+                LastChange = DroneFlightModel.Compare(before, f, k);
+                LastSaid = DroneFlightModel.Say(was, spec, before, f);
+                Debug.Log("[Drone] Design change (" + label + "): " + LastChange);
+            }
+            Changed?.Invoke();
+            if (first) return;
+            FlightChanged?.Invoke(LastChange, LastSaid);
+            if (!string.IsNullOrEmpty(LastSaid) && Application.isPlaying) FirstRunGuide.Say(LastSaid + " In numbers: " + LastChange + ".");
+        }
+
+        DroneFlightModel.Base BaseTuning()
+        {
+            var k = new DroneFlightModel.Base { Speed = 1.2f, Climb = 0.6f, Yaw = 90f, Accel = 2.5f };
+            if (body != null) body.BaseTuning(out k.Speed, out k.Climb, out k.Yaw, out k.Accel);
+            return k;
         }
 
         static float Param(CadModelUpdated info, string name, float fallback)
