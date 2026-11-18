@@ -1,0 +1,178 @@
+{
+  "note": "What the lungs' parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names; an entry without 'Left'/'Right' covers both sides when 'bilateral' is true. 'aka' are other names for one part; a group's 'words' all mean its parts.",
+  "bilateral": false,
+  "ignore": [
+    "lung",
+    "lungs",
+    "pulmonary"
+  ],
+  "parts": {
+    "Right upper lobe": {
+      "about": "The top lobe of the right lung",
+      "aka": [
+        "right superior lobe",
+        "upper right lobe",
+        "top right lobe"
+      ]
+    },
+    "Right middle lobe": {
+      "about": "The middle lobe: only the right lung has one",
+      "aka": [
+        "middle lobe",
+        "right middle",
+        "middle right lobe"
+      ]
+    },
+    "Right lower lobe": {
+      "about": "The bottom lobe of the right lung, resting on the diaphragm",
+      "aka": [
+        "right inferior lobe",
+        "lower right lobe",
+        "bottom right lobe"
+      ]
+    },
+    "Left upper lobe": {
+      "about": "The top lobe of the left lung, with a notch for the heart",
+      "aka": [
+        "left superior lobe",
+        "upper left lobe",
+        "top left lobe",
+        "lingula"
+      ]
+    },
+    "Left lower lobe": {
+      "about": "The bottom lobe of the left lung",
+      "aka": [
+        "left inferior lobe",
+        "lower left lobe",
+        "bottom left lobe"
+      ]
+    },
+    "Trachea": {
+      "about": "The windpipe: carries air down to the bronchi",
+      "aka": [
+        "windpipe",
+        "wind pipe",
+        "airway",
+        "carina"
+      ]
+    },
+    "Bronchi": {
+      "about": "The airways that branch into every lobe",
+      "aka": [
+        "bronchus",
+        "bronchial tree",
+        "airways",
+        "bronchioles",
+        "main bronchi",
+        "air tubes"
+      ]
+    },
+    "Pulmonary arteries": {
+      "about": "Bring oxygen-poor blood from the heart to the lungs",
+      "aka": [
+        "pulmonary artery",
+        "lung arteries",
+        "pulmonary trunk",
+        "arteries"
+      ]
+    },
+    "Pulmonary veins": {
+      "about": "Carry oxygen-rich blood back to the heart",
+      "aka": [
+        "pulmonary vein",
+        "lung veins",
+        "veins"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "words": [
+        "right lung",
+        "right side",
+        "three lobes"
+      ],
+      "parts": [
+        "Right upper lobe",
+        "Right middle lobe",
+        "Right lower lobe"
+      ]
+    },
+    {
+      "words": [
+        "left lung",
+        "left side",
+        "two lobes"
+      ],
+      "parts": [
+        "Left upper lobe",
+        "Left lower lobe"
+      ]
+    },
+    {
+      "words": [
+        "lobes",
+        "all the lobes",
+        "lung tissue",
+        "both lungs"
+      ],
+      "parts": [
+        "Right upper lobe",
+        "Right middle lobe",
+        "Right lower lobe",
+        "Left upper lobe",
+        "Left lower lobe"
+      ]
+    },
+    {
+      "words": [
+        "upper lobes",
+        "top lobes",
+        "upper lobe",
+        "top"
+      ],
+      "parts": [
+        "Right upper lobe",
+        "Left upper lobe"
+      ]
+    },
+    {
+      "words": [
+        "lower lobes",
+        "bottom lobes",
+        "lower lobe",
+        "bottom",
+        "base"
+      ],
+      "parts": [
+        "Right lower lobe",
+        "Left lower lobe"
+      ]
+    },
+    {
+      "words": [
+        "blood vessels",
+        "vessels",
+        "circulation",
+        "blood supply"
+      ],
+      "parts": [
+        "Pulmonary arteries",
+        "Pulmonary veins"
+      ]
+    },
+    {
+      "words": [
+        "air path",
+        "airway tree",
+        "breathing tubes",
+        "respiratory tree"
+      ],
+      "parts": [
+        "Trachea",
+        "Bronchi"
+      ]
+    }
+  ]
+}

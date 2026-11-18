@@ -1,0 +1,925 @@
+{
+  "schema": "albie.scene/1",
+  "space": "volume",
+  "view": {
+    "radius": 0.3
+  },
+  "generators": [],
+  "nodes": [
+    {
+      "id": "stomach",
+      "kind": "gltf",
+      "asset": "assets/stomach.glb",
+      "pos": [
+        0,
+        0,
+        0
+      ],
+      "rot": [
+        0,
+        180,
+        0
+      ],
+      "scale": [
+        1.1,
+        1.1,
+        1.1
+      ]
+    },
+    {
+      "id": "label_oesophagus",
+      "kind": "text",
+      "text": "Oesophagus",
+      "pos": [
+        -0.2,
+        0.12,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_oesophagus",
+      "kind": "line",
+      "points": [
+        [
+          -0.208,
+          0.116,
+          -0.12
+        ],
+        [
+          -0.0224,
+          0.1075,
+          0.0427
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_pylorus",
+      "kind": "text",
+      "text": "Pylorus",
+      "pos": [
+        -0.2,
+        0.0,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_pylorus",
+      "kind": "line",
+      "points": [
+        [
+          -0.208,
+          -0.004,
+          -0.12
+        ],
+        [
+          -0.0271,
+          -0.0122,
+          -0.0546
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_duodenum",
+      "kind": "text",
+      "text": "Duodenum",
+      "pos": [
+        -0.2,
+        -0.12,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_duodenum",
+      "kind": "line",
+      "points": [
+        [
+          -0.208,
+          -0.124,
+          -0.12
+        ],
+        [
+          -0.0312,
+          -0.0689,
+          -0.0127
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_fundus",
+      "kind": "text",
+      "text": "Fundus",
+      "pos": [
+        0.2,
+        0.12,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_fundus",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          0.116,
+          -0.12
+        ],
+        [
+          0.04,
+          0.0775,
+          -0.0175
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_rugae",
+      "kind": "text",
+      "text": "Rugae (folds)",
+      "pos": [
+        0.2,
+        0.04,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_rugae",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          0.036,
+          -0.12
+        ],
+        [
+          0.039,
+          0.0202,
+          -0.0503
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_body",
+      "kind": "text",
+      "text": "Body",
+      "pos": [
+        0.2,
+        -0.04,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_body",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.044,
+          -0.12
+        ],
+        [
+          0.0523,
+          0.0198,
+          -0.0489
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_antrum",
+      "kind": "text",
+      "text": "Pyloric antrum",
+      "pos": [
+        0.2,
+        -0.12,
+        -0.12
+      ],
+      "height": 0.015,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_antrum",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.124,
+          -0.12
+        ],
+        [
+          0.0118,
+          -0.01,
+          -0.0634
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "meal",
+      "kind": "timeline",
+      "duration_s": 12.0,
+      "loop": false,
+      "autoplay": false
+    },
+    {
+      "id": "step_1",
+      "kind": "text",
+      "text": "1  Food is pushed down the oesophagus and enters the stomach at the cardia",
+      "pos": [
+        0,
+        0.2,
+        -0.12
+      ],
+      "height": 0.018,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_2",
+      "kind": "text",
+      "text": "2  The fundus and body store it; the wall stretches from 50 ml to over a litre",
+      "pos": [
+        0,
+        0.2,
+        -0.12
+      ],
+      "height": 0.018,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_3",
+      "kind": "text",
+      "text": "3  Acid and the enzyme pepsin start digesting protein; the rugae unfold as it fills",
+      "pos": [
+        0,
+        0.2,
+        -0.12
+      ],
+      "height": 0.018,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_4",
+      "kind": "text",
+      "text": "4  In the antrum, waves of muscle churn it into a paste called chyme",
+      "pos": [
+        0,
+        0.2,
+        -0.12
+      ],
+      "height": 0.018,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "step_5",
+      "kind": "text",
+      "text": "5  The pylorus lets a little through at a time into the duodenum",
+      "pos": [
+        0,
+        0.2,
+        -0.12
+      ],
+      "height": 0.018,
+      "color": "#FFE66D",
+      "billboard": true,
+      "visible": false
+    },
+    {
+      "id": "bolus",
+      "kind": "primitive",
+      "shape": "sphere",
+      "pos": [
+        -0.0265,
+        0.163,
+        0.0719
+      ],
+      "size": [
+        0.013,
+        0.013,
+        0.013
+      ],
+      "color": "#C9A27E",
+      "glow": true,
+      "visible": false
+    },
+    {
+      "id": "info",
+      "kind": "panel",
+      "title": "Stomach",
+      "widgets": [
+        {
+          "type": "note",
+          "text": "A real adult stomach from anatomical scans, with the end of the oesophagus and the duodenum. Empty it holds about 50 ml and its lining lies in folds; after a meal it stretches to 1 to 1.5 litres. Cut it open to see the folds, or separate its regions."
+        },
+        {
+          "type": "button",
+          "id": "meal",
+          "label": "Follow a meal",
+          "primary": true
+        },
+        {
+          "type": "button",
+          "id": "labels_off",
+          "label": "Hide labels",
+          "alt_id": "labels_on",
+          "alt_label": "Show labels"
+        },
+        {
+          "type": "note",
+          "text": "3D model: BodyParts3D, (c) 2008 Life Science Integrated Database Center (CC BY-SA 2.1 JP). This model is shared under CC BY-SA 4.0."
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "type": "on_input",
+      "input": "labels_on",
+      "do": [
+        {
+          "set": "label_oesophagus.visible",
+          "value": true
+        },
+        {
+          "set": "leader_oesophagus.visible",
+          "value": true
+        },
+        {
+          "set": "label_pylorus.visible",
+          "value": true
+        },
+        {
+          "set": "leader_pylorus.visible",
+          "value": true
+        },
+        {
+          "set": "label_duodenum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_duodenum.visible",
+          "value": true
+        },
+        {
+          "set": "label_fundus.visible",
+          "value": true
+        },
+        {
+          "set": "leader_fundus.visible",
+          "value": true
+        },
+        {
+          "set": "label_rugae.visible",
+          "value": true
+        },
+        {
+          "set": "leader_rugae.visible",
+          "value": true
+        },
+        {
+          "set": "label_body.visible",
+          "value": true
+        },
+        {
+          "set": "leader_body.visible",
+          "value": true
+        },
+        {
+          "set": "label_antrum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_antrum.visible",
+          "value": true
+        }
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "labels_off",
+      "do": [
+        {
+          "set": "label_oesophagus.visible",
+          "value": false
+        },
+        {
+          "set": "leader_oesophagus.visible",
+          "value": false
+        },
+        {
+          "set": "label_pylorus.visible",
+          "value": false
+        },
+        {
+          "set": "leader_pylorus.visible",
+          "value": false
+        },
+        {
+          "set": "label_duodenum.visible",
+          "value": false
+        },
+        {
+          "set": "leader_duodenum.visible",
+          "value": false
+        },
+        {
+          "set": "label_fundus.visible",
+          "value": false
+        },
+        {
+          "set": "leader_fundus.visible",
+          "value": false
+        },
+        {
+          "set": "label_rugae.visible",
+          "value": false
+        },
+        {
+          "set": "leader_rugae.visible",
+          "value": false
+        },
+        {
+          "set": "label_body.visible",
+          "value": false
+        },
+        {
+          "set": "leader_body.visible",
+          "value": false
+        },
+        {
+          "set": "label_antrum.visible",
+          "value": false
+        },
+        {
+          "set": "leader_antrum.visible",
+          "value": false
+        }
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "bolus",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          11.9,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "bolus",
+      "property": "pos",
+      "timeline": "meal",
+      "keys": [
+        [
+          0.01,
+          [
+            -0.0265,
+            0.163,
+            0.0719
+          ]
+        ],
+        [
+          2.2,
+          [
+            -0.0209,
+            0.085,
+            0.0401
+          ]
+        ],
+        [
+          3.6,
+          [
+            0.033,
+            0.0815,
+            0.028
+          ]
+        ],
+        [
+          5.6,
+          [
+            0.0598,
+            0.0282,
+            0.003
+          ]
+        ],
+        [
+          7.6,
+          [
+            0.0094,
+            -0.0086,
+            -0.0356
+          ]
+        ],
+        [
+          9.4,
+          [
+            -0.0516,
+            -0.005,
+            -0.0153
+          ]
+        ],
+        [
+          10.6,
+          [
+            -0.0407,
+            -0.0487,
+            0.0032
+          ]
+        ],
+        [
+          11.8,
+          [
+            0.0318,
+            -0.0575,
+            -0.0028
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "bolus",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#C9A27E"
+        ],
+        [
+          5.6,
+          "#C9A27E"
+        ],
+        [
+          7.6,
+          "#E6D3A3"
+        ],
+        [
+          11.9,
+          "#E6D3A3"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_1",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          0.01,
+          true
+        ],
+        [
+          2.4,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_2",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          2.4,
+          true
+        ],
+        [
+          4.8,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_3",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          4.8,
+          true
+        ],
+        [
+          7.2,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_4",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          7.2,
+          true
+        ],
+        [
+          9.6,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "step_5",
+      "property": "visible",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          false
+        ],
+        [
+          9.6,
+          true
+        ],
+        [
+          11.95,
+          false
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_oesophagus",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          0.01,
+          "#FFFFFF"
+        ],
+        [
+          0.02,
+          "#FFE66D"
+        ],
+        [
+          2.39,
+          "#FFE66D"
+        ],
+        [
+          2.4,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_fundus",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.4,
+          "#FFFFFF"
+        ],
+        [
+          2.41,
+          "#FFE66D"
+        ],
+        [
+          4.79,
+          "#FFE66D"
+        ],
+        [
+          4.8,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_body",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          2.4,
+          "#FFFFFF"
+        ],
+        [
+          2.41,
+          "#FFE66D"
+        ],
+        [
+          4.79,
+          "#FFE66D"
+        ],
+        [
+          4.8,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_rugae",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          4.8,
+          "#FFFFFF"
+        ],
+        [
+          4.81,
+          "#FFE66D"
+        ],
+        [
+          7.19,
+          "#FFE66D"
+        ],
+        [
+          7.199999999999999,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_antrum",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          7.199999999999999,
+          "#FFFFFF"
+        ],
+        [
+          7.21,
+          "#FFE66D"
+        ],
+        [
+          9.59,
+          "#FFE66D"
+        ],
+        [
+          9.6,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_pylorus",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          9.6,
+          "#FFFFFF"
+        ],
+        [
+          9.61,
+          "#FFE66D"
+        ],
+        [
+          11.94,
+          "#FFE66D"
+        ],
+        [
+          11.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "animate",
+      "target": "label_duodenum",
+      "property": "color",
+      "timeline": "meal",
+      "keys": [
+        [
+          0,
+          "#FFFFFF"
+        ],
+        [
+          9.6,
+          "#FFFFFF"
+        ],
+        [
+          9.61,
+          "#FFE66D"
+        ],
+        [
+          11.94,
+          "#FFE66D"
+        ],
+        [
+          11.95,
+          "#FFFFFF"
+        ]
+      ]
+    },
+    {
+      "type": "on_input",
+      "input": "meal",
+      "do": [
+        {
+          "timeline": "meal",
+          "action": "restart"
+        }
+      ]
+    }
+  ]
+}

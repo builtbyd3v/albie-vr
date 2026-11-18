@@ -1,0 +1,127 @@
+{
+  "note": "What the kidneys' parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names; an entry without 'Left'/'Right' covers both sides when 'bilateral' is true. 'aka' are other names for one part; a group's 'words' all mean its parts.",
+  "bilateral": true,
+  "ignore": [
+    "kidneys",
+    "renal",
+    "urinary system",
+    "urinary tract"
+  ],
+  "parts": {
+    "Kidney": {
+      "about": "Filters the blood and makes urine",
+      "aka": [
+        "renal cortex",
+        "cortex",
+        "medulla",
+        "nephrons",
+        "bean"
+      ]
+    },
+    "Renal pelvis": {
+      "about": "The funnel that collects urine inside the kidney",
+      "aka": [
+        "pelvis",
+        "calyces",
+        "calyx",
+        "collecting system",
+        "funnel"
+      ]
+    },
+    "Adrenal gland": {
+      "about": "Sits on the kidney and makes adrenaline and cortisol",
+      "aka": [
+        "suprarenal gland",
+        "adrenals",
+        "adrenal",
+        "suprarenal"
+      ]
+    },
+    "Ureter": {
+      "about": "The tube that carries urine down to the bladder",
+      "aka": [
+        "ureters",
+        "urine tube"
+      ]
+    },
+    "Renal artery": {
+      "about": "Brings blood from the aorta into the kidney",
+      "aka": [
+        "kidney artery",
+        "renal arteries"
+      ]
+    },
+    "Renal vein": {
+      "about": "Carries filtered blood back to the vena cava",
+      "aka": [
+        "kidney vein",
+        "renal veins"
+      ]
+    },
+    "Aorta": {
+      "about": "The body's main artery, feeding the kidneys",
+      "aka": [
+        "abdominal aorta",
+        "main artery"
+      ]
+    },
+    "Inferior vena cava": {
+      "about": "The great vein that takes blood back to the heart",
+      "aka": [
+        "ivc",
+        "vena cava",
+        "big vein",
+        "main vein"
+      ]
+    },
+    "Urinary bladder": {
+      "about": "Stores urine: about half a litre",
+      "aka": [
+        "bladder"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "words": [
+        "blood vessels",
+        "vessels",
+        "blood supply"
+      ],
+      "parts": [
+        "Left renal artery",
+        "Right renal artery",
+        "Left renal vein",
+        "Right renal vein",
+        "Aorta",
+        "Inferior vena cava"
+      ]
+    },
+    {
+      "words": [
+        "urine path",
+        "urinary tract",
+        "where urine goes",
+        "plumbing"
+      ],
+      "parts": [
+        "Left renal pelvis",
+        "Right renal pelvis",
+        "Left ureter",
+        "Right ureter",
+        "Urinary bladder"
+      ]
+    },
+    {
+      "words": [
+        "both kidneys",
+        "the kidneys",
+        "kidneys only"
+      ],
+      "parts": [
+        "Left kidney",
+        "Right kidney"
+      ]
+    }
+  ]
+}

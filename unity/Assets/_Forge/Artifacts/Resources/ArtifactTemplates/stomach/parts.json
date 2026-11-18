@@ -1,0 +1,129 @@
+{
+  "note": "What the stomach' parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names; an entry without 'Left'/'Right' covers both sides when 'bilateral' is true. 'aka' are other names for one part; a group's 'words' all mean its parts.",
+  "bilateral": false,
+  "ignore": [
+    "stomach",
+    "gastric",
+    "tummy",
+    "belly"
+  ],
+  "parts": {
+    "Oesophagus": {
+      "about": "The food pipe from the throat to the stomach",
+      "aka": [
+        "esophagus",
+        "food pipe",
+        "gullet",
+        "cardia",
+        "gastroesophageal junction"
+      ]
+    },
+    "Fundus": {
+      "about": "The dome at the top: it holds swallowed air and food",
+      "aka": [
+        "dome",
+        "top of the stomach",
+        "fundus of stomach"
+      ]
+    },
+    "Body of stomach": {
+      "about": "The main part, where food is stored and mixed with acid",
+      "aka": [
+        "body",
+        "corpus",
+        "main part",
+        "middle"
+      ]
+    },
+    "Pyloric antrum": {
+      "about": "The lower part, whose muscle churns food into chyme",
+      "aka": [
+        "antrum",
+        "lower stomach",
+        "grinding part"
+      ]
+    },
+    "Pylorus": {
+      "about": "The valve that lets food into the duodenum a little at a time",
+      "aka": [
+        "pyloric sphincter",
+        "valve",
+        "exit",
+        "sphincter",
+        "outlet"
+      ]
+    },
+    "Duodenum": {
+      "about": "The first part of the small intestine",
+      "aka": [
+        "small intestine",
+        "small bowel",
+        "intestine"
+      ]
+    },
+    "Lining (rugae)": {
+      "about": "The inner lining, in folds that flatten as the stomach fills",
+      "aka": [
+        "rugae",
+        "lining",
+        "folds",
+        "mucosa",
+        "inner wall",
+        "stomach lining"
+      ]
+    }
+  },
+  "groups": [
+    {
+      "words": [
+        "stomach wall",
+        "outer wall",
+        "regions",
+        "the four regions",
+        "all regions"
+      ],
+      "parts": [
+        "Fundus",
+        "Body of stomach",
+        "Pyloric antrum",
+        "Pylorus"
+      ]
+    },
+    {
+      "words": [
+        "food path",
+        "where food goes",
+        "digestive tract"
+      ],
+      "parts": [
+        "Oesophagus",
+        "Fundus",
+        "Body of stomach",
+        "Pyloric antrum",
+        "Pylorus",
+        "Duodenum"
+      ]
+    },
+    {
+      "words": [
+        "upper stomach",
+        "top part"
+      ],
+      "parts": [
+        "Fundus",
+        "Body of stomach"
+      ]
+    },
+    {
+      "words": [
+        "lower part",
+        "bottom part",
+        "pyloric part"
+      ],
+      "parts": [
+        "Pyloric antrum",
+        "Pylorus"
+      ]
+    }
+  ]
+}

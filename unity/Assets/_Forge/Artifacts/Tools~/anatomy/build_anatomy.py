@@ -1,7 +1,7 @@
-"""Builds the heart and eye GLBs for the artifact templates from open anatomy data.
+"""Builds the heart, eye, brain, lungs, kidneys and stomach GLBs for the artifact templates from open anatomy data.
 
     Blender -b --disable-autoexec <Z-Anatomy/Startup.blend> --python build_anatomy.py -- \
-        <heart|eye> <bp3d_stl_dir> <out.glb> <out_landmarks.json>
+        <heart|eye|brain|lungs|kidneys|stomach> <bp3d_stl_dir> <out.glb> <out_landmarks.json>
 
 Sources (both CC BY-SA, so the GLBs are CC BY-SA 4.0 and the app must show the credit):
 - Z-Anatomy, "The libre 3D atlas of anatomy", CC BY-SA 4.0: https://github.com/Z-Anatomy/Models-of-human-anatomy
@@ -255,7 +255,7 @@ def noise3(p, f):
     return 0.5 + 0.5 * math.sin(p.x * f * 1.7 + math.sin(p.y * f * 2.3)) * math.sin(p.y * f * 1.3 + math.sin(p.z * f * 1.9)) * math.sin(p.z * f * 1.1 + math.sin(p.x * f * 2.9))
 
 
-def finish(centre, rotation, explode, landmarks, xray):
+def finish(centre, rotation, explode, landmarks, xray, narrow=False):
     """Moves everything so centre is the origin, turns it, sets part origins, adds explode empties, exports."""
     report = {"parts": {}, "landmarks": {}}
     to_out = rotation @ Matrix.Translation(-centre)
@@ -267,8 +267,15 @@ def finish(centre, rotation, explode, landmarks, xray):
         c = mean([v.co for v in me.vertices])
         # Anchor for a label's leader line: the front-most point near the part's middle (front = Blender -Y).
         spread = max((v.co - c).length for v in me.vertices)
-        near = [v.co for v in me.vertices if Vector((v.co.x - c.x, 0, v.co.z - c.z)).length < spread * 0.3] or [c]
+        # Copies: v.co follows the mesh, and the mesh moves to its own origin below (an anchor must stay in model space).
+        near = [v.co.copy() for v in me.vertices if Vector((v.co.x - c.x, 0, v.co.z - c.z)).length < spread * 0.3] or [c]
         anchor = min(near, key=lambda q: q.y)
+        if narrow:  # a long or wrapped part (a lung lobe): the front surface straight in front of its centre
+            xs = [v.co.x for v in me.vertices]; zs = [v.co.z for v in me.vertices]
+            wx, wz = (max(xs) - min(xs)) * 0.12, (max(zs) - min(zs)) * 0.12
+            column = [v.co.copy() for v in me.vertices if abs(v.co.x - c.x) < wx and abs(v.co.z - c.z) < wz]
+            if column:
+                anchor = min(column, key=lambda q: q.y)
         me.transform(Matrix.Translation(-c)); o.location = c
         bpy.context.view_layer.objects.active = o
         bpy.ops.object.select_all(action="DESELECT"); o.select_set(True)
@@ -574,11 +581,266 @@ def brain():
     finish(centre, rot, explode, lm, xray)
 
 
-if WHAT == "heart":
-    heart()
-elif WHAT == "eye":
-    eye()
-elif WHAT == "brain":
-    brain()
-else:
-    raise SystemExit("heart, eye or brain")
+# --- lungs, kidneys and stomach ------------------------------------------------------------------------------------
+# BodyParts3D only, except the kidneys' renal pelvis (Z-Anatomy). BodyParts3D is millimetres on Z-Anatomy's axes
+# (patient's left +X, front -Y, up +Z), so MM puts its meshes in the same space. All three face glTF +Z, like the heart.
+MM = Matrix.Scale(0.001, 4)
+MATS.update({
+    "lung_ru": ((0.88, 0.60, 0.60), 0.6, 1, True), "lung_rm": ((0.84, 0.54, 0.57), 0.6, 1, True),
+    "lung_rl": ((0.81, 0.52, 0.53), 0.6, 1, True), "lung_lu": ((0.87, 0.58, 0.61), 0.6, 1, True),
+    "lung_ll": ((0.82, 0.53, 0.55), 0.6, 1, True), "cartilage": ((0.94, 0.89, 0.81), 0.5, 1, True),
+    "bronchi": ((0.92, 0.82, 0.73), 0.5, 1, True),
+    "kidney": ((0.56, 0.21, 0.18), 0.42, 1, True), "renal_pelvis": ((0.94, 0.82, 0.55), 0.5, 1, True),
+    "adrenal": ((0.91, 0.69, 0.31), 0.5, 1, True), "ureter": ((0.92, 0.84, 0.64), 0.45, 1, True),
+    "bladder": ((0.89, 0.71, 0.57), 0.5, 1, True),
+    "fundus": ((0.87, 0.57, 0.52), 0.45, 1, True), "stomach_body": ((0.85, 0.53, 0.49), 0.45, 1, True),
+    "antrum": ((0.82, 0.50, 0.47), 0.45, 1, True), "pylorus": ((0.76, 0.43, 0.41), 0.45, 1, True),
+    "rugae": ((0.94, 0.62, 0.62), 0.55, 1, True), "oesophagus": ((0.86, 0.60, 0.53), 0.45, 1, True),
+    "duodenum": ((0.89, 0.67, 0.55), 0.45, 1, True),
+})
+
+
+def bp3d(fmas, part, islands=30):
+    me = mesh_from_stl(fmas, part, MM)
+    if islands:
+        drop_islands(me, islands)
+    return me
+
+
+def crop_z(me, lo, hi):
+    """Keeps the part of a mesh between heights lo and hi (metres): a vessel cut close to the organ."""
+    bm = bmesh.new(); bm.from_mesh(me)
+    for z, n in ((hi, Vector((0, 0, 1))), (lo, Vector((0, 0, -1)))):
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector((0, 0, z)),
+                               plane_no=n, clear_outer=True)
+    bm.to_mesh(me); bm.free()
+
+
+def verts(part):
+    return [v.co.copy() for v in built[part][0].data.vertices]
+
+
+def box_centre(parts):
+    pts = [p for part in parts for p in verts(part)]
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    return (lo + hi) / 2
+
+
+def along_z(pts, n):
+    """n points down a tube, top to bottom: the mean of each height slice (a path for a tour to follow)."""
+    lo, hi = min(p.z for p in pts), max(p.z for p in pts)
+    out = []
+    for i in range(n):
+        a, b = hi - (hi - lo) * i / n, hi - (hi - lo) * (i + 1) / n
+        band = [p for p in pts if b <= p.z <= a]
+        if band:
+            out.append(mean(band))
+    return out
+
+
+def nearest_to(pts, target):
+    return min(pts, key=lambda q: (q - target).length)
+
+
+def mottle(scale):
+    def colour(part, p):
+        k = 0.9 + 0.1 * noise3(p, scale)
+        return (k, k, k)
+    return colour
+
+
+LUNG_PARTS = [("Right upper lobe", ["FMA7333"], "lung_ru", 11000), ("Right middle lobe", ["FMA7383"], "lung_rm", 7000),
+              ("Right lower lobe", ["FMA7337"], "lung_rl", 12000), ("Left upper lobe", ["FMA7370"], "lung_lu", 12000),
+              ("Left lower lobe", ["FMA7371"], "lung_ll", 12000), ("Trachea", ["FMA7394"], "cartilage", 5000),
+              ("Bronchi", ["FMA7409"], "bronchi", 20000), ("Pulmonary arteries", ["FMA66326"], "pulmonary_artery", 12000),
+              ("Pulmonary veins", ["FMA66643"], "pulmonary_vein", 10000)]
+LOBES = [p for p, *_ in LUNG_PARTS if "lobe" in p]
+
+
+def lungs():
+    for part, fmas, mat, target in LUNG_PARTS:
+        add(part, bp3d(fmas, part), mat, target)
+    centre = box_centre(LOBES)
+    bake_colours(1.0, mottle(300.0), reach=0.015)
+    trachea = verts("Trachea")
+    lm = {"trachea_top": mean([p for p in trachea if p.z > max(q.z for q in trachea) - 0.006]),
+          "carina": mean([p for p in trachea if p.z < min(q.z for q in trachea) + 0.006])}
+    bronchi = verts("Bronchi")
+    car = lm["carina"]
+    for side, sign in (("right", -1), ("left", 1)):  # main bronchi: just below and to each side of the carina
+        near = [p for p in bronchi if sign * (p.x - car.x) > 0.012 and (p - car).length < 0.045 and p.z < car.z]
+        lm[side + "_bronchus"] = mean(near) if near else car + Vector((sign * 0.025, 0, -0.015))
+    for part in LOBES:
+        lm[part] = mean(verts(part))
+
+    def explode(part, c):
+        # Output space: patient's left +X, front -Y, up +Z. Lobes spread sideways and apart; airways and vessels stay.
+        side = 1 if part.startswith("Left") else -1 if part.startswith("Right") else 0
+        if part in LOBES:
+            up = (0.045 if side < 0 else 0.065) if "upper" in part else (-0.045 if side < 0 else -0.06) if "lower" in part else 0.0
+            return Vector((side * 0.07, -0.04 if "middle" in part else 0.0, up))
+        return {"Trachea": Vector((0, 0, 0.05)), "Bronchi": Vector((0, 0, 0)),
+                "Pulmonary arteries": Vector((0, -0.07, 0.03)), "Pulmonary veins": Vector((0, -0.07, -0.04))}[part]
+    finish(centre, Matrix.Identity(4), explode, lm, set(LOBES), narrow=True)
+
+
+KIDNEY_PARTS = [("Left kidney", ["FMA7205"], "kidney", 10000), ("Right kidney", ["FMA7204"], "kidney", 10000),
+                ("Left adrenal gland", ["FMA15630"], "adrenal", 3500), ("Right adrenal gland", ["FMA15629"], "adrenal", 3500),
+                ("Left ureter", ["FMA15572"], "ureter", 2500), ("Right ureter", ["FMA15571"], "ureter", 2500),
+                ("Left renal artery", ["FMA14753"], "aorta", 1500), ("Right renal artery", ["FMA14752"], "aorta", 1800),
+                ("Left renal vein", ["FMA14336"], "vena_cava", 1200), ("Right renal vein", ["FMA14335"], "vena_cava", 1600),
+                ("Urinary bladder", ["FMA15900"], "bladder", 4000)]
+
+
+def kidneys():
+    for part, fmas, mat, target in KIDNEY_PARTS:
+        add(part, bp3d(fmas, part), mat, target)
+    lo_z, hi_z = 0.955, 1.165  # the aorta and vena cava from just below the kidneys to above the adrenal glands
+    for part, fma, mat, target in (("Aorta", "FMA3784", "aorta", 5000), ("Inferior vena cava", "FMA10951", "vena_cava", 4000)):
+        me = bp3d([fma], part, islands=0)
+        crop_z(me, lo_z, hi_z)
+        drop_islands(me, 40)
+        add(part, me, mat, target)
+    # The renal pelvis (the funnel inside each kidney that collects urine) is Z-Anatomy's: fit Z-Anatomy to
+    # BodyParts3D on the kidneys and adrenal glands, then move the pelvis with that fit's inverse.
+    pairs = [(["FMA7205"], ["Kidney.l"]), (["FMA7204"], ["Kidney.r"]), (["FMA15630"], ["Suprarenal gland.l"]),
+             (["FMA15629"], ["Suprarenal gland.r"])]
+    src = [mean(stl_points(a)) * 0.001 for a, _ in pairs]
+    dst = [mean(z_points(b)) for _, b in pairs]
+    M, s, err = fit_similarity(src, dst)
+    print("FIT kidneys scale", round(s, 4), "residual mm", [round(e * 1000, 2) for e in err])
+    for side, name in (("Left", "Renal pelvis.l"), ("Right", "Renal pelvis.r")):
+        me = mesh_from_z([name], side + " renal pelvis")
+        me.transform(M.inverted())
+        add(side + " renal pelvis", me, "renal_pelvis", 1500)
+    centre = box_centre(["Left kidney", "Right kidney", "Urinary bladder", "Left adrenal gland", "Right adrenal gland"])
+    bake_colours(1.0, mottle(400.0), reach=0.012)
+    lm = {}
+    aorta, ivc = verts("Aorta"), verts("Inferior vena cava")
+    for side in ("Left", "Right"):
+        k = side.lower()
+        artery, vein = verts(side + " renal artery"), verts(side + " renal vein")
+        kidney = mean(verts(side + " kidney"))
+        lm["aorta_" + k] = nearest_to(aorta, mean(artery))
+        lm["artery_" + k] = mean(artery)
+        lm["hilum_" + k] = nearest_to(artery, kidney)
+        lm["kidney_" + k] = kidney
+        lm["vein_" + k] = mean(vein)
+        lm["ivc_" + k] = nearest_to(ivc, mean(vein))
+        lm["pelvis_" + k] = mean(verts(side + " renal pelvis"))
+        for i, p in enumerate(along_z(verts(side + " ureter"), 6)):
+            lm[f"ureter_{k}_{i}"] = p
+    lm["aorta_top"] = mean([p for p in aorta if p.z > max(q.z for q in aorta) - 0.005])
+    lm["bladder"] = mean(verts("Urinary bladder"))
+
+    def explode(part, c):
+        side = 1 if part.startswith("Left") else -1 if part.startswith("Right") else 0
+        if part.endswith("kidney"):
+            return Vector((side * 0.07, 0, 0))  # out to the sides: the renal pelvis stays, uncovered
+        if "adrenal" in part:
+            return Vector((side * 0.03, 0, 0.05))
+        if "artery" in part:
+            return Vector((0, -0.04, 0.015))
+        if "vein" in part:
+            return Vector((0, -0.04, -0.015))
+        return {"Urinary bladder": Vector((0, 0, -0.04)), "Aorta": Vector((0.0, 0.03, 0)),
+                "Inferior vena cava": Vector((0.0, 0.03, 0))}.get(part, Vector((side * 0.02, 0, 0)))
+    finish(centre, Matrix.Identity(4), explode, lm, {"Left kidney", "Right kidney", "Urinary bladder"}, narrow=True)
+
+
+STOMACH_REGIONS = [("Fundus", "fundus"), ("Body of stomach", "stomach_body"), ("Pyloric antrum", "antrum"),
+                   ("Pylorus", "pylorus")]
+
+
+def stomach():
+    from mathutils.kdtree import KDTree
+    whole = bp3d(["FMA7148"], "stomach_whole")
+    oes = bp3d(["FMA7131"], "Oesophagus", islands=0)
+    top = max(v.co.z for v in whole.vertices)
+    crop_z(oes, min(v.co.z for v in whole.vertices), top + 0.06)  # its last 6 cm, into the cardia
+    drop_islands(oes, 40)
+    duo = bp3d(["FMA7206"], "Duodenum")
+    # Landmarks for the regions: the cardia (where the oesophagus ends) and the pylorus (where the duodenum starts).
+    o_pts = [v.co.copy() for v in oes.vertices]
+    cardia = mean([p for p in o_pts if p.z < min(q.z for q in o_pts) + 0.006])
+    tree = KDTree(len(whole.vertices))
+    for i, v in enumerate(whole.vertices):
+        tree.insert(v.co, i)
+    tree.balance()
+    d_pts = [v.co.copy() for v in duo.vertices]
+    near = sorted(d_pts, key=lambda p: tree.find(p)[2])[:60]
+    pylorus = mean(near)
+    # The regions, cut with planes like a dissection (clean edges, not a face-by-face split):
+    # - antrum and pylorus: planes square to the stomach's run toward the duodenum, 6.5 and 2.2 cm before it;
+    # - fundus: the dome on the patient's left of the cardia (+X), above a level just under it (the cardiac notch).
+    bm = bmesh.new(); bm.from_mesh(whole)
+    body_c = mean([v.co for v in bm.verts])
+    run = (pylorus - body_c).normalized()
+
+    def half(src, co, no, keep_positive):
+        b = src.copy()
+        bmesh.ops.bisect_plane(b, geom=b.verts[:] + b.edges[:] + b.faces[:], plane_co=co, plane_no=no,
+                               clear_outer=not keep_positive, clear_inner=keep_positive)
+        return b
+    distal = half(bm, pylorus - run * 0.065, run, True)
+    proximal = half(bm, pylorus - run * 0.065, run, False)
+    pieces = {"Pylorus": [half(distal, pylorus - run * 0.022, run, True)],
+              "Pyloric antrum": [half(distal, pylorus - run * 0.022, run, False)]}
+    level = Vector((0, 0, cardia.z - 0.02))
+    upper = half(proximal, level, Vector((0, 0, 1)), True)
+    side = Vector((cardia.x, 0, 0))
+    pieces["Fundus"] = [half(upper, side, Vector((1, 0, 0)), True)]
+    pieces["Body of stomach"] = [half(proximal, level, Vector((0, 0, 1)), False), half(upper, side, Vector((1, 0, 0)), False)]
+    for b in (distal, proximal, upper):
+        b.free()
+    for part, mat in STOMACH_REGIONS:
+        me = bpy.data.meshes.new(part)
+        joined = bmesh.new()
+        for b in pieces[part]:
+            tmp = bpy.data.meshes.new("tmp"); b.to_mesh(tmp); b.free()
+            joined.from_mesh(tmp); bpy.data.meshes.remove(tmp)
+        joined.to_mesh(me); joined.free()
+        drop_islands(me, 20)
+        add(part, me, mat, 8000)
+    # The lining: the wall moved 3 mm inward, with long folds (rugae) running along the stomach, as when it's empty.
+    lin = bm.copy(); bm.free()  # the whole wall, before any cut
+    c0 = mean([v.co for v in lin.verts])
+    outward = sum((v.normal.dot(v.co - c0) for v in lin.verts)) > 0
+    pts = np.array([list(v.co) for v in lin.verts])
+    axis = Vector(np.linalg.svd(pts - pts.mean(0), full_matrices=False)[2][0])
+    ref = axis.orthogonal().normalized(); ref2 = axis.cross(ref)
+    for v in lin.verts:
+        n = v.normal if outward else -v.normal
+        r = v.co - c0
+        ang = math.atan2(r.dot(ref2), r.dot(ref))
+        fold = max(0.0, math.sin(ang * 12 + 2.0 * math.sin(r.dot(axis) * 45))) ** 2
+        v.co -= n * (0.0035 - 0.003 * fold)
+    me = bpy.data.meshes.new("Lining (rugae)"); lin.to_mesh(me); lin.free()
+    add("Lining (rugae)", me, "rugae", 9000)
+    add("Oesophagus", oes, "oesophagus", 2500)
+    add("Duodenum", duo, "duodenum", 6000)
+    centre = box_centre([p for p, _ in STOMACH_REGIONS] + ["Duodenum"])
+    bake_colours(1.0, mottle(350.0), reach=0.01)
+    o = verts("Oesophagus")
+    lm = {"oesophagus_top": mean([p for p in o if p.z > max(q.z for q in o) - 0.005]), "cardia": cardia,
+          "pylorus": pylorus}
+    for part, _ in STOMACH_REGIONS:
+        lm[part] = mean(verts(part))
+    d = verts("Duodenum")
+    lm["duodenum_mid"] = mean(d)
+    lm["duodenum_end"] = max(d, key=lambda p: (p - pylorus).length)
+
+    def explode(part, c):
+        return {"Fundus": Vector((0.03, 0, 0.05)), "Body of stomach": Vector((0.055, -0.02, -0.005)),
+                "Pyloric antrum": Vector((0.01, -0.02, -0.055)), "Pylorus": Vector((-0.04, -0.02, -0.04)),
+                "Duodenum": Vector((-0.07, 0, -0.02)), "Oesophagus": Vector((0, 0, 0.06)),
+                "Lining (rugae)": Vector((0, -0.01, 0))}[part]
+    finish(centre, Matrix.Identity(4), explode, lm, {p for p, _ in STOMACH_REGIONS}, narrow=True)
+
+
+BUILD = {"heart": lambda: heart(), "eye": lambda: eye(), "brain": lambda: brain(), "lungs": lungs, "kidneys": kidneys,
+         "stomach": stomach}
+if WHAT not in BUILD:
+    raise SystemExit("heart, eye, brain, lungs, kidneys or stomach")
+BUILD[WHAT]()
