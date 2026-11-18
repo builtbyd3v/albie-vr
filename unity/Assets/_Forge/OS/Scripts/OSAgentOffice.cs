@@ -12,7 +12,8 @@ namespace Forge.OS
     /// <summary>
     /// An office visualization of the existing crew, not a second agent runtime. Mesh-only portraits share the
     /// crew's identity and pose; no controller, socket, tool, voice or collider is copied. Closing the office never
-    /// cancels a task, moves a live character or changes the roster. Work states come from the hub and agent bridge.
+    /// cancels a task, moves a live character or changes the roster. Work states come from the hub (or, with the hub
+    /// off, Albie's cloud) and the agent bridge.
     /// </summary>
     public sealed class OSAgentOffice : MonoBehaviour
     {
@@ -27,7 +28,7 @@ namespace Forge.OS
         RectTransform roster;
         IDisposable updates;
         JObject build;
-        string selected = "", rosterKey = "";
+        string selected = "", rosterKey = "", trouble;  // trouble: why the builds couldn't be read (the server's words)
         bool pending;
         float nextRefresh, nextPose;
         int stageResourceCount;
@@ -68,7 +69,7 @@ namespace Forge.OS
         public static OSWindow Open()
         {
             if (OSShell.Current == null) return null;
-            return OSShell.Current.Windows.Open(WindowId, "Albie agent office", new Vector2(1.05f, 0.94f), panel =>
+            return OSShell.Current.Windows.Open(WindowId, "Agent office", new Vector2(1.05f, 0.94f), panel =>
             {
                 panel.gameObject.AddComponent<OSAgentOffice>().Init(panel);
             }, "OFFICE");
@@ -81,7 +82,7 @@ namespace Forge.OS
             actions.GetComponent<LayoutElement>().flexibleHeight = 0;
             OSUi.Button(actions, "Project workflow", () => OSWorkflowWindow.Open(), OSButtonStyle.Primary);
             OSUi.Button(actions, "Manage crew", () => OSAgentsWindow.Open());
-            summary = OSUi.Text(column, "Connecting to the existing crew…", OSUi.BodyText);
+            summary = OSUi.Text(column, "Looking for the crew…", OSUi.BodyText);
             summary.richText = false;
             var viewport = new GameObject("Live office viewport", typeof(RectTransform), typeof(RawImage), typeof(LayoutElement));
             viewport.transform.SetParent(column, false);
@@ -180,7 +181,7 @@ namespace Forge.OS
                 string id = desks[i].id;
                 OSUi.Button(row, desks[i].name, () => selected = id);
             }
-            if (desks.Count == 0) OSUi.Text(roster, "Open Main and use Manage crew to hatch your existing agent types.", OSUi.SmallText, true);
+            if (desks.Count == 0) OSUi.Text(roster, "No agents here yet. Tap Manage crew to hatch one.", OSUi.SmallText, true);
         }
 
         void AddDesk(string id, string displayName, Color color, AlbieController source)
@@ -275,14 +276,15 @@ namespace Forge.OS
 
         void RefreshBuild()
         {
-            if (pending || ForgeNet.Status != ForgeNetStatus.Live) return;
+            // The hub when it is live, else Albie's cloud (ForgeCloud routes /agent/ there).
+            if (pending || !OSWorkflowWindow.Served) return;
             pending = true;
-            ForgeNet.Get("/agent/builds", text =>
+            ForgeNet.Get(OSWorkflowWindow.BuildsPath, text =>
             {
                 if (this == null) return;
-                pending = false;
+                pending = false; trouble = null;
                 var list = JArray.Parse(text); build = list.Count > 0 ? list[0] as JObject : null;
-            }, _ => { if (this != null) pending = false; });
+            }, error => { if (this != null) { pending = false; trouble = OSWorkflowWindow.Reason(error); } });
         }
 
         void Update()
@@ -294,31 +296,46 @@ namespace Forge.OS
             }
             bool pose = Time.unscaledTime >= nextPose;
             if (pose) nextPose = Time.unscaledTime + .15f;
-            bool live = ForgeNet.Status == ForgeNetStatus.Live;
-            summary.text = !live ? "Hub disconnected · showing crew visuals; task status may be stale"
-                : build == null ? "Existing crew · no project workflow yet"
-                : ((bool?)build["demo"] == true ? "SCRIPTED DEMO · " : "") + (string)build["title"] + " · " + WorkflowState;
-            if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nTemporary avatars · original Albie body asset is missing";
+            bool live = OSWorkflowWindow.Served;  // the hub, or Albie's cloud with the hub off
+            // The words change a few times a second at most, so they are written on the pose tick, not every frame.
+            if (pose)
+            {
+                string line = !live ? OSWorkflowWindow.Unreachable()
+                    : trouble != null ? trouble
+                    : build == null ? "No project workflow yet"
+                    : ((bool?)build["demo"] == true ? "Scripted sample · " : "") + (string)build["title"] + " · " + WorkflowState.Replace('_', ' ');
+                if (desks.Exists(d => d.portrait.fallback)) line += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
+                if (summary.text != line) summary.text = line;
+            }
             foreach (var d in desks)
             {
-                d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";
-                d.task = "No workflow step assigned. Use Project workflow or Manage crew.";
-                if (build?["steps"] is JArray steps)
-                    foreach (var step in steps)
-                        if ((string)step["type"] == d.id)
-                        {
-                            d.state = (string)step["state"] ?? "idle";
-                            d.task = (string)step[(d.state == "running") ? "progress" : "summary"];
-                            if (string.IsNullOrEmpty(d.task)) d.task = (string)step["task"] ?? "";
-                            // A later queued step for the same role must not hide a running one.
-                            if (d.state == "running") break;
-                        }
-                if (d.id == "albie") { d.state = live ? "coordinating" : "offline"; d.task = "Albie coordinates the crew. Plan and publication approvals stay in Project workflow."; }
+                if (pose)
+                {
+                    d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";
+                    d.task = "No workflow step assigned. Use Project workflow or Manage crew.";
+                    if (build?["steps"] is JArray steps)
+                        foreach (var step in steps)
+                            if ((string)step["type"] == d.id)
+                            {
+                                d.state = (string)step["state"] ?? "idle";
+                                d.task = (string)step[(d.state == "running") ? "progress" : "summary"];
+                                if (string.IsNullOrEmpty(d.task)) d.task = (string)step["task"] ?? "";
+                                // A later queued step for the same role must not hide a running one.
+                                if (d.state == "running") break;
+                            }
+                    if (d.id == "albie") { d.state = live ? "coordinating" : "offline"; d.task = "Albie coordinates the crew. Plan and publication approvals stay in Project workflow."; }
+                    string label = d.name + " / " + (live ? d.state : "offline");
+                    if (d.label.text != label) d.label.text = label;
+                    if (d.id == selected)
+                    {
+                        string about = d.name + " · " + (live ? d.state : "offline") + "\n" + d.task;
+                        if (detail.text != about) detail.text = about;
+                    }
+                }
                 bool busy = live && (d.state == "running" || d.state == "working");
                 Color light = d.state == "failed" ? new Color(1f, .24f, .22f) : d.state == "done" ? new Color(.35f, .88f, .6f) : d.color;
                 if (!live) light = Color.gray;
                 d.monitor.sharedMaterial.color = light * (busy ? .8f + Mathf.Sin(Time.unscaledTime * 4f) * .18f : .45f);
-                d.label.text = d.name + " / " + (live ? d.state : "offline");
                 d.label.transform.rotation = officeCamera.transform.rotation;
                 // Visual-only motion: work at the desk, otherwise take a small idle walk on that station's rug.
                 Vector3 destination = d.seat + (busy ? Vector3.zero : new Vector3(Mathf.Sin(Time.unscaledTime * .45f + d.root.localPosition.x) * .08f, 0, -.04f));
@@ -332,7 +349,6 @@ namespace Forge.OS
                         part.target.localScale = matrix.lossyScale;
                         if (part.skinned) ((SkinnedMeshRenderer)part.source).BakeMesh(part.mesh);
                     }
-                if (d.id == selected) detail.text = d.name + " · " + (live ? d.state : "offline") + "\n" + d.task;
             }
         }
 

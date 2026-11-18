@@ -68,7 +68,7 @@ namespace Forge.Pet
         {
             if (IsListening) return;
             ResolveClient();
-            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now"); return; }  // the caption shows this
+            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now."); return; }  // the caption shows this
             if (!IsMonitoring && !StartMic()) return;
 
             var start = new JObject { ["pet_id"] = petId, ["sample_rate"] = TargetRate, ["encoding"] = "pcm16" };
@@ -106,14 +106,14 @@ namespace Forge.Pet
 
         bool StartMic()
         {
-            if (Microphone.devices == null || Microphone.devices.Length == 0) { Error?.Invoke("no microphone"); return false; }
+            if (Microphone.devices == null || Microphone.devices.Length == 0) { Error?.Invoke("I can't find a microphone."); return false; }
             MicNeeded?.Invoke();                       // an always-on WakeListener lets go of the mic first
 
             // Ask for 16 kHz; some devices only offer other rates, so we resample on the fly.
             Microphone.GetDeviceCaps(null, out int minF, out int maxF);
             int rate = (minF == 0 && maxF == 0) ? TargetRate : Mathf.Clamp(TargetRate, minF, maxF);
             _clip = Microphone.Start(null, true, Mathf.Max(1, ringSeconds), rate);
-            if (_clip == null) { Error?.Invoke("microphone failed to start"); return false; }
+            if (_clip == null) { Error?.Invoke("My microphone didn't start."); return false; }
 
             _clipSamples = _clip.samples;
             _chunkIn = Mathf.Max(1, Mathf.RoundToInt(_clip.frequency * sendInterval));

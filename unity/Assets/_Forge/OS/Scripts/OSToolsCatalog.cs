@@ -120,7 +120,9 @@ namespace Forge.OS
             // Nothing in Main shows the controller brain panel, so the OS does: as a window of its own, beside the ML desk,
             // whenever a brain truck is running (OSProjects.LiveLoop is the SlalomBrain that ArtifactBootstrap.EnsureBrain spawns).
             if (OSProjects.LiveLoop != null) OpenBrain();
-            else if (OSShell.Current != null) OSShell.Current.Windows.Open("train_help", "Learn to drive", new Vector2(0.48f, 0.28f), BuildTrainHelp);
+            // The hint about the slalom is for the truck project only: the classifier and the other projects train on the ML desk.
+            else if (OSShell.Current != null && (!Forge.Notebook.NotebookStore.IsOpen || OSProjects.KindOf(Forge.Notebook.NotebookStore.ProjectId) == OSProjectKind.Truck))
+                OSShell.Current.Windows.Open("train_help", "Learn to drive", new Vector2(0.48f, 0.28f), BuildTrainHelp);
         }
 
         static void BuildTrainHelp(ForgePanel panel)

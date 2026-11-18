@@ -62,6 +62,8 @@ public static class FirstRunCheck
             failed += Step(sb, "Text readable at 1 m", () => Readable(w));
             failed += Step(sb, "Got it shrinks it into the ? dot", () => GotIt(w));
             failed += Step(sb, "Reopen works (dot tap and help_show)", () => Reopen(w));
+            failed += Step(sb, "Onboarding pages: Next, Back, Skip", () => Paging(w));
+            failed += Step(sb, "Every page fits the card", () => PagesFit(w));
             failed += Step(sb, "Drive button before a truck", () => BrainNeedsTruck(w));
             failed += Step(sb, "Try button with no tool says the phrase", () => NoToolSaysPhrase(w));
             failed += Step(sb, "OnResumed text", () => Resumed(w));
@@ -115,8 +117,13 @@ public static class FirstRunCheck
         {
             FirstRunGuide.GreetingLine, FirstRunGuide.WelcomeLine, FirstRunGuide.CardLine, FirstRunGuide.TalkLine,
             FirstRunGuide.TryLine, FirstRunGuide.DriveHint, FirstRunGuide.NeedSlalom, FirstRunGuide.FirstHint,
+            FirstRunGuide.SamplesLine, FirstRunGuide.SamplesTapLine, FirstRunGuide.LoopLine, FirstRunGuide.LoopNote,
+            FirstRunGuide.OwnLine, FirstRunGuide.OwnSay, FirstRunGuide.OwnNote,
         };
-        foreach (var t in FirstRunGuide.Tries) { copy.Add(t.label); copy.Add(t.done); }
+        copy.AddRange(FirstRunGuide.Pages);
+        copy.AddRange(FirstRunGuide.PageSays);
+        copy.AddRange(FirstRunGuide.LoopSteps);
+        foreach (var t in AllButtons()) { copy.Add(t.label); copy.Add(t.done); copy.Add(t.phrase); }
         foreach (string line in copy)
             foreach (string brand in Brands)
                 Expect(!System.Text.RegularExpressions.Regex.IsMatch(line.ToLowerInvariant(), "\\b" + brand + "\\b"), $"\"{brand}\" in \"{line}\"");  // whole words: "quest" is not in "question"
@@ -140,7 +147,7 @@ public static class FirstRunCheck
         foreach (var asset in Resources.LoadAll<TextAsset>("AlbieTools"))
             foreach (JObject def in JArray.Parse(asset.text)) defs[(string)def["name"]] = def;
         var parts = new List<string>();
-        foreach (var t in FirstRunGuide.Tries)
+        foreach (var t in AllButtons())
         {
             Expect(defs.TryGetValue(t.tool, out var def), $"\"{t.label}\": no tool {t.tool} in any Resources/AlbieTools json");
             var args = JObject.Parse(t.argsJson);
@@ -155,6 +162,72 @@ public static class FirstRunCheck
             parts.Add(t.label + " -> " + t.tool + " " + t.argsJson);
         }
         return string.Join("; ", parts);
+    }
+
+    // Every button on the card that runs a tool: the three tries, the four samples, the truck's loop, Build something.
+    static List<FirstRunGuide.Try> AllButtons()
+    {
+        var all = new List<FirstRunGuide.Try>(FirstRunGuide.Tries);
+        all.AddRange(FirstRunGuide.Samples);
+        all.Add(FirstRunGuide.LoopTry);
+        all.Add(FirstRunGuide.OwnTry);
+        return all;
+    }
+
+    static string Paging(World w)
+    {
+        w.guide.Reopen();
+        Expect(w.guide.CardShown && w.guide.Page == 0, "the card should open on page 1 (page " + w.guide.Page + ")");
+        Expect(FirstRunGuide.Samples.Length == 4, FirstRunGuide.Samples.Length + " sample buttons, expected 4");
+        Press(w, "Next");
+        Expect(w.guide.Page == 1 && w.guide.CardShown, "Next didn't go to page 2");
+        Expect(FirstRunGuide.LastSaid == FirstRunGuide.PageSays[1], "said: " + FirstRunGuide.LastSaid);
+        Expect(w.guide.Card.Subtitle.StartsWith("2 of 4", StringComparison.Ordinal), "subtitle: " + w.guide.Card.Subtitle);
+        Press(w, "Next");
+        Press(w, "Next");
+        Expect(w.guide.Page == 3, "three Nexts didn't reach page 4 (page " + w.guide.Page + ")");
+        Press(w, "Back");
+        Expect(w.guide.Page == 2, "Back didn't go to page 3");
+        Press(w, "Skip");
+        Expect(!w.guide.CardShown && w.guide.OrbShown, "Skip didn't fold the card into the dot");
+        string sample = "";
+        if (!Application.isPlaying)
+        {
+            w.guide.Reopen();
+            w.guide.ShowPage(1);
+            Press(w, FirstRunGuide.Samples[0].label);
+            sample = FirstRunGuide.LastSaid;
+            Expect(sample == "Say \"" + FirstRunGuide.Samples[0].phrase + "\" and I'll do it.", "a sample button with no tool said: " + sample);
+        }
+        w.guide.Reopen();
+        Expect(w.guide.Page == 0, "reopening should start on page 1");
+        return "Next, Back and Skip work; reopen starts on page 1" + (sample.Length > 0 ? "; sample button: \"" + sample + "\"" : "");
+    }
+
+    // Each page's lines and buttons sit inside the card, above the bottom row of Next / Back / Skip.
+    static string PagesFit(World w)
+    {
+        RectTransform content = w.guide.Card.Content;
+        float height = content.rect.height, width = content.rect.width;
+        Expect(height > 0f && width > 0f, "the card's content has no size");
+        float limit = height - 36f - 6f;
+        float lowest = 0f;
+        string worst = "";
+        for (int i = 0; i < content.childCount; i++)
+        {
+            Transform pageT = content.GetChild(i);
+            if (!pageT.name.StartsWith("Page", StringComparison.Ordinal)) continue;
+            for (int j = 0; j < pageT.childCount; j++)
+            {
+                var rt = (RectTransform)pageT.GetChild(j);
+                float bottom = -rt.anchoredPosition.y + rt.sizeDelta.y;
+                if (bottom > lowest) { lowest = bottom; worst = pageT.name + "/" + rt.name; }
+                Expect(bottom <= limit, pageT.name + ": '" + rt.name + "' ends " + bottom.ToString("0") + " mm down, past the buttons at " + limit.ToString("0"));
+                var pill = rt.GetComponent<ForgePill>();
+                if (pill != null) Expect(rt.sizeDelta.x <= width - 8f, pageT.name + ": '" + rt.name + "' is " + rt.sizeDelta.x.ToString("0") + " mm wide, the card " + width.ToString("0"));
+            }
+        }
+        return "lowest item " + lowest.ToString("0") + " of " + limit.ToString("0") + " mm (" + worst + ")";
     }
 
     static string ShownOnce(World w)

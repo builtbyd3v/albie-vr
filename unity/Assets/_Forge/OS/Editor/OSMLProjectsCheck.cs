@@ -44,7 +44,8 @@ namespace Forge.OS.Editor
                 var tiles = new List<OSEntry>();
                 OSRegistry.Fill(OSTab.Projects, tiles);
                 var byId = new Dictionary<string, OSEntry>();
-                foreach (var t in tiles) if (t.section == OSMLProjects.Section) byId[t.id] = t;
+                // The section also holds the ML projects saved on the headset (OSProjects): count the cloud's tiles only.
+                foreach (var t in tiles) if (t.section == OSMLProjects.Section && t.id.StartsWith("ml_", System.StringComparison.Ordinal)) byId[t.id] = t;
 
                 Check(byId.Count == 4 + 3 + 1, $"four projects, three starters and Import from GitHub ({byId.Count} tiles)");
                 Check(Status(byId, "ml_project:hf-imdb-1117") == "87.4% · built by Albie", "a built project shows its score");
@@ -56,7 +57,7 @@ namespace Forge.OS.Editor
                 {
                     Check(byId.TryGetValue(id, out var tile) && tile.outline, id + " is a new-style tile");
                     // No hub and no cloud in this check: the starters say so rather than offering to build.
-                    Check(tile != null && tile.status() == OSProjects.NeedsCloud, id + " says it needs the cloud when offline");
+                    Check(tile != null && tile.status() == OSMLProjects.NeedsCloudShort, id + " says it needs the cloud when offline");
                 }
             }
             finally

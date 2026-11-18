@@ -7,20 +7,76 @@ using UnityEngine.UI;
 
 namespace Forge.OS
 {
-    /// <summary>The live coding workflow: plan, crew progress, tests, paged diff and explicit publication.</summary>
+    /// <summary>The live coding workflow: plan, crew progress, tests, paged diff and explicit publication. The builds
+    /// come from the hub when it is live, else from Albie's cloud (<see cref="ForgeCloud"/> routes /agent/ there);
+    /// while neither answers, the window stays and says why.</summary>
     public sealed class OSWorkflowWindow : MonoBehaviour
     {
         public const string WindowId = "workflow";
+        internal const string BuildsPath = "/agent/builds";
+        const string PetId = "bit";
+        const string WakingLine = CloudHealth.WakingStatus + " Builds start when it's awake.";
+        const string OfflineLine = CloudHealth.OfflineStatus + " Builds start when it's back.";
         ForgePanel panel;
         JObject current, review;
         IDisposable updates;
         string tab = "plan", notice = "", goal = "", repo = "";
         int page;
-        bool pending;
+        bool pending, wasServed, pollFailed;
         float nextPoll;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        public static void Register() => OSShell.RegisterSystem(WindowId, () => Open());
+        public static void Register()
+        {
+            OSShell.RegisterSystem(WindowId, () => Open());
+            AlbieCards.Register("build:", TapCard);  // hub off: the buttons on Albie's plan and "built" cards
+        }
+
+        /// <summary>The hub or Albie's cloud serves the builds right now.</summary>
+        internal static bool Served => ForgeCloud.Serves(BuildsPath);
+
+        /// <summary>Why there are no builds right now, in one line: the cloud is waking or offline, or nothing is set up.</summary>
+        internal static string Unreachable()
+        {
+            if (ForgeNet.Status == ForgeNetStatus.Connecting || !ForgeCloud.Probed) return "Looking for Albie's cloud…";
+            if (ForgeCloud.State == CloudState.Waking) return WakingLine;
+            if (ForgeCloud.State == CloudState.Offline) return OfflineLine;
+            return ForgeCloud.Configured ? "Albie's cloud isn't answering yet. Builds start when it does."
+                : "Connect the Albie hub to build a project with Claude.";
+        }
+
+        /// <summary>The reason inside a failed request ("503 ... {"detail": "..."}"), as the server worded it.</summary>
+        internal static string Reason(string error)
+        {
+            if (string.IsNullOrEmpty(error)) return "That didn't work. Try again.";
+            int brace = error.IndexOf('{');
+            if (brace >= 0)
+            {
+                try
+                {
+                    var body = JObject.Parse(error.Substring(brace));
+                    var detail = body["detail"] ?? body["error"];
+                    if (detail != null && detail.Type == JTokenType.String) return (string)detail;
+                }
+                catch (Newtonsoft.Json.JsonException) { }
+            }
+            return (ForgeNet.Status == ForgeNetStatus.Live ? "The hub" : "Albie's cloud") + " couldn't complete that action: " + error;
+        }
+
+        // build:approve:<id>, build:cancel:<id>, build:ship:<id> (the user tapped Open pull request), build:later:<id>.
+        // Hub live: the hub handles the tap itself (AlbieFixCard only asks here with the hub off).
+        static bool TapCard(string actionId)
+        {
+            if (!ForgeCloud.Routes(BuildsPath)) return false;
+            string[] parts = actionId.Split(':');
+            if (parts.Length < 3) return false;
+            string verb = parts[1];
+            if (verb == "later") return true;
+            if (verb != "approve" && verb != "cancel" && verb != "ship") return false;
+            ForgeNet.Post(BuildsPath + "/" + parts[2] + "/" + verb, new { confirm = true }, null,
+                error => ForgeNet.Inject("pet.say", new JObject { ["pet_id"] = PetId, ["text"] = Reason(error) }));
+            return true;
+        }
 
         public static OSWindow Open()
         {
@@ -36,6 +92,8 @@ namespace Forge.OS
                     view.current = (JObject)value.DeepClone();
                     if (view.tab != "new") view.Render();
                 }, true);
+                ForgeCloud.Ask();  // a sleeping cloud is checked again now, and Albie says when it's awake
+                view.wasServed = Served;
                 view.Render();
                 view.Refresh();
             }, "WORKFLOW");
@@ -45,48 +103,67 @@ namespace Forge.OS
 
         void Update()
         {
-            if (tab == "new" && ForgeNet.Status == ForgeNetStatus.Live && notice.StartsWith("Connect the Albie hub", StringComparison.Ordinal))
-            {
-                notice = "";
-                Render();
-            }
-            if (Time.unscaledTime < nextPoll || pending || tab == "new") return;
+            if (Time.unscaledTime < nextPoll || pending) return;
             nextPoll = Time.unscaledTime + 3f;
-            Refresh();
+            bool served = Served;
+            if (served != wasServed)
+            {
+                wasServed = served;
+                if (served) notice = "";
+                if (tab == "new") Render();  // the Create button follows it
+            }
+            if (!served) ShowUnreachable();
+            else if (tab != "new") Refresh();
+        }
+
+        // Neither the hub nor the cloud has the builds: say which, once per change (the window is not rebuilt each poll).
+        void ShowUnreachable()
+        {
+            string line = Unreachable();
+            if (line == notice) return;
+            notice = line;
+            Render();
         }
 
         void Refresh()
         {
-            if (ForgeNet.Status != ForgeNetStatus.Live)
+            if (!Served)
             {
-                notice = "Connect the Albie hub to build a project with Claude.";
-                Render();
+                ShowUnreachable();
                 return;
             }
             pending = true;
-            ForgeNet.Get("/agent/builds", text =>
+            ForgeNet.Get(BuildsPath, text =>
             {
                 if (this == null) return;
                 pending = false;
+                if (pollFailed) { pollFailed = false; notice = ""; }
                 var all = JArray.Parse(text);
                 current = all.Count > 0 ? all[0] as JObject : null;
                 if (tab != "new") Render();
-            }, Failed);
+            }, error =>
+            {
+                pollFailed = true;  // e.g. the cloud has no Claude key: its own sentence, until a poll works again
+                Failed(error);
+            });
         }
 
         void Failed(string error)
         {
             if (this == null) return;
             pending = false;
-            notice = "The hub couldn't complete that action: " + error;
+            string line = Reason(error);
+            if (line == notice) return;
+            notice = line;
             Render();
         }
 
         void Act(string action)
         {
             if (pending || current == null) return;
+            if (!Served) { ShowUnreachable(); return; }
             pending = true;
-            ForgeNet.Post("/agent/builds/" + (string)current["id"] + "/" + action, new { confirm = true }, _ =>
+            ForgeNet.Post(BuildsPath + "/" + (string)current["id"] + "/" + action, new { confirm = true }, _ =>
             {
                 if (this == null) return;
                 pending = false;
@@ -98,8 +175,9 @@ namespace Forge.OS
         void LoadReview()
         {
             if (pending || current == null) return;
+            if (!Served) { ShowUnreachable(); return; }
             pending = true;
-            ForgeNet.Get("/agent/builds/" + (string)current["id"] + "/review", text =>
+            ForgeNet.Get(BuildsPath + "/" + (string)current["id"] + "/review", text =>
             {
                 if (this == null) return;
                 pending = false;
@@ -131,17 +209,18 @@ namespace Forge.OS
             if (tab == "new") { NewTask(column); FixLayout(body); return; }
             if (current == null)
             {
+                panel.Subtitle = "";
                 Line(column, "No project workflow yet. Tap New task, or ask Albie to build a project.");
                 Line(column, notice, true);
                 FixLayout(body);
                 return;
             }
-            string state = (string)current["state"];
-            panel.Subtitle = state + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
+            string state = (string)current["state"] ?? "";
+            panel.Subtitle = state.Replace('_', ' ') + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
             Line(column, (string)current["title"] ?? (string)current["goal"]);
             Line(column, (bool?)current["demo"] == true
-                ? "Fixed scripted sample · no API keys · GitHub publishing disabled"
-                : (string)current["repo"] ?? "Local project; configure BUILD_REPO to publish it.", true);
+                ? "Scripted sample · runs without API keys · publishing is off"
+                : (string)current["repo"] ?? "No GitHub repository is set, so the project is kept but can't be published.", true);
             if (tab == "changes")
             {
                 string diff = (string)review?["diff"] ?? "No committed diff yet.";
@@ -153,7 +232,7 @@ namespace Forge.OS
                 for (int i = page * 12; i < Mathf.Min(lines.Length, page * 12 + 12); i++)
                     chunk.AppendLine(lines[i].Length > 100 ? lines[i].Substring(0, 100) + "…" : lines[i]);
                 Line(column, diff.Length > 0 ? chunk.ToString() : "No changes yet.");
-                Line(column, "Long lines are shortened here. The full diff is available on the hub's build page.", true);
+                Line(column, "Long lines are shortened here.", true);
                 var pager = OSUi.Row(column, OSUi.ButtonHeight);
                 OSUi.Button(pager, "Previous", () => { page--; Render(); });
                 Line(pager, (page + 1) + " / " + pages, true);
@@ -183,11 +262,13 @@ namespace Forge.OS
             }
             else
             {
-                foreach (var step in (JArray)current["steps"])
+                var steps = current["steps"] as JArray;
+                if (steps == null || steps.Count == 0) Line(column, "No steps planned yet.", true);
+                else foreach (var step in steps)
                 {
-                    Line(column, (string)step["agent"] + " · " + (string)step["state"]);
+                    Line(column, (string)step["agent"] + " · " + ((string)step["state"] ?? "").Replace('_', ' '));
                     string detail = (string)step[((string)step["state"] == "running") ? "progress" : "summary"];
-                    if (string.IsNullOrEmpty(detail)) detail = (string)step["task"];
+                    if (string.IsNullOrEmpty(detail)) detail = (string)step["task"] ?? "";
                     Line(column, detail.Length > 150 ? detail.Substring(0, 150) + "…" : detail, true);
                 }
             }
@@ -226,12 +307,13 @@ namespace Forge.OS
             Line(column, "What should Albie's crew build or fix?");
             Input(column, goal, "Describe the project or change", value => goal = value);
             Line(column, "GitHub repository (optional owner/repo)", true);
-            Input(column, repo, "Leave blank to use the hub's configured destination", value => repo = value);
+            Input(column, repo, "Leave blank to use Albie's own repository", value => repo = value);
             var create = OSUi.Button(column, "Create implementation plan", () =>
             {
                 if (pending || string.IsNullOrWhiteSpace(goal)) return;
+                if (!Served) { ShowUnreachable(); return; }  // in mock mode a POST "succeeds" with {}
                 pending = true;
-                ForgeNet.Post("/agent/builds", new { goal, repo = string.IsNullOrWhiteSpace(repo) ? null : repo.Trim() }, text =>
+                ForgeNet.Post(BuildsPath, new { goal, repo = string.IsNullOrWhiteSpace(repo) ? null : repo.Trim() }, text =>
                 {
                     if (this == null) return;
                     pending = false;
@@ -241,7 +323,7 @@ namespace Forge.OS
                     Render();
                 }, Failed);
             }, OSButtonStyle.Primary);
-            if (create != null) create.interactable = ForgeNet.Status == ForgeNetStatus.Live && !pending;
+            if (create != null) create.interactable = Served && !pending;
             Line(column, "Albie proposes a plan first. You approve implementation and publication separately.", true);
             Line(column, notice, true);
         }

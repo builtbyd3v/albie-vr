@@ -9,8 +9,8 @@ public class DeskSandboxKeys : MonoBehaviour
 {
     static readonly string[] Notes =
     {
-        "Ask Adrian about Albie's jump timing", "Push the demo build by 3", "Re-record the fallback ML run",
-        "Try the timer dot in the simulator",
+        "Charge the truck battery", "Try a wider gap between the slalom cones", "Retrain the Autopilot at 2 m/s",
+        "Order spare propellers",
     };
 
     int next;

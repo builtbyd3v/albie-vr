@@ -17,8 +17,9 @@ namespace Forge.OS
     /// come from <see cref="OSPlanner"/>; each is a card (an OS window, id "build") with two to four tappable answers, and
     /// "Something else" (say it in your own words) only while the voice is live. The plan card has Start (primary), Change
     /// (back to the first question, keeping nothing) and Cancel. NOTHING is created or written before Start: no
-    /// notebook call, no folder. Cancel and closing the window leave no files. Start makes the truck's project
-    /// (<c>proj_truck</c>) or a new one (<c>proj_my_drone</c> and so on), saves the plan with
+    /// notebook call, no folder. Cancel and closing the window leave no files. Start fills the matching starter project
+    /// (<c>proj_truck</c>, <c>proj_quadcopter</c>, <c>proj_rocket</c>, <c>proj_classifier</c>: <see cref="OSProjects.StarterFor"/>)
+    /// or, for "something else", a new one (<c>proj_my_project</c> and so on), saves the plan with
     /// <see cref="NotebookStore.RevisePlan"/> (the answers go in as its reason, and the parts and answers are added to the
     /// saved plan), opens the Project window and offers its first step there.
     /// With the voice live (<see cref="VoiceLive"/>) Albie says each question and a spoken answer that matches a choice
@@ -240,7 +241,8 @@ namespace Forge.OS
             }
 
             string previous = NotebookStore.IsOpen ? NotebookStore.ProjectId : null;
-            string id = plan.IsTruck ? NotebookStore.DefaultProject : NewProjectId(plan);
+            // The truck, the drone, the rocket and the model fill their starter project; only "something else" gets a new one.
+            string id = OSProjects.StarterFor(plan.kind) ?? NewProjectId(plan);
             // Whether the project's folder is already there, so a failed Start removes only what this Start made.
             string folder = ProjectFolder(id);
             bool existed = Directory.Exists(folder);
@@ -505,7 +507,7 @@ namespace Forge.OS
             return list;
         }
 
-        // proj_<name>, the naming the notebook and the Projects tab already use: "proj_my_drone", then "proj_my_drone_2".
+        // proj_<name>, the naming the notebook and the Projects tab already use: "proj_my_project", then "proj_my_project_2".
         // An id is taken when a folder has it, when it is a built-in starter or when it is the open project.
         static string NewProjectId(OSPlanner.Plan plan)
         {
@@ -539,6 +541,7 @@ namespace Forge.OS
                 for (int i = 0; i < plan.answers.Count; i++)
                     answers.Add(new JObject { ["question"] = plan.questions[i], ["answer"] = plan.answers[i] });
                 saved["answers"] = answers;
+                if (!string.IsNullOrEmpty(plan.course)) saved["course"] = plan.course;  // the project window's Course step makes this one
                 string path = Path.Combine(NotebookStore.ProjectFolder, "plans", "plan_v" + version.ToString("0000") + ".json");
                 NotebookFiles.Write(path, saved.ToString(Formatting.Indented));
             }
