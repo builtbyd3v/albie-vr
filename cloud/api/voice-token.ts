@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     headers: { Authorization: `Bearer ${process.env.XAI_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ expires_after: { seconds: 300 } }),
   });
-  if (!answer.ok) return Response.json({ error: `xAI answered ${answer.status}` }, { status: 502 });
+  if (!answer.ok) return Response.json({ error: `voice provider answered ${answer.status}` }, { status: 502 });
   const { value, expires_at } = await answer.json();
   return Response.json({ value, expires_at });
 }

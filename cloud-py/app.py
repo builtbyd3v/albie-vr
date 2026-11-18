@@ -195,13 +195,13 @@ def copy_template(dest: Path) -> None:
 
 
 def no_llm(*_: Any, **__: Any) -> LLMResult:
-    raise LLMError("no Claude in the cloud for project setup")
+    raise LLMError("no coding agent in the cloud for project setup")
 
 
 def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float = 60.0, effort: str = "medium") -> LLMResult:
     """ml/setup/llm.complete_json through the Vercel Claude proxy (its key never reaches this machine)."""
     if not CLAUDE_PROXY_URL:
-        raise LLMError("no Claude proxy set (CLAUDE_PROXY_URL)")
+        raise LLMError("no coding agent proxy set (CLAUDE_PROXY_URL)")
     body = {"model": "claude-sonnet-5-5", "max_tokens": 4096, "system": system, "messages": messages,
             "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": schema}}}
     request = urllib.request.Request(CLAUDE_PROXY_URL, data=json.dumps(body, default=lambda o: o.model_dump()).encode(),
@@ -211,19 +211,19 @@ def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float
         with urllib.request.urlopen(request, timeout=timeout) as answer:
             message = json.loads(answer.read())
     except Exception as e:  # noqa: BLE001 - any failure means: use the scripted change
-        raise LLMError(f"Claude proxy: {e}") from e
+        raise LLMError(f"coding agent proxy: {e}") from e
     if message.get("stop_reason") == "max_tokens":
         # The proxy caps answers at 4096 tokens; adapting a whole repo needs far more (ml/setup/llm.py allows 64000).
-        raise LLMError("Claude's answer was cut off: setting up a GitHub repo needs the cloud's own Claude key "
+        raise LLMError("the coding agent's answer was cut off: setting up a repo needs the cloud's own model key "
                        "(the Space's ANTHROPIC_API_KEY secret, from ALBIE_ANTHROPIC_API_KEY when it deploys), "
                        "not the shared proxy")
     if message.get("stop_reason") == "refusal":
-        raise LLMError("Claude declined this request")
+        raise LLMError("the coding agent declined this request")
     text = next((b.get("text") for b in message.get("content", []) if b.get("type") == "text"), None)
     try:
         return LLMResult(data=json.loads(text or ""), content=message.get("content", []), usage=message.get("usage", {}))
     except ValueError as e:
-        raise LLMError("Claude's reply wasn't JSON") from e
+        raise LLMError("the coding agent's reply wasn't JSON") from e
 
 
 def cloud_llm():
@@ -311,7 +311,7 @@ class Device:
                                             root=DATA / "devices" / self.id / "builds")
         if name == "build_start":
             if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAKE_AGENT") != "1":
-                return {"error": "the crew can't think yet: Albie's cloud has no Claude key (the Space's "
+                return {"error": "the crew can't think yet: Albie's cloud has no model key (the Space's "
                                  "ANTHROPIC_API_KEY secret)"}
             if any(d.building() for d in DEVICES.values() if d is not self):
                 return {"error": "the build machine is busy with someone else's project; try again in a few minutes"}
