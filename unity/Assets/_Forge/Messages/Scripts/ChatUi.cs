@@ -91,7 +91,7 @@ public static class ChatUi
 
     public const float Title = MessagesLook.Title, Name = MessagesLook.Name, Body = MessagesLook.Body, Small = MessagesLook.Small,
         Overline = MessagesLook.Overline, Time = MessagesLook.Time, Pill = MessagesLook.Pill;
-    public const float CardCorner = 14f, RowCorner = 10f;
+    public const float CardCorner = ForgeTheme.RadiusCardMm, RowCorner = ForgeTheme.RadiusControlMm;  // design system radii (14, 10 mm)
 
     // ---- Rects ----
 

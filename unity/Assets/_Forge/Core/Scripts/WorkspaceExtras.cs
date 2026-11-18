@@ -159,12 +159,21 @@ public class WorkspaceExtras : MonoBehaviour
 
     // ---------------------------------------------------------------- the panel
 
+    // The X of an extra (or of its dot): the owner listening to Requested decides (the hub echoes the state back); with nobody
+    // listening it closes here.
+    void AskClose(Extra e)
+    {
+        if (Requested != null) Requested.Invoke(e.id, ExtraState.Closed);
+        else Set(e.id, ExtraState.Closed, e.prefab, e.anchor, e.orbPrefab, e.movable);
+    }
+
     void Spawn(Extra e)
     {
         e.go = Instantiate(e.prefab, Frame, false);
         e.go.name = e.prefab.name;
         e.restScale = e.go.transform.localScale;
         e.panel = e.go.GetComponent<ForgePanel>();
+        if (e.panel != null) e.panel.CloseHandler = () => AskClose(e);  // its X: the owner (the hub for notes and timers) closes it
         e.group = e.go.GetComponent<CanvasGroup>();
         if (e.group == null) e.group = e.go.AddComponent<CanvasGroup>();
         if (e.movable && e.panel != null)
@@ -301,6 +310,8 @@ public class WorkspaceExtras : MonoBehaviour
             e.orb.Init(Head);
             string id = e.id;
             e.orb.Tapped += () => Requested?.Invoke(id, ExtraState.Open);
+            var orbPanel = e.orb.GetComponent<ForgePanel>();
+            if (orbPanel != null) orbPanel.CloseHandler = () => AskClose(e);  // the dot's close chip closes the extra for real
             e.orb.Moved += () => OrbMoved(e);
             e.orb.transform.localPosition = point;
         }

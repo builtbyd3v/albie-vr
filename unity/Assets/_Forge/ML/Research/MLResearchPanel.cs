@@ -53,6 +53,7 @@ namespace Forge.ML
         void Start()
         {
             var panel = GetComponent<ForgePanel>();
+            panel.CloseHandler = () => MLWorkspaceBridge.ShowResearch(false);  // the header X (it had a Close pill of its own)
             root = panel.Content;
             width = root.rect.width; height = root.rect.height;
             BuildChrome();
@@ -74,7 +75,6 @@ namespace Forge.ML
             sourceLabel = MLUI.Caps(root, "", Pad + 90, Pad, width - 300);
             modelsPill = MLUI.Pill(root, "Models", width - 212, Pad - 4, 76, 22, () => SetKind("models"));
             datasetsPill = MLUI.Pill(root, "Datasets", width - 130, Pad - 4, 80, 22, () => SetKind("datasets"));
-            MLUI.Pill(root, "Close", width - Pad - 32 - 12, Pad - 4, 44, 22, () => MLWorkspaceBridge.ShowResearch(false));
             input = MLUI.Input(root, "Query", "what to look for, e.g. sentiment", Pad, 34, width - 2 * Pad - 96, 26);
             input.onSubmit.AddListener(_ => Search());
             MLUI.Pill(root, "Search", width - Pad - 86, 34, 86, 26, Search);

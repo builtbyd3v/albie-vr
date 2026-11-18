@@ -37,7 +37,9 @@ namespace Forge.ML
 
         void Start()
         {
-            root = GetComponent<ForgePanel>().Content;
+            var panel = GetComponent<ForgePanel>();
+            panel.CloseHandler = () => Dismissed?.Invoke();  // its X is the Close below: the card goes, nothing is published
+            root = panel.Content;
             width = root.rect.width; height = root.rect.height;
             Render();
         }

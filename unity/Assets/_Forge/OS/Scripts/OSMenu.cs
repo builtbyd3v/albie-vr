@@ -751,6 +751,8 @@ namespace Forge.OS
             Button close = StripButton("Close", null, OSButtonStyle.Secondary, CloseMenu);
             LayStrip(strip, close);
 
+            // The design system's runtime copy of the Albie theme (Inter, token text colours): the prefab points at the asset.
+            if (themeManager != null && OSUi.Theme != null) OSBody.SetThemes(themeManager, OSUi.Theme);
             if (themeManager != null) themeManager.ApplyCurrentTheme();
             return true;
         }

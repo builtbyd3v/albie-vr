@@ -765,7 +765,7 @@ namespace Forge.OS.Editor
         }
 
         /// <summary>The section names <see cref="RunOnly"/> takes.</summary>
-        public const string Sections = "table,menu,states,windows,settings,agents,build,drive,modes,artifacts,truck,three,away,closed";
+        public const string Sections = "table,menu,states,windows,design_gallery,settings,agents,build,drive,modes,artifacts,truck,three,away,closed";
 
         static List<Step> Steps() => new List<Step>
         {
@@ -774,6 +774,7 @@ namespace Forge.OS.Editor
             new Step("menu", StepMenu),
             new Step("states", StepStates),
             new Step("windows", StepWindows),
+            new Step("design_gallery", StepDesignGallery),
             new Step("settings", StepSettings),
             new Step("agents", StepAgents),
             new Step("build", StepBuild),
@@ -1037,6 +1038,21 @@ namespace Forge.OS.Editor
             FrameWindow("gesture_display", "The gesture display window (Hands): the hand display with its gesture list and Teach a gesture.", shell.Windows.Find(OSToolsCatalog.GesturesId));
             shell.Windows.CloseAll();
             yield return 1.0f;
+        }
+
+        // The design system's gallery (OSDesignGallery): every component and state on one window.
+        static IEnumerator<float> StepDesignGallery()
+        {
+            if (!Ready()) yield break;
+            if (shell.MenuOpen) shell.CloseMenu();
+            shell.Windows.CloseAll();
+            yield return 0.6f;
+            OSWindow win = OSDesignGallery.Open();
+            yield return 1.2f;
+            if (win == null) { Unreachable("design_gallery", "the design gallery window did not open"); yield break; }
+            FrameWindow("design_gallery", "The design system gallery: type scale, colour chips, buttons (primary, secondary, quiet, destructive, disabled), icon buttons, pills, a toggle and a slider, the stepper (done, current, upcoming, locked), a card with pairs and a progress rail, list rows, floating and selected surfaces, and an empty state.", win, 0.95f);
+            shell.Windows.CloseAll();
+            yield return 0.6f;
         }
 
         static IEnumerator<float> StepSettings()

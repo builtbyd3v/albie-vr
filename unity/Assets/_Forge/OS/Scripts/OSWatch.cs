@@ -114,6 +114,7 @@ namespace Forge.OS
         RectTransform canvasRoot, plate, buttonRect;
         Oculus.Interaction.Samples.RoundedBoxUIProperties plateRound, buttonRound;
         Button button;
+        OSLongPress longPress;
         bool built, buildFailed, reported;
 
         bool shown;
@@ -383,6 +384,7 @@ namespace Forge.OS
 
         void Pressed()
         {
+            if (longPress != null && longPress.TakeFired()) return;  // that was the hold: everything closed, no menu
             if (shell == null || !shown) return;
             Vector3 from = root.transform.position;
             armed = false;       // stays away until the wrist has turned away once
@@ -445,6 +447,7 @@ namespace Forge.OS
 
             button = OSUi.Button(plate, null, Pressed, OSButtonStyle.Primary, "apps");
             if (button == null) return false;
+            longPress = button.gameObject.AddComponent<OSLongPress>();  // hold it: close everything (the panic exit)
             buttonRect = (RectTransform)button.transform;
             buttonRect.anchorMin = buttonRect.anchorMax = buttonRect.pivot = new Vector2(0.5f, 0.5f);
             buttonRect.anchoredPosition = Vector2.zero;

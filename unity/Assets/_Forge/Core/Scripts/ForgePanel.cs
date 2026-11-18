@@ -30,6 +30,166 @@ public class ForgePanel : MonoBehaviour
     void OnEnable() => All.Add(this);
     void OnDisable() => All.Remove(this);
 
+    // ---------------------------------------------------------------- close and minimise
+    // Every panel gets a Close (X) and, with a title bar, a Minimise (−) without asking (PanelChrome builds them in Start).
+
+    bool closable = true, minimisable = true;
+
+    /// <summary>
+    /// Whether the panel shows a Close button and can be closed by hand (the X, a throw). On by default; turn it off only for
+    /// something that must not close, with <see cref="SetClosable"/> and a reason (the dock, a modal sheet).
+    /// </summary>
+    public bool Closable
+    {
+        get => closable;
+        set
+        {
+            closable = value;
+            if (chrome != null) chrome.Refresh();
+        }
+    }
+
+    /// <summary>Why <see cref="Closable"/> is off (for the checks and the Spaces list).</summary>
+    public string NotClosableReason { get; private set; }
+
+    /// <summary>Turns the Close off (or on again) and says why, e.g. SetClosable(false, "the dock: it goes with the desk").</summary>
+    public void SetClosable(bool value, string reason)
+    {
+        NotClosableReason = value ? null : reason;
+        Closable = value;
+    }
+
+    /// <summary>Whether a panel with a title bar shows the Minimise (−) button. On by default.</summary>
+    public bool Minimisable
+    {
+        get => minimisable;
+        set
+        {
+            minimisable = value;
+            if (chrome != null) chrome.Refresh();
+        }
+    }
+
+    /// <summary>Raised whenever the panel is closed by the user (X, throw, Spaces), before it closes. Listen to clean up.</summary>
+    public event System.Action CloseRequested;
+
+    /// <summary>
+    /// Replaces what closing does (a module that closes its own way: an artifact, a mode, a card). When null, the default
+    /// runs: the OS window manager closes a window it tracks (<see cref="CloseRouter"/>), the workspace closes an item of the
+    /// open mode, and anything else is hidden and remembered so the Spaces list can open it again.
+    /// </summary>
+    public System.Action CloseHandler
+    {
+        get => closeHandler;
+        set
+        {
+            closeHandler = value;
+            if (chrome != null) chrome.Refresh();  // an orb shows its close chip only once someone says what closing it means
+        }
+    }
+    System.Action closeHandler;
+
+    /// <summary>Set by the OS: closes a panel it tracks and returns true, or returns false to let the default go on.</summary>
+    public static System.Func<ForgePanel, bool> CloseRouter;
+
+    PanelChrome chrome;
+    /// <summary>The built-in window buttons (null until the panel's first frame, or call <see cref="PanelChrome.Of"/>).</summary>
+    public PanelChrome Chrome => chrome != null ? chrome : chrome = GetComponent<PanelChrome>();
+
+    /// <summary>The user asked to close it (the X, a throw, the Spaces list): does nothing when it isn't <see cref="Closable"/>.</summary>
+    public void RequestClose()
+    {
+        if (!closable) return;
+        CloseNow();
+    }
+
+    /// <summary>
+    /// Closes it whatever <see cref="Closable"/> says (a thrown panel whose undo ran out, Close everything): raises
+    /// <see cref="CloseRequested"/>, then runs <see cref="CloseHandler"/> or the default.
+    /// </summary>
+    public void CloseNow()
+    {
+        PanelChrome.Forget(this);
+        var gesture = GetComponent<GestureWindow>();
+        if (gesture != null) gesture.ForgetDot();  // closing a minimised panel takes its dot too
+        try
+        {
+            CloseRequested?.Invoke();
+            if (closeHandler != null)
+            {
+                closeHandler();
+                return;
+            }
+            if (CloseRouter != null && CloseRouter(this)) return;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogException(e);
+        }
+        var workspace = Workspace.Current;
+        if (workspace != null && workspace.CloseItem(gameObject)) return;
+        if (gameObject.activeSelf) PanelChrome.HideClosed(this);
+    }
+
+    /// <summary>Thrown away with a flick (<see cref="PanelManipulator"/>): flies off, hidden, and closes for real a little later
+    /// unless the Spaces list brings it back (<see cref="PanelChrome.UndoSeconds"/>). <paramref name="velocity"/> in m/s.</summary>
+    public void ThrowAway(Vector3 velocity)
+    {
+        if (!closable || !gameObject.activeInHierarchy) return;
+        PanelChrome.Throw(this, velocity);
+    }
+
+    /// <summary>Into a dot where it is (tap the dot to open it again), or the panel's own minimise if it has one (the notes).</summary>
+    public bool Minimise()
+    {
+        if (!gameObject.activeInHierarchy) return false;
+        var engine = GestureEngine.Current;
+        var workspace = Workspace.Current;
+        MonoBehaviour runner = engine != null && engine.isActiveAndEnabled ? (MonoBehaviour)engine
+                             : workspace != null && workspace.isActiveAndEnabled ? workspace : null;
+        Transform head = workspace != null && workspace.presence != null && workspace.presence.head != null ? workspace.presence.head
+                       : Camera.main != null ? Camera.main.transform : null;
+        string said = runner != null && head != null ? GestureWindow.Of(this).Close(runner, head) : "Nowhere to minimize to";
+        if (said == null) return true;
+        if (said != "Nowhere to minimize to") return false;  // moving, or already a dot
+        PanelChrome.HideClosed(this);  // no dot to make in this scene: hidden, and the Spaces list brings it back
+        return true;
+    }
+
+    /// <summary>Out of its dot again, if it was minimised.</summary>
+    public void Restore()
+    {
+        var gesture = GetComponent<GestureWindow>();
+        if (gesture == null || !gesture.IsMinimized) return;
+        var engine = GestureEngine.Current;
+        MonoBehaviour runner = engine != null && engine.isActiveAndEnabled ? (MonoBehaviour)engine : Workspace.Current;
+        if (runner != null) gesture.Restore(runner);
+        else gameObject.SetActive(true);
+    }
+
+    /// <summary>Minimised into its dot.</summary>
+    public bool IsMinimised
+    {
+        get
+        {
+            var gesture = GetComponent<GestureWindow>();
+            return gesture != null && gesture.IsMinimized;
+        }
+    }
+
+    void Start()
+    {
+        if (Application.isPlaying) chrome = PanelChrome.Of(this);
+    }
+
+    /// <summary>PanelChrome moved or showed its buttons: the title and the manipulator's pills keep clear of them.</summary>
+    internal void OnChromeChanged()
+    {
+        ForgeLook.StyleChrome(Chrome);  // design system: the window buttons' colours (look only)
+        LayoutHeader();
+        if (Handles != null) Handles.LayoutTitleButtons();
+    }
+
     const float HeaderLeft = 20f, BadgeSize = 40f, BadgePadding = 12f, BadgeGap = 12f, HeaderRight = 180f;
 
     [Tooltip("Matches the panel IDs in PROJECT_CONTEXT section 7 (e.g. ml-results, cad-params).")]
@@ -81,14 +241,14 @@ public class ForgePanel : MonoBehaviour
         badge.gameObject.SetActive(show);
         if (show)
         {
-            badge.color = ForgeTheme.Tint(accent, 0.2f);
-            badge.Outline = 0.4f;
+            badge.color = ForgeTheme.Tint(accent, ForgeTheme.BadgeFill);
+            badge.Outline = ForgeTheme.BadgeRing;
             var rt = (RectTransform)badge.transform;
             float width = BadgeSize;
             if (badgeText != null)
             {
                 badgeText.text = label;
-                badgeText.color = Color.Lerp(accent, Color.white, 0.55f);
+                badgeText.color = Color.Lerp(accent, Color.white, ForgeTheme.BadgeTextLift);
                 // Wider for longer labels (CODE), so it never truncates.
                 width = Mathf.Max(BadgeSize, badgeText.GetPreferredValues(label).x + 2f * BadgePadding);
             }
@@ -120,7 +280,9 @@ public class ForgePanel : MonoBehaviour
     {
         const float MinHeaderText = 120f;
         float width = ((RectTransform)transform).sizeDelta.x;
-        return Mathf.Clamp(width - left - MinHeaderText, 20f, HeaderRight);
+        // The window buttons (close, minimise) are always there, so the title always clears them.
+        float buttons = Chrome != null ? Chrome.ReservedWidth : 0f;
+        return buttons + Mathf.Clamp(width - left - MinHeaderText - buttons, 20f, HeaderRight);
     }
 
     static void PlaceInHeader(RectTransform rt, float left, float right, float centerFromTop, float height)
@@ -234,6 +396,7 @@ public class ForgePanel : MonoBehaviour
     {
         FitPlate();
         SyncHitArea();
+        ForgeLook.StyleHeader(titleText, subtitleText);  // design system: the title bar's type
         LayoutHeader();
     }
 

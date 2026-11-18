@@ -291,6 +291,19 @@ namespace Forge.OS.Editor
             return t != null ? t.GetComponent<Button>() : null;
         }
 
+        static OSWindow Rail(OSShell shell) => shell.Windows.Find(OSProjectRail.WindowId);
+
+        // Looks at a control, then presses it with the pointer (the project bar sits low, under the tool or in front).
+        static IEnumerable<float> LookAndPress(Button b)
+        {
+            pressOk = false;
+            pressWhy = b == null ? "no such control" : null;
+            if (b == null) yield break;
+            DesktopRig.Current.LookAt(OSToolsTest.CenterOf(b.transform));
+            yield return 0.5f;
+            pressOk = OSToolsTest.Press(b.gameObject, out pressWhy);
+        }
+
         static string Listing()
         {
             var list = new List<OSEntry>();
@@ -397,7 +410,25 @@ namespace Forge.OS.Editor
                 Check(!text.Contains(tucked), "the truck overview keeps '" + tucked + "' tucked away");
             int targets = Targets(win);
             Measure("overview targets: " + targets);
-            Check(targets > 0 && targets <= 9, "the overview has at most 9 targets: Next, six steps, Make my own, More (" + targets + ")");
+            Check(targets > 0 && targets <= 9, "the overview has at most 9 targets: Next, six stages, Make my own, More (" + targets + ")");
+            OSProjectSession session = OSProjectSession.Current;
+            Check(session != null && session.ProjectId == NotebookStore.DefaultProject && session.CurrentStage == "course",
+                "a fresh truck lands on its first stage to do: Course (" + (session != null ? session.CurrentStage : "no session") + ")");
+            OSWindow rail = Rail(shell);
+            Check(rail != null && OSProjectRail.Current != null && OSProjectRail.Current.Chips.Count == 6, "the project bar is up with the six stages (" + (OSProjectRail.Current != null ? OSProjectRail.Current.Chips.Count : -1) + ")");
+            Check(OSProjectRail.Current != null && OSProjectRail.Current.NextButton != null && OSProjectRail.Current.NextButton.name == "Button Next: Course", "the bar's Next says Next: Course");
+            if (rail != null)
+            {
+                foreach (Button chip in OSProjectRail.Current.Chips)
+                {
+                    var r = (RectTransform)chip.transform;
+                    float cw = OSToolsTest.Mm(r.rect.width, r), ch = OSToolsTest.Mm(r.rect.height, r);
+                    Check(cw >= 30f && ch >= 30f, "the bar's " + chip.name + " is at least 30 x 30 mm (" + cw.ToString("F0") + " x " + ch.ToString("F0") + ")");
+                }
+                Check(OSToolsTest.LayoutProblem(rail) == null, "the bar's text is inside it and doesn't overlap" + (OSToolsTest.LayoutProblem(rail) ?? ""));
+                Check(session != null && session.TryStage("drive", out StageState driveStage) && driveStage.Status == StageStatus.Locked && driveStage.Unlock == "course",
+                    "Drive is locked until there is a course, and says to go to Course");
+            }
             foreach (float w in ShowDetails(shell, true)) yield return w;
             text = OSToolsTest.AllText(win);
             foreach (string needle in new[] { "Plan", "Versions", "No plan written yet", "No artifacts yet", OSProjectWindow.SampleTagLine, OSProjects.SampleLine, OSProjectWindow.BackLabel })
@@ -444,13 +475,16 @@ namespace Forge.OS.Editor
             Measure("course, first press: " + view.StatusLine);
             Check(view.StatusLine.StartsWith("The slalom asks first.", StringComparison.Ordinal), "fresh install: Course shows the Allow ask in plain words (" + view.StatusLine + ")");
             Check(host != null && host.OpenManifest != null, "the slalom is waiting for approval");
+            Check(!win.gameObject.activeSelf && OSProjectSession.HomeTucked, "going to a stage tucks the project window away");
             if (host != null && host.OpenManifest != null) ArtifactApprovals.Approve(host.OpenManifest);
             AlbieTools.Call("artifact_close", new JObject());
             yield return 0.5f;
             win = windows.Find(OSProjectWindow.WindowId);
             view = View(shell);
-            course = FindButton(win, "Course");
-            Check(course != null && OSToolsTest.Press(course.gameObject, out why), "a pointer reaches Course again: " + why);
+            rail = Rail(shell);
+            course = rail != null ? FindButton(rail, "Course") : null;
+            foreach (float w in LookAndPress(course)) yield return w;
+            Check(pressOk, "a pointer reaches Course on the project bar: " + pressWhy);
             float waited = 0f;
             while (BrainLoops.Active == null && waited < 8f) { waited += 0.5f; yield return 0.5f; }
             yield return 0.6f;
@@ -464,6 +498,15 @@ namespace Forge.OS.Editor
             Check(project == NotebookStore.DefaultProject, "the open manifest links to proj_truck (" + project + ")");
             Check(view.StatusLine.StartsWith("The slalom is open. The brain truck is at the start.", StringComparison.Ordinal), "the status line says so (" + view.StatusLine + ")");
             Check(ArtifactLibrary.Root.StartsWith(scratch, StringComparison.Ordinal), "the slalom was made in the scratch library, not this machine's");
+            yield return 0.6f;
+            Check(session.TryStage("course", out StageState courseStage) && courseStage.Status == StageStatus.Done && session.NextId == "drive",
+                "Course is done and the next stage is Drive");
+            Check(OSProjectRail.Current != null && OSProjectRail.Current.NextButton != null && OSProjectRail.Current.NextButton.name == "Button Next: Drive", "the bar offers Next: Drive");
+            Button homeButton = rail != null ? FindButton(rail, OSProjectRail.HomeIcon) : null;
+            foreach (float w in LookAndPress(homeButton)) yield return w;
+            Check(pressOk, "a pointer reaches the bar's home button: " + pressWhy);
+            yield return 0.6f;
+            Check(win.gameObject.activeSelf, "the bar's home button brings the project window back");
             DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.6f;
             problem = OSToolsTest.LayoutProblem(win);
@@ -610,28 +653,36 @@ namespace Forge.OS.Editor
             yield return 1.2f;
             view = View(shell);
             Check(view != null && view.ProjectId == "proj_classifier" && NotebookStore.ProjectId == "proj_classifier", "Image classifier opens as the open project");
-            Check(view != null && view.StatusLine.Contains("bundled images"), "Image classifier offers on-device training (" + (view != null ? view.StatusLine : "no window") + ")");
             win = windows.Find(OSProjectWindow.WindowId);
             if (win != null)
             {
+                Check(OSProjectSession.Current.CurrentStage == "data" && FindButton(win, "Next: Data") != null, "the classifier lands on Data with Next: Data");
                 // The loop is Data, Train, Results, Publish: Data and Train work offline (the bundled images), Results waits for a
                 // run, and Publish needs the cloud and says so.
                 foreach (string label in new[] { "Data", "Train", "Results", "Publish" })
                     Check(FindButton(win, label) != null, "the classifier loop has " + label);
-                Button dataStep = FindButton(win, "Data"), trainStep = FindButton(win, "Train");
-                Check(dataStep != null && dataStep.interactable && trainStep != null && trainStep.interactable, "Data and Train work offline");
+                Check(OSProjectSession.Current.TryStage("train", out StageState mlTrain) && mlTrain.Status == StageStatus.Locked && mlTrain.Unlock == "data",
+                    "Train waits for Data and says so");
                 Button dataset = FindButton(win, "Publish");
-                Check(dataset != null && !dataset.interactable, "Publish is off while the cloud isn't reachable");
+                Check(OSProjectSession.Current.TryStage("publish", out StageState publish) && publish.Status == StageStatus.Locked && publish.Unlock == null,
+                    "Publish is off while the cloud isn't reachable");
                 text = OSToolsTest.AllText(win);
                 Check(text.Contains(OSProjectWindow.PublishNeedsCloud), "the classifier window says Publish needs the cloud, in words");
-                Check(OSModes.IsOpen("ml"), "the Train tool opened for the classifier");
                 DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
                 yield return 0.5f;
                 problem = OSToolsTest.LayoutProblem(win);
                 Check(problem == null, "the classifier window text is inside it and doesn't overlap" + (problem ?? ""));
                 Shot("56_classifier_window");
+                Button nextData = FindButton(win, "Next: Data");
+                if (nextData != null) nextData.onClick.Invoke();
+                yield return 1.0f;
+                Check(View(shell).StatusLine.Contains("bundled images"), "Data opens on-device training on the bundled images (" + View(shell).StatusLine + ")");
+                Check(OSModes.IsOpen("ml"), "the Train tool opened for the classifier");
+                Check(OSProjectSession.Current.TryStage("train", out mlTrain) && mlTrain.Status == StageStatus.Ready && OSProjectSession.Current.NextId == "train",
+                    "after Data, Train is ready and next");
                 if (dataset != null) { dataset.onClick.Invoke(); yield return 0.3f; }
-                Check(View(shell).StatusLine.Contains("bundled images"), "pressing disabled Publish changes nothing and throws nothing");
+                Check(View(shell).StatusLine.Contains("bundled images") && OSProjectSession.Current.Notice != null,
+                    "pressing Publish offline only says why on the bar; nothing else changes");
             }
 
             foreach (string part in new[] { "quadcopter", "rocket" })
@@ -640,6 +691,11 @@ namespace Forge.OS.Editor
                 OSModes.Close();
                 yield return 1.5f;
                 OSProjects.OpenProject("proj_" + part);
+                yield return 0.6f;
+                Check(OSProjectSession.Current.CurrentStage == "design" && OSModes.IsOpen("cad") == false, part + ": opening the project opens no tool by itself and lands on Design");
+                Button nextDesign = FindButton(windows.Find(OSProjectWindow.WindowId), "Next: Design");
+                Check(nextDesign != null, part + ": the window offers Next: Design");
+                if (nextDesign != null) nextDesign.onClick.Invoke();
                 waited = 0f;
                 CadSession cad = null;
                 while (waited < 12f)
@@ -657,13 +713,27 @@ namespace Forge.OS.Editor
                 win = windows.Find(OSProjectWindow.WindowId);
                 if (win != null && part == "quadcopter")
                 {
+                    Check(!win.gameObject.activeSelf, "quadcopter: going to Design tucks the project window away");
+                    OSProjectSession.Current.ShowHome();
+                    yield return 0.6f;
                     DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
                     yield return 0.5f;
                     problem = OSToolsTest.LayoutProblem(win);
                     Check(problem == null, "the quadcopter window text is inside it and doesn't overlap" + (problem ?? ""));
                     Shot("57_quadcopter_window");
-                    Button designChip = FindButton(win, "Design");
-                    Check(designChip != null && designChip.interactable, "quadcopter: the Design step can be tapped again after it is done");
+                }
+                if (part == "quadcopter")
+                {
+                    OSProjectSession q = OSProjectSession.Current;
+                    yield return 1.0f;
+                    Check(q.TryStage("design", out StageState qd) && qd.Status == StageStatus.Done && qd.Result.StartsWith("v", StringComparison.Ordinal),
+                        "quadcopter: Design is done with its version once CAD shows it (" + qd.Result + ")");
+                    Check(q.NextId == "course" && q.TryStage("fly", out StageState qf) && qf.Status == StageStatus.Locked && qf.Unlock == "course",
+                        "quadcopter: next is Course, Fly waits for a course");
+                    OSWindow qRail = Rail(shell);
+                    Button designChip = qRail != null ? FindButton(qRail, "Design") : null;
+                    Check(designChip != null && designChip.interactable, "quadcopter: the Design stage can be tapped again on the bar after it is done");
+                    Shot("57b_quadcopter_bar_cad");
                 }
             }
 

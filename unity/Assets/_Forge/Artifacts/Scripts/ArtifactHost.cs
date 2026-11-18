@@ -397,6 +397,8 @@ namespace Forge.Artifacts
             if (placeholder != null) placeholder.gameObject.SetActive(false);
             PlacePanel(panel.transform, panelOffset);
             spawned.Add(panel.gameObject);
+            // Its X closes the whole artifact (course, Thing and all): through the OS when it tracks the panel, else here.
+            panel.CloseHandler = () => { if (ForgePanel.CloseRouter == null || !ForgePanel.CloseRouter(panel)) Close(); };
             return panel;
         }
 

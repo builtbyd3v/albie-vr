@@ -798,9 +798,9 @@ namespace Forge.OS
         // ---------------------------------------------------------------- opening
 
         /// <summary>
-        /// Makes this project the open one and shows its window. The notebook is switched with <c>NotebookStore.Open</c>
-        /// directly (never closed first, so a project is always open); a starter then does its own first step (CAD on its
-        /// design, or the Train tool for the ML project). Nothing here throws, with the hub off or on.
+        /// Makes this project the open one, puts up its project bar (<see cref="OSProjectRail"/>) on the stage it was left at,
+        /// and shows its window. The notebook is switched with <c>NotebookStore.Open</c> directly (never closed first, so a
+        /// project is always open). Nothing is opened by itself. Nothing here throws, with the hub off or on.
         /// </summary>
         public static void OpenProject(string id)
         {
@@ -812,9 +812,10 @@ namespace Forge.OS
                 return;
             }
             dirty = true;
-            OSWindow window = OSProjectWindow.Open(id);
-            var view = window != null ? window.GetComponent<OSProjectWindow>() : null;
-            if (view != null) view.RunOpenAction();
+            // The project bar comes up on the stage it was left at (or the first one that needs doing), and the project
+            // window shows where it stands. No tool is opened by itself: the window's Next (or a stage) does that.
+            OSProjectSession.Ensure().Begin(id);
+            OSProjectWindow.Show(id);
             OSRegistry.NotifyChanged();
         }
 

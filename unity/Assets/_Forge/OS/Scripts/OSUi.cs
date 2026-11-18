@@ -31,9 +31,54 @@ namespace Forge.OS
 
         static readonly UnityAction PressAction = OSSounds.Press;
         static Sprite outlineSprite;
+        static Oculus.Interaction.UITheme theme, themeSource;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => outlineSprite = null;
+        static void ResetStatics()
+        {
+            outlineSprite = null;
+            theme = themeSource = null;
+        }
+
+        /// <summary>
+        /// Draw OS text in Inter (Core's font, the one every Forge panel uses) instead of the kit theme's font (TextMeshPro's
+        /// default sans). One font across the menu, the OS windows and the older panels. Glyphs Inter's atlas lacks fall back
+        /// to TextMeshPro's default font.
+        /// </summary>
+        public const bool UseInter = true;
+
+        /// <summary>
+        /// The theme every OS surface is themed with: a runtime copy of the kit's Albie theme with the design system's font and
+        /// text colours (never saved; the kit asset is untouched). Null without the kit.
+        /// </summary>
+        public static Oculus.Interaction.UITheme Theme
+        {
+            get
+            {
+                OSKit kit = OSKit.Current;
+                if (kit == null || kit.theme == null) return null;
+                if (theme != null && themeSource == kit.theme) return theme;
+                themeSource = kit.theme;
+                theme = ScriptableObject.Instantiate(kit.theme);
+                theme.name = kit.theme.name + " (design system)";
+                theme.hideFlags = HideFlags.DontSave;
+                TMP_FontAsset inter = UseInter ? ForgeTheme.Font : null;
+                if (inter != null) theme.textFontBold = theme.textFontMedium = theme.textFontRegular = inter;
+                theme.textPrimaryColor = ForgeTheme.TextPrimary;
+                theme.textSecondaryColor = ForgeTheme.TextSecondary;
+                return theme;
+            }
+        }
+
+        /// <summary>The OS text font (the design system's), or null without the kit.</summary>
+        public static TMP_FontAsset Font
+        {
+            get
+            {
+                Oculus.Interaction.UITheme t = Theme;
+                return t != null ? t.textFontMedium : null;
+            }
+        }
 
         /// <summary>The sprite for a friendly icon name ("cube", "close", "send"), or null.</summary>
         public static Sprite Icon(string name)
@@ -57,19 +102,15 @@ namespace Forge.OS
             var go = new GameObject("Text", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var tmp = go.AddComponent<TextMeshProUGUI>();
-            OSKit kit = OSKit.Current;
-            if (kit != null && kit.theme != null)
-            {
-                tmp.font = kit.theme.textFontMedium != null ? kit.theme.textFontMedium : tmp.font;
-                tmp.color = secondary ? kit.theme.textSecondaryColor : kit.theme.textPrimaryColor;
-            }
-            else
-            {
-                tmp.color = secondary ? new Color(1f, 1f, 1f, 0.7f) : new Color(1f, 1f, 1f, 0.9f);
-            }
+            TMP_FontAsset font = Font;
+            if (font != null) tmp.font = font;
+            else if (ForgeTheme.Font != null) tmp.font = ForgeTheme.Font;
+            tmp.color = secondary ? ForgeTheme.TextSecondary : ForgeTheme.TextPrimary;
             if (secondary) go.tag = "QDSUITextSecondaryColor";
             tmp.text = text ?? "";
             tmp.fontSize = Mathf.Max(size, secondary ? SmallText : BodyText);
+            tmp.lineSpacing = ForgeTheme.LineSpacing;  // generous leading for anything that wraps
+            if (tmp.fontSize >= TitleText) tmp.characterSpacing = ForgeTheme.HeadingTracking;
             tmp.textWrappingMode = TextWrappingModes.Normal;
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.raycastTarget = false;
@@ -115,6 +156,7 @@ namespace Forge.OS
             {
                 labelText.gameObject.SetActive(hasLabel);
                 labelText.text = label ?? "";
+                if (Font != null) labelText.font = Font;  // before the heavier face below, which is per font
                 labelText.fontSize = BodyText;
                 labelText.fontStyle = style == OSButtonStyle.Primary ? FontStyles.Bold : FontStyles.Normal;  // dark on white reads thin otherwise
                 ForgeTheme.DarkOnLight(labelText, style == OSButtonStyle.Primary);  // and so does the stroke weight alone: a heavier face on top
@@ -123,7 +165,7 @@ namespace Forge.OS
                 if (hasLabel)
                 {
                     float labelWidth = labelText.GetPreferredValues(label).x;
-                    width = labelWidth + 32f + (sprite != null ? 32f : 0f);
+                    width = labelWidth + ButtonPadding * 2f + (sprite != null ? 32f : 0f);
                     // The label's own box would otherwise stay at the prefab's 40 units wide.
                     // The Text box and its label sit in layout groups that don't size them, so give them the label's size.
                     float fit = Mathf.Ceil(labelWidth) + 2f;
@@ -139,9 +181,29 @@ namespace Forge.OS
                 button.onClick.AddListener(PressAction);
                 if (onClick != null) button.onClick.AddListener(() => onClick());
             }
+#if UNITY_EDITOR
+            if (style == OSButtonStyle.Primary) WarnSecondPrimary(go.transform);
+#endif
             Touch(parent);
             return button;
         }
+
+        /// <summary>Space each side of a button's label (units). The UI Set plate was 16; 20 gives the label air.</summary>
+        public const float ButtonPadding = 20f;
+
+#if UNITY_EDITOR
+        // The design system allows one primary button per view. Editor-only nudge (a warning, never a change in look).
+        static void WarnSecondPrimary(Transform created)
+        {
+            OSBody body = created.GetComponentInParent<OSBody>();
+            if (body == null) return;
+            int primaries = 0;
+            foreach (Button b in body.GetComponentsInChildren<Button>(false))
+                if (b.CompareTag("QDSUIPrimaryButton")) primaries++;
+            if (primaries > 1)
+                Debug.LogWarning("[OSUi] More than one primary button in " + body.transform.root.name + " (design system: one per view; use Secondary for the rest).");
+        }
+#endif
 
         /// <summary>A shelf-style tab toggle (icon over label, lit when on). Selecting it calls <paramref name="onSelected"/>.</summary>
         public static Toggle Tab(Transform parent, string label, string icon, ToggleGroup group, Action onSelected, float width = 150f, float height = 64f)
@@ -371,7 +433,7 @@ namespace Forge.OS
         }
 
         /// <summary>A vertical stack that fills its parent, top to bottom.</summary>
-        public static RectTransform Column(Transform parent, float spacing = 12f)
+        public static RectTransform Column(Transform parent, float spacing = 16f)
         {
             var go = new GameObject("Column", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -391,8 +453,9 @@ namespace Forge.OS
         /// <summary>A heading and a column under it; returns the column to put the section's controls in.</summary>
         public static RectTransform Section(Transform parent, string heading)
         {
-            RectTransform outer = Column(parent, 12f);
+            RectTransform outer = Column(parent, ForgeTheme.Space3);
             outer.name = "Section " + heading;
+            outer.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(0, 0, (int)ForgeTheme.Space2, 0);  // air above each section
             outer.anchorMin = outer.anchorMax = new Vector2(0f, 1f);
             outer.pivot = new Vector2(0f, 1f);
             outer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
@@ -400,7 +463,7 @@ namespace Forge.OS
             fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             TMP_Text title = Text(outer, heading, TitleText);
             title.fontStyle = FontStyles.Bold;
-            RectTransform inner = Column(outer, 12f);
+            RectTransform inner = Column(outer, ForgeTheme.Space3);
             inner.anchorMin = inner.anchorMax = new Vector2(0f, 1f);
             inner.pivot = new Vector2(0f, 1f);
             inner.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
@@ -423,9 +486,9 @@ namespace Forge.OS
         // ---------------------------------------------------------------- cards, pairs, chips
 
         /// <summary>The faint plate behind a <see cref="Card"/>: lighter than the window, so a group of controls reads as one thing.</summary>
-        public static readonly Color CardFill = new Color(1f, 1f, 1f, 0.06f);
+        public static readonly Color CardFill = ForgeTheme.RaisedFill;
         /// <summary>The thin line between the steps of a <see cref="Stepper"/> row.</summary>
-        public static readonly Color StepLine = new Color(1f, 1f, 1f, 0.22f);
+        public static readonly Color StepLine = new Color(1f, 1f, 1f, 0.16f);
         /// <summary>A step chip is this tall: 52 units, 34 mm, a hand-sized target.</summary>
         public const float ChipHeight = 52f, ChipMinWidth = 150f;
 
@@ -434,18 +497,48 @@ namespace Forge.OS
         /// <paramref name="padding"/> units inside and <paramref name="spacing"/> between its children. It is as tall as what
         /// it holds and as wide as its parent column. Returns the card, which children go straight into.
         /// </summary>
-        public static RectTransform Card(Transform parent, float padding = 24f, float spacing = 10f)
+        public static RectTransform Card(Transform parent, float padding = 24f, float spacing = 12f)
         {
-            var go = new GameObject("Card", typeof(RectTransform));
+            RectTransform rect = Surface(parent, OSSurface.Raised, padding, spacing);
+            if (rect != null) rect.name = "Card";
+            return rect;
+        }
+
+        /// <summary>
+        /// A rounded plate at one elevation of the design system (Raised = a card, Inset = a well, Floating = above the window
+        /// with a soft shadow, Selected = the chosen one in the accent), holding a column with <paramref name="padding"/> inside
+        /// and <paramref name="spacing"/> between children. As tall as what it holds, as wide as its parent column.
+        /// </summary>
+        public static RectTransform Surface(Transform parent, OSSurface kind, float padding = 24f, float spacing = 12f)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Surface " + kind, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var rect = (RectTransform)go.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            var image = go.AddComponent<Image>();
-            image.color = CardFill;
-            image.raycastTarget = false;
-            Material rounded = RoundedMaterial();
-            if (rounded != null) image.material = rounded;
-            go.AddComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>().borderRadius = new Vector4(20f, 20f, 20f, 20f);
+            ForgeSurface plate;
+            if (kind == OSSurface.Floating)
+            {
+                // A parent draws before its children, so the shadow and the plate are both children, shadow first.
+                ForgeLook.Shadow(rect, 22f, 10f, 0.5f);
+                plate = ForgeLook.Fill(rect, "Plate", ForgeTheme.FloatingFill, ForgeTheme.RadiusCard);
+                plate.raycastTarget = true;  // a floating plate stops rays reaching what is under it
+            }
+            else plate = go.AddComponent<ForgeSurface>();
+            plate.Corner = ForgeTheme.RadiusCard;
+            switch (kind)
+            {
+                case OSSurface.Inset: plate.color = ForgeTheme.InsetFill; plate.Outline = 0.25f; plate.raycastTarget = false; break;
+                case OSSurface.Floating:
+                    ForgeLook.Ring(rect, "Highlight", new Color(1f, 1f, 1f, ForgeTheme.FloatingRing), ForgeTheme.RadiusCard, 1.5f);
+                    break;
+                case OSSurface.Selected:
+                    plate.color = ForgeTheme.SelectedFill;
+                    plate.raycastTarget = false;
+                    ForgeLook.Ring(rect, "Ring", WithAlpha(AccentFor(parent), ForgeTheme.SelectedRing), ForgeTheme.RadiusCard, 2f);
+                    break;
+                default: plate.color = ForgeTheme.RaisedFill; plate.Outline = ForgeTheme.RaisedRing; plate.raycastTarget = false; break;
+            }
             var layout = go.AddComponent<VerticalLayoutGroup>();
             int pad = Mathf.RoundToInt(Mathf.Max(0f, padding));
             layout.padding = new RectOffset(pad, pad, pad, pad);
@@ -484,25 +577,31 @@ namespace Forge.OS
             return text;
         }
 
-        /// <summary>A small all-capitals tag line ("SAMPLE · LOOK AROUND"), secondary colour, bold.</summary>
+        /// <summary>A small all-capitals tag line ("SAMPLE · LOOK AROUND"), secondary colour, bold, widely tracked.</summary>
         public static TMP_Text Tag(Transform parent, string text)
         {
             TMP_Text tag = Text(parent, text, SmallText, true);
             tag.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
-            tag.characterSpacing = 4f;
+            tag.characterSpacing = ForgeTheme.CapsTracking;
             return tag;
         }
 
         /// <summary>How a step of a <see cref="Stepper"/> row looks.</summary>
         public enum StepState { Done, Current, Upcoming, Locked }
 
-        /// <summary>A horizontal row of step chips with thin lines between them (<see cref="StepChip"/> fills it).</summary>
+        /// <summary>A step's node (the numbered disc above its chip), 34 units (22 mm) across.</summary>
+        public const float StepNode = 34f;
+        const float StepHeadGap = 10f;
+        /// <summary>The height of one step: node, gap, chip.</summary>
+        public const float StepCellHeight = StepNode + StepHeadGap + ChipHeight;
+
+        /// <summary>A horizontal row of steps joined by a progress rail (<see cref="StepChip"/> fills it).</summary>
         public static RectTransform Stepper(Transform parent)
         {
             var go = new GameObject("Stepper", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var row = go.AddComponent<HorizontalLayoutGroup>();
-            row.spacing = 8f;
+            row.spacing = ForgeTheme.Space2;
             row.childAlignment = TextAnchor.LowerLeft;
             row.childControlWidth = row.childControlHeight = true;
             row.childForceExpandWidth = row.childForceExpandHeight = false;
@@ -511,29 +610,47 @@ namespace Forge.OS
         }
 
         /// <summary>
-        /// One step of a <see cref="Stepper"/>: its number and state over a chip button ("2 · next" over Drive). Done steps
-        /// carry a check and are quiet (borderless), the current one is ringed, a locked one is switched off. The chip is
-        /// <see cref="ChipHeight"/> tall and at least <see cref="ChipMinWidth"/> wide. A line joins it to the step before.
-        /// Returns the chip's button (named "Button " + label, like every <see cref="Button"/>).
+        /// One step of a <see cref="Stepper"/>: a numbered node with its state word ("Done", "Next", "Locked") over a chip
+        /// button. Done: a solid accent node with a check, a quiet chip. Current: an accent-ringed node and chip, the one
+        /// thing on the row that glows. Upcoming: a hairline node. Locked: a faint node, the chip switched off. The rail
+        /// between two steps is lit in the accent once the step before it is done. The chip is <see cref="ChipHeight"/> tall
+        /// and at least <see cref="ChipMinWidth"/> wide. Returns the chip's button (named "Button " + label, like every
+        /// <see cref="Button"/>). The accent is the window's (its badge colour), or the OS accent.
         /// </summary>
         public static Button StepChip(RectTransform stepper, int number, string label, string icon, StepState state, Action onClick)
         {
             if (stepper == null) return null;
-            if (stepper.childCount > 0) StepJoin(stepper);
+            Color accent = AccentFor(stepper);
+            if (stepper.childCount > 0) StepJoin(stepper, accent);
             var cell = new GameObject("Step " + number, typeof(RectTransform));
             cell.transform.SetParent(stepper, false);
             var column = cell.AddComponent<VerticalLayoutGroup>();
-            column.spacing = 6f;
+            column.spacing = StepHeadGap;
             column.childAlignment = TextAnchor.UpperCenter;
             column.childControlWidth = column.childControlHeight = true;
             column.childForceExpandWidth = column.childForceExpandHeight = false;
             cell.AddComponent<LayoutElement>().flexibleWidth = 0f;
 
-            string word = state == StepState.Done ? " · done" : state == StepState.Current ? " · next" : state == StepState.Locked ? " · off" : "";
-            TMP_Text caption = Text(cell.transform, number + word, SmallText, state != StepState.Current);
-            caption.alignment = TextAlignmentOptions.Center;
-            caption.textWrappingMode = TextWrappingModes.NoWrap;
-            if (state == StepState.Current) caption.fontStyle = FontStyles.Bold;
+            // Head: node and state word, centred over the chip.
+            RectTransform head = Row(cell.transform, StepNode, ForgeTheme.Space2);
+            head.name = "Head";
+            var headLayout = head.GetComponent<HorizontalLayoutGroup>();
+            headLayout.childAlignment = TextAnchor.MiddleCenter;
+            StepNodeView(head, number, state, accent);
+            string word = state == StepState.Done ? "Done" : state == StepState.Current ? "Next" : state == StepState.Locked ? "Locked" : null;
+            if (word != null)
+            {
+                TMP_Text caption = Text(head, word, SmallText, true);
+                caption.textWrappingMode = TextWrappingModes.NoWrap;
+                caption.alignment = TextAlignmentOptions.MidlineLeft;
+                caption.GetComponent<LayoutElement>().flexibleWidth = 0f;
+                if (state == StepState.Current)
+                {
+                    caption.fontStyle = FontStyles.Bold;
+                    ForgeLook.Tint(caption, accent);
+                }
+                else if (state == StepState.Locked) ForgeLook.Tint(caption, ForgeTheme.TextTertiary);
+            }
 
             OSButtonStyle style = state == StepState.Done ? OSButtonStyle.Borderless : OSButtonStyle.Secondary;
             Button chip = Button(cell.transform, label, onClick, style, state == StepState.Done ? "check" : icon);
@@ -542,56 +659,388 @@ namespace Forge.OS
             float width = Mathf.Max(ChipMinWidth, chipLayout != null ? chipLayout.preferredWidth : ChipMinWidth);
             Size(chip.transform, width, ChipHeight);
             if (chipLayout != null) chipLayout.flexibleHeight = 0f;
-            caption.GetComponent<LayoutElement>().preferredWidth = width;
+            head.GetComponent<LayoutElement>().preferredWidth = width;
             if (state == StepState.Locked) chip.interactable = false;
             if (state == StepState.Current)
             {
-                var ring = new GameObject("Ring", typeof(RectTransform));
-                ring.transform.SetParent(chip.transform, false);
-                var ringRect = (RectTransform)ring.transform;
-                ringRect.anchorMin = Vector2.zero;
-                ringRect.anchorMax = Vector2.one;
-                ringRect.offsetMin = new Vector2(-4f, -4f);
-                ringRect.offsetMax = new Vector2(4f, 4f);
-                ring.AddComponent<LayoutElement>().ignoreLayout = true;
-                var image = ring.AddComponent<Image>();
-                image.sprite = OutlineSprite();
-                image.type = Image.Type.Sliced;
-                image.color = new Color(1f, 1f, 1f, 0.85f);
-                image.raycastTarget = false;
+                ForgeLook.Ring(chip.transform, "Ring", WithAlpha(accent, 0.9f), ForgeTheme.RadiusControl + 6f, 2.5f, 5f, true);
             }
             return chip;
         }
 
-        // The line between two steps: as tall as a chip, the line through its middle, taking the spare width.
-        static void StepJoin(RectTransform stepper)
+        // The numbered disc of a step.
+        static void StepNodeView(Transform head, int number, StepState state, Color accent)
         {
+            var node = new GameObject("Node " + state, typeof(RectTransform));
+            node.transform.SetParent(head, false);
+            Size(node.transform, StepNode, StepNode);
+            var disc = node.AddComponent<ForgeSurface>();
+            disc.Pill = true;
+            disc.raycastTarget = false;
+            Color ink;
+            switch (state)
+            {
+                case StepState.Done: disc.color = accent; ink = ForgeTheme.TextOnAccent; break;
+                case StepState.Current:
+                    disc.color = WithAlpha(accent, 0.18f);
+                    disc.Glow = 0.8f;
+                    ForgeLook.Ring(node.transform, "Ring", accent, StepNode * 0.5f, 2.5f, 0f, true);
+                    ink = accent;
+                    break;
+                case StepState.Locked: disc.color = new Color(1f, 1f, 1f, 0f); disc.Outline = 0.16f; ink = ForgeTheme.TextTertiary; break;
+                default: disc.color = new Color(1f, 1f, 1f, 0.07f); disc.Outline = 0.22f; ink = ForgeTheme.TextSecondary; break;
+            }
+            TMP_Text mark = Text(node.transform, state == StepState.Done ? "\u2713" : number.ToString(), CaptionText);
+            mark.GetComponent<LayoutElement>().ignoreLayout = true;
+            var markRect = mark.rectTransform;
+            markRect.anchorMin = Vector2.zero;
+            markRect.anchorMax = Vector2.one;
+            markRect.offsetMin = markRect.offsetMax = Vector2.zero;
+            mark.alignment = TextAlignmentOptions.Center;
+            mark.textWrappingMode = TextWrappingModes.NoWrap;
+            mark.fontStyle = FontStyles.Bold;
+            ForgeLook.Tint(mark, ink);
+            ForgeTheme.DarkOnLight(mark, state == StepState.Done);
+        }
+
+        // The rail between two steps, through the nodes' centres, taking the spare width. Lit when the step before is done.
+        static void StepJoin(RectTransform stepper, Color accent)
+        {
+            Transform previous = stepper.GetChild(stepper.childCount - 1);
+            bool lit = previous != null && previous.Find("Head/Node " + StepState.Done) != null;
             var go = new GameObject("Join", typeof(RectTransform));
             go.transform.SetParent(stepper, false);
             var element = go.AddComponent<LayoutElement>();
             element.minWidth = 16f;
             element.preferredWidth = 40f;
             element.flexibleWidth = 1f;
-            element.minHeight = element.preferredHeight = ChipHeight;
+            element.minHeight = element.preferredHeight = StepCellHeight;
             var line = new GameObject("Line", typeof(RectTransform));
             line.transform.SetParent(go.transform, false);
             var rect = (RectTransform)line.transform;
-            rect.anchorMin = new Vector2(0f, 0.5f);
-            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(0f, 3f);
-            var image = line.AddComponent<Image>();
-            image.color = StepLine;
-            image.raycastTarget = false;
+            rect.anchoredPosition = new Vector2(0f, -StepNode * 0.5f);
+            var bar = line.AddComponent<ForgeSurface>();
+            bar.Pill = true;
+            bar.color = lit ? WithAlpha(accent, 0.75f) : StepLine;
+            bar.raycastTarget = false;
         }
 
-        // The UI Set's rounded-box material, from the kit's secondary button (null without the kit: the plate is then square).
-        static Material RoundedMaterial()
+        // ---------------------------------------------------------------- design system helpers (additive)
+
+        /// <summary>The accent for UI under <paramref name="t"/>: its window's badge colour when it has one, else the OS accent (Albie lime).</summary>
+        public static Color AccentFor(Transform t)
         {
-            OSKit kit = OSKit.Current;
-            if (kit == null || kit.secondaryButton == null) return null;
-            Transform background = kit.secondaryButton.transform.Find("Content/Background");
-            var image = background != null ? background.GetComponent<Image>() : null;
-            return image != null ? image.material : null;
+            ForgePanel panel = t != null ? t.GetComponentInParent<ForgePanel>() : null;
+            if (panel != null)
+            {
+                Color a = panel.Accent;
+                if (!(a.r > 0.99f && a.g > 0.99f && a.b > 0.99f)) return Color.Lerp(a, Color.white, 0.25f);  // lifted so it reads as text (>= 4.5:1)
+            }
+            return ForgeTheme.Accent;
+        }
+
+        static Color WithAlpha(Color c, float a) => new Color(c.r, c.g, c.b, a);
+
+        /// <summary>The screen's one big title: display size (34 units, 16 mm cap height), bold, tight tracking. One per view.</summary>
+        public static TMP_Text Heading(Transform parent, string text)
+        {
+            TMP_Text t = Text(parent, text, ForgeTheme.TypeDisplay);
+            t.fontStyle = FontStyles.Bold;
+            t.characterSpacing = ForgeTheme.HeadingTracking;
+            return t;
+        }
+
+        /// <summary>Wrapped running text, kept to a comfortable line length (<see cref="ForgeTheme.MaxLineWidth"/>), with generous leading.</summary>
+        public static TMP_Text Paragraph(Transform parent, string text, bool secondary = false)
+        {
+            TMP_Text t = Text(parent, text, secondary ? SmallText : BodyText, secondary);
+            var layout = t.GetComponent<LayoutElement>();
+            layout.preferredWidth = ForgeTheme.MaxLineWidth;
+            layout.minWidth = 0f;
+            layout.flexibleWidth = 0f;
+            return t;
+        }
+
+        /// <summary>A coloured line of text (success, warning, danger, the accent) that the theme pass leaves alone.</summary>
+        public static TMP_Text Tinted(Transform parent, string text, Color color, float size = BodyText)
+        {
+            TMP_Text t = Text(parent, text, size);
+            ForgeLook.Tint(t, color);
+            return t;
+        }
+
+        /// <summary>
+        /// A status chip (not a button): a pill with a label, tinted (a semantic or accent colour) or neutral when
+        /// <paramref name="tint"/> is null. 36 units tall. Returns the chip.
+        /// </summary>
+        public static RectTransform Chip(Transform parent, string label, Color? tint = null)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Chip " + label, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var plate = go.AddComponent<ForgeSurface>();
+            plate.Pill = true;
+            plate.raycastTarget = false;
+            Color c = tint ?? Color.white;
+            plate.color = tint.HasValue ? WithAlpha(c, 0.16f) : new Color(1f, 1f, 1f, 0.08f);
+            plate.Outline = tint.HasValue ? 0.45f : 0.14f;
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset((int)ForgeTheme.Space4, (int)ForgeTheme.Space4, 0, 0);
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = row.childControlHeight = true;
+            row.childForceExpandWidth = row.childForceExpandHeight = false;
+            TMP_Text text = Text(go.transform, label, CaptionText);
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+            text.alignment = TextAlignmentOptions.Center;
+            text.GetComponent<LayoutElement>().flexibleWidth = 0f;
+            if (tint.HasValue) ForgeLook.Tint(text, Color.Lerp(c, Color.white, 0.35f));
+            float width = text.GetPreferredValues(label ?? "").x + 2f * ForgeTheme.Space4 + 2f;
+            Size(go.transform, width, 36f);
+            Touch(parent);
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>
+        /// A round icon button: no plate until a hand or ray comes near (then a soft glass disc and hairline), sinks when
+        /// pressed. <paramref name="icon"/> is a kit icon name; close, minimise, plus, check, chevron_left, chevron_right and
+        /// more are drawn as crisp glyphs. At least 46 units (30 mm). Named "Button " + icon.
+        /// </summary>
+        public static Button IconButton(Transform parent, string icon, Action onClick, float size = ButtonHeight, bool tonal = false)
+        {
+            if (parent == null) return null;
+            size = Mathf.Max(size, 46f);
+            ForgeButtonLook.Palette palette = tonal ? ForgeButtonLook.Tonal : ForgeButtonLook.Quiet;
+            ForgeGlyph glyph;
+            bool drawn = GlyphFor(icon, out glyph);
+            Button button = ForgeLook.IconButton(parent, drawn ? glyph : ForgeGlyph.Dot, null, size, palette, icon);
+            Transform glyphHolder = button.transform.Find("Glyph " + (drawn ? glyph : ForgeGlyph.Dot));
+            if (!drawn)
+            {
+                Sprite sprite = Icon(icon);
+                if (sprite != null && glyphHolder != null)
+                {
+                    UnityEngine.Object.Destroy(glyphHolder.gameObject);
+                    var img = new GameObject("Icon", typeof(RectTransform)).AddComponent<Image>();
+                    img.transform.SetParent(button.transform, false);
+                    img.rectTransform.sizeDelta = Vector2.one * size * 0.5f;
+                    img.sprite = sprite;
+                    img.preserveAspect = true;
+                    img.raycastTarget = false;
+                    img.color = ForgeTheme.TextPrimary;
+                    var look = button.GetComponent<ForgeButtonLook>();
+                    look.Bind(button.GetComponent<ForgeSurface>(), palette, button.transform, img);
+                }
+            }
+            button.onClick.AddListener(PressAction);
+            if (onClick != null) button.onClick.AddListener(() => onClick());
+            Size(button.transform, size, size);
+            Touch(parent);
+            return button;
+        }
+
+        static bool GlyphFor(string icon, out ForgeGlyph glyph)
+        {
+            switch (icon)
+            {
+                case "close": glyph = ForgeGlyph.Close; return true;
+                case "minimise": case "minimize": glyph = ForgeGlyph.Minimise; return true;
+                case "plus": glyph = ForgeGlyph.Plus; return true;
+                case "check": glyph = ForgeGlyph.Check; return true;
+                case "chevron_left": case "back": glyph = ForgeGlyph.ChevronLeft; return true;
+                case "chevron_right": glyph = ForgeGlyph.ChevronRight; return true;
+                case "more": glyph = ForgeGlyph.More; return true;
+                default: glyph = ForgeGlyph.Dot; return false;
+            }
+        }
+
+        /// <summary>
+        /// A tappable list row: an optional icon, a title with an optional detail line under it, and an optional trailing
+        /// value or chevron at the right. A raised plate that lifts on hover and sinks on press, 72 units (47 mm) tall, or 60
+        /// without a detail. Returns its Button (named "Button " + title). <paramref name="onClick"/> null makes a plain row.
+        /// </summary>
+        public static Button ListRow(Transform parent, string title, string detail = null, string icon = null, string trailing = null, Action onClick = null)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Button " + title, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var plate = go.AddComponent<ForgeSurface>();
+            plate.Corner = ForgeTheme.RadiusControl;
+            plate.raycastTarget = true;
+            var button = go.AddComponent<Button>();
+            button.targetGraphic = plate;
+            button.transition = Selectable.Transition.None;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset((int)ForgeTheme.Space5, (int)ForgeTheme.Space5, 0, 0);
+            row.spacing = ForgeTheme.Space4;
+            row.childAlignment = TextAnchor.MiddleLeft;
+            row.childControlWidth = row.childControlHeight = true;
+            row.childForceExpandWidth = row.childForceExpandHeight = false;
+            var element = go.AddComponent<LayoutElement>();
+            float height = string.IsNullOrEmpty(detail) ? 60f : 72f;
+            element.minHeight = element.preferredHeight = height;
+            element.flexibleWidth = 1f;
+            element.flexibleHeight = 0f;
+
+            Sprite sprite = Icon(icon);
+            if (sprite != null)
+            {
+                var img = new GameObject("Icon", typeof(RectTransform)).AddComponent<Image>();
+                img.transform.SetParent(go.transform, false);
+                img.sprite = sprite;
+                img.preserveAspect = true;
+                img.raycastTarget = false;
+                img.color = ForgeTheme.TextPrimary;
+                Size(img.transform, 32f, 32f);
+            }
+            RectTransform texts = Column(go.transform, 2f);
+            texts.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.MiddleLeft;
+            texts.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            TMP_Text name = Text(texts, title, BodyText);
+            name.textWrappingMode = TextWrappingModes.NoWrap;
+            name.overflowMode = TextOverflowModes.Ellipsis;
+            if (!string.IsNullOrEmpty(detail))
+            {
+                TMP_Text d = Text(texts, detail, CaptionText, true);
+                d.textWrappingMode = TextWrappingModes.NoWrap;
+                d.overflowMode = TextOverflowModes.Ellipsis;
+            }
+            if (!string.IsNullOrEmpty(trailing))
+            {
+                TMP_Text t = Text(go.transform, trailing, SmallText, true);
+                t.textWrappingMode = TextWrappingModes.NoWrap;
+                t.alignment = TextAlignmentOptions.MidlineRight;
+                t.GetComponent<LayoutElement>().flexibleWidth = 0f;
+            }
+            else if (onClick != null)
+            {
+                var holder = new GameObject("Chevron", typeof(RectTransform));
+                holder.transform.SetParent(go.transform, false);
+                Size(holder.transform, 20f, 20f);
+                ForgeLook.Glyph(holder.transform, ForgeGlyph.ChevronRight, 18f, ForgeTheme.TextSecondary);
+            }
+
+            var look = go.AddComponent<ForgeButtonLook>();
+            look.Bind(plate, onClick != null ? ForgeButtonLook.Raised : Static(ForgeButtonLook.Raised), go.transform);
+            if (onClick != null)
+            {
+                button.onClick.AddListener(PressAction);
+                button.onClick.AddListener(() => onClick());
+            }
+            else button.interactable = false;
+            Touch(parent);
+            return button;
+        }
+
+        // A plain row keeps its rest look when it can't be pressed (not the faded disabled look).
+        static ForgeButtonLook.Palette Static(ForgeButtonLook.Palette p)
+        {
+            p.disabled = p.rest;
+            p.contentDisabled = p.content;
+            return p;
+        }
+
+        /// <summary>
+        /// A thin progress rail (a pill track with an accent fill) for "3 of 7 done". <paramref name="progress"/> is 0..1;
+        /// change it later through the returned rail's <see cref="ForgeProgress"/> (it eases). 8 units tall, full width.
+        /// </summary>
+        public static ForgeProgress ProgressRail(Transform parent, float progress, Color? color = null)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Progress", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var track = go.AddComponent<ForgeSurface>();
+            track.Pill = true;
+            track.color = new Color(1f, 1f, 1f, 0.10f);
+            track.raycastTarget = false;
+            var element = go.AddComponent<LayoutElement>();
+            element.minHeight = element.preferredHeight = 8f;
+            element.flexibleWidth = 1f;
+            element.flexibleHeight = 0f;
+            var fillRect = ForgeLook.NewRect("Fill", go.transform);
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = new Vector2(0f, 1f);
+            fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
+            var fill = fillRect.gameObject.AddComponent<ForgeSurface>();
+            fill.Pill = true;
+            fill.color = color ?? AccentFor(parent);
+            fill.Glow = 0.4f;
+            fill.raycastTarget = false;
+            var bar = go.AddComponent<ForgeProgress>();
+            bar.fill = fillRect;
+            bar.Snap(progress);
+            Touch(parent);
+            return bar;
+        }
+
+        /// <summary>A hairline divider across the column (1.5 units, 8% white), with <see cref="ForgeTheme.Space2"/> of air each side.</summary>
+        public static RectTransform Divider(Transform parent)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Divider", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var element = go.AddComponent<LayoutElement>();
+            element.minHeight = element.preferredHeight = 1.5f + 2f * ForgeTheme.Space2;
+            element.flexibleWidth = 1f;
+            var line = ForgeLook.NewRect("Line", go.transform);
+            line.anchorMin = new Vector2(0f, 0.5f);
+            line.anchorMax = new Vector2(1f, 0.5f);
+            line.sizeDelta = new Vector2(0f, 1.5f);
+            var s = line.gameObject.AddComponent<ForgeSurface>();
+            s.color = ForgeTheme.Hairline;
+            s.raycastTarget = false;
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>
+        /// An empty state: an optional icon in a soft disc, a heading and one sentence of what to do, centred. The one place a
+        /// view says "nothing here yet". Returns the column (add one action button to it if there is one).
+        /// </summary>
+        public static RectTransform EmptyState(Transform parent, string heading, string caption, string icon = null)
+        {
+            if (parent == null) return null;
+            RectTransform column = Column(parent, ForgeTheme.Space3);
+            column.name = "Empty " + heading;
+            column.anchorMin = column.anchorMax = column.pivot = new Vector2(0.5f, 0.5f);
+            var layout = column.GetComponent<VerticalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.padding = new RectOffset(0, 0, (int)ForgeTheme.Space6, (int)ForgeTheme.Space6);
+            var element = column.gameObject.AddComponent<LayoutElement>();
+            element.flexibleWidth = 1f;
+            column.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            Sprite sprite = Icon(icon);
+            if (sprite != null)
+            {
+                var holder = new GameObject("Mark", typeof(RectTransform));
+                holder.transform.SetParent(column, false);
+                Size(holder.transform, 72f, 72f);
+                var disc = holder.AddComponent<ForgeSurface>();
+                disc.Pill = true;
+                disc.color = new Color(1f, 1f, 1f, 0.07f);
+                disc.Outline = 0.14f;
+                disc.raycastTarget = false;
+                var img = new GameObject("Icon", typeof(RectTransform)).AddComponent<Image>();
+                img.transform.SetParent(holder.transform, false);
+                img.rectTransform.sizeDelta = new Vector2(34f, 34f);
+                img.sprite = sprite;
+                img.preserveAspect = true;
+                img.raycastTarget = false;
+                img.color = ForgeTheme.TextSecondary;
+            }
+            TMP_Text title = Text(column, heading, TitleText);
+            title.fontStyle = FontStyles.Bold;
+            title.alignment = TextAlignmentOptions.Center;
+            if (!string.IsNullOrEmpty(caption))
+            {
+                TMP_Text line = Paragraph(column, caption, true);
+                line.alignment = TextAlignmentOptions.Center;
+                line.GetComponent<LayoutElement>().preferredWidth = 520f;
+            }
+            return column;
         }
 
         /// <summary>Stops a control (a button, a row) from taking spare height in a column.</summary>
@@ -634,12 +1083,16 @@ namespace Forge.OS
             sort.overrideSorting = true;
             sort.sortingOrder = 50;
             root.AddComponent<GraphicRaycaster>();
-            var bg = root.AddComponent<Image>();
-            bg.color = new Color(0.17f, 0.17f, 0.2f, 1f);
-            root.AddComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>().borderRadius = new Vector4(18f, 18f, 18f, 18f);
+            // Floating elevation: an opaque plate (nothing shows through), a soft dark halo and a light hairline on top.
+            var bg = root.AddComponent<ForgeSurface>();
+            bg.color = new Color(ForgeTheme.FloatingFill.r, ForgeTheme.FloatingFill.g, ForgeTheme.FloatingFill.b, 1f);
+            bg.Corner = ForgeTheme.RadiusCard;
+            bg.Glow = ForgeTheme.FloatingHalo;
+            bg.raycastTarget = true;
+            ForgeLook.Ring(root.transform, "Highlight", new Color(1f, 1f, 1f, ForgeTheme.FloatingRing), ForgeTheme.RadiusCard, 1.5f);
             var strip = root.AddComponent<HorizontalLayoutGroup>();
-            strip.padding = new RectOffset(28, 20, 12, 12);
-            strip.spacing = 18f;
+            strip.padding = new RectOffset(32, 20, 12, 12);
+            strip.spacing = ForgeTheme.Space4;
             strip.childAlignment = TextAnchor.MiddleLeft;
             strip.childControlWidth = strip.childControlHeight = true;
             strip.childForceExpandWidth = false;
@@ -711,6 +1164,9 @@ namespace Forge.OS
             return outlineSprite;
         }
     }
+
+    /// <summary>An elevation of the design system for <see cref="OSUi.Surface"/>.</summary>
+    public enum OSSurface { Raised, Inset, Floating, Selected }
 
     /// <summary>Which UI Set button a <see cref="OSUi.Button"/> is.</summary>
     public enum OSButtonStyle { Primary, Secondary, Borderless, Destructive }

@@ -13,15 +13,15 @@ namespace Forge.ML
     {
         // Palette. Text matches ForgeTheme; Good / Bad / Warn mark right, wrong and overfit on every ML panel.
         public static readonly Color Ink = new Color(0.01f, 0.012f, 0.018f, 0.55f);   // recessed wells (charts, dot wall)
-        public static readonly Color CardColor = new Color(1f, 1f, 1f, 0.045f);
+        public static readonly Color CardColor = ForgeTheme.RaisedFill;  // design system: raised card
         public static readonly Color CardLit = new Color(1f, 1f, 1f, 0.085f);
-        public static readonly Color TextColor = new Color(1f, 1f, 1f, 0.94f);
-        public static readonly Color Sub = new Color(1f, 1f, 1f, 0.56f);
+        public static readonly Color TextColor = ForgeTheme.TextPrimary;
+        public static readonly Color Sub = ForgeTheme.TextSecondary;  // was 56%: raised to the design system's 72% (5.4:1)
         public static readonly Color Faint = new Color(1f, 1f, 1f, 0.32f);
         public static readonly Color Accent = new Color32(0x5B, 0x9B, 0xFF, 0xFF);
-        public static readonly Color Good = new Color32(0x3D, 0xDC, 0x97, 0xFF);
-        public static readonly Color Bad = new Color32(0xFF, 0x5D, 0x6C, 0xFF);
-        public static readonly Color Warn = new Color32(0xFF, 0xB5, 0x47, 0xFF);
+        public static readonly Color Good = ForgeTheme.Success;
+        public static readonly Color Bad = ForgeTheme.Danger;
+        public static readonly Color Warn = ForgeTheme.Warning;
         public static readonly Color Train = new Color32(0x5B, 0xC8, 0xFF, 0xFF);
         public static readonly Color Val = new Color32(0xFF, 0x9F, 0x5A, 0xFF);
 
@@ -35,13 +35,14 @@ namespace Forge.ML
         {
             var t = Rect("Label", parent, x, y, w, h).gameObject.AddComponent<TextMeshProUGUI>();
             if (ForgeTheme.Font != null) t.font = ForgeTheme.Font;
-            t.text = value; t.fontSize = size; t.color = TextColor; t.raycastTarget = false; return t;
+            t.text = value; t.fontSize = size; t.color = TextColor; t.raycastTarget = false;
+            t.lineSpacing = ForgeTheme.LineSpacing * 0.5f; return t;
         }
         /// <summary>Small spaced capitals for section titles and stat captions.</summary>
         public static TMP_Text Caps(Transform parent, string value, float x, float y, float w, float h = 14, float size = 9.5f)
         {
             var t = Text(parent, value.ToUpperInvariant(), x, y, w, h, size);
-            t.characterSpacing = 8; t.color = Sub; t.fontStyle = FontStyles.Bold; t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.characterSpacing = ForgeTheme.CapsTracking + 2f; t.color = Sub; t.fontStyle = FontStyles.Bold; t.textWrappingMode = TextWrappingModes.NoWrap;
             return t;
         }
         /// <summary>A big number under a caption (accuracy, counts).</summary>
@@ -61,8 +62,8 @@ namespace Forge.ML
             var s = Rect("Surface", parent, x, y, w, h).gameObject.AddComponent<ForgeSurface>();
             s.color = color; s.Corner = corner; s.Outline = outline; s.raycastTarget = false; return s;
         }
-        public static ForgeSurface Card(Transform parent, float x, float y, float w, float h, float corner = 14)
-            => Surface(parent, x, y, w, h, CardColor, corner, 0.2f);
+        public static ForgeSurface Card(Transform parent, float x, float y, float w, float h, float corner = ForgeTheme.RadiusCardMm)
+            => Surface(parent, x, y, w, h, CardColor, corner, ForgeTheme.RaisedRing);
         public static ForgeSurface Well(Transform parent, float x, float y, float w, float h, float corner = 12)
             => Surface(parent, x, y, w, h, Ink, corner, 0.12f);
         /// <summary>A small round dot (legend keys, status lights).</summary>
@@ -83,7 +84,8 @@ namespace Forge.ML
         public static TMP_InputField Input(Transform parent, string name, string placeholderText, float x, float y, float w, float h)
         {
             var root = Rect(name, parent, x, y, w, h);
-            var background = root.gameObject.AddComponent<Image>(); background.color = new Color(.1f, .14f, .2f);
+            var background = root.gameObject.AddComponent<ForgeSurface>(); background.color = new Color(1f, 1f, 1f, 0.06f);
+            background.Corner = ForgeTheme.RadiusControlMm; background.Outline = 0.20f;  // design system: a glass field with a light hairline
             var field = root.gameObject.AddComponent<TMP_InputField>(); field.targetGraphic = background;
             field.lineType = TMP_InputField.LineType.SingleLine; field.characterLimit = 512;
             var viewport = Rect("Text Area", root, 5, 2, w - 10, h - 4);

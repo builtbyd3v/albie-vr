@@ -165,6 +165,7 @@ namespace Forge.Artifacts
             panel.Title = "Play area";
             panel.Subtitle = subtitle;
             panel.SetBadge("AREA", ForgeTheme.Tool);
+            panel.CloseHandler = Close;  // the X also takes the floor outline and its handles down
             if (panel.GetComponent<GraphicRaycaster>() == null) panel.gameObject.AddComponent<GraphicRaycaster>();  // mouse (DesktopRig)
             var placeholder = panel.Content.Find("Placeholder");
             if (placeholder != null) placeholder.gameObject.SetActive(false);

@@ -63,14 +63,14 @@ public class FirstRunGuide : MonoBehaviour
     {
         CardLine,
         "These are samples to look around. Tap one and I'll show you.",
-        "Every project is a loop: design, test, drive, train, share.",
+        "Every project is a row of stages: design, test, drive, train. One tap moves between them.",
         "When you're ready, tell me what to build.",
     };
     public const string SamplesLine = "These are samples: worked examples, part built, to show how a project works.";
     public const string SamplesTapLine = "Tap one to look inside. Your own projects go first.";
-    public const string LoopLine = "Every project is a loop. Here's the truck's:";
-    public static readonly string[] LoopSteps = { "1  Design it", "2  Test it in your room", "3  Drive it", "4  Train an autopilot", "5  Share what you made" };
-    public const string LoopNote = "I keep notes and versions as you go.";
+    public const string LoopLine = "Every project is a row of stages. The truck's:";
+    public static readonly string[] LoopSteps = { "1  Design it", "2  Make a course in your room", "3  Drive two laps", "4  Train an autopilot", "5  Watch it drive itself" };
+    public const string LoopNote = "The project bar keeps every stage one tap away.";
     public const string OwnLine = "Ready for your own? Tap New project, or say:";
     public const string OwnSay = "\"Albie, build me a ...\"";
     public const string OwnNote = "Or open a sample and tap Make my own.";
@@ -102,7 +102,7 @@ public class FirstRunGuide : MonoBehaviour
 
     /// <summary>Page 3: open the truck's Project window, the example loop.</summary>
     public static readonly Try LoopTry = new Try("Open the RC truck", "project_open", "{\"name\":\"proj_truck\"}",
-        "Here's the truck. Its steps are along the bottom.", phrase: "Open the truck project");
+        "Here's the truck. Its stages are on the project bar: tap one to go there.", phrase: "Open the truck project");
 
     /// <summary>Page 4: the Build something card.</summary>
     public static readonly Try OwnTry = new Try("New project", "os_open", "{\"kind\":\"system\",\"id\":\"build\"}",
@@ -457,7 +457,7 @@ public class FirstRunGuide : MonoBehaviour
         foreach (var t in Samples) samples.Add(t.label);
         result["sample_projects"] = samples;
         result["about_samples"] = SamplesLine + " The user can look around one; Make my own (project_copy) starts their own project with that kind picked.";
-        result["project_loop"] = "Design, test in the room, drive or fly, train, share. " + LoopNote;
+        result["project_loop"] = "Stages in order: design, a course in the room, drive or fly two laps, train, autopilot; a stage needs the ones before it, and a new design marks the later ones out of date. " + LoopNote;
         result["start_own"] = "New project (the one way to start a project), or say: Albie, build me a ...";
         if (Instance.truckOut) result["driving"] = DriveHint;
         return result;
@@ -560,6 +560,7 @@ public class FirstRunGuide : MonoBehaviour
         panel.Title = "Welcome";
         panel.Subtitle = "1 of " + Pages.Length + " · " + Pages[0];
         panel.SetBadge("HELP", ForgeTheme.Code);
+        panel.CloseHandler = CloseCard;  // its X (and −) fold the card into the "?" dot, so help is always one tap away
         card = panel;
 
         RectTransform content = panel.Content;
@@ -676,6 +677,8 @@ public class FirstRunGuide : MonoBehaviour
         dot.SetText("?", "HELP");
         dot.SetHue(ForgeTheme.Code);
         dot.Tapped += Reopen;
+        // The dot's own close chip puts the help away (hidden; the Spaces list can bring it back).
+        panel.CloseHandler = () => PanelChrome.HideClosed(panel);
         return dot;
     }
 

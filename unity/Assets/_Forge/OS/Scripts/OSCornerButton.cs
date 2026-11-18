@@ -10,7 +10,8 @@ namespace Forge.OS
     /// proved hard to find and touch on the headset). It is never locked to the head. It keeps a world-space anchor; when the head has turned more than
     /// <see cref="recenterDegrees"/> away from the direction the anchor was set for, or has moved more than
     /// <see cref="recenterMeters"/>, it picks a new anchor and eases there over <see cref="easeSeconds"/> with a smooth
-    /// step. It always faces the head. Pressing it opens the menu (summon value Corner); it hides while the menu is open,
+    /// step. It always faces the head. Pressing it opens the menu (summon value Corner); holding it for a second closes
+    /// everything (<see cref="OSLongPress"/>, the panic exit); it hides while the menu is open,
     /// while the pet's greeting holds the desk, and when Settings turns it off.
     /// </summary>
     public sealed class OSCornerButton : MonoBehaviour
@@ -32,6 +33,7 @@ namespace Forge.OS
         OSShell shell;
         GameObject root;
         Button button;
+        OSLongPress longPress;
         bool shown, built, buildFailed, reported;
 
         // The world anchor, the head pose it was set for, and the ease to it.
@@ -202,6 +204,7 @@ namespace Forge.OS
             buttonRect.anchoredPosition = Vector2.zero;
             OSUi.Size(buttonRect, ButtonSize, ButtonSize);
             button.GetComponent<LayoutElement>().ignoreLayout = true;
+            longPress = button.gameObject.AddComponent<OSLongPress>();  // hold it: close everything (the panic exit)
             // Icon only: the empty label box would sit beside the icon in the row and push it off centre.
             var emptyText = button.transform.Find("Content/Background/Elements/Text");
             if (emptyText != null) emptyText.gameObject.SetActive(false);
@@ -215,6 +218,7 @@ namespace Forge.OS
 
         void Pressed()
         {
+            if (longPress != null && longPress.TakeFired()) return;  // that was the hold: everything closed, no menu
             if (shell == null) return;
             shell.OpenMenu(OSSummon.Corner, root != null ? root.transform.position : (Vector3?)null);
         }

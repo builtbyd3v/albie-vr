@@ -219,6 +219,9 @@ public class GestureWindow : MonoBehaviour
         orb.transform.SetPositionAndRotation(center, Quaternion.LookRotation(center - head.position, Vector3.up));
         orb.transform.localScale = orbRest * 0.4f;
         orb.Tapped += () => Restore(runner);
+        // The dot's own close chip closes the window it stands for, for real.
+        var orbPanel = orb.GetComponent<ForgePanel>();
+        if (orbPanel != null && panel.Closable) orbPanel.CloseHandler = () => { if (panel != null) panel.RequestClose(); };
         WatchDesk(true);
         closedByHand.Remove(this);
         closedByHand.Add(this);
@@ -287,6 +290,16 @@ public class GestureWindow : MonoBehaviour
             group.alpha = alpha;
             if (handles != null) handles.Busy = false;
         }));
+    }
+
+    /// <summary>The panel is closing for real: its dot (if it was minimised) goes, and it is no longer one to reopen.</summary>
+    public void ForgetDot()
+    {
+        closedByHand.Remove(this);
+        if (orb == null) return;
+        WatchDesk(false);
+        DropOrb();
+        if (group != null) group.blocksRaycasts = true;
     }
 
     void DropOrb()
