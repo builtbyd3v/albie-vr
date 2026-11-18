@@ -67,11 +67,12 @@ namespace Forge.Artifacts
             // Resolve at press time: glTF loads asynchronously, after the panel has been built.
             if (build.Assets.Count > 0)
             {
-                // A model brought in with model_import isn't authored in named parts: it gets the plain turn and reset,
-                // and the credit its licence asks for (CC BY), from the manifest.
+                // A model brought in with model_import isn't authored in named parts: the explorer builds them from its node
+                // tree, so Separate and X-ray show once it has loaded and turns out to have parts. It also gets the credit
+                // its licence asks for (CC BY), from the manifest.
                 string credit = ModelImport.Credits(build.Host.OpenManifest);
                 y += Note(panel.Content, y, credit != null
-                    ? "With your hands: pinch the model to pick it up and turn it, and pinch with both hands to resize it."
+                    ? "With your hands: pinch the model to pick it up and turn it, and pinch with both hands to resize it. If it comes apart, Separate spreads its parts and you can pinch one out."
                     : "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
                 // Each view pill says what a press does next, like the scene's own toggles (Hide labels / Show labels);
                 // X-ray lights up while it's on. Reset view puts all three back.
@@ -103,7 +104,25 @@ namespace Forge.Artifacts
                 x += Pill(panel.Content, y, x, "Turn 30°", () => inspect(e => e.Turn())) + 10f;
                 if (credit != null)
                 {
-                    Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                    // Turn, then Separate and X-ray (hidden until the model turns out to have parts); Cut open and Reset below.
+                    apartPill = PillControl(panel.Content, y, x, "Assemble", () => inspect(e => e.Separate()));
+                    SetLabel(apartPill, "Separate");
+                    xrayPill = PillControl(panel.Content, y, x + apartPill.Rect.sizeDelta.x + 10f, "X-ray", () => inspect(e => e.ToggleXRay()));
+                    apartPill.gameObject.SetActive(false);
+                    xrayPill.gameObject.SetActive(false);
+                    var apart = apartPill; var xray = xrayPill;
+                    foreach (var node in build.Nodes.Values)
+                        if (node != null && node.TryGetComponent<ArtifactGltf>(out var imported))
+                            WhenExplorable(imported, e =>
+                            {
+                                bool hasParts = e.PartCount >= 2;
+                                if (apart != null) apart.gameObject.SetActive(hasParts);
+                                if (xray != null) xray.gameObject.SetActive(hasParts);
+                            });
+                    y += PillRow + Gap;
+                    cutPill = PillControl(panel.Content, y, 0f, "Make whole", () => inspect(e => e.Section()));
+                    SetLabel(cutPill, "Cut open");
+                    Pill(panel.Content, y, cutPill.Rect.sizeDelta.x + 10f, "Reset view", () => inspect(e =>
                     {
                         e.ResetView();
                         var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it

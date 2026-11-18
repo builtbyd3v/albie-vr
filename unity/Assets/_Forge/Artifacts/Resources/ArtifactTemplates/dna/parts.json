@@ -1,0 +1,20 @@
+{
+  "note": "What the DNA model's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names.",
+  "bilateral": false,
+  "ignore": ["dna", "helix", "double"],
+  "parts": {
+    "Backbone, strand 1": {"about": "Sugar and phosphate chain holding strand 1's bases", "aka": ["first backbone", "backbone 1"]},
+    "Backbone, strand 2": {"about": "Sugar and phosphate chain holding strand 2's bases", "aka": ["second backbone", "backbone 2", "other backbone"]},
+    "Bases, strand 1": {"about": "A, T, C and G: the letters of the code on strand 1", "aka": ["first bases", "bases 1"]},
+    "Bases, strand 2": {"about": "The matching letters on strand 2", "aka": ["second bases", "bases 2", "other bases"]},
+    "Hydrogen bonds": {"about": "Weak bonds that pair A with T and C with G", "aka": ["bonds", "h bonds", "hydrogen bond"]}
+  },
+  "groups": [
+    {"words": ["backbones", "backbone", "sugar phosphate backbone", "sugar phosphate", "rails", "sides of the ladder"], "parts": ["Backbone, strand 1", "Backbone, strand 2"]},
+    {"words": ["bases", "base pairs", "letters", "rungs", "nucleotides", "code"], "parts": ["Bases, strand 1", "Bases, strand 2"]},
+    {"words": ["strand 1", "first strand", "one strand"], "parts": ["Backbone, strand 1", "Bases, strand 1"]},
+    {"words": ["strand 2", "second strand", "other strand"], "parts": ["Backbone, strand 2", "Bases, strand 2"]},
+    {"words": ["strands", "both strands", "two strands"], "parts": ["Backbone, strand 1", "Bases, strand 1", "Backbone, strand 2", "Bases, strand 2"]},
+    {"words": ["pairs", "rungs and bonds", "middle"], "parts": ["Bases, strand 1", "Bases, strand 2", "Hydrogen bonds"]}
+  ]
+}

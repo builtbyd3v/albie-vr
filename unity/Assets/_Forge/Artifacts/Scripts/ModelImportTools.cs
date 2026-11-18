@@ -165,6 +165,11 @@ namespace Forge.Artifacts
                 ["name"] = meta.name, ["author"] = meta.author, ["licence"] = meta.licence, ["source_url"] = meta.source_url,
                 ["next"] = "Say its name, who made it and its licence in one short sentence. The credit is on its panel; Turn and Reset view are there too.",
             };
+            // Several meshes: it can most likely come apart, so Albie offers to (the explorer says if it turns out to be one piece).
+            int meshes = ModelImportGlb.Inspect(bytes, out _)?.Meshes ?? 0;
+            result["next"] = (string)result["next"] + (meshes > 1
+                ? " It's made of several pieces: in the same sentence, ask 'want me to take it apart?' (artifact_explore separate, then isolate for one part)."
+                : " It's one solid piece, so don't offer to take it apart.");
             try { result["opened"] = ArtifactTools.Open(new JObject { ["id"] = made.Id }); }
             catch (ArgumentException e) { result["opened"] = new JObject { ["status"] = "saved, not opened", ["why"] = e.Message }; }
             return result;

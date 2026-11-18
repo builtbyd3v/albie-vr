@@ -68,7 +68,12 @@ namespace Forge.Artifacts
             if (fit) ModelImport.Fit(holder.transform);  // before the explorer notes where the model rests
             Explorer = holder.AddComponent<ArtifactExplorer>();
             Explorer.SceneNodes = sceneNodes;
+            // What its parts are called when people talk (a template's parts.json); an imported model has none.
+            var manifest = host != null ? host.OpenManifest : null;
+            Explorer.Words = ArtifactExplorer.WordsFor(manifest?.Value<string>("template") ?? manifest?.Value<string>("id"));
             Explorer.Initialize();
+            // What "this" is: the part pointed or looked at, for "show me this lobe".
+            holder.AddComponent<ArtifactPartPointer>().Bind(Explorer);
             Loaded = true;
             if (host != null) host.ModelLoaded();
             return true;

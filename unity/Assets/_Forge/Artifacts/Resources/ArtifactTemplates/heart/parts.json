@@ -1,0 +1,43 @@
+{
+  "note": "What the heart's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names. 'aka' are other names for one part; a group's 'words' all mean its parts. A word used alone that is the singular of a plural group word ('valve', 'chamber') asks which.",
+  "bilateral": false,
+  "ignore": ["heart", "hearts"],
+  "parts": {
+    "Aorta": {"about": "The main artery: oxygen-rich blood out to the body", "aka": ["aortic arch", "main artery", "ascending aorta"]},
+    "Aortic valve": {"about": "Lets blood out of the left ventricle into the aorta", "aka": ["aortic"]},
+    "Cardiac veins": {"about": "Drain the heart muscle's own blood to the right atrium", "aka": ["coronary veins", "coronary sinus", "heart veins", "great cardiac vein"]},
+    "Inferior vena cava": {"about": "Brings oxygen-poor blood up from the lower body", "aka": ["ivc", "lower vena cava", "bottom vena cava"]},
+    "Left atrium": {"about": "Takes in oxygen-rich blood from the lungs", "aka": ["la", "upper left chamber", "top left chamber", "left upper chamber"]},
+    "Left coronary artery": {"about": "Feeds the heart muscle, mostly on the left", "aka": ["lad", "left anterior descending", "circumflex", "widowmaker", "left main"]},
+    "Left ventricle": {"about": "The strongest chamber: pumps blood to the whole body", "aka": ["lv", "lower left chamber", "bottom left chamber", "left lower chamber", "main pumping chamber", "main pump"]},
+    "Mitral valve": {"about": "Between the left atrium and the left ventricle", "aka": ["bicuspid valve", "mitral", "left av valve"]},
+    "Papillary muscles": {"about": "Pull on the valve cords so the valves don't flip back", "aka": ["chordae", "chordae tendineae", "heart strings", "valve cords", "cords", "tendons"]},
+    "Pulmonary arteries": {"about": "Carry oxygen-poor blood to the lungs", "aka": ["pulmonary trunk", "lung arteries", "artery to the lungs"]},
+    "Pulmonary valve": {"about": "Lets blood out of the right ventricle toward the lungs", "aka": ["pulmonic valve", "pulmonic"]},
+    "Pulmonary veins": {"about": "Bring oxygen-rich blood back from the lungs", "aka": ["lung veins", "veins from the lungs"]},
+    "Right atrium": {"about": "Takes in oxygen-poor blood from the body", "aka": ["ra", "upper right chamber", "top right chamber", "right upper chamber"]},
+    "Right coronary artery": {"about": "Feeds the heart muscle, mostly on the right", "aka": ["rca"]},
+    "Right ventricle": {"about": "Pumps blood to the lungs", "aka": ["rv", "lower right chamber", "bottom right chamber", "right lower chamber"]},
+    "Superior vena cava": {"about": "Brings oxygen-poor blood down from the head and arms", "aka": ["svc", "upper vena cava", "top vena cava"]},
+    "Tricuspid valve": {"about": "Between the right atrium and the right ventricle", "aka": ["tricuspid", "right av valve"]}
+  },
+  "groups": [
+    {"words": ["chambers", "four chambers", "heart chambers", "heart muscle", "myocardium", "walls", "heart walls"], "parts": ["Left atrium", "Right atrium", "Left ventricle", "Right ventricle"]},
+    {"words": ["atria", "atriums", "upper chambers", "top chambers", "receiving chambers", "both atria"], "parts": ["Left atrium", "Right atrium"]},
+    {"words": ["ventricles", "lower chambers", "bottom chambers", "pumping chambers", "pumps", "both ventricles"], "parts": ["Left ventricle", "Right ventricle"]},
+    {"words": ["valves", "heart valves", "four valves", "all the valves", "all four valves"], "parts": ["Tricuspid valve", "Pulmonary valve", "Mitral valve", "Aortic valve"]},
+    {"words": ["av valves", "atrioventricular valves", "inlet valves"], "parts": ["Tricuspid valve", "Mitral valve"]},
+    {"words": ["semilunar valves", "outlet valves"], "parts": ["Pulmonary valve", "Aortic valve"]},
+    {"words": ["arteries"], "parts": ["Aorta", "Pulmonary arteries", "Left coronary artery", "Right coronary artery"]},
+    {"words": ["coronary arteries", "coronaries"], "parts": ["Left coronary artery", "Right coronary artery"]},
+    {"words": ["coronary vessels", "coronary circulation", "blood supply", "heart's own blood supply"], "parts": ["Left coronary artery", "Right coronary artery", "Cardiac veins"]},
+    {"words": ["veins"], "parts": ["Superior vena cava", "Inferior vena cava", "Pulmonary veins", "Cardiac veins"]},
+    {"words": ["venae cavae", "vena cavas", "cavae", "big veins"], "parts": ["Superior vena cava", "Inferior vena cava"]},
+    {"words": ["great vessels", "big vessels", "main vessels", "vessels", "pipes", "tubes"], "parts": ["Aorta", "Superior vena cava", "Inferior vena cava", "Pulmonary arteries", "Pulmonary veins"]},
+    {"words": ["blood vessels", "all the vessels"], "parts": ["Aorta", "Superior vena cava", "Inferior vena cava", "Pulmonary arteries", "Pulmonary veins", "Left coronary artery", "Right coronary artery", "Cardiac veins"]},
+    {"words": ["lung side", "lung vessels", "pulmonary circulation", "to and from the lungs"], "parts": ["Pulmonary arteries", "Pulmonary veins", "Pulmonary valve"]},
+    {"words": ["left side", "left heart", "left half", "oxygen rich side", "red side"], "parts": ["Pulmonary veins", "Left atrium", "Mitral valve", "Left ventricle", "Aortic valve", "Aorta"]},
+    {"words": ["right side", "right heart", "right half", "oxygen poor side", "blue side"], "parts": ["Superior vena cava", "Inferior vena cava", "Right atrium", "Tricuspid valve", "Right ventricle", "Pulmonary valve", "Pulmonary arteries"]},
+    {"words": ["inside", "insides", "inner parts", "inner workings"], "parts": ["Tricuspid valve", "Pulmonary valve", "Mitral valve", "Aortic valve", "Papillary muscles"]}
+  ]
+}

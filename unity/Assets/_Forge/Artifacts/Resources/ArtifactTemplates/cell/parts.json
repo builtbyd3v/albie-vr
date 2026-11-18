@@ -1,0 +1,28 @@
+{
+  "note": "What the animal cell's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names.",
+  "bilateral": false,
+  "ignore": ["cell", "cells", "animal"],
+  "parts": {
+    "Cell membrane": {"about": "Thin outer layer that controls what goes in and out", "aka": ["plasma membrane", "membrane", "outer layer", "skin"]},
+    "Centrosome": {"about": "Organises the microtubules; splits chromosomes in division", "aka": ["centrioles", "centriole"]},
+    "Chromatin": {"about": "The DNA, wound on proteins inside the nucleus", "aka": ["dna", "chromosomes", "genes"]},
+    "Free ribosomes": {"about": "Build the proteins the cell uses itself", "aka": ["ribosomes", "free ribosome"]},
+    "Golgi apparatus": {"about": "Packs proteins and ships them out", "aka": ["golgi", "golgi body", "golgi complex", "post office"]},
+    "Lysosomes": {"about": "Break down waste with enzymes", "aka": ["recycling", "waste bags"]},
+    "Microtubules": {"about": "Tracks and scaffolding of the cytoskeleton", "aka": ["cytoskeleton", "tracks", "skeleton"]},
+    "Mitochondria": {"about": "Make the cell's energy (ATP)", "aka": ["mitochondrion", "powerhouse", "power plant", "energy"]},
+    "Nuclear envelope": {"about": "The double membrane round the nucleus", "aka": ["nuclear membrane", "nucleus membrane"]},
+    "Nucleolus": {"about": "Builds the ribosomes", "aka": ["nucleoli"]},
+    "Rough ER": {"about": "Covered in ribosomes; makes proteins to send out", "aka": ["rough endoplasmic reticulum", "rer", "rough er"]},
+    "Smooth ER": {"about": "Makes fats (lipids) and breaks down toxins", "aka": ["smooth endoplasmic reticulum", "ser", "smooth er"]},
+    "Vesicles": {"about": "Little bubbles that carry cargo round the cell", "aka": ["transport vesicles", "bubbles", "sacs"]}
+  },
+  "groups": [
+    {"words": ["nucleus", "the nucleus", "control center", "brain of the cell"], "parts": ["Nuclear envelope", "Nucleolus", "Chromatin"]},
+    {"words": ["er", "endoplasmic reticulum", "both er", "reticulum"], "parts": ["Rough ER", "Smooth ER"]},
+    {"words": ["organelles", "all the organelles"], "parts": ["Mitochondria", "Golgi apparatus", "Rough ER", "Smooth ER", "Lysosomes", "Vesicles", "Centrosome", "Free ribosomes", "Nuclear envelope", "Nucleolus"]},
+    {"words": ["protein path", "protein factory", "protein making", "secretory pathway"], "parts": ["Nucleolus", "Rough ER", "Golgi apparatus", "Vesicles"]},
+    {"words": ["membranes", "both membranes"], "parts": ["Cell membrane", "Nuclear envelope"]},
+    {"words": ["cytoskeleton parts"], "parts": ["Microtubules", "Centrosome"]}
+  ]
+}
