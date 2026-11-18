@@ -35,7 +35,7 @@ Each summon records where it came from (`OSSummon`). The menu grows from that pl
 | Way | What it is | Turned on by |
 |---|---|---|
 | Table button | A round button on the real table, shown when the user is at a desk and the greeting is not holding the desk | `tableButton` (on) |
-| Corner button | A small button low in one corner of the view, shown away from a desk. It keeps an anchor and is never locked to the head. It hides while the menu is open | `cornerButton` (on), `cornerOnLeft` picks the side |
+| Corner button | A small button shown away from a desk. Its position and rotation stay fixed in the room through head turns and leaning. It hides while a task, the menu, or RC controls are open | `cornerButton` (on), `cornerOnLeft` picks the side |
 | Watch turn | Turn the left wrist as if checking a watch; a small button appears above it. Poke it with the right index finger | `watchTurn` (on) |
 | M key or left controller menu button | Toggles the menu. A plain M only: Shift+M is CAD's measure key. An M typed into a text field is a letter | Always on |
 | Voice | The `os_menu` and `os_tab` voice tools | Always on when voice is on |
@@ -106,8 +106,8 @@ Settings are in `OSSettings` and saved to `os_settings.json` in the app's data f
 | `watchTurn` | true | `OSWatch` (shows the watch button when the wrist is turned; off hides it) |
 | `cornerButton` | true | `OSCornerButton` (shows the corner button away from a desk) |
 | `cornerOnLeft` | false | `OSCornerButton` (puts the corner button on the left) |
-| `menuDistance` | 0.5 m | `OSMenu` placement. Range 0.35 to 0.8. The Settings slider offers 0.35 to 0.7 |
-| `menuDropDegrees` | 15 | `OSMenu` placement. Range 0 to 35. The Settings slider offers 0 to 30 |
+| `menuDistance` | 0.47 m | `OSMenu` placement. Range 0.42 to 0.6; the Settings slider uses the same range |
+| `menuDropDegrees` | 20 | `OSMenu` placement. Range 10 to 30 degrees; desk clearance may lift the plate |
 | `gestureDisplay` | false | `OSShell` at start, through `OSToolsCatalog.ApplySavedGestureDisplay`; the Settings window sets it |
 | `flatLayout` | false | `OSModes` (the workspace's flat or curved layout) |
 
@@ -182,11 +182,9 @@ Change these only after a headset test shows a problem. Each one is a public fie
 | `distance` | 0.45 m | Closer if it is hard to reach; further if it is in the way |
 | `sideDegrees` | 28 | Angle to the side of the gaze line at rest |
 | `dropDegrees` | 22 | Angle below the gaze line at rest; raise it to sit lower |
-| `recenterDegrees` | 25 | Head turn that picks a new anchor. Raise it if it moves too often |
-| `recenterMeters` | 0.3 m | Head move that picks a new anchor |
-| `easeSeconds` | 0.4 s | How long the move to a new anchor takes |
+| `easeSeconds` | 0.4 s | How long an explicit Settings side change takes while visible |
 
-**Menu placement** (settings, read when the menu opens): `menuDistance` (0.5 m, range 0.35 to 0.8) and `menuDropDegrees` (15, range 0 to 35). If the menu sits too close, raise `menuDistance`. If it sits too high or too low, change `menuDropDegrees`. Placement moves the menu nearer, or to the side, when a window is in front of it. The fixed values are in `OSMenu` (`DistanceStep` 0.02 m, `ProbeYawDegrees` 10, `MaxDropDegrees` 70). They are code constants, not settings.
+**Menu placement** (settings, read when the menu opens): `menuDistance` (0.47 m, range 0.42 to 0.6) and `menuDropDegrees` (20, range 10 to 30). If the menu sits too close, raise `menuDistance`. If it sits too high or too low, change `menuDropDegrees`. Placement keeps that distance, checks open panels and models at every depth, and searches up to 90 degrees to either side to leave work visible. Opening or selecting a task closes the menu. Bringing out the RC transmitter also dismisses an already-open menu. The desk button stays anchored to the desk; the floating shortcut hides during tasks and RC use. The deliberate wrist shortcut remains available during tasks, but hides while RC controls are shown. The controller menu button, desktop M key and voice can still summon Tools explicitly.
 
 **Drive pad** (`OSDrivePad`):
 - `SpringSeconds` (0.12 s, public constant): how fast the knob springs back.

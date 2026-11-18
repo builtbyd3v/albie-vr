@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from . import events as ev
-from .build_review import command_env
+from .build_review import command_env, empty_test_run
 
 
 async def execute(request: dict, control=None, progress=None) -> dict:
@@ -86,5 +86,5 @@ async def check(build, argv):
                             "folder": build.folder, "argv": argv}, build.control)
     code = result.get("exit_code")
     text = str(result.get("output") or result.get("error") or "")[-6000:]
-    return {"command": argv, "state": "passed" if code == 0 and "Ran 0 tests" not in text else "failed",
+    return {"command": argv, "state": "passed" if code == 0 and not empty_test_run(text) else "failed",
             "exit_code": code, "output": text}

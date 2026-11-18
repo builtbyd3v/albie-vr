@@ -13,10 +13,9 @@ namespace Forge.OS.Editor
 {
     /// <summary>
     /// Forge > OS > Run Corner Test: the real Main scene in Play mode on the desktop rig with voice off, on a scratch settings file
-    /// (the user's real one is never read or written). It checks that the corner button shows at the desk (beside the table button:
-    /// the headset showed the menu has to be easy to reach there too) and keeps showing once the user walks away, sits about 0.45 m out in the lower right of the view, lags the head (a 10 degree turn leaves it alone, a 40
-    /// degree turn or half a metre of walking re-anchors it with a 0.4 s ease), opens the menu when pressed, hides while the menu is
-    /// open and returns when it closes, and that the Settings window switches it off and moves it to the left or the right.
+    /// (the user's real one is never read or written). It checks that the corner button is hidden at the desk, shows once the user
+    /// walks away, sits about 0.45 m out in the lower right of the view, stays fixed through head turns and walking,
+    /// opens the menu when pressed, hides while a task or RC controls are open, and that Settings changes its side.
     /// Screenshots go to Logs/os/ (listed in a manifest, cleared by the next run). The result is in <see cref="LastResult"/> and a
     /// console line "[OSCornerTest] N passed, M failed".
     /// </summary>
@@ -177,6 +176,14 @@ namespace Forge.OS.Editor
             if (condition) { passed++; return; }
             failed++;
             failures.Add(what);
+            var shell = OSShell.Current;
+            if (shell != null)
+            {
+                var ids = new List<string>();
+                foreach (var window in shell.Windows.All) if (window != null) ids.Add(window.Id);
+                Debug.Log("[OSCornerTest] state: windows=" + string.Join(",", ids) + ", menu=" + shell.MenuOpen
+                    + ", rc=" + shell.RcControlsOpen + ", held=" + shell.Held + ", desk=" + shell.AtDesk);
+            }
         }
 
         static void Measure(string line)
@@ -291,6 +298,9 @@ namespace Forge.OS.Editor
             Check(menu != null && table != null && corner != null, "the shell prefab carries the menu, the table button and the corner button");
             if (menu == null || table == null || corner == null) yield break;
             Check(OSCornerButton.Current == corner, "OSCornerButton.Current is the shell's corner button");
+            shell.Windows.CloseAll();
+            if (GestureEngine.Current != null && GestureEngine.Current.Actions != null)
+                GestureEngine.Current.Actions.ShowDisplay(false);
             if (shell.Held)
             {
                 var greeting = UnityEngine.Object.FindAnyObjectByType<ArrivalGreeting>();
@@ -303,12 +313,10 @@ namespace Forge.OS.Editor
             OSSettings s = OSSettings.Current;
             Check(s.cornerButton && !s.cornerOnLeft, "the scratch settings start with the corner button on, on the right");
 
-            // ---- at the desk: both launchers, the corner one within reach in the lower corner of the view
+            // ---- at the desk: only the fixed desk launcher is shown
             foreach (float w in Until(() => table.Shown, 6f)) yield return w;
             Check(shell.AtDesk && table.Shown, "at the desk the table button shows");
-            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
-            Check(corner.Shown, "at the desk the corner button shows too");
-            Check(!corner.Easing && corner.Recenters == 0, "its first showing at the desk is not a fly-in and not a re-centre");
+            Check(!corner.Shown, "at the desk the duplicate floating launcher stays hidden");
 
             // ---- stand and walk away
             var presence = workspace.presence;
@@ -327,8 +335,8 @@ namespace Forge.OS.Editor
             foreach (float w in Until(() => !corner.Easing, 2f)) yield return w;
             yield return 0.6f;
             Transform head = shell.Head;
-            Check(head != null && !corner.Easing, "it has settled after following the user away from the desk");
-            Check(corner.Recenters >= 1, "walking away from the desk re-anchored it (Recenters " + corner.Recenters + ")");
+            Check(head != null && !corner.Easing, "the shortcut appears at its anchor without following the head");
+            Check(corner.Recenters == 0, "showing the shortcut after leaving the desk starts a fresh stationary anchor");
 
             // ---- where it sits
             Where(head, corner.Position, out float side, out float drop, out float metres);
@@ -364,49 +372,21 @@ namespace Forge.OS.Editor
             Where(head, corner.Position, out float side2, out float drop2, out float m2);
             Check(side2 < side - 5f, $"so it has slid toward the middle of the view as the head turned ({side:F1} to {side2:F1} degrees)");
 
-            // ---- a big turn: it eases there over about 0.4 s
+            // ---- larger head turns and walking must not drag the shortcut across the view
             p0 = corner.Position;
+            Quaternion rotation0 = root.transform.rotation;
             Vector3 flatNow = Vector3.ProjectOnPlane(head.forward, Vector3.up).normalized;
             rig.LookAt(head.position + Quaternion.Euler(0f, 40f, 0f) * flatNow * 2f);
-            double t0 = EditorApplication.timeSinceStartup, easeStart = -1, easeEnd = -1;
-            bool partial = false, monotonic = true;
-            float lastDist = 0f;
-            Vector3 target = p0;
-            for (int i = 0; i < 400; i++)
-            {
-                yield return 0f;
-                double now = EditorApplication.timeSinceStartup;
-                if (corner.Easing)
-                {
-                    if (easeStart < 0) { easeStart = now; target = corner.AnchorPosition; }
-                    float travelled = Vector3.Distance(corner.Position, p0), total = Vector3.Distance(target, p0);
-                    if (!partial && travelled < total * 0.9f) partial = true;
-                    if (travelled < lastDist - 0.0005f) monotonic = false;
-                    lastDist = travelled;
-                }
-                else if (easeStart >= 0) { easeEnd = now; break; }
-                if (now - t0 > 3.0) break;
-            }
-            double easeTook = easeEnd >= 0 ? easeEnd - easeStart : -1;
-            Measure($"the ease took {easeTook:F2} s (set 0.4), it moved {Vector3.Distance(corner.Position, p0):F2} m");
-            Check(easeStart >= 0, "a 40 degree turn made it start easing to a new anchor");
-            Check(partial, "it was seen part of the way there (it does not jump)");
-            Check(monotonic, "the ease only moves forward");
-            Check(easeTook >= 0.2 && easeTook <= 0.9, $"the ease lasts about 0.4 s ({easeTook:F2} s)");
-            Check(!corner.Easing && corner.Recenters == r0 + 1, $"it settled and re-centred once (Recenters {corner.Recenters})");
-            Check(Vector3.Distance(corner.Position, p0) > 0.15f, $"the button moved across the room ({Vector3.Distance(corner.Position, p0):F2} m)");
-            Check(Vector3.Distance(corner.Position, corner.AnchorPosition) < 0.001f, "it ended on its anchor");
-            Where(head, corner.Position, out side, out drop, out metres);
-            Check(Mathf.Abs(side - 28f) < 2f && Mathf.Abs(drop - 22f) < 2f && metres > 0.4f && metres < 0.5f, $"and sits in the same corner of the view again ({side:F1} right, {drop:F1} down, {metres:F2} m)");
-
-            // ---- walking half a metre re-centres too
-            r0 = corner.Recenters;
+            yield return 0.8f;
+            Check(corner.Recenters == r0 && !corner.Easing, "a 40 degree turn does not re-anchor the button");
+            Check(Vector3.Distance(corner.Position, p0) < 0.001f, "a large head turn leaves its position fixed");
+            Check(Quaternion.Angle(root.transform.rotation, rotation0) < 0.1f, "a head turn leaves its rotation fixed too");
             Teleport(rig, Vector3.Cross(Vector3.up, head.forward).normalized * 0.5f);
             yield return 0.8f;
-            Check(corner.Recenters == r0 + 1, "walking half a metre re-centres it once");
-            Teleport(rig, Vector3.Cross(Vector3.up, head.forward).normalized * 0.1f);
-            yield return 0.5f;
-            Check(corner.Recenters == r0 + 1, "a 0.1 m step does not");
+            Check(corner.Recenters == r0 && Vector3.Distance(corner.Position, p0) < 0.001f,
+                "walking or leaning does not pull the button after the user");
+            rig.LookAt(corner.Position);
+            yield return 0.3f;
 
             // ---- press: the menu opens, the button hides, then returns
             Check(Press(corner.Button.gameObject, out why), "a pointer reaches the corner button: " + why);
@@ -420,6 +400,54 @@ namespace Forge.OS.Editor
             Check(corner.Shown && !corner.Easing && corner.Recenters == 0, "it returns when the menu closes, in place (no fly-in)");
             Where(head, corner.Position, out side, out drop, out metres);
             Check(Mathf.Abs(side - 28f) < 2f && Mathf.Abs(drop - 22f) < 2f, $"and is back in its corner ({side:F1}, {drop:F1})");
+
+            // ---- opening a task dismisses Tools; explicitly reopening Tools keeps the task unobscured
+            shell.OpenMenu(OSSummon.Key);
+            yield return 0.4f;
+            var task = shell.Windows.Open("comfort-task", "Stationary task", new Vector2(0.6f, 0.4f), null);
+            yield return 0.5f;
+            Check(task != null && !shell.MenuOpen && !menu.Visible, "opening a task dismisses the Tools menu");
+            Check(!corner.Shown, "an open task suppresses the floating shortcut");
+            if (task != null)
+            {
+                Vector3 taskPosition = task.Root.position;
+                rig.LookAt(OSToolsTest.CenterOf(task.Panel.transform));
+                yield return 0.4f;
+                shell.OpenMenu(OSSummon.Key);
+                yield return 0.5f;
+                Check(OSMenu.Blocked(head.position, menu.LastCenter, menu.LastRotation, menu.SizeMeters,
+                    protectWorkspace: true) == 0, "reopened Tools sits clear of the task even when the task is farther away");
+                Shot("tools_beside_task");
+                Vector3 menuPosition = menu.transform.position;
+                Quaternion menuRotation = menu.transform.rotation;
+                rig.LookAt(head.position + Quaternion.Euler(0f, 40f, 0f) * head.forward);
+                yield return 0.5f;
+                Check(Vector3.Distance(menu.transform.position, menuPosition) < 0.001f
+                    && Quaternion.Angle(menu.transform.rotation, menuRotation) < 0.1f, "Tools stays fixed through head turns");
+                Check(Vector3.Distance(task.Root.position, taskPosition) < 0.001f, "opening Tools leaves the task in its original place");
+                shell.CloseMenu();
+                task.Close();
+                yield return 0.5f;
+            }
+
+            var transmitter = Forge.Controllers.RcTransmitter.Instance ?? Forge.Controllers.RcTransmitter.Ensure();
+            Check(transmitter != null, "the RC transmitter is available for the comfort check");
+            if (transmitter != null)
+            {
+                shell.OpenMenu(OSSummon.Key);
+                yield return 0.4f;
+                transmitter.Show();
+                yield return 0.5f;
+                Check(!shell.MenuOpen && !menu.Visible, "bringing out RC controls dismisses an already-open menu");
+                Check(!corner.Shown, "RC controls suppress the floating menu shortcut without needing a Drive window");
+                shell.OpenMenu(OSSummon.Key);
+                yield return 0.4f;
+                Check(shell.MenuOpen, "the user can still explicitly summon Tools while RC controls are out");
+                shell.CloseMenu();
+                transmitter.Hide();
+                yield return 0.5f;
+                Check(corner.Shown, "putting away RC controls restores the shortcut when no task is open");
+            }
 
             // ---- Settings: switch it off, bring it back, pick the other side
             OSInput.Tap(Key.M);
@@ -435,8 +463,7 @@ namespace Forge.OS.Editor
             if (view2 == null) yield break;
             rig.LookAt(OSToolsTest.CenterOf(Win(shell).Panel.transform));
             yield return 0.8f;
-            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
-            Check(corner.Shown, "the corner button is back once the menu has closed behind the Settings press");
+            Check(!corner.Shown, "the floating shortcut stays hidden while the Settings task is open");
 
             Toggle t = ToggleRow(View(shell), "Corner button");
             Check(t != null && t.isOn, "the Corner button switch is on");
@@ -447,31 +474,39 @@ namespace Forge.OS.Editor
             t = ToggleRow(View(shell), "Corner button");
             Check(t != null && Press(t.gameObject, out why), "a pointer reaches the switch again: " + why);
             yield return 0.8f;
-            Check(OSSettings.Current.cornerButton && corner.Shown, "Settings on again: it is back");
+            Check(OSSettings.Current.cornerButton && !corner.Shown, "Settings on again: it stays hidden while the task is open");
 
             Button left = ChoiceButton(View(shell), "Corner side", "Left");
             Check(left != null && Press(left.gameObject, out why), "a pointer reaches Corner side Left: " + why);
             yield return 0.15f;
-            Check(corner.Easing || corner.Recenters > 0, "choosing Left re-anchors it with an ease");
+            Check(OSSettings.Current.cornerOnLeft && !corner.Shown, "choosing Left saves the side without showing a second menu button");
+            shell.Windows.Close(OSSettingsWindow.WindowId);
             yield return 0.8f;
-            Check(OSSettings.Current.cornerOnLeft && !corner.Easing, "Settings says left and the ease is done");
+            Check(corner.Shown && !corner.Easing, "closing the task restores one stationary shortcut");
             Where(head, corner.Position, out side, out drop, out metres);
             Measure($"left corner: {side:F1} degrees, {drop:F1} down, {metres:F2} m");
-            Check(Mathf.Abs(side + 28f) < 2f && Mathf.Abs(drop - 22f) < 2f, $"it now sits 28 degrees to the left, 22 down ({side:F1}, {drop:F1})");
+            // It stays in the room after appearing; looking away from Settings may change its view-relative angle.
+            // The exact initial 28/22-degree placement was checked above before any head movement.
+            Check(side < 0f && drop > 0f, $"choosing Left restores the anchored shortcut to the left and below the eyes ({side:F1}, {drop:F1})");
             Shot("left");
+            OSSettingsWindow.Open();
+            yield return 0.8f;
+            rig.LookAt(OSToolsTest.CenterOf(Win(shell).Panel.transform));
+            yield return 0.3f;
             Button right = ChoiceButton(View(shell), "Corner side", "Right");
             Check(right != null && Press(right.gameObject, out why), "a pointer reaches Corner side Right: " + why);
+            shell.Windows.Close(OSSettingsWindow.WindowId);
             yield return 1.0f;
             Where(head, corner.Position, out side, out drop, out metres);
-            Check(!OSSettings.Current.cornerOnLeft && Mathf.Abs(side - 28f) < 2f, $"Right puts it back on the right ({side:F1})");
+            Check(!OSSettings.Current.cornerOnLeft && side > 0f, $"Right puts it back on the right ({side:F1})");
             shell.Windows.Close(OSSettingsWindow.WindowId);
             yield return 0.5f;
 
-            // ---- back at the desk: it still shows
+            // ---- back at the desk: the fixed desk launcher replaces it
             presence.forceSeated = true;
             foreach (float w in Until(() => shell.AtDesk, 4f)) yield return w;
             yield return 0.5f;
-            Check(shell.AtDesk && corner.Shown, "back at the desk the corner button still shows");
+            Check(shell.AtDesk && !corner.Shown, "back at the desk the duplicate floating shortcut stays hidden");
 
             // ---- both buttons are scene objects of their own (the corner one a root, the table one under the desk frame): they go with the shell
             yield return 0.3f;

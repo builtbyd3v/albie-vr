@@ -306,6 +306,11 @@ def step_prompt(build: Build, i: int) -> str:
         f"Your task: {step.task}",
         "Use Python unittest for a new Python project's tests unless the repository already uses another framework. "
         "Tests must execute real assertions. Install any required project dependencies before testing.",
+        "For a web project, include package.json with non-interactive test and build scripts, a lockfile, "
+        "and a .gitignore for node_modules and generated output. Use npm ci when a lockfile exists, otherwise "
+        "npm install. Run the tests and production build before finishing. For a login page test invalid and "
+        "valid submissions and the resulting UI; document whether login is a UI demo or real authentication. "
+        "Do not require external credentials for a local demo or pretend a UI-only form authenticates users.",
         *( ["Review the final code and diff. End your reply with exactly REVIEW: PASS when there are no blocking "
             "issues, or REVIEW: FAIL when a bug or missing requirement must be fixed. Explain any failure."]
            if step.agent in ("reviewer", "sentinel") else []),
@@ -489,7 +494,11 @@ class Builds:
                 build.state = "cancelled"
                 return
             if not build.verification or any(c["state"] != "passed" for c in build.verification):
-                raise RuntimeError("Verification did not pass. Review the test output before starting a repair build.")
+                failed = next((c for c in build.verification if c["state"] != "passed"), {})
+                command = " ".join(failed.get("command") or []) or "project checks"
+                raise RuntimeError(f"Verification failed ({command}): "
+                                   f"{failed.get('output', '').strip()[-180:] or failed.get('state', 'no checks found')}. "
+                                   "See Checks for the full output.")
             build.review_head = await asyncio.to_thread(head, build)
             if not build.review_head or not any(s.commit for s in build.steps):
                 raise RuntimeError("The crew produced no committed changes to review.")

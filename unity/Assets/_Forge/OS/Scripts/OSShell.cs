@@ -28,6 +28,7 @@ namespace Forge.OS
 
         OSWindows windows;
         bool menuOpen;
+        bool rcControlsWereOpen;
         ArrivalGreeting greeting;
         ArrivalDirector director;
         float nextGreetingLook;
@@ -57,6 +58,8 @@ namespace Forge.OS
         public bool AtDesk => workspace != null && workspace.presence != null && workspace.presence.AtDesk;
         /// <summary>True while the pet's first-arrival greeting holds the desk.</summary>
         public bool Held => workspace != null && workspace.DockHeld;
+        /// <summary>Keep passive menu shortcuts out of the way while the handheld RC controls are visible.</summary>
+        public bool RcControlsOpen => Forge.Controllers.RcTransmitter.Instance != null && Forge.Controllers.RcTransmitter.Instance.Shown;
         /// <summary>The user's head: the pet's idea of it, else the main camera.</summary>
         public Transform Head => FindHead();
 
@@ -110,6 +113,9 @@ namespace Forge.OS
         // window changes, and twice a second in case the greeting shows up while something is already open.
         void Update()
         {
+            bool rcOpen = RcControlsOpen;
+            if (rcOpen && !rcControlsWereOpen) CloseMenu();
+            rcControlsWereOpen = rcOpen;
             if (!menuOpen && (windows == null || windows.Count == 0)) return;
             if (Time.unscaledTime < nextGreetingLook) return;
             nextGreetingLook = Time.unscaledTime + 0.5f;

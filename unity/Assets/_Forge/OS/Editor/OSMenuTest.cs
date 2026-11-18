@@ -449,6 +449,9 @@ namespace Forge.OS.Editor
             for (float waitedForM = 0f; waitedForM < 4f && !shell.MenuOpen; waitedForM += 0.25f) yield return 0.25f;
             yield return 0.4f;
             Check(shell.MenuOpen && shell.LastSummon == OSSummon.Key, "M opens the menu");
+            // A fixed menu may be beside existing work. Look at its anchor before aiming a pointer at its controls.
+            DesktopRig.Current.LookAt(menu.LastCenter);
+            yield return 0.3f;
             Check(Press(FindDeep(menu.transform, "Button Close")?.gameObject, out why), "a pointer reaches the Close button: " + why);
             yield return 0.5f;
             Check(!shell.MenuOpen, "the strip's Close button closes the menu");
@@ -497,18 +500,19 @@ namespace Forge.OS.Editor
                 yield return 0.4f;
             }
 
-            // ---- the open menu comes round when the user turns well away from it
+            // ---- the open menu stays anchored when the user turns well away from it
             shell.OpenMenu(OSSummon.Code);
             yield return 0.6f;
             int refaces = menu.Refaces;
+            Vector3 anchoredPosition = menu.transform.position;
+            Quaternion anchoredRotation = menu.transform.rotation;
             Transform turnHead = shell.Head;
             Vector3 facing0 = Vector3.ProjectOnPlane(turnHead.forward, Vector3.up).normalized;
             Vector3 turned = Quaternion.Euler(0f, 70f, 0f) * facing0;
             DesktopRig.Current.LookAt(turnHead.position + turned * 2f);
             yield return 1.6f;
-            Vector3 toMenu = Vector3.ProjectOnPlane(menu.LastCenter - turnHead.position, Vector3.up);
-            float off = Vector3.Angle(Vector3.ProjectOnPlane(turnHead.forward, Vector3.up), toMenu);
-            Check(menu.Refaces > refaces && off < 15f, $"turning 70 degrees away brings the menu round in front again (refaces {menu.Refaces - refaces}, {off:F0} degrees off)");
+            Check(menu.Refaces == refaces && Vector3.Distance(menu.transform.position, anchoredPosition) < 0.001f
+                && Quaternion.Angle(menu.transform.rotation, anchoredRotation) < 0.1f, "turning 70 degrees leaves the menu anchored in the room");
             Check(Vector3.Distance(menu.transform.position, menu.LastCenter) < 0.01f, "and it has landed there");
             shell.CloseMenu();
             yield return 0.3f;

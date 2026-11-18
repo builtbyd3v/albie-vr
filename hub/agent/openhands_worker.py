@@ -42,7 +42,7 @@ def main():
             folder = Path(request.get("folder", "."))
             if folder.is_absolute() or ".." in folder.parts:
                 raise ValueError("Invalid check folder")
-            result = workspace.execute_command("cd " + shlex.quote(str(Path("/workspace") / folder)) + " && " + shlex.join(request["argv"]))
+            result = workspace.execute_command("cd " + shlex.quote(str(Path("/workspace") / folder)) + " && CI=true " + shlex.join(request["argv"]))
             send(type="result", exit_code=result.exit_code, output=(result.stdout or "")[-6000:])
             return
         key = os.getenv("OPENHANDS_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
