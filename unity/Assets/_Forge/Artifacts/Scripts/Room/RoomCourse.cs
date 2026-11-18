@@ -324,8 +324,9 @@ namespace Forge.Artifacts
                 bool boundaryTooSmall = room.Boundary != null &&
                     (FloorSlalom.Search(room, 1, 1, Half(full), Half(min), lane, s.Clearance, s.Around, wide, false).Ok ||
                      (canNarrow && FloorSlalom.Search(room, 1, 1, Half(min), Half(min), narrowLane, s.Clearance, s.Around, tight, false).Ok));
+                fit.BoundaryLimited = boundaryTooSmall;
                 fit.Message = boundaryTooSmall
-                    ? "Your Quest boundary is too small for this course here. Redraw it bigger, or ask for a shorter course."
+                    ? FloorSlalom.BoundaryMessage(room, "this course")
                     : string.Format(CultureInfo.InvariantCulture,
                         "There isn't enough clear floor here for this course. Even squeezed up it needs a clear strip about {0:0.0} by {1:0.0} m, with {2:0} cm to spare around it. Ask for fewer parts, or a smaller one.",
                         2f * Half(min) + 2f * FloorSlalom.EndMargin, 2f * narrowLane, s.Clearance * 100f);

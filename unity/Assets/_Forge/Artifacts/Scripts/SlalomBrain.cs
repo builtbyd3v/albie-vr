@@ -59,6 +59,11 @@ namespace Forge.Artifacts
         public bool KeyHints = true;
         string Hint(string text) => KeyHints ? text : "";
         public int CompletedLaps => Thing != null ? Thing.Recorder.Set.CompletedLaps : 0;
+        /// <summary>The truck's size against full size: 1 on a floor course, the course's 1:N on a desk course
+        /// (<see cref="ArtifactHost.CourseScale"/>). The Drive window says "Desk course · 1:N scale".</summary>
+        public float CourseScale => Body != null ? Body.Scale : 1f;
+        /// <summary>Why a desk run stops when the truck's centre leaves the table top (an outcome of <c>crashed</c>).</summary>
+        public const string OffTable = "drove off the table";
         /// <summary>The completed-lap count that ends the recording started by <see cref="Record"/> (0 when one lap at a time, as <see cref="RecordLap"/>). The Drive window reads it for "recording lap 1 of 2".</summary>
         public int LapTarget => lapTarget;
         public BehaviourCloner[] Cloners => cloners;
@@ -120,6 +125,7 @@ namespace Forge.Artifacts
             if (brain.manual != null) brain.Thing.Host.Attach(brain.manual);
             host.Thing = brain.Scored;
             brain.shell = go.GetComponentsInChildren<Renderer>();
+            brain.Fit(host);
             brain.KeyHints = keyHints;
             if (!keyHints) brain.Status = "brain truck at the start: ready for a lap driven by hand";
             brain.PlaceAtStart();
@@ -165,6 +171,7 @@ namespace Forge.Artifacts
             bool truckCourse = h.Run != null && (string)h.OpenManifest?["links"]?["thing"] == "truck";
             if (!truckCourse) { OnHostClosed(h); return; }
             h.Thing = Scored;
+            Fit(h);
             Hide(false);
             BrainLoops.Register(this);  // back in front of a drone loop that was the active one
             if (State == Mode.Idle) PlaceAtStart();
@@ -174,6 +181,47 @@ namespace Forge.Artifacts
         {
             if (ReferenceEquals(h.Thing, Scored)) h.Thing = null;
             Hide(true);
+        }
+
+        // ---- Desk courses ---------------------------------------------------------------------------------------
+
+        // The table top a desk course stands on, for the off-the-table rule (none on the floor, or with no table found).
+        bool onTable;
+        Matrix4x4 worldToTable;
+        float tableHalfX, tableHalfZ;
+
+        /// <summary>
+        /// Sizes the truck for <paramref name="h"/>'s course: the course's scale on a desk (1:4 to 1:10), 1 on the floor.
+        /// Its shell, driving model and sensors shrink together (<see cref="ExampleTruckBody.SetScale"/>), and so do the
+        /// run's probe (<see cref="ArtifactThing.ProbeHeight"/>, <see cref="ArtifactThing.Radius"/>). The truck is
+        /// kinematic, so it can't fall through the table; leaving the top ends the run as a crash instead (<see cref="OffTable"/>).
+        /// </summary>
+        void Fit(ArtifactHost h)
+        {
+            float scale = h != null ? h.CourseScale : 1f;
+            if (Body != null) Body.SetScale(scale);
+            float s = CourseScale;
+            transform.localScale = new Vector3(s, s, s);
+            if (Scored != null)
+            {
+                Scored.ProbeHeight = 0.04f * s;  // the shell's centre, as at full size
+                Scored.Radius = MockTruckSim.TruckRadius * s;
+            }
+            onTable = false;
+            if (s < 1f && h != null && DeskPlan.TryMake(h.CourseRoom, s, out var desk))
+            {
+                worldToTable = desk.RoomToWorld.inverse;  // +z along the table's long side
+                tableHalfZ = desk.TopSize.x * 0.5f;
+                tableHalfX = desk.TopSize.y * 0.5f;
+                onTable = true;
+            }
+        }
+
+        bool LeftTable()
+        {
+            if (!onTable) return false;
+            var local = worldToTable.MultiplyPoint3x4(transform.position);
+            return local.x < -tableHalfX || local.x > tableHalfX || local.z < -tableHalfZ || local.z > tableHalfZ;
         }
 
         void Hide(bool hidden)
@@ -552,7 +600,7 @@ namespace Forge.Artifacts
         void Park() => Thing.tickInFixedUpdate = false;
 
         /// <summary>The lap's outcome (contract section 4) for how its run ended.</summary>
-        static string LapOutcome(bool completed, string how) => completed ? "completed" : how == "crashed" ? "crashed" : "aborted";
+        static string LapOutcome(bool completed, string how) => completed ? "completed" : how == "crashed" || how == OffTable ? "crashed" : "aborted";
 
         public void PlaceAtStart()
         {
@@ -596,6 +644,7 @@ namespace Forge.Artifacts
                 how = completed ? "completed" : $"{run.Outcome} ({run.Reason ?? "-"})";
                 return true;
             }
+            if (LeftTable()) { Body.Crash(); run.Abort(); how = OffTable; return true; }
             if (Body.Crashed) { run.Abort(); how = "crashed"; return true; }
             if (Time.time - runStarted > RunTimeoutS) { run.Abort(); how = "timed out"; return true; }
             return false;
@@ -641,19 +690,23 @@ namespace Forge.Artifacts
             }
         }
 
-        // The truck's pose in the course's frame (x along the course, y to the left), for the scripted driver.
+        // The truck's pose in the course's frame (x along the course, y to the left), for the scripted driver. A desk
+        // course's slots are full size (the scene root is scaled), so a miniature's pose is read back at full size too.
         void Mirror()
         {
             var origin = host.SceneOrigin;
             var toCourse = Quaternion.Inverse(origin.rotation);
-            var local = toCourse * (transform.position - origin.position);
+            float toFull = 1f / CourseScale;
+            var local = toCourse * (transform.position - origin.position) * toFull;
             var forward = toCourse * transform.forward;
             view.X = local.z; view.Y = -local.x;
             view.Heading = Mathf.Atan2(-forward.x, forward.z);
-            view.Speed = Body.Speed;
+            view.Speed = Body.Speed * toFull;
         }
 
-        // The open slalom's slots as a MockCourse (cones, gates, finish; no walls: the driver only needs the path).
+        // The open slalom's slots as a MockCourse (cones, gates, finish; no walls: the driver only needs the path). The
+        // slots are in the scene root's frame, full size even on a desk (the root is scaled), so the rehearsal and the
+        // scripted driver work at full size, where a miniature's sensors read the same (ExampleTruckBody.SetScale).
         MockCourse CourseFromSlots()
         {
             var course = new MockCourse { Name = "open slalom" };

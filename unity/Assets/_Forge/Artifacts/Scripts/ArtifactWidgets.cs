@@ -141,6 +141,12 @@ namespace Forge.Artifacts
                     y += PillRow + Gap;
                 }
             }
+            // A room course: where courses may go (the play area) is one tap from its scoreboard, on the floor or a desk.
+            if (build.Host.HasRoomCourse)
+            {
+                Pill(panel.Content, y, 0f, "Play area", () => PlayAreaEditor.Open(build.Host.CourseRoom, false));
+                y += PillRow + Gap;
+            }
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;
             if (hintText != null && build.Host.RunsRow != null) build.Host.RunsRow.SetHint(hintText, hintText.text, hintAfter);
             build.Host.KeepAboveBase(panel);

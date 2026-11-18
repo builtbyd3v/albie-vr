@@ -21,7 +21,11 @@ namespace Forge.Artifacts
         float CeilingHeight { get; }
         /// <summary>A world-axis box around the floor, for the search grid.</summary>
         Bounds FloorBounds { get; }
-        /// <summary>The Quest Play Area boundary in world xz coordinates, or null when unavailable.</summary>
+        /// <summary>
+        /// The boundary courses stay inside, world xz, or null for none (the room's clear floor is the only limit). A
+        /// room reports its Quest Play Area here; <see cref="ArtifactGenerators.Place"/> then swaps in the play area the
+        /// person chose in Albie (<see cref="UserPlayArea"/>, <see cref="PlayAreaPlan"/>): the Quest one, a drawn one, or none.
+        /// </summary>
         Vector2[] Boundary { get; }
         /// <summary>The room's main axis (degrees about Y). Courses prefer to run along it or across it.</summary>
         float AxisYaw { get; }

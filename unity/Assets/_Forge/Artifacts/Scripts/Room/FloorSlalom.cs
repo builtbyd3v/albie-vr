@@ -48,6 +48,8 @@ namespace Forge.Artifacts
             public float Spacing;
             public float Lane;                     // the free floor either side of the centre line it was placed with (m)
             public bool Shrunk, Narrow, AroundFound;
+            /// <summary>Refused only because of the play area's boundary: the room's clear floor would have held it.</summary>
+            public bool BoundaryLimited;
             public Vector3 Origin;                 // the start, on the floor (world)
             public float Yaw;                      // the course's direction (degrees, world)
             public Dictionary<string, List<Pose>> Slots;
@@ -70,7 +72,10 @@ namespace Forge.Artifacts
                 fit = Narrow(fit, Search(room, s.MinGates, s.MinGates, s.MinSpacing, s.TightSpacing, s.NarrowLane, s.Clearance, s.Around, slots, true));
             bool boundaryTooSmall = !fit.Ok && room.Boundary != null && FitsWithoutBoundary(room, s, slots);
             if (boundaryTooSmall)
-                fit.Message = "Your Quest boundary is too small for a slalom here. Redraw it bigger, or ask for hoops.";
+            {
+                fit.BoundaryLimited = true;
+                fit.Message = BoundaryMessage(room, "a slalom");
+            }
             if (fit.Ok) fit.Message = Message(fit.Shrunk, fit.Narrow, fit.Gates, fit.Spacing, s.Around, fit.AroundFound);
             else if (!boundaryTooSmall) fit.Message = string.Format(CultureInfo.InvariantCulture,
                 "There isn't enough clear floor here for a slalom. Even the smallest course ({0} gates, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
@@ -91,6 +96,16 @@ namespace Forge.Artifacts
             if (fit.Ok) fit.Shrunk = fit.Narrow = true;
             return fit;
         }
+
+        /// <summary>
+        /// What Albie says when a course is refused only because of the play area's boundary: what to do next, never
+        /// "redraw your Quest boundary" (which can't be done from inside the app). Says "boundary" for the Quest one (the checks look for it).
+        /// </summary>
+        internal static string BoundaryMessage(IFloorPlan room, string course) =>
+            $"{Upper(PlayArea.Words(room))} is too small for {course} here, though your room has the floor for it. " +
+            "Tap Play area, or say \"use my whole room\" or \"draw a bigger area\".";
+
+        static string Upper(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
 
         internal static Result NoRoomData() =>
             Fail("no_room_data", "I don't have a scan of this room, so I can't place a course. Run Space Setup on the headset first.");
@@ -267,12 +282,14 @@ namespace Forge.Artifacts
                 Diagonal = new Vector2(b.size.x, b.size.z).magnitude;
                 free = new bool[nx * nz];
                 var sum = Vector3.zero;
+                var boundary = useBoundary ? room.Boundary : null;
+                float margin = PlayArea.MarginOf(room);
                 for (int iz = 0; iz < nz; iz++)
                     for (int ix = 0; ix < nx; ix++)
                     {
                         var p = new Vector3(min.x + (ix + 0.5f) * Cell, y, min.z + (iz + 0.5f) * Cell);
                         if (!room.IsFree(p, clearance)) continue;
-                        if (useBoundary && room.Boundary != null && !PlayArea.Inside(room.Boundary, p, clearance + PlayArea.Margin)) continue;
+                        if (boundary != null && !PlayArea.Inside(boundary, p, clearance + margin)) continue;
                         free[iz * nx + ix] = true;
                         freeCells.Add(p);
                         sum += p;

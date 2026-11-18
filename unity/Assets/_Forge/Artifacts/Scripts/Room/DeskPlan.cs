@@ -106,6 +106,9 @@ namespace Forge.Artifacts
             return false;
         }
 
+        /// <summary>"1:4", "1:7": the scale as a ratio, for what Albie says.</summary>
+        public static string RatioWords(float scale) => "1:" + Mathf.RoundToInt(1f / Mathf.Max(0.01f, scale)).ToString(CultureInfo.InvariantCulture);
+
         /// <summary>"a quarter of full size", for what Albie says.</summary>
         public static string SizeWords(float scale)
         {
