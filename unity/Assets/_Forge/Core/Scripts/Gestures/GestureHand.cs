@@ -29,6 +29,11 @@ public sealed class GestureHand
     public ForgePanel Target { get; set; }
     public float TargetSeenAt { get; set; }
 
+    /// <summary>When this hand last held a point (the engine sets it), so curling the finger after a flick isn't a fist.</summary>
+    public float PointedAt { get; set; } = -10f;
+    /// <summary>A gesture just fired on this hand: no other starts before this time.</summary>
+    public float QuietUntil { get; set; }
+
     readonly Vector3[] palm = new Vector3[History], tip = new Vector3[History];
     readonly float[] times = new float[History];
     int newest = -1, count;

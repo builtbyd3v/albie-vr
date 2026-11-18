@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -26,6 +27,12 @@ public class GestureWindow : MonoBehaviour
     Quaternion homeRotation;
     PanelFacing homeFacing;
     bool homePlaced;
+
+    // Windows a gesture shrank into a dot, oldest first, so opening the hand brings back the last one.
+    static readonly List<GestureWindow> closedByHand = new List<GestureWindow>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() => closedByHand.Clear();
 
     public bool IsNear => near;
     public bool IsMinimized => orb != null;
@@ -144,6 +151,32 @@ public class GestureWindow : MonoBehaviour
         return Minimize(runner, head) ? null : "Nowhere to minimize to";
     }
 
+    /// <summary>Closed with a hand: into its dot, wherever it is. Returns what to say at the hand.</summary>
+    public string Close(MonoBehaviour runner, Transform head)
+    {
+        if (Blocked) return "Window is moving";
+        if (IsMinimized) return "Already closed";
+        near = false;
+        if (handles != null && handles.PressMinimize()) return null;
+        return Minimize(runner, head) ? null : "Nowhere to minimize to";
+    }
+
+    /// <summary>Open the last window a gesture shrank into a dot, if it's still one. Returns what to say, or null.</summary>
+    public static string ReopenLast(MonoBehaviour runner)
+    {
+        for (int i = closedByHand.Count - 1; i >= 0; i--)
+        {
+            GestureWindow window = closedByHand[i];
+            closedByHand.RemoveAt(i);
+            if (window != null && window.IsMinimized)
+            {
+                window.Restore(runner);
+                return null;
+            }
+        }
+        return "Nothing to reopen";
+    }
+
     void Glide(MonoBehaviour runner, Vector3 toPosition, Quaternion toRotation, System.Action landed)
     {
         if (handles != null)
@@ -187,6 +220,8 @@ public class GestureWindow : MonoBehaviour
         orb.transform.localScale = orbRest * 0.4f;
         orb.Tapped += () => Restore(runner);
         WatchDesk(true);
+        closedByHand.Remove(this);
+        closedByHand.Add(this);
 
         if (handles != null)
         {

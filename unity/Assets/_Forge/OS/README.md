@@ -113,7 +113,7 @@ Settings are in `OSSettings` and saved to `os_settings.json` in the app's data f
 
 Menu distance and height are read the next time the menu opens. `OSSettings.Changed` tells listeners when anything is saved.
 
-The Settings window has three pages. Page 1 has the menu button switches (table button, watch turn, corner button, corner side) and a plain sentence about voice. Page 2 has the window and menu position settings. Page 3 has the two resets (each asks first) and About.
+The Settings window has four pages. Page 1 has the menu button switches (table button, watch turn, corner button, corner side) and a plain sentence about voice. Page 2 has the window and menu position settings. Page 3 has Hands: which hand hides and shows every window (Left hand, the default; Right hand; or Off). That setting is saved with the gestures (`GestureLibrary.Split`, in `gestures.json`), not in `OSSettings`, because the gesture display and Albie can change it too. Page 4 has the two resets (each asks first) and About.
 
 ## Voice tools
 

@@ -13,12 +13,14 @@ public sealed class GestureActions
 {
     public const string None = "none";
     public const string WindowSummon = "window.summon", WindowMinimize = "window.minimize";
+    public const string WindowClose = "window.close", WindowReopen = "window.reopen";  // the window you look at; the last one closed
+    public const string WindowsHide = "windows.hide", WindowsShow = "windows.show";    // every window
     public const string AlbiePerch = "albie.perch", AlbieRelease = "albie.release", AlbieCome = "albie.come";
     public const string DisplayToggle = "display.toggle";
     public const string ToolPrefix = "tool:";
     const string CardPrefix = "device:gesture:";
 
-    static readonly HashSet<string> Builtins = new HashSet<string> { None, WindowSummon, WindowMinimize, AlbiePerch, AlbieRelease, AlbieCome, DisplayToggle };
+    static readonly HashSet<string> Builtins = new HashSet<string> { None, WindowSummon, WindowMinimize, WindowClose, WindowReopen, WindowsHide, WindowsShow, AlbiePerch, AlbieRelease, AlbieCome, DisplayToggle };
 
     // Reading, showing and timers: nothing here loses work or reaches anyone.
     static readonly HashSet<string> RunsDirectly = new HashSet<string>
@@ -54,12 +56,25 @@ public sealed class GestureActions
         string action = def.action ?? None;
         if (action.StartsWith(ToolPrefix, StringComparison.Ordinal)) return RunTool(action.Substring(ToolPrefix.Length), def);
         Transform head = PetUser.Head;
+        // Closing the hand Albie sits in sends him off, whatever else it does.
+        if ((def.id == GestureLibrary.FistClose || def.id == GestureLibrary.FistCloseAll) && perch.On(hand)) return perch.Release();
         switch (action)
         {
             case WindowSummon:
                 return GestureWindow.Of(hand.Target)?.ToggleNear(engine, head);
             case WindowMinimize:
                 return GestureWindow.Of(hand.Target)?.Send(engine, head);
+            case WindowClose:
+            {
+                ForgePanel looked = GestureEngine.LookedAt(head);
+                return looked != null ? GestureWindow.Of(looked).Close(engine, head) : "Look at a window";
+            }
+            case WindowReopen:
+                return GestureWindow.ReopenLast(engine);
+            case WindowsHide:
+                return WindowStash.HideAll(engine);
+            case WindowsShow:
+                return WindowStash.ShowAll(engine);
             case AlbiePerch:
                 return perch.Call(hand);
             case AlbieRelease:
@@ -156,6 +171,10 @@ public sealed class GestureActions
         new Preset("Nothing", None),
         new Preset("Bring window", WindowSummon),
         new Preset("Minimize window", WindowMinimize),
+        new Preset("Close looked-at window", WindowClose),
+        new Preset("Reopen last window", WindowReopen),
+        new Preset("Hide all windows", WindowsHide),
+        new Preset("Show all windows", WindowsShow),
         new Preset("Albie to my hand", AlbiePerch),
         new Preset("Albie off my hand", AlbieRelease),
         new Preset("Albie, come here", AlbieCome),

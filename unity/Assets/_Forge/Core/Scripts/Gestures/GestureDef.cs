@@ -89,6 +89,15 @@ public sealed class GestureMotion
     }
 }
 
+/// <summary>Which hand a built-in answers to, by the Hands setting (<see cref="HandSplit"/>). Taught gestures are Any.</summary>
+public enum GestureRole { Any, AllWindows, OneWindow }
+
+/// <summary>
+/// The Hands setting: which hand's open and close works on every window at once. The other hand's open, close and
+/// flicks work on one window. Off: no hand does every window, and either hand does one.
+/// </summary>
+public enum HandSplit { LeftAll, RightAll, Off }
+
 /// <summary>
 /// One gesture as data, the same for built-ins and ones the user teaches: hold <see cref="start"/>, then (optionally)
 /// move (<see cref="motion"/>) and/or reach <see cref="end"/> within <see cref="window"/> seconds. Start alone is a plain
@@ -107,10 +116,28 @@ public sealed class GestureDef
     public float window = 0.4f;
     public string action = GestureActions.None;
     public JObject args;
+    /// <summary>Built-ins only, not saved: which hand it answers to.</summary>
+    public GestureRole role = GestureRole.Any;
+    /// <summary>Built-ins only, not saved: it can't start just after the hand was pointing (curling the finger after a flick isn't a fist).</summary>
+    public bool quietAfterPoint;
+    /// <summary>Built-ins only, not saved: and its start pose has to be made afresh after pointing, not just held on (a
+    /// finger curled after a flick leaves a fist, and bursting that open isn't meant).</summary>
+    public bool freshAfterPoint;
 
     public bool IsPlainPose => motion == null && end == null;
     /// <summary>It acts on the window you're pointing at, so it can't start without one.</summary>
-    public bool NeedsTarget => action != null && action.StartsWith("window.", StringComparison.Ordinal);
+    public bool NeedsTarget => action == GestureActions.WindowSummon || action == GestureActions.WindowMinimize;
+
+    /// <summary>Whether this hand may make it, under the Hands setting.</summary>
+    public bool AllowedOn(bool isLeft, HandSplit split)
+    {
+        switch (role)
+        {
+            case GestureRole.AllWindows: return split != HandSplit.Off && isLeft == (split == HandSplit.LeftAll);
+            case GestureRole.OneWindow: return split == HandSplit.Off || isLeft != (split == HandSplit.LeftAll);
+            default: return true;
+        }
+    }
 
     public JObject ToJson()
     {
@@ -180,6 +207,9 @@ public sealed class GestureMatcher
     public bool Armed => phase == Phase.Armed;
 
     public void Reset() => phase = Phase.Idle;
+
+    /// <summary>Start over, and if the hand is already in the start pose, wait for it to leave and come back.</summary>
+    public void HoldOff(float[] values) => phase = def.start.Contains(values, StayWiden) ? Phase.Latched : Phase.Idle;
 
     /// <summary>
     /// True on the frame it fires. <paramref name="canStart"/> false stops it starting (no window pointed at); once

@@ -175,22 +175,22 @@ public static class BridgeHandsCheck
     }
 
     static bool IsFlick(string g) => g == GestureLibrary.FlickIn || g == GestureLibrary.FlickOut;
-    static bool IsFist(string g) => g == GestureLibrary.FistClose || g == GestureLibrary.FistOpen;
+    static bool IsFist(string g) => g == GestureLibrary.FistClose || g == GestureLibrary.FistOpen || g == GestureLibrary.FistCloseAll || g == GestureLibrary.FistOpenAll;
 
-    // A right hand closing into a fist, as hand_replay frames: head space, palm down, fingers forward. Made here, on the
-    // client side, so the replay path is checked against frames the app didn't generate.
+    // A right hand closing into a fist from open, as hand_replay frames: head space, palm down, fingers forward. Made here,
+    // on the client side, so the replay path is checked against frames the app didn't generate.
     static JArray FistFrames()
     {
         var frames = new JArray();
         var sample = new HandSample();
         var wrist = new Vector3(0.1f, -0.17f, 0.34f);
         const float dt = 1f / 72f;
-        int total = 72;  // 1 s: relaxed 0.4 s, closing 0.2 s, fist 0.4 s
+        int total = 72;  // 1 s: open 0.4 s, closing 0.2 s, fist 0.4 s
         for (int i = 0; i < total; i++)
         {
             float t = i * dt;
             float k = Mathf.Clamp01((t - 0.4f) / 0.2f);
-            SyntheticHand.Build(sample, HandShape.Lerp(HandShape.Relaxed, HandShape.Fist, k), wrist, Quaternion.identity, false);
+            SyntheticHand.Build(sample, HandShape.Lerp(HandShape.Open, HandShape.Fist, k), wrist, Quaternion.identity, false);
             var joints = new JArray();
             foreach (var j in sample.joints) { joints.Add(j.x); joints.Add(j.y); joints.Add(j.z); }
             frames.Add(new JObject { ["t"] = Math.Round(t, 4), ["right"] = joints });
@@ -210,7 +210,7 @@ public static class BridgeHandsCheck
             var list = c.Ask(new JObject { ["cmd"] = "hands", ["list"] = true });
             var listed = new List<string>();
             foreach (var g in list["gestures"] as JArray ?? new JArray()) listed.Add((string)g["name"]);
-            Check((bool?)list["ok"] == true && listed.Contains(GestureLibrary.FlickIn) && listed.Contains(GestureLibrary.FistClose) && listed.Count == 5,
+            Check((bool?)list["ok"] == true && listed.Contains(GestureLibrary.FlickIn) && listed.Contains(GestureLibrary.FistClose) && listed.Count == 7,
                 $"hands list names the gestures: {string.Join(", ", listed)} + {list["holds"]?.ToString(Formatting.None)}", list);
 
             var state = c.Ask(new JObject { ["cmd"] = "hands" });
@@ -222,8 +222,10 @@ public static class BridgeHandsCheck
             {
                 (GestureLibrary.FlickIn, "right", GestureActions.WindowSummon),
                 (GestureLibrary.FlickOut, "right", GestureActions.WindowMinimize),
-                (GestureLibrary.FistClose, "right", GestureActions.AlbieRelease),
-                (GestureLibrary.FistOpen, "right", GestureActions.DisplayToggle),
+                (GestureLibrary.FistClose, "right", GestureActions.WindowClose),
+                (GestureLibrary.FistOpen, "right", GestureActions.WindowReopen),
+                (GestureLibrary.FistCloseAll, "left", GestureActions.WindowsHide),
+                (GestureLibrary.FistOpenAll, "left", GestureActions.WindowsShow),
                 (GestureLibrary.PalmUp, "left", GestureActions.AlbiePerch),
             })
             {
@@ -265,7 +267,7 @@ public static class BridgeHandsCheck
                         if (IsFlick(row.Key) ? IsFist(cell.Key) : IsFist(row.Key) && IsFlick(cell.Key)) noCross = false;
                 }
             Check((bool?)matrix["ok"] == true && table?.Count == 5 && allSeen && noCross,
-                $"hand_matrix (5 gestures x 3, seed 42, {matrix["duration_s"]} s): every gesture read at least once, no flick/fist confusion; table {table?.ToString(Formatting.None)}, correct {matrix["correct"]?.ToString(Formatting.None)}, confusions {matrix["confusions"]}", matrix);
+                $"hand_matrix (the right hand's 5 gestures x 3, seed 42, {matrix["duration_s"]} s): every gesture read at least once, no flick/fist confusion; table {table?.ToString(Formatting.None)}, correct {matrix["correct"]?.ToString(Formatting.None)}, confusions {matrix["confusions"]}", matrix);
 
             var after = c.Ask(new JObject { ["cmd"] = "hands" });
             Check((string)after["source"] == "simulated" && (bool?)after["playing"] == false && (string)after["hands"]?["right"]?["last"]?["gesture"] != null,

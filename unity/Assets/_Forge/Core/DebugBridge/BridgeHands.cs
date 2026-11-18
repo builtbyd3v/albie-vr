@@ -22,7 +22,7 @@ public class BridgeHands : MonoBehaviour, IHandSource
     const float MatrixGap = 0.7f;  // untracked between matrix runs: longer than GestureMatcher's 0.6 s cooldown
     const int MaxFrames = 30000;
     static readonly Vector3 Rest = new Vector3(0.1f, -0.17f, 0.34f);  // head space, right hand; SimulatedHandSource's rest
-    static readonly string[] Gestures = { GestureLibrary.FlickIn, GestureLibrary.FlickOut, GestureLibrary.PalmUp, GestureLibrary.FistClose, GestureLibrary.FistOpen };
+    static readonly string[] Gestures = { GestureLibrary.FlickIn, GestureLibrary.FlickOut, GestureLibrary.PalmUp, GestureLibrary.FistClose, GestureLibrary.FistOpen, GestureLibrary.FistCloseAll, GestureLibrary.FistOpenAll };
     static readonly string[] ShapeNames = { "relaxed", "point", "fist", "open", "peace", "rock" };
     static readonly HandShape[] ShapeValues = { HandShape.Relaxed, HandShape.Point, HandShape.Fist, HandShape.Open, HandShape.Peace, HandShape.Rock };
     static readonly FieldInfo SourceField = typeof(GestureEngine).GetField("source", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -220,9 +220,18 @@ public class BridgeHands : MonoBehaviour, IHandSource
         if (head == null) { fail("no head camera yet"); return; }
         var gestures = new List<string>();
         if (req["gestures"] is JArray wanted) foreach (var g in wanted) gestures.Add(((string)g ?? "").Trim().ToLowerInvariant());
-        else gestures.AddRange(Gestures);
         int n = Mathf.Clamp((int?)req["n"] ?? 3, 1, 20);
         bool left = ((string)req["hand"] ?? "right").Trim().ToLowerInvariant() == "left";
+        if (req["gestures"] == null)
+        {
+            // Only what this hand can make under the Hands setting.
+            var library = GestureEngine.Current != null ? GestureEngine.Current.Library : null;
+            foreach (string id in Gestures)
+            {
+                GestureDef def = library?.Find(id);
+                if (def == null || def.AllowedOn(left, library.Split)) gestures.Add(id);
+            }
+        }
         int seed = req["seed"] != null ? (int)req["seed"] : Environment.TickCount;
         var rng = new System.Random(seed);
         Vector2 speed = Range(req["speed"], 0.7f, 1.4f, 0.5f, 2f), jitter = Range(req["jitter_m"], 0f, 0.003f, 0f, 0.02f), sloppy = Range(req["sloppy"], 0f, 0.3f, 0f, 1f);
@@ -400,14 +409,17 @@ public class BridgeHands : MonoBehaviour, IHandSource
                 break;
             }
             case GestureLibrary.FistClose:
+            case GestureLibrary.FistCloseAll:
             {
-                HandShape fist = Sloppy(HandShape.Fist);
-                g.Hold(0.35f, relaxed, rest, aim);
-                g.Change(0.2f * m, relaxed, fist, rest, rest, aim, aim);
+                // A close starts from a hand held open (a resting hand closing isn't one).
+                HandShape fist = Sloppy(HandShape.Fist), open = Sloppy(HandShape.Open);
+                g.Hold(0.35f, open, rest, aim);
+                g.Change(0.2f * m, open, fist, rest, rest, aim, aim);
                 g.Hold(holdS ?? 0.4f, fist, rest, aim);
                 break;
             }
             case GestureLibrary.FistOpen:
+            case GestureLibrary.FistOpenAll:
             {
                 HandShape fist = Sloppy(HandShape.Fist), open = Sloppy(HandShape.Open);
                 g.Hold(0.45f, fist, rest, aim);

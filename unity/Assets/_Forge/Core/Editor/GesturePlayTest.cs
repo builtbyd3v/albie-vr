@@ -243,13 +243,34 @@ public static class GesturePlayTest
         Check(window.gameObject.activeSelf && window.transform.localScale == scale && Vector3.Distance(window.transform.position, homePosition) < 0.02f,
               "tapping the dot opens it again, same place and size");
 
-        // Fist, then burst open: the display toggles.
-        sim.SetShape(HandShape.Fist);
-        yield return 0.6f;
-        bool shownBefore = display != null && display.gameObject.activeSelf;
+        // The right hand's open and close: look at the window, open the hand and close it, and it minimizes; burst the
+        // fist open and it comes back.
+        DesktopRig.Current.LookAt(Center());
         sim.SetShape(HandShape.Open);
+        yield return 0.8f;
+        sim.SetShape(HandShape.Fist);
+        yield return 1f;
+        Check(gestureWindow != null && gestureWindow.IsMinimized && !window.gameObject.activeSelf, "closing the right hand on a window you look at minimizes it");
+        sim.SetShape(HandShape.Open);
+        yield return 0.8f;
+        Check(window.gameObject.activeSelf && gestureWindow != null && !gestureWindow.IsMinimized, "bursting the fist open reopens it");
+        sim.SetShape(HandShape.Relaxed);
         yield return 0.5f;
-        Check(display != null && display.gameObject.activeSelf != shownBefore, "bursting a fist open toggles the display");
+
+        // Swapped hands: the right hand now hides every window and shows them again.
+        engine.Library.Split = HandSplit.RightAll;
+        sim.SetShape(HandShape.Open);
+        yield return 0.8f;
+        sim.SetShape(HandShape.Fist);
+        yield return 1f;
+        Check(!window.gameObject.activeSelf && WindowStash.HiddenCount > 0, $"with the right hand doing every window, closing it hides them all ({WindowStash.HiddenCount} hidden)");
+        Shot("3b_all_hidden");
+        sim.SetShape(HandShape.Open);
+        yield return 0.8f;
+        Check(window.gameObject.activeSelf && WindowStash.HiddenCount == 0, "and bursting it open shows them again");
+        engine.Library.Split = HandSplit.LeftAll;
+        sim.SetShape(HandShape.Relaxed);
+        yield return 0.5f;
         if (display != null && !display.gameObject.activeSelf) engine.Actions.ShowDisplay(true);
 
         // Albie in the palm.
