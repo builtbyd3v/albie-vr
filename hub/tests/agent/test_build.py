@@ -293,3 +293,25 @@ def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypat
     progress = [e.payload for e in log if e.type == "agent.task_progress"]
     assert {p["pet_id"] for p in progress} == {"builder", "tester", "scribe", "reviewer"}
     assert str(tmp_path) not in str([e.payload for e in log])  # no cloud paths to the headset
+
+
+def test_scout_research_can_finish_without_a_review_verdict(builds_env, monkeypatch):
+    base = scripted_runner()
+
+    async def plan(goal):
+        title, summary, steps = build_mod.default_plan(goal)
+        return title, summary, [build_mod.Step("scout", "Research GitHub references and licenses.")] + steps, "test"
+
+    async def run(*args, pet_id, **kwargs):
+        if pet_id == "scout":
+            return "Research complete. Recommend a small CNN with a CPU smoke test."
+        return await base(*args, pet_id=pet_id, **kwargs)
+
+    monkeypatch.setattr(build_mod, "make_plan", plan)
+    monkeypatch.setattr(build_mod, "_runner", lambda: run)
+    started = builds_env.post("/agent/builds", json={"goal": "Research and build a CNN"})
+    result = wait_for(builds_env, started.json()["id"])
+    assert result["state"] == "ready", result
+    assert result["steps"][0]["type"] == "scout"
+    assert result["steps"][0]["state"] == "done"
+    assert result["steps"][0]["commit"] is None

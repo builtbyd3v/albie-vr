@@ -157,6 +157,8 @@ def crew_prompt(agent: AgentType, mode: ConcreteMode) -> str:
 def _crew_tools(agent: AgentType, mode: ConcreteMode) -> tuple[list[str], list[str]]:
     """(built-in tools, auto-approved tools) for a crew member's kit. A kit with a Bash allow-list gets the Bash
     tool but only its listed commands approved (a bare "Bash" would approve every command)."""
+    if agent.id == "scout":
+        return QA_TOOLS + ["WebSearch", "WebFetch"], QA_TOOLS + ["WebSearch", "WebFetch"]
     if agent.kit == "review":
         return QA_TOOLS + ["Bash"], QA_TOOLS + REVIEW_BASH
     if mode == "qa" or agent.kit in ("read", "cad"):

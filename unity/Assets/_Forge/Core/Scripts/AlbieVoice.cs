@@ -279,6 +279,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             case "workflow.describe":
                 const string brief = "The user opened Project workflow. Ask what software project they want the crew to build. " +
                     "Discuss their reply, clarify missing details if needed, then call build_start with their brief. " +
+                    "For a project including CNN or ML code, use build_start with the full requirements and requested crew. " +
+                    "Use the project workflow for this work. The spawn_agent and assign_task tools operate on the desk sample. " +
+                    "Ask for the target owner/repo before planning if the user wants a PR. " +
                     "Wait for explicit approval of the plan before implementation.";
                 OnEvent("albie.note", new JObject { ["text"] = brief });
                 OnEvent("albie.say", new JObject { ["text"] = "What would you like the crew to build?" });

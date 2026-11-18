@@ -172,7 +172,9 @@ async def _on_text(s: Session, raw: str) -> None:
                 s.spawn(_voice_call(s, lambda: say(
                     "What would you like the crew to build?",
                     context="The user opened Project workflow. Discuss their software project, clarify missing "
-                            "details if needed, then call build_start with their brief. Wait for explicit plan approval.",
+                            "details if needed, then call build_start with their full brief including CNN/ML requirements and requested crew. "
+                            "Use the project workflow for this work. spawn_agent and assign_task are desk tasks. "
+                            "Ask for the target owner/repo before planning if a PR is wanted. Wait for explicit plan approval.",
                 )))
             else:
                 await s.reply_error("Project voice is unavailable. Use Type instead in Project workflow.")
