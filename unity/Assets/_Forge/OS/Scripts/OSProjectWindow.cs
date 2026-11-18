@@ -198,12 +198,30 @@ namespace Forge.OS
             OSProjects.LinkedArtifacts(projectId, linked);
             bool sample = OSProjects.IsSample(projectId);
             string status = OSProjects.ComputeStatus(projectId, linked);
-            panel.Subtitle = sample ? OSProjects.SampleTag + " · " + status : status;
+            // A sample's header says what it is; its own status ("v6 · last attempt failed") is the seeded history, not the person's.
+            panel.Subtitle = sample ? SampleSubtitle : status == "not started" ? OwnTagLine + " · just planned" : OwnTagLine + " · " + status;
             bool isOpen = OSProjects.IsOpen(projectId);
             if (details) BuildDetails(column, isOpen);
             else BuildOverview(column, sample, isOpen);
+            builtColumn = column;
+            fitPending = true;
             PollBrain();
         }
+
+        RectTransform builtColumn;
+        bool fitPending;
+        const float MinHeightMeters = 0.36f;
+
+        // After a rebuild: the window as tall as the page (no empty band under a short loop), never taller than its size.
+        void LateUpdate()
+        {
+            if (!fitPending || panel == null || builtColumn == null) return;
+            fitPending = false;
+            OSProjectLayout.FitWindowHeight(panel, OSProjectLayout.PreferredUnits(builtColumn), MinHeightMeters, SizeMeters.y);
+        }
+
+        /// <summary>A sample's window subtitle.</summary>
+        public const string SampleSubtitle = "Sample · try any stage, then make your own";
 
         /// <summary>The sample window's call to action ("Make my own RC truck"): Build something with the sample's kind picked.</summary>
         public static string MakeOwnLabel(string sampleId) => OSProjects.MakeOwnLabel(sampleId);
@@ -251,7 +269,7 @@ namespace Forge.OS
             OSProjectSession s = Session;
             IReadOnlyList<StageState> stages = s.Stages;
 
-            // 1 What it is, in one sentence, and how far it is.
+            // 1 What it is, in one sentence, and how far it is (the window's title already names the project).
             RectTransform head = OSUi.Column(column, ForgeTheme.Space2);
             OSProjectLayout.FitHeight(head);
             JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
@@ -260,26 +278,24 @@ namespace Forge.OS
             string what = sample ? OSProjects.SampleShows(projectId) + "."
                 : !noPlan ? goal
                 : "No plan yet. Ask Albie to plan it with you.";
-            TMP_Text lead = OSUi.Text(head, ProjectStages.Clip(what, 110), OSUi.TitleText, noPlan);
-            lead.fontStyle = FontStyles.Bold;
+            OSUi.Text(head, ProjectStages.Clip(what, 110), OSUi.BodyText, noPlan);
             int done = ProjectStages.DoneCount(StagesList(stages), out int total);
-            string at = s.TryStage(s.CurrentStage, out StageState here) ? " · at " + here.Def.Name : "";
-            OSUi.Text(head, done + " of " + total + " stages done" + at, OSUi.SmallText, true);
-            OSUi.ProgressRail(head, total > 0 ? done / (float)total : 0f);
+            RectTransform progress = OSUi.Row(head, 28f, ForgeTheme.Space4);
+            OSUi.Rigid(progress);
+            TMP_Text count = OSUi.Text(progress, done + " of " + total + " stages done", OSUi.SmallText, true);
+            count.textWrappingMode = TextWrappingModes.NoWrap;
+            var countLayout = count.GetComponent<LayoutElement>();
+            countLayout.flexibleWidth = 0f;
+            countLayout.preferredWidth = count.GetPreferredValues(count.text).x + 2f;
+            OSUi.ProgressRail(progress, total > 0 ? done / (float)total : 0f);
 
-            // 2 The one big button.
+            // 2 The stage to do now, as one card with the one big button: what it is, why (out of date, the last result) and Go.
             string label = s.NextLabel();
-            if (label != null)
-            {
-                string icon = s.NextId != null && s.TryStage(s.NextId, out StageState n) ? n.Def.Icon : "chevron_right";
-                OSProjectLayout.Hero(column, label, () => s.GoNext(), icon);
-            }
-            else if (done >= total) OSUi.Text(column, AllDoneLine, OSUi.BodyText, true);
+            if (label != null && s.NextIndex >= 0) BuildFocus(column, s, stages[s.NextIndex], label, total);
+            else if (done >= total) BuildAllDone(column);
+            else if (!string.IsNullOrEmpty(s.StatusLine)) statusText = OSUi.Text(column, ProjectStages.Clip(s.StatusLine, 180), OSUi.BodyText, true);
 
-            // 3 The last result.
-            if (!string.IsNullOrEmpty(s.StatusLine)) statusText = OSUi.Text(column, ProjectStages.Clip(s.StatusLine, 180), OSUi.BodyText);
-
-            // 4 The stages, one row each: a tap goes there (a locked one goes to the stage that unlocks it).
+            // 3 The stages, one row each: a tap goes there (a locked one goes to the stage that unlocks it).
             RectTransform list = OSUi.Column(column, OSProjectLayout.StageRowGap);
             OSProjectLayout.FitHeight(list);
             for (int i = 0; i < stages.Count; i++)
@@ -288,10 +304,12 @@ namespace Forge.OS
                 string id = st.Id;
                 string goTo = st.Status == StageStatus.Locked && st.Unlock != null && s.TryStage(st.Unlock, out StageState u) ? u.Def.Name : null;
                 string target = st.Status == StageStatus.Locked && st.Unlock != null ? st.Unlock : id;
-                OSProjectLayout.StageRow(list, st, goTo, () => s.Go(target));
+                // The row of the stage the person is at is ringed, unless the card above already is that stage.
+                bool ring = st.IsCurrent && !(label != null && s.NextIndex == i && s.Notice == null);
+                OSProjectLayout.StageRow(list, st, goTo, () => s.Go(target), ring);
             }
 
-            // 5 Along the bottom.
+            // 4 Along the bottom.
             OSProjectLayout.FlexibleHeight(column);
             if (more)
             {
@@ -305,6 +323,75 @@ namespace Forge.OS
             if (sample) OSProjectLayout.Fit(OSUi.Button(row, OSProjects.MakeOwnLabel(projectId), () => Do("make_own"), OSButtonStyle.Secondary, "plus"), OSUi.ChipHeight);
             OSProjectLayout.FlexibleWidth(row);
             OSProjectLayout.Fit(OSUi.Button(row, more ? LessLabel : MoreLabel, () => MoreOpen = !more, OSButtonStyle.Borderless), OSUi.ChipHeight);
+        }
+
+        /// <summary>The tag over the stage card: what the stage is to the person now.</summary>
+        public const string UpNextTag = "Up next", RedoTag = "Out of date", GoFirstTag = "Do this first";
+
+        // The card of the stage to do now: "UP NEXT · STAGE 3 OF 5", the stage's name large, one line (why it is out of date,
+        // the last result, or what it opens) and the one primary button. A locked stage tapped a moment ago turns it into
+        // "Do this first" with the stage that unlocks it.
+        void BuildFocus(RectTransform column, OSProjectSession s, StageState next, string label, int total)
+        {
+            StageState shown = next;
+            string tag = next.Status == StageStatus.Stale ? RedoTag : UpNextTag;
+            string line;
+            if (s.Notice != null && s.NoticeUnlock != null && s.TryStage(s.NoticeUnlock, out StageState first))
+            {
+                shown = first;
+                tag = GoFirstTag;
+                line = s.Notice;
+            }
+            else if (next.Status == StageStatus.Stale) line = Sentence(next.Result) + " " + RedoWhy(next);
+            // The last result, unless it only repeats the button ("Next step: tap Course..."): then what the stage opens.
+            else if (!string.IsNullOrEmpty(s.StatusLine) && !s.StatusLine.StartsWith("Next step:", StringComparison.Ordinal)) line = s.StatusLine;
+            else line = "Opens " + next.Def.Opens + ".";
+
+            // A raised card with a thin ring in the accent (amber when it is out of date): the one lit thing in the window.
+            RectTransform card = OSUi.Surface(column, OSSurface.Raised, ForgeTheme.Space5, ForgeTheme.Space2);
+            card.name = "Focus";
+            Color tone = tag == RedoTag ? ForgeTheme.WarningText : OSUi.AccentFor(card);
+            ForgeLook.Ring(card, "Ring", new Color(tone.r, tone.g, tone.b, 0.7f), ForgeTheme.RadiusCard, 2f);
+            int number = ProjectStages.IndexOf(StagesList(s.Stages), shown.Id) + 1;
+            TMP_Text tagText = OSUi.Tag(card, tag + " · stage " + number);
+            ForgeLook.Tint(tagText, tone);
+            TMP_Text name = OSUi.Heading(card, shown.Def.Name);
+            name.textWrappingMode = TextWrappingModes.NoWrap;
+            statusText = OSUi.Text(card, ProjectStages.Clip(line, 150), OSUi.BodyText, true);
+            OSProjectLayout.Spacer(card, ForgeTheme.Space2);
+            string icon = shown.Def.Icon ?? "chevron_right";
+            OSProjectLayout.Hero(card, label, () => s.GoNext(), icon);
+        }
+
+        // Every stage done: a quiet card that says so (no primary button; any stage row goes back to it).
+        void BuildAllDone(RectTransform column)
+        {
+            RectTransform card = OSUi.Surface(column, OSSurface.Raised, ForgeTheme.Space5, ForgeTheme.Space2);
+            card.name = "Focus";
+            TMP_Text tag = OSUi.Tag(card, "All done");
+            ForgeLook.Tint(tag, ForgeTheme.SuccessText);
+            statusText = OSUi.Text(card, AllDoneLine, OSUi.BodyText, true);
+        }
+
+        static string Sentence(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            text = char.ToUpperInvariant(text[0]) + text.Substring(1);
+            return text.EndsWith(".") ? text : text + ".";
+        }
+
+        // Why an out-of-date stage is worth doing again, in a few words.
+        static string RedoWhy(StageState s)
+        {
+            switch (s.Id)
+            {
+                case "drive": return "Drive the new design so the brain learns it.";
+                case "fly": return "Fly the new design so the brain learns it.";
+                case "train": return "Train again on laps of the new design.";
+                case "autopilot": return "Run it again on the newest brain.";
+                case "simulate": return "Simulate the new design before it launches.";
+                default: return "Do it again for the newest version.";
+            }
         }
 
         readonly List<StageState> scratchStages = new List<StageState>(6);
@@ -364,7 +451,7 @@ namespace Forge.OS
             }
             else OSUi.Pair(card, "Versions", "none yet. " + VersionRule(loop));
 
-            if (design != null) OSUi.Pair(card, "Design", CadLine(design));
+            if (design != null) OSUi.Pair(card, "Design", DesignLine(design));
             string run = isOpen ? OSProjectSession.LastTrainingLine() : null;
             if (run != null || loop == Loop.Truck || loop == Loop.Quadcopter || loop == Loop.Ml)
                 OSUi.Pair(card, "Last training", run != null ? ProjectStages.Clip(run, 80) : "none yet");
@@ -458,6 +545,18 @@ namespace Forge.OS
                 return string.IsNullOrEmpty(outcome) || outcome == "open" ? "no result yet" : outcome;
             }
             return "no attempt yet";
+        }
+
+        // "quadcopter v7 · 160 mm arms": the version the stages are judged on (the same one the Design row shows), and what
+        // CAD shows now when that differs.
+        string DesignLine(string part)
+        {
+            OSProjectSession s = Session;
+            int version = s.Active && s.ProjectId == projectId ? s.Facts.DesignVersion : 0;
+            if (version <= 0) return CadLine(part);
+            string line = part + " v" + version + (string.IsNullOrEmpty(s.Facts.DesignLine) ? "" : " · " + s.Facts.DesignLine);
+            int shown = ProjectSpine.LastCadPart == part ? ProjectSpine.LastCadVersion : 0;
+            return shown > 0 && shown != version ? line + " (v" + shown + " on screen)" : line;
         }
 
         // "quadcopter v7 · v8 on screen": the version the project pins, and what CAD shows now if newer.

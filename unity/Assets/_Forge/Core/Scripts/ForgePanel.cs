@@ -186,8 +186,8 @@ public class ForgePanel : MonoBehaviour
     internal void OnChromeChanged()
     {
         ForgeLook.StyleChrome(Chrome);  // design system: the window buttons' colours (look only)
+        if (Handles != null) Handles.LayoutTitleButtons();  // the pills first: the title then keeps clear of where they are
         LayoutHeader();
-        if (Handles != null) Handles.LayoutTitleButtons();
     }
 
     const float HeaderLeft = 20f, BadgeSize = 40f, BadgePadding = 12f, BadgeGap = 12f, HeaderRight = 180f;
@@ -243,6 +243,7 @@ public class ForgePanel : MonoBehaviour
         {
             badge.color = ForgeTheme.Tint(accent, ForgeTheme.BadgeFill);
             badge.Outline = ForgeTheme.BadgeRing;
+            badge.Pill = true;  // a soft tinted chip, not a framed square that reads as a button
             var rt = (RectTransform)badge.transform;
             float width = BadgeSize;
             if (badgeText != null)
@@ -282,7 +283,32 @@ public class ForgePanel : MonoBehaviour
         float width = ((RectTransform)transform).sizeDelta.x;
         // The window buttons (close, minimise) are always there, so the title always clears them.
         float buttons = Chrome != null ? Chrome.ReservedWidth : 0f;
-        return buttons + Mathf.Clamp(width - left - MinHeaderText - buttons, 20f, HeaderRight);
+        float reserve = buttons + Mathf.Clamp(width - left - MinHeaderText - buttons, 20f, HeaderRight);
+        // The Straight / Face me pills are wider than HeaderRight on some panels (the title ran into "Straight" in the look
+        // set): keep clear of where they really are, plus a gap, when that leaves the title its minimum.
+        float pills = TitlePillsExtent();
+        if (pills > 0f) reserve = Mathf.Max(reserve, Mathf.Min(pills + 12f, width - left - MinHeaderText));
+        return reserve;
+    }
+
+    static readonly System.Collections.Generic.List<ForgePill> pillScratch = new System.Collections.Generic.List<ForgePill>();
+
+    // How far in from the right edge the title-bar pills reach (canvas units), 0 without any. Only on a layout change.
+    float TitlePillsExtent()
+    {
+        float extent = 0f;
+        GetComponentsInChildren(false, pillScratch);
+        for (int i = 0; i < pillScratch.Count; i++)
+        {
+            ForgePill pill = pillScratch[i];
+            if (!pill.Quiet || pill.transform.parent == null || pill.transform.parent.parent != transform) continue;  // the manipulator's own pills
+            RectTransform rt = pill.Rect;
+            if (rt.anchorMin.x < 0.99f || rt.anchorMin.y < 0.99f) continue;  // only the ones laid out from the top-right corner
+            if (rt.anchoredPosition.y < -ForgeTheme.PanelHeader) continue;
+            extent = Mathf.Max(extent, -rt.anchoredPosition.x + rt.sizeDelta.x * rt.pivot.x);
+        }
+        pillScratch.Clear();
+        return extent;
     }
 
     static void PlaceInHeader(RectTransform rt, float left, float right, float centerFromTop, float height)

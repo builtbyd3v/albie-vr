@@ -16,7 +16,9 @@ namespace Forge.OS.Editor
     public static class OSDesignGallery
     {
         public const string WindowId = "design_gallery";
-        static readonly Vector2 Size = new Vector2(1.5f, 0.9f);
+        // Sized to its content (seen in the look set): 1.5 x 0.9 m left a dead band under the controls and was wide enough to reach
+        // a wall of the mock living room from the desk.
+        static readonly Vector2 Size = new Vector2(1.2f, 0.74f);
 
         [MenuItem("Forge/OS/Design Gallery")]
         static void Menu()
@@ -77,7 +79,7 @@ namespace Forge.OS.Editor
             RectTransform type = OSUi.Section(col, "Type");
             OSUi.Heading(type, "Display 34");
             TMP_Text title = OSUi.Text(type, "Title 26, bold", OSUi.TitleText);
-            title.fontStyle = FontStyles.Bold;
+            ForgeTheme.Strong(title, ForgeTheme.HeadingTracking);
             OSUi.Text(type, "Body 22: the text people read.", OSUi.BodyText);
             OSUi.Text(type, "Secondary 21.5: hints and notes.", OSUi.SmallText, true);
             OSUi.Tag(type, "Tag · caps caption");
@@ -134,6 +136,9 @@ namespace Forge.OS.Editor
             RectTransform inputs = OSUi.Section(col, "Toggle and slider");
             OSUi.Toggle(inputs, "Hands-free voice", true, null);
             OSUi.Slider(inputs, "Distance", 0.35f, 0.7f, 0.5f, null);
+
+            RectTransform empty = OSUi.Section(col, "Empty state");
+            OSUi.EmptyState(empty, "No runs yet", "Record two laps, then train.", "train");
         }
 
         static void Structure(RectTransform col)
@@ -154,13 +159,14 @@ namespace Forge.OS.Editor
             OSUi.ListRow(col, "RC truck", "Version 2 · driven today", "truck", null, () => { });
             OSUi.ListRow(col, "Lap time", null, null, "41.2 s");
 
-            RectTransform row = OSUi.Row(col, 120f, ForgeTheme.Space4);
+            RectTransform surfaces = OSUi.Section(col, "Surfaces");
+            RectTransform row = OSUi.Row(surfaces, 76f, ForgeTheme.Space4);
             RectTransform floating = OSUi.Surface(row, OSSurface.Floating, 20f, 6f);
             OSUi.Text(floating, "Floating: toasts, confirms", OSUi.BodyText);
             RectTransform selected = OSUi.Surface(row, OSSurface.Selected, 20f, 6f);
             OSUi.Text(selected, "Selected", OSUi.BodyText);
-
-            OSUi.EmptyState(col, "No runs yet", "Record two laps, then train.", "train");
+            RectTransform inset = OSUi.Surface(surfaces, OSSurface.Inset, 20f, 6f);
+            OSUi.Text(inset, "Inset: wells, charts, fields", OSUi.SmallText, true);
         }
     }
 }

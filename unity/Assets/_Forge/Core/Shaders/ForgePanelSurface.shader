@@ -2,7 +2,7 @@
 // Style 0, graphite panel: rounded window with a top-to-bottom graphite gradient, a 1 mm rim light along the top edge,
 // a faint inner outline, the header hairline and a soft drop shadow; the rim brightens while the panel is pointed at
 // or held (the glow value). Style 1, fill: a flat rounded shape in the graphic's color with an optional glow in the
-// same color (pills, handles).
+// same color (pills, handles). Style 2, raised: a fill lit from above (top sheen, a rim brightest along the top edge).
 // The graphic sends its shape per vertex: uv0 = position from the center (mm), uv1 = (half width, half height,
 // corner, header), uv2 = (style, glow, shadow, outline). Premultiplied alpha, so it composites over passthrough.
 Shader "Forge/PanelSurface"
@@ -136,35 +136,53 @@ Shader "Forge/PanelSurface"
                 {
                     // How lit the frame is: 0 at rest, 0.5 pointed at, 1 held (style.y).
                     float lit = i.style.y;
-                    // Soft shadow under the window: 16 mm down, 40 mm blur.
+                    // Soft shadow under the window: 16 mm down, 40 mm blur, and a tighter contact shadow right at the edge,
+                    // so the pane reads as lifted off the room even against a light wall.
                     float ds = SquircleBox(p + float2(0.0, 16.0), halfSize - 6.0, corner);
-                    Over(acc, 0, 0.35 * i.style.z / (1.0 + exp(3.404 * ds / 40.0)));
+                    Over(acc, 0, 0.45 * i.style.z / (1.0 + exp(3.404 * ds / 40.0)));
+                    float dc = SquircleBox(p + float2(0.0, 3.0), halfSize - 1.0, corner);
+                    Over(acc, 0, 0.30 * i.style.z / (1.0 + exp(3.404 * dc / 6.0)));
                     // Held: a soft white halo just outside the edge, the window lifted off the room.
                     Over(acc, 1, d > 0.0 ? saturate(2.0 * lit - 1.0) * 0.12 / (1.0 + exp(3.404 * d / 9.0)) * 2.0 : 0.0);
                     // Graphite, lighter at the top.
                     float t = saturate((halfSize.y - p.y) / (2.0 * halfSize.y));
                     float4 fill = lerp(_Top, _Bottom, t);
                     Over(acc, fill.rgb, fill.a * inside);
-                    // Faint inner outline, and a rim light along the top edge fading down into the corners; both
-                    // brighten while the panel is pointed at or held.
+                    // Glass sheen: a soft light falling from the top edge over the first ~160 mm (the header and a little more).
+                    float fromTop = halfSize.y - p.y;
+                    Over(acc, 1, 0.045 * inside * (1.0 - smoothstep(0.0, 160.0, fromTop)));
+                    // Faint inner outline all round, and a crisp rim light along the top edge fading down into the corners;
+                    // both brighten while the panel is pointed at or held.
                     float rim = Band(d + 0.5, 0.5, aa);
-                    Over(acc, 1, (0.07 + 0.11 * lit) * rim);
-                    Over(acc, 1, (0.16 + 0.16 * lit) * rim * smoothstep(halfSize.y - corner, halfSize.y - 2.0, p.y));
+                    Over(acc, 1, (0.09 + 0.11 * lit) * rim);
+                    Over(acc, 1, (0.26 + 0.16 * lit) * rim * smoothstep(halfSize.y - corner * 1.5, halfSize.y - 2.0, p.y));
                     // Header hairline.
                     if (header > 0.0)
                     {
                         float hy = halfSize.y - header;
-                        Over(acc, 1, 0.07 * Band(p.y - hy, 0.5, max(fwidth(p.y), 1e-3)) * step(d, -0.5));
+                        Over(acc, 1, 0.08 * Band(p.y - hy, 0.5, max(fwidth(p.y), 1e-3)) * step(d, -0.5));
                     }
                     acc *= i.color.a;
                 }
-                else
+                else if (i.style.x < 1.5)
                 {
                     // Flat fill with a glow in its own color (glow strength in style.y, scaled by the color's alpha).
                     float glow = d > 0.0 ? i.style.y * i.color.a / (1.0 + exp(3.404 * d / 8.0)) * 2.0 : 0.0;
                     Over(acc, i.color.rgb, saturate(glow));
                     Over(acc, i.color.rgb, i.color.a * inside);
                     Over(acc, i.color.rgb, i.style.w * i.p.z * Band(d + 0.5, 0.5, aa));
+                }
+                else
+                {
+                    // Raised: the fill lit from above. A soft sheen in the top half (style.z), and the rim (style.w, in white)
+                    // brightest along the top edge, fading to a third of it at the bottom, so it reads as a pane, not a box.
+                    float glow = d > 0.0 ? i.style.y * i.color.a / (1.0 + exp(3.404 * d / 8.0)) * 2.0 : 0.0;
+                    Over(acc, i.color.rgb, saturate(glow));
+                    Over(acc, i.color.rgb, i.color.a * inside);
+                    float top = saturate((p.y + halfSize.y) / max(2.0 * halfSize.y, 1e-3));  // 0 bottom, 1 top
+                    Over(acc, 1, i.style.z * i.p.z * 0.05 * inside * smoothstep(0.35, 1.0, top));
+                    float rimLight = lerp(0.35, 1.0, smoothstep(0.2, 0.95, top));
+                    Over(acc, 1, i.style.w * i.p.z * rimLight * Band(d + 0.5, 0.5, aa));
                 }
 
                 #ifdef UNITY_UI_CLIP_RECT

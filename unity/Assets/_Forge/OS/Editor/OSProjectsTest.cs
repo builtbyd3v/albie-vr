@@ -386,6 +386,9 @@ namespace Forge.OS.Editor
             for (int i = 1; i < 5 && i < fresh.Count; i++) samplesHeaded &= fresh[i].section == OSProjects.SampleSection;
             Check(samplesHeaded && fresh[0].outline && fresh[0].section == null && fresh[0].title == OSProjects.NewProjectTitle,
                 "New project leads the person's own row, and the four samples sit under the '" + OSProjects.SampleSection + "' heading");
+            // OSProjects.Register ran again above, after the app registered the Machine learning section: it must still come last.
+            int firstMl = fresh.FindIndex(e => e.section == OSMLProjects.Section);
+            Check(firstMl < 0 || firstMl >= 5, "the Machine learning section comes after New project and the samples, whatever registered first (at " + firstMl + ")");
 
             // ---- RC truck from the real tile
             var step = PressTile(shell, menu, "proj_truck", "50_projects_tab_fresh");

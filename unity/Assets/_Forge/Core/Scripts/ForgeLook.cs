@@ -225,8 +225,7 @@ public static class ForgeLook
         if (title != null)
         {
             title.color = ForgeTheme.TextPrimary;
-            title.fontStyle = FontStyles.Bold;
-            title.characterSpacing = -0.3f;
+            ForgeTheme.Strong(title, -0.3f);  // semibold material, not fake bold (which smears on the static Inter atlas)
             title.overflowMode = TextOverflowModes.Ellipsis;
         }
         if (subtitle != null)

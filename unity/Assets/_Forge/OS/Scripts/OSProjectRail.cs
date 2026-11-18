@@ -27,7 +27,7 @@ namespace Forge.OS
         /// <summary>The name of the home button (an icon button: the project window).</summary>
         public const string HomeIcon = "home";
 
-        const float PlaceSeconds = 0.2f, Reach = 0.55f, DockGap = 0.03f, FloatDistance = 0.5f, FloatDrop = 0.28f;
+        const float PlaceSeconds = 0.2f, Reach = 0.55f, DockGap = 0.05f, FloatDistance = 0.5f, FloatDrop = 0.28f;
         const float MaxDownSine = 0.77f;    // about 50 degrees below straight ahead: lower than that, the bar floats instead
         const float MovedBy = 0.02f, FollowStep = 0.015f, SettleSeconds = 1.2f, LostSeconds = 2f, ViewAngle = 55f;
         const float MinWidthMm = 400f, FallbackHeightMm = 150f;
@@ -120,11 +120,22 @@ namespace Forge.OS
         {
             if (panel == null || session == null || !session.Active) return;
             panel.Title = OSProjects.TitleFor(session.ProjectId);
-            panel.Subtitle = ProjectStages.Clip(session.BarLine(), 80);
+            panel.Subtitle = HeaderLine(session.BarLine());
             int key = Key();
             if (key == builtKey) return;
             builtKey = key;
             Build();
+        }
+
+        /// <summary>The bar's header holds one short line: the first sentence of the bar's line, cut to fit beside the title.</summary>
+        public const int HeaderChars = 46;
+
+        static string HeaderLine(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return "";
+            int stop = line.IndexOf(". ", System.StringComparison.Ordinal);
+            if (stop > 0) line = line.Substring(0, stop + 1);
+            return ProjectStages.Clip(line, HeaderChars);
         }
 
         // What the row shows: every stage's status, the one at hand, Next, the notice.
@@ -156,7 +167,7 @@ namespace Forge.OS
             RectTransform row = OSUi.Row(column, OSUi.ChipHeight, OSProjectLayout.RailGap);
             OSUi.Rigid(row);
 
-            OSUi.IconButton(row, HomeIcon, session.ShowHome, OSUi.ChipHeight);
+            OSUi.IconButton(row, HomeIcon, session.ShowHome, OSUi.ChipHeight, true);  // tonal: it reads as a button, not a picture
 
             IReadOnlyList<StageState> stages = session.Stages;
             for (int i = 0; i < stages.Count; i++)

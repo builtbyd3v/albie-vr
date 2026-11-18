@@ -15,11 +15,10 @@ namespace Forge.OS
 
     /// <summary>
     /// The Projects tab. One way to start a project: the New project tile (Build something: a few questions, then a plan).
-    /// The tab's first page is one row under "Your projects": New project and the person's three newest projects (every
-    /// other folder under the notebook's <c>projects/</c> folder; the open one first). The rest is on the pages after it,
-    /// each under its own heading: "All your projects" (the older ones), "Samples" (RC truck, Quadcopter, Rocket, Image
-    /// classifier in one row: finished examples to look around, each tile saying what it shows in one short line), and
-    /// Machine learning (<see cref="OSMLProjects"/>). A sample is never copied: its window's Make my own
+    /// The tab's first page has two rows: New project and the person's three newest projects (every other folder under the
+    /// notebook's <c>projects/</c> folder; the open one first), then "Samples" (RC truck, Quadcopter, Rocket, Image
+    /// classifier in one row: finished examples to look around, each tile saying what it shows in one short line). The
+    /// pages after it hold "All your projects" (the older ones) and Machine learning (<see cref="OSMLProjects"/>). A sample is never copied: its window's Make my own
     /// (<see cref="MakeOwn"/>) opens the same New project questions with the sample's kind already picked, so the person gets
     /// the choices and a real project with its own plan ("My RC truck", which follows the sample's loop). The
     /// folder listing and each project's status line are cached: they are read again when something asks (a registry
@@ -44,9 +43,9 @@ namespace Forge.OS
             public float? runSeconds;
         }
 
-        /// <summary>The heading over the four samples on the Projects tab (a page of their own, one row).</summary>
+        /// <summary>The heading over the four samples on the Projects tab (the first page's second row).</summary>
         public const string SampleSection = "Samples";
-        /// <summary>The heading of the tab's first page: New project and the person's newest projects.</summary>
+        /// <summary>Kept for callers: the first row (New project and the newest projects) has no heading now.</summary>
         public const string OwnSection = "Your projects";
         /// <summary>The heading of the person's other projects, on the pages after the first.</summary>
         public const string MoreOwnSection = "All your projects";
@@ -149,6 +148,9 @@ namespace Forge.OS
             NotebookStore.VersionCut += OnNotebook;
             NotebookStore.PlanUpdated += OnNotebook;
             OSRegistry.RegisterSource(OSTab.Projects, Fill);
+            // The Machine learning page comes last whatever registered first: a check (or the look set) that registers this
+            // source again after the app's start would otherwise put it in front of New project.
+            if (OSMLProjects.Registered) OSMLProjects.Register();
             ArtifactLibrary.LinkRule = ProjectForNew;  // a new artifact links to a project only when it belongs to it
         }
 
@@ -215,11 +217,11 @@ namespace Forge.OS
                 Debug.Log("[OS] Couldn't list the project folders: " + e.Message);
             }
 
-            // A calm first page: one row under "Your projects", New project and the person's three newest projects (the open one
-            // first); before the person has any, New project alone with the samples' row under it. Every heading after it starts a page of its own (the menu puts one heading on a page), so the rest is a
-            // page turn away and never on screen with the first row: the person's other projects ("All your projects"), then
-            // the four samples in one row ("Samples"), then one Machine learning page: the ML projects saved on the headset,
-            // and (from OSMLProjects, registered after this source) the hub's or cloud's. Every entry stays in the registry,
+            // The first page is the whole story for a newcomer and for a regular: one row with no heading, New project and the
+            // person's three newest projects (the open one first), then the four samples in one row under "Samples". The
+            // menu puts at most one heading on a page, so what follows starts the next page: the person's older projects
+            // ("All your projects"), then one Machine learning page (the ML projects saved on the headset, and from
+            // OSMLProjects, always registered after this source, the hub's or cloud's). Every entry stays in the registry,
             // so voice (os_open, project_open) and the checks find each one.
             entries.Add(new OSEntry
             {
@@ -227,16 +229,19 @@ namespace Forge.OS
                 title = NewProjectTitle,
                 icon = "plus",
                 tab = OSTab.Projects,
-                // With no projects of the person's own yet, the samples share the first page (New project, then their row).
-                section = folderIds.Count == 0 ? null : OwnSection,
+                // No heading: New project and the newest projects of the person's own are the first row, the samples' row
+                // under its own heading below them, all on the first page.
+                section = null,
                 outline = true,
                 status = () => NewProjectLine,
                 open = StartOwn,
             });
             NewestFirst(folderIds, recent);
             for (int i = 0; i < recent.Count; i++)
-                AddEntry(recent[i], TitleFor(recent[i]), IconFor(recent[i], "projects"), i < OwnOnFirstPage ? OwnSection : MoreOwnSection);
+                if (i < OwnOnFirstPage) AddEntry(recent[i], TitleFor(recent[i]), IconFor(recent[i], "projects"), null);
             for (int i = 0; i < starters.Length; i++) AddEntry(starters[i].id, starters[i].title, starters[i].icon, SampleSection);
+            for (int i = OwnOnFirstPage; i < recent.Count; i++)
+                AddEntry(recent[i], TitleFor(recent[i]), IconFor(recent[i], "projects"), MoreOwnSection);
             for (int i = 0; i < mlFolderIds.Count; i++) AddEntry(mlFolderIds[i], TitleFor(mlFolderIds[i]), "classifier", OSMLProjects.Section);
         }
 
@@ -324,6 +329,7 @@ namespace Forge.OS
             string line = ComputeStatus(id, null);
             var starter = FindStarter(id);
             if (starter != null && line == ReadyToStart) line = starter.tileLine;  // a sample nobody has touched says what it shows
+            line = line.Replace("last attempt ", "");  // a tile's caption holds about twenty characters: "v6 · failed"
             statusById[id] = line;
             string captured = id;
             entries.Add(new OSEntry

@@ -689,6 +689,11 @@ namespace Forge.OS
             plate.sizeDelta = new Vector2(PlateWidth, PlateHeight);
             var rounded = plate.GetComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>();
             if (rounded != null) rounded.borderRadius = new Vector4(36f, 36f, 36f, 36f);
+            // Design system: the menu sits on the same glass as every window (graphite gradient, top rim light, glass sheen,
+            // soft shadow: ForgeSurface's panel style) instead of the kit's flat plate, which stays under it as the ray target.
+            ForgeSurface glass = ForgeLook.Fill(plate, "Glass", Color.white, 36f);
+            glass.Style = ForgeSurface.Kind.Panel;
+            glass.transform.SetAsFirstSibling();
             OSBody.EnsureCanvas(canvasRoot.GetComponent<Canvas>());
             OSBody.RaiseAboveScene(canvasRoot.gameObject);
             // The menu plays its own press sound for every control, so the plate's poke sound would double it.
@@ -900,6 +905,13 @@ namespace Forge.OS
             for (int i = 0; i < headings.Count; i++) headings[i].gameObject.SetActive(false);
             activeTiles.Clear();
 
+            // A single page that doesn't fill the grid (the Tools tab has no heading row) sits in the middle of the grid's
+            // height, not at its top over an empty band. Paged tabs stay top-aligned so a page turn doesn't jump.
+            float contentBottom = 0f;
+            for (int i = 0; i < slots.Count; i++)
+                if (slots[i].page == page) contentBottom = Mathf.Max(contentBottom, slots[i].y + (slots[i].entry < 0 ? HeadingHeight : TileHeight));
+            float top = GridTop + (pageCount == 1 ? Mathf.Max(0f, (GridHeight - contentBottom) * 0.5f) : 0f);
+
             int tileIndex = 0, outlineIndex = 0, headingIndex = 0;
             for (int i = 0; i < slots.Count; i++)
             {
@@ -909,7 +921,7 @@ namespace Forge.OS
                 {
                     TMP_Text heading = Pooled(headings, ref headingIndex);
                     heading.text = slot.heading;
-                    PlaceTopLeft(heading.transform, Pad, GridTop + slot.y);
+                    PlaceTopLeft(heading.transform, Pad, top + slot.y);
                     ((RectTransform)heading.transform).sizeDelta = new Vector2(GridWidth, HeadingHeight);
                     continue;
                 }
@@ -917,7 +929,7 @@ namespace Forge.OS
                 OSTileView tile = entry.outline ? PooledTile(outlineTiles, ref outlineIndex, true) : PooledTile(tiles, ref tileIndex, false);
                 if (tile == null) continue;
                 tile.Show(entry);
-                PlaceTopLeft(tile.rect, Pad + slot.x, GridTop + slot.y);
+                PlaceTopLeft(tile.rect, Pad + slot.x, top + slot.y);
                 activeTiles.Add(tile);
             }
 
@@ -947,7 +959,7 @@ namespace Forge.OS
             if (index < pool.Count) return Activate(pool[index++]);
             TMP_Text heading = OSUi.Text(plate, "", OSUi.BodyText, true);
             heading.GetComponent<LayoutElement>().ignoreLayout = true;
-            heading.fontStyle = FontStyles.Bold;
+            ForgeTheme.Strong(heading);
             heading.textWrappingMode = TextWrappingModes.NoWrap;
             pool.Add(heading);
             index++;

@@ -221,6 +221,18 @@ namespace Forge.OS
             if (dirty) Render();
         }
 
+        // After a render the layout has its sizes: the card becomes as tall as what it holds (a question is shorter than the plan).
+        void LateUpdate()
+        {
+            if (!fitPending || panel == null) return;
+            fitPending = false;
+            OSProjectLayout.FitWindowHeight(panel, OSProjectLayout.PreferredUnits(column), MinHeightMeters, SizeMeters.y);
+        }
+
+        bool fitPending;
+        RectTransform column;
+        const float MinHeightMeters = 0.34f;
+
         // ---------------------------------------------------------------- what the buttons do
 
         /// <summary>Answer number <paramref name="index"/> (from 0) of the question on the card. False when there is no such answer.</summary>
@@ -488,7 +500,8 @@ namespace Forge.OS
             RectTransform body = OSUi.Body(panel);
             if (body == null) return;
             OSUi.Clear(body);
-            RectTransform column = OSUi.Column(body, 16f);
+            column = OSUi.Column(body, 16f);
+            fitPending = true;
             if (planner.Done) BuildPlan(column, planner.Result);
             else BuildQuestion(column, planner.Current);
         }
@@ -497,15 +510,23 @@ namespace Forge.OS
         {
             string sample = preset.HasValue ? OSProjects.SampleForKind(preset.Value) : null;
             panel.Subtitle = sample != null ? OSProjects.OwnTitle(sample) + " · a new project" : "Albie is planning with you";
-            OSUi.Text(column, "Question " + planner.Number + " of " + OSPlanner.MaxQuestions, NoteSize, true);
-            TMP_Text title = OSUi.Text(column, q.text, LeadSize);
-            title.fontStyle = FontStyles.Bold;
+            // Where it is (a tag and three dots), the question large, then the answers as one list of full-width rows.
+            RectTransform top = Rigid(OSUi.Row(column, 30f, ForgeTheme.Space3));
+            TMP_Text where = OSUi.Tag(top, "Question " + planner.Number + " of " + OSPlanner.MaxQuestions);
+            where.textWrappingMode = TextWrappingModes.NoWrap;
+            var whereLayout = where.GetComponent<LayoutElement>();
+            whereLayout.flexibleWidth = 0f;
+            whereLayout.preferredWidth = where.GetPreferredValues(where.text).x + 4f;
+            for (int i = 1; i <= OSPlanner.MaxQuestions; i++) Dot(top, i < planner.Number, i == planner.Number);
+            TMP_Text title = OSUi.Heading(column, q.text);
+            title.textWrappingMode = TextWrappingModes.Normal;
             if (planner.Asked == 0) OSUi.Text(column, FirstHint, NoteSize, true);
+            OSProjectLayout.Spacer(column, ForgeTheme.Space1);
 
             for (int i = 0; i < q.choices.Length; i++)
             {
                 int index = i;
-                Wide(OSUi.Button(column, q.choices[i].text, () => Pick(index), OSButtonStyle.Secondary));
+                OSUi.ListRow(column, q.choices[i].text, null, null, null, () => Pick(index));
             }
 
             bool voice = VoiceLive;
@@ -514,28 +535,49 @@ namespace Forge.OS
             else if (voice) OSUi.Text(column, "You can say an answer, or tap it.", NoteSize, true);
             if (notice.Length > 0) OSUi.Text(column, notice, LineSize);
 
+            OSProjectLayout.FlexibleHeight(column);
             RectTransform row = Rigid(OSUi.Row(column, OSUi.ButtonHeight, OSUi.MinGap));
+            OSProjectLayout.FlexibleWidth(row);
             Rigid(OSUi.Button(row, "Cancel", Cancel, OSButtonStyle.Borderless));
+        }
+
+        // One of the three progress dots beside "Question 2 of 3": lit for the answered ones, ringed for this one.
+        static void Dot(Transform row, bool done, bool here)
+        {
+            var go = new GameObject(done ? "Dot done" : here ? "Dot here" : "Dot", typeof(RectTransform));
+            go.transform.SetParent(row, false);
+            OSUi.Size(go.transform, 12f, 12f);
+            var disc = go.AddComponent<ForgeSurface>();
+            disc.Pill = true;
+            disc.raycastTarget = false;
+            Color accent = OSUi.AccentFor(row);
+            disc.color = done ? accent : here ? new Color(accent.r, accent.g, accent.b, 0.25f) : new Color(1f, 1f, 1f, 0.12f);
+            if (here) ForgeLook.Ring(go.transform, "Ring", accent, 6f, 1.5f, 0f, true);
         }
 
         void BuildPlan(RectTransform column, OSPlanner.Plan plan)
         {
             panel.Subtitle = plan.kindTitle;
-            TMP_Text title = OSUi.Text(column, "Here is the plan", LeadSize);
-            title.fontStyle = FontStyles.Bold;
-
-            Labelled(column, "Goal", plan.goal);
-            Labelled(column, "Parts", string.Join(", ", plan.parts));
-            Labelled(column, "Test", plan.test);
-            OSUi.Text(column, "Milestones", NoteSize, true);
-            for (int i = 0; i < plan.milestones.Count; i++) OSUi.Text(column, (i + 1) + ". " + plan.milestones[i], LineSize);
-
-            RectTransform row = Rigid(OSUi.Row(column, OSUi.ButtonHeight, OSUi.MinGap));
-            Rigid(OSUi.Button(row, "Start", () => StartTapped(), OSButtonStyle.Primary));
-            Rigid(OSUi.Button(row, "Change", Change, OSButtonStyle.Secondary));
-            Rigid(OSUi.Button(row, "Cancel", Cancel, OSButtonStyle.Borderless));
-
             string own = OSProjects.SampleForKind(plan.kind);
+            TMP_Text title = OSUi.Heading(column, "Here is the plan");
+            title.textWrappingMode = TextWrappingModes.NoWrap;
+
+            // The plan as one card: what it is and how it is tested first, then the parts and the milestones.
+            RectTransform card = OSUi.Card(column, ForgeTheme.Space5, ForgeTheme.Space3);
+            OSUi.Pair(card, "Goal", plan.goal, 150f);
+            OSUi.Pair(card, "Test", plan.test, 150f);
+            OSUi.Pair(card, "Parts", string.Join(", ", plan.parts), 150f);
+            OSUi.Divider(card);
+            OSUi.Tag(card, "Milestones");
+            for (int i = 0; i < plan.milestones.Count; i++) OSUi.Text(card, (i + 1) + ". " + plan.milestones[i], LineSize);
+
+            OSProjectLayout.FlexibleHeight(column);
+            RectTransform row = Rigid(OSUi.Row(column, OSUi.ButtonHeight, OSUi.MinGap));
+            Button start = OSUi.Button(row, "Start", () => StartTapped(), OSButtonStyle.Primary, "check");
+            if (start != null) { OSUi.Size(start.transform, 240f, OSUi.ButtonHeight); Rigid(start); }
+            Rigid(OSUi.Button(row, "Change", Change, OSButtonStyle.Secondary));
+            OSProjectLayout.FlexibleWidth(row);
+            Rigid(OSUi.Button(row, "Cancel", Cancel, OSButtonStyle.Borderless));
             OSUi.Text(column, "Nothing is saved until you tap Start. Then it is " + (own != null ? OSProjects.OwnTitle(own) : "a project") + ", your own.", NoteSize, true);
             if (notice.Length > 0) OSUi.Text(column, notice, LineSize);
         }

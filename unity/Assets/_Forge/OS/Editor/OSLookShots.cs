@@ -363,6 +363,21 @@ namespace Forge.OS.Editor
                 ["fov"] = Math.Round(fov, 0),
                 ["zoomed"] = fov < defaultFov - 1f,
             };
+            // LOOK pass (global look): which scene meshes stand between the camera and a framed surface, so a window placed
+            // into a wall or a piece of furniture shows up in index.json, not only as a wedge in the picture.
+            if (keep != null && probes != null && probes.Count >= 4)
+            {
+                string inFront = FrontOccluders(position, probes, keep);
+                if (!string.IsNullOrEmpty(inFront)) entry["inFront"] = inFront;
+                Transform userHead = OSShell.FindHead();
+                if (userHead != null)
+                {
+                    string fromHead = FrontOccluders(userHead.position, probes, keep);
+                    if (!string.IsNullOrEmpty(fromHead)) entry["inFrontOfHead"] = fromHead;
+                }
+                string room = RoomReport(position, userHead != null ? userHead.position : position, probes);
+                if (!string.IsNullOrEmpty(room)) entry["room"] = room;
+            }
             index.Add(entry);
             AuditText(screen);
             WriteIndex();
@@ -398,6 +413,79 @@ namespace Forge.OS.Editor
         {
             for (int i = 0; i < noise.Count; i++) if (noise[i] != null) noise[i].forceRenderingOff = false;
             noise.Clear();
+        }
+
+        // A 9 x 6 grid over the framed quad (probes 0..3 are its corners as GetWorldCorners gives them): every scene mesh whose
+        // triangles a ray from the camera hits before that point, with how many of the 54 points it covers. Editor only, per picture.
+        static string FrontOccluders(Vector3 eye, List<Vector3> probes, Transform keep)
+        {
+            var hits = new Dictionary<string, int>();
+            foreach (MeshFilter mf in UnityEngine.Object.FindObjectsByType<MeshFilter>(FindObjectsInactive.Exclude))
+            {
+                Renderer r = mf != null ? mf.GetComponent<Renderer>() : null;
+                if (r == null || !r.enabled || r.forceRenderingOff || mf.sharedMesh == null) continue;
+                if (r.GetComponentInParent<Canvas>() != null || (keep != null && r.transform.IsChildOf(keep))) continue;
+                Bounds b = r.bounds;
+                if (b.Contains(eye)) continue;
+                Vector3[] v = null;
+                int[] tri = null;
+                int count = 0;
+                for (int gx = 0; gx < 9; gx++)
+                for (int gy = 0; gy < 6; gy++)
+                {
+                    float u = (gx + 0.5f) / 9f, w = (gy + 0.5f) / 6f;
+                    Vector3 target = Vector3.Lerp(Vector3.Lerp(probes[0], probes[3], u), Vector3.Lerp(probes[1], probes[2], u), w);
+                    Vector3 to = target - eye;
+                    float length = to.magnitude;
+                    var ray = new Ray(eye, to / length);
+                    if (!b.IntersectRay(ray, out float enter) || enter > length - 0.01f) continue;
+                    if (v == null)
+                    {
+                        v = mf.sharedMesh.vertices;
+                        tri = mf.sharedMesh.triangles;
+                        Matrix4x4 m = mf.transform.localToWorldMatrix;
+                        for (int k = 0; k < v.Length; k++) v[k] = m.MultiplyPoint3x4(v[k]);
+                    }
+                    for (int k = 0; k + 2 < tri.Length; k += 3)
+                    {
+                        if (RayTriangle(ray, v[tri[k]], v[tri[k + 1]], v[tri[k + 2]], out float t) && t < length - 0.01f) { count++; break; }
+                    }
+                }
+                if (count > 0) hits[r.name] = (hits.TryGetValue(r.name, out int c) ? c : 0) + count;
+            }
+            var parts = new List<string>();
+            foreach (var kv in hits) parts.Add(kv.Key + " " + kv.Value + "/54");
+            return string.Join(", ", parts);
+        }
+
+        // Whether the camera, the user's head and the framed quad's corners are inside the scanned room's outline (MRUK).
+        static string RoomReport(Vector3 camera, Vector3 head, List<Vector3> probes)
+        {
+            var mruk = Meta.XR.MRUtilityKit.MRUK.Instance;
+            if (mruk == null || mruk.Rooms == null || mruk.Rooms.Count == 0) return "no MRUK room";
+            Meta.XR.MRUtilityKit.MRUKRoom room = null;
+            foreach (var r in mruk.Rooms) if (r != null && r.IsPositionInRoom(head, false)) { room = r; break; }
+            if (room == null) return "the head is in no room";
+            int outside = 0;
+            for (int i = 0; i < 4 && i < probes.Count; i++) if (!room.IsPositionInRoom(probes[i], false)) outside++;
+            return "camera " + (room.IsPositionInRoom(camera, false) ? "in" : "OUTSIDE") + " the room, " + outside + "/4 corners outside";
+        }
+
+        static bool RayTriangle(Ray ray, Vector3 a, Vector3 b, Vector3 c, out float t)
+        {
+            t = 0f;
+            Vector3 e1 = b - a, e2 = c - a, pv = Vector3.Cross(ray.direction, e2);
+            float det = Vector3.Dot(e1, pv);
+            if (Mathf.Abs(det) < 1e-8f) return false;
+            float inv = 1f / det;
+            Vector3 tv = ray.origin - a;
+            float u = Vector3.Dot(tv, pv) * inv;
+            if (u < 0f || u > 1f) return false;
+            Vector3 qv = Vector3.Cross(tv, e1);
+            float w = Vector3.Dot(ray.direction, qv) * inv;
+            if (w < 0f || u + w > 1f) return false;
+            t = Vector3.Dot(e2, qv) * inv;
+            return t > 0f;
         }
 
         static bool Occludes(Renderer r, Vector3 eye, List<Vector3> probes, Transform keep)
@@ -765,7 +853,7 @@ namespace Forge.OS.Editor
         }
 
         /// <summary>The section names <see cref="RunOnly"/> takes.</summary>
-        public const string Sections = "table,menu,states,windows,design_gallery,settings,agents,build,drive,modes,artifacts,truck,three,away,closed";
+        public const string Sections = "table,menu,states,windows,design_gallery,settings,agents,build,projects_flow,drive,modes,artifacts,truck,three,away,closed";
 
         static List<Step> Steps() => new List<Step>
         {
@@ -778,6 +866,7 @@ namespace Forge.OS.Editor
             new Step("settings", StepSettings),
             new Step("agents", StepAgents),
             new Step("build", StepBuild),
+            new Step("projects_flow", StepProjectsFlow),
             new Step("drive", StepDriveIdle),
             new Step("modes", StepModes),
             new Step("artifacts", StepArtifacts),
@@ -1199,6 +1288,197 @@ namespace Forge.OS.Editor
             yield return 0.6f;
             shell.Windows.CloseAll();
             yield return 0.4f;
+        }
+
+        // ---------------------------------------------------------------- the project system, end to end
+
+        // The project screens, driven through real state: the Projects tab (new user, then with projects of their own), a
+        // sample's home, Make my own through the questions and the plan card to the person's own project at stage 1, the
+        // quadcopter mid-way (stages done, one stale after a design change, one current, one locked), the rocket and the
+        // classifier, the project bar docked under a tool and floating alone, a locked stage's reason with its way there,
+        // the Details page and the notebook window. The state is the scratch notebook's and the project records' (the same
+        // stores the stage model reads), never painted.
+        static IEnumerator<float> StepProjectsFlow()
+        {
+            if (!Ready()) yield break;
+            if (shell.MenuOpen) { shell.CloseMenu(); yield return 0.5f; }
+            OSProjectSession.Current?.End();
+            shell.Windows.CloseAll();
+            OSModes.Close();
+            AlbieTools.Call("artifact_close", new JObject());
+            yield return 0.8f;
+
+            // 1 The Projects tab as a new user finds it (no projects of their own yet).
+            foreach (float w in ProjectsTabPages("pf_tab_new")) yield return w;
+
+            // 2 A sample's home (the RC truck), and the bar that comes with it.
+            OSProjects.OpenProject("proj_truck");
+            yield return 1.5f;
+            OSWindow home = shell.Windows.Find(OSProjectWindow.WindowId);
+            FrameWindow("pf_truck_home", "The RC truck sample's home: what it shows in a line, where it stands, one big Next, the stages with their status and result, and Make my own.", home);
+            HomeAndBar("pf_truck_home_with_bar", "The truck sample's home with its project bar, as the user sees them: the bar does not cover the window.");
+
+            // 3 Make my own: the questions with the truck picked, the plan card, Start: the person's own project at stage 1.
+            if (home != null && PressButton(OSProjects.MakeOwnLabel("proj_truck"), home.Panel))
+            {
+                yield return 1.0f;
+                OSWindow card = shell.Windows.Find(OSBuildFlow.WindowId);
+                OSBuildFlow flow = OSBuildFlow.Current;
+                if (card == null || flow == null) Unreachable("pf_new_question", "Make my own opened no card");
+                else
+                {
+                    FrameWindow("pf_new_question", "New project from Make my own: the truck already picked, the next question with its answers.", card);
+                    for (int i = 0; i < 4 && !flow.Planner.Done; i++)
+                    {
+                        flow.Pick(0);
+                        yield return 0.6f;
+                    }
+                    if (flow.Planner.Done)
+                    {
+                        FrameWindow("pf_plan_card", "The plan card: the goal, the parts, the test and the milestones, with Start as the one primary action.", card);
+                        PressButton("Start", card.Panel);
+                        yield return 1.5f;
+                        FrameWindow("pf_own_home_stage1", "The person's own new project (My RC truck) at stage 1: its goal, nothing done yet, Next on the first stage, every stage with its status.", shell.Windows.Find(OSProjectWindow.WindowId));
+                    }
+                    else Problem("Make my own never reached the plan card");
+                }
+            }
+            shell.Windows.Close(OSBuildFlow.WindowId);
+            yield return 0.5f;
+
+            // 4 The quadcopter mid-way: design v7, CAD's newest offline version (the laps were flown on v6, so Fly is stale), a course made, no brain yet
+            // (Train is next, Autopilot locked).
+            if (OSProjects.EnsureOpen(OSProjects.QuadcopterId, out string quadError))
+            {
+                try { ArtifactLibrary.ForProject(OSProjects.QuadcopterId, () => ArtifactLibrary.FromTemplate("hoop_course", null)); }
+                catch (Exception e) { Problem("could not make the hoop course for the quadcopter: " + e.Message); }
+                ProjectMeta.Update(OSProjects.QuadcopterId, meta => meta[OSProjectSession.RecordField] = new JObject
+                {
+                    ["design_version"] = 7, ["design_line"] = "160 mm arms", ["laps"] = 2, ["laps_design"] = 6, ["current"] = "fly",
+                });
+                NotebookStore.RevisePlan("Planned with Albie", "A quadcopter that flies the hoop course in the living room.", "Fly through every hoop and land.", null);
+            }
+            else Problem("could not open the quadcopter: " + quadError);
+            OSProjects.OpenProject(OSProjects.QuadcopterId);
+            yield return 1.5f;
+            OSProjectSession session = OSProjectSession.Current;
+            FrameWindow("pf_quad_home", "The quadcopter mid-way: Design and Course done, Fly stale after the design changed to v7 (Next says Fly v7), Train ready, Autopilot locked with why.", shell.Windows.Find(OSProjectWindow.WindowId));
+            HomeAndBar("pf_quad_home_with_bar", "The quadcopter's home and its bar: the stage chips read the same as the rows.");
+
+            // 5 A locked stage tapped on the bar: its reason and the way there.
+            OSProjectRail bar = OSProjectRail.Current;
+            Button autopilot = null;
+            if (bar != null)
+                foreach (Button chip in bar.Chips)
+                    if (chip != null && chip.name == "Button Autopilot") autopilot = chip;
+            if (autopilot != null) PressButton(autopilot.gameObject, "Autopilot");
+            else session?.Go("autopilot");
+            yield return 0.6f;
+            OSWindow rail = shell.Windows.Find(OSProjectRail.WindowId);
+            FrameWindow("pf_bar_locked", "The project bar after tapping the locked Autopilot: it says why (it needs a trained brain) and its one button goes there (Go to Train).", rail);
+
+            // 6 The bar docked under a tool: Design opens CAD (the Workspace mode), Fly opens the Drive window.
+            session?.Go("design");
+            yield return 4.0f;
+            {
+                var pts = new List<Vector3>();
+                ModePoints(pts, true);
+                FrameFromHead("pf_bar_docked_cad", "Design on the quadcopter: CAD is open and the project bar sits under it, within reach, not covering it.", pts);
+            }
+            session?.Go("fly");
+            yield return 2.0f;
+            {
+                var pts = new List<Vector3>();
+                for (int i = 0; i < shell.Windows.All.Count; i++) AddWindow(pts, shell.Windows.All[i]);
+                FrameFromHead("pf_bar_docked_drive", "Fly on the quadcopter: the Drive window is the transmitter and the project bar is docked under it.", pts);
+            }
+
+            // 7 The bar alone: no tool up, it floats low in front.
+            shell.Windows.Close(OSDriveWindow.WindowId);
+            OSModes.Close();
+            AlbieTools.Call("artifact_close", new JObject());
+            OSProjectRail.Current?.Redock();
+            yield return 1.2f;
+            FrameWindow("pf_bar_floating", "The project bar floating alone: home, the stages, and Next.", shell.Windows.Find(OSProjectRail.WindowId));
+
+            // 8 The Details page and the notebook window, on the quadcopter.
+            session?.ShowHome();
+            yield return 0.8f;
+            OSProjectWindow quadView = shell.Windows.Find(OSProjectWindow.WindowId)?.GetComponent<OSProjectWindow>();
+            if (quadView != null)
+            {
+                quadView.DetailsOpen = true;
+                yield return 0.6f;
+                FrameWindow("pf_details", "The quadcopter's Details page: the plan, versions, design, training, runs and artifacts, and the way back.", shell.Windows.Find(OSProjectWindow.WindowId));
+                quadView.DetailsOpen = false;
+                yield return 0.3f;
+            }
+            OSNotebookWindow.Open();
+            yield return 1.2f;
+            FrameWindow("pf_notebook", "The notebook window for the quadcopter: its plan and its history.", shell.Windows.Find(OSNotebookWindow.WindowId));
+            shell.Windows.Close(OSNotebookWindow.WindowId);
+
+            // 9 The rocket (design v3, the last simulation flew v2) and the classifier.
+            if (OSProjects.EnsureOpen(OSProjects.RocketId, out string rocketError))
+                ProjectMeta.Update(OSProjects.RocketId, meta => meta[OSProjectSession.RecordField] = new JObject
+                {
+                    ["design_version"] = 3, ["design_line"] = "360 mm body", ["sim_version"] = 2, ["sim_line"] = "apogee 197 m · lands 41 m out", ["current"] = "simulate",
+                });
+            else Problem("could not open the rocket: " + rocketError);
+            OSProjects.OpenProject(OSProjects.RocketId);
+            yield return 1.5f;
+            FrameWindow("pf_rocket_home", "The rocket: Design v3 done, Simulate stale (it flew v2), Launch after it.", shell.Windows.Find(OSProjectWindow.WindowId));
+            OSProjects.OpenProject(OSProjects.ClassifierId);
+            yield return 1.5f;
+            FrameWindow("pf_classifier_home", "The image classifier: Data, Train, Results and the optional Publish (off without the cloud, saying why).", shell.Windows.Find(OSProjectWindow.WindowId));
+
+            // 10 The Projects tab again, now with a project of the person's own.
+            OSProjectSession.Current?.End();
+            shell.Windows.CloseAll();
+            OSModes.Close();
+            yield return 0.6f;
+            OSProjects.Refresh();
+            foreach (float w in ProjectsTabPages("pf_tab_returning")) yield return w;
+            if (shell.MenuOpen) shell.CloseMenu();
+            OSProjects.OpenProject("proj_truck");  // the truck project is the open one again for what follows
+            OSProjectSession.Current?.End();
+            shell.Windows.CloseAll();
+            yield return 0.6f;
+        }
+
+        // The Projects tab, every page.
+        static IEnumerable<float> ProjectsTabPages(string prefix)
+        {
+            if (shell.MenuOpen) { shell.CloseMenu(); yield return 0.5f; }
+            shell.SetTab(OSTab.Projects);
+            foreach (float w in EnsureMenuOpen()) yield return w;
+            foreach (float w in OpenTab(OSTab.Projects)) yield return w;
+            menu.Refresh();
+            yield return 0.4f;
+            int pages = Mathf.Min(menu.PageCount, 4);
+            for (int p = 0; p < pages; p++)
+            {
+                FrameMenu(prefix + "_p" + (p + 1), "The Projects tab, page " + (p + 1) + " of " + menu.PageCount + ".");
+                if (p + 1 < pages)
+                {
+                    PressButton("chevron_right", menu);
+                    yield return 0.5f;
+                }
+            }
+            for (int p = 1; p < pages; p++) PressButton("chevron_left", menu);
+            yield return 0.3f;
+            shell.CloseMenu();
+            yield return 0.5f;
+        }
+
+        // The project window and the project bar together, from where the user sits.
+        static void HomeAndBar(string screen, string what)
+        {
+            var pts = new List<Vector3>();
+            AddWindow(pts, shell.Windows.Find(OSProjectWindow.WindowId));
+            AddWindow(pts, shell.Windows.Find(OSProjectRail.WindowId));
+            if (pts.Count == 0) { Unreachable(screen, "neither the project window nor the bar is up"); return; }
+            FrameFromHead(screen, what, pts);
         }
 
         // The Drive window with no truck around: idle.

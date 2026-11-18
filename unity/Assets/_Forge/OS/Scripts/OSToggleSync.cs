@@ -69,7 +69,9 @@ namespace Forge.OS
                 : (theme != null ? theme.textPrimaryColor : Color.white);
             color.a = 1f;
             label.color = color;
-            ForgeTheme.DarkOnLight(label, toggle.isOn);  // dark on the light lit fill: a heavier face so it is as solid as the white labels
+            // Dark on the light lit fill: a heavier face so it is as solid as the white labels; medium at rest. Shared materials, no fake bold.
+            if (toggle.isOn) ForgeTheme.DarkOnLight(label, true);
+            else ForgeTheme.Weight(label, ForgeTheme.MediumDilate);
         }
 
         IEnumerator Snap(float delay)

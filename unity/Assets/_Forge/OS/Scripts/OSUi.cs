@@ -158,8 +158,11 @@ namespace Forge.OS
                 labelText.text = label ?? "";
                 if (Font != null) labelText.font = Font;  // before the heavier face below, which is per font
                 labelText.fontSize = BodyText;
-                labelText.fontStyle = style == OSButtonStyle.Primary ? FontStyles.Bold : FontStyles.Normal;  // dark on white reads thin otherwise
-                ForgeTheme.DarkOnLight(labelText, style == OSButtonStyle.Primary);  // and so does the stroke weight alone: a heavier face on top
+                labelText.fontStyle = FontStyles.Normal;
+                labelText.characterSpacing = 0f;
+                // Dark on white reads thin: the primary label gets a heavier face (a shared material, never fake bold, which smeared).
+                if (style == OSButtonStyle.Primary) ForgeTheme.DarkOnLight(labelText, true);
+                else ForgeTheme.Weight(labelText, ForgeTheme.MediumDilate);
                 labelText.textWrappingMode = TextWrappingModes.NoWrap;
                 labelText.overflowMode = TextOverflowModes.Overflow;
                 if (hasLabel)
@@ -223,7 +226,8 @@ namespace Forge.OS
                     title.gameObject.SetActive(true);
                     title.text = label;
                     title.fontSize = BodyText;
-                    title.fontStyle = FontStyles.Bold;  // the lit tab's dark label reads thin otherwise
+                    title.fontStyle = FontStyles.Normal;  // weight comes from OSToggleSync (medium; heavier dark on the lit fill)
+                    title.characterSpacing = 0f;
                     title.textWrappingMode = TextWrappingModes.NoWrap;
                     title.overflowMode = TextOverflowModes.Overflow;
                     title.alignment = TextAlignmentOptions.Center;
@@ -303,6 +307,7 @@ namespace Forge.OS
                 if (space != null) ((RectTransform)space).sizeDelta = new Vector2(10f, 8f);
             }
             Size(go.transform, width, height);
+            if (!outline) Sheen(go.transform);
             if (outline)
             {
                 // The "new" style: a tile that is only a line until you reach for it. The Borderless animators leave the plate clear.
@@ -319,7 +324,7 @@ namespace Forge.OS
                 tile.outline = ring.AddComponent<Image>();
                 tile.outline.sprite = OutlineSprite();
                 tile.outline.type = Image.Type.Sliced;
-                tile.outline.color = new Color(1f, 1f, 1f, 0.42f);
+                tile.outline.color = new Color(1f, 1f, 1f, 0.26f);  // was 0.42: read as a heavy outlined box
                 tile.outline.raycastTarget = false;
             }
             if (tile.button != null) tile.button.onClick.AddListener(PressAction);
@@ -429,6 +434,9 @@ namespace Forge.OS
             var element = go.AddComponent<LayoutElement>();
             element.minHeight = element.preferredHeight = height;
             element.flexibleWidth = 1f;
+            // A row is as tall as it says. Without this a kit button in it (flexible height 1) made the row, and every column
+            // above it, soak up the window's spare height: the big dead gaps between sections (seen in the look set).
+            element.flexibleHeight = 0f;
             return (RectTransform)go.transform;
         }
 
@@ -455,14 +463,17 @@ namespace Forge.OS
         {
             RectTransform outer = Column(parent, ForgeTheme.Space3);
             outer.name = "Section " + heading;
-            outer.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(0, 0, (int)ForgeTheme.Space2, 0);  // air above each section
+            // Air above each section (the look set showed 8 units running a note into the next heading).
+            outer.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(0, 0, (int)SectionAir, 0);
             outer.anchorMin = outer.anchorMax = new Vector2(0f, 1f);
             outer.pivot = new Vector2(0f, 1f);
-            outer.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            var outerLayout = outer.gameObject.AddComponent<LayoutElement>();
+            outerLayout.flexibleWidth = 1f;
+            outerLayout.flexibleHeight = 0f;  // as tall as its content; spare height stays at the bottom of the window
             var fit = outer.gameObject.AddComponent<ContentSizeFitter>();
             fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             TMP_Text title = Text(outer, heading, TitleText);
-            title.fontStyle = FontStyles.Bold;
+            ForgeTheme.Strong(title, ForgeTheme.HeadingTracking);
             RectTransform inner = Column(outer, ForgeTheme.Space3);
             inner.anchorMin = inner.anchorMax = new Vector2(0f, 1f);
             inner.pivot = new Vector2(0f, 1f);
@@ -470,6 +481,40 @@ namespace Forge.OS
             inner.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             return inner;
         }
+
+        /// <summary>The height of a <see cref="Segmented"/> track (a 48 unit button and 4 units of track around it).</summary>
+        public const float SegmentHeight = ButtonHeight + 8f;
+
+        /// <summary>
+        /// A segmented control's track: a quiet pill (white 7%, hairline) that sizes to the buttons put in it, 4 units around
+        /// them. Put the options in it as buttons: the chosen one Primary, the rest Borderless. Returns the track.
+        /// </summary>
+        public static RectTransform Segmented(Transform parent)
+        {
+            if (parent == null) return null;
+            var go = new GameObject("Segmented", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var track = go.AddComponent<ForgeSurface>();
+            track.Pill = true;
+            track.color = new Color(1f, 1f, 1f, 0.07f);
+            track.Outline = 0.10f;
+            track.raycastTarget = false;
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.padding = new RectOffset(4, 4, 4, 4);
+            row.spacing = 2f;
+            row.childAlignment = TextAnchor.MiddleCenter;
+            row.childControlWidth = row.childControlHeight = true;
+            row.childForceExpandWidth = row.childForceExpandHeight = false;
+            var element = go.AddComponent<LayoutElement>();
+            element.flexibleWidth = 0f;
+            element.flexibleHeight = 0f;
+            element.minHeight = element.preferredHeight = SegmentHeight;
+            Touch(parent);
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>Space above a <see cref="Section"/>'s heading (units).</summary>
+        public const float SectionAir = 18f;
 
         /// <summary>Destroys everything under a transform (for rebuilding a window's content).</summary>
         public static void Clear(Transform parent)
@@ -526,6 +571,7 @@ namespace Forge.OS
             }
             else plate = go.AddComponent<ForgeSurface>();
             plate.Corner = ForgeTheme.RadiusCard;
+            if (kind == OSSurface.Raised) plate.Style = ForgeSurface.Kind.Raised;  // lit from above: top sheen, rim brightest on top
             switch (kind)
             {
                 case OSSurface.Inset: plate.color = ForgeTheme.InsetFill; plate.Outline = 0.25f; plate.raycastTarget = false; break;
@@ -581,8 +627,8 @@ namespace Forge.OS
         public static TMP_Text Tag(Transform parent, string text)
         {
             TMP_Text tag = Text(parent, text, SmallText, true);
-            tag.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
-            tag.characterSpacing = ForgeTheme.CapsTracking;
+            tag.fontStyle = FontStyles.UpperCase;
+            ForgeTheme.Strong(tag, ForgeTheme.CapsTracking);
             return tag;
         }
 
@@ -646,7 +692,7 @@ namespace Forge.OS
                 caption.GetComponent<LayoutElement>().flexibleWidth = 0f;
                 if (state == StepState.Current)
                 {
-                    caption.fontStyle = FontStyles.Bold;
+                    ForgeTheme.Strong(caption);
                     ForgeLook.Tint(caption, accent);
                 }
                 else if (state == StepState.Locked) ForgeLook.Tint(caption, ForgeTheme.TextTertiary);
@@ -698,9 +744,9 @@ namespace Forge.OS
             markRect.offsetMin = markRect.offsetMax = Vector2.zero;
             mark.alignment = TextAlignmentOptions.Center;
             mark.textWrappingMode = TextWrappingModes.NoWrap;
-            mark.fontStyle = FontStyles.Bold;
             ForgeLook.Tint(mark, ink);
-            ForgeTheme.DarkOnLight(mark, state == StepState.Done);
+            if (state == StepState.Done) ForgeTheme.DarkOnLight(mark, true);
+            else ForgeTheme.Strong(mark);
         }
 
         // The rail between two steps, through the nodes' centres, taking the spare width. Lit when the step before is done.
@@ -749,8 +795,7 @@ namespace Forge.OS
         public static TMP_Text Heading(Transform parent, string text)
         {
             TMP_Text t = Text(parent, text, ForgeTheme.TypeDisplay);
-            t.fontStyle = FontStyles.Bold;
-            t.characterSpacing = ForgeTheme.HeadingTracking;
+            ForgeTheme.Strong(t, ForgeTheme.HeadingTracking);
             return t;
         }
 
@@ -869,6 +914,7 @@ namespace Forge.OS
             go.transform.SetParent(parent, false);
             var plate = go.AddComponent<ForgeSurface>();
             plate.Corner = ForgeTheme.RadiusControl;
+            plate.Style = ForgeSurface.Kind.Raised;
             plate.raycastTarget = true;
             var button = go.AddComponent<Button>();
             button.targetGraphic = plate;
@@ -1032,7 +1078,7 @@ namespace Forge.OS
                 img.color = ForgeTheme.TextSecondary;
             }
             TMP_Text title = Text(column, heading, TitleText);
-            title.fontStyle = FontStyles.Bold;
+            ForgeTheme.Strong(title, ForgeTheme.HeadingTracking);
             title.alignment = TextAlignmentOptions.Center;
             if (!string.IsNullOrEmpty(caption))
             {
@@ -1133,6 +1179,24 @@ namespace Forge.OS
             if (parent == null) return;
             OSBody body = parent.GetComponentInParent<OSBody>();
             if (body != null) body.MarkThemeDirty();
+        }
+
+        /// <summary>
+        /// Lights a kit tile from above (design system: raised): a clear <see cref="ForgeSurface.Kind.Raised"/> layer over the
+        /// kit's plate, under its icon and text, giving it a soft top sheen and a rim that is brightest along the top edge. The
+        /// kit's animator keeps driving the plate's colour (hover, press); this layer only adds light. Shares the one surface material.
+        /// </summary>
+        public static void Sheen(Transform tile)
+        {
+            Transform background = tile != null ? tile.Find("Content/Background") : null;
+            if (background == null || background.Find("Sheen") != null) return;
+            float corner = 16f;
+            var rounded = background.GetComponent<Oculus.Interaction.Samples.RoundedBoxUIProperties>();
+            if (rounded != null) corner = Mathf.Max(4f, rounded.borderRadius.x);
+            // A hair of fill alpha: a fully clear graphic is culled (CanvasRenderer.cullTransparentMesh) and draws nothing.
+            ForgeSurface sheen = ForgeLook.Fill(background, "Sheen", new Color(1f, 1f, 1f, 1f / 255f), corner, 0.24f);
+            sheen.Style = ForgeSurface.Kind.Raised;
+            sheen.transform.SetAsFirstSibling();
         }
 
         /// <summary>A hollow rounded rectangle for the "new" tile: one small procedural texture, made once.</summary>

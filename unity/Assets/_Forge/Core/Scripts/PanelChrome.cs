@@ -35,6 +35,8 @@ public class PanelChrome : MonoBehaviour
     PanelChromeButton close, minimise;
     Transform titleBar, background;
     bool header, lastHeader, built;
+    float placedScale;  // the panel's world scale the buttons were last sized for
+    float placedSize = ButtonSize;  // the title-bar buttons' size then (canvas units)
 
     public PanelChromeButton CloseButton => close;
     public PanelChromeButton MinimiseButton => minimise;
@@ -53,8 +55,8 @@ public class PanelChrome : MonoBehaviour
         {
             if (!header) return 0f;
             float w = RightMargin;
-            if (close != null && close.gameObject.activeSelf) w += ButtonSize + ButtonGap;
-            if (minimise != null && minimise.gameObject.activeSelf) w += ButtonSize + ButtonGap;
+            if (close != null && close.gameObject.activeSelf) w += placedSize + ButtonGap;
+            if (minimise != null && minimise.gameObject.activeSelf) w += placedSize + ButtonGap;
             return w > RightMargin ? w + 2f : 0f;
         }
     }
@@ -103,10 +105,20 @@ public class PanelChrome : MonoBehaviour
         close.gameObject.SetActive(canClose);
         minimise.gameObject.SetActive(canMin);
 
+        Layout(canClose, canMin);
+        root.SetAsLastSibling();
+        panel.OnChromeChanged();
+    }
+
+    // Sizes and places the buttons for the panel's world scale now (at least MinWorldSize in the world).
+    void Layout(bool canClose, bool canMin)
+    {
         float unitsPerMeter = UnitsPerMeter();
+        placedScale = Mathf.Abs(transform.lossyScale.x);
         if (header)
         {
             float size = Mathf.Max(ButtonSize, MinWorldSize * unitsPerMeter);
+            placedSize = size;
             float disc = size * (ButtonDisc / ButtonSize);
             float y = -ForgeTheme.PanelHeader * 0.5f;
             float x = -RightMargin - size * 0.5f;
@@ -128,8 +140,6 @@ public class PanelChrome : MonoBehaviour
             float inset = ChipInset + size * 0.5f;
             Place(close, new Vector2(-inset, -inset), size, disc);
         }
-        root.SetAsLastSibling();
-        panel.OnChromeChanged();
     }
 
     // The canvas units in a metre where the panel stands now (1000 on a 1 mm canvas at scale 1).
@@ -154,6 +164,18 @@ public class PanelChrome : MonoBehaviour
         if (!built) return;
         if (root.GetSiblingIndex() != transform.childCount - 1) root.SetAsLastSibling();
         if (HasHeader() != lastHeader) Refresh();
+        // The 32 mm minimum is worked out from the panel's world scale. A panel built while it was still unfolding (a mode
+        // grows out of its dock ring from 4% scale) had its buttons sized for that tiny scale: 25 times too big once it
+        // settled (the giant X discs over the CAD, Code, Train and Messages panels in the look set). Size them again
+        // whenever the scale has moved on by more than 2% (one float compare a frame, nothing allocated).
+        else if (Mathf.Abs(Mathf.Abs(transform.lossyScale.x) - placedScale) > placedScale * 0.02f)
+        {
+            float before = placedSize;
+            Layout(close.gameObject.activeSelf, minimise.gameObject.activeSelf);
+            // The buttons' width changed (only while a panel scales through the 32 mm minimum, an unfold): the title and the
+            // pills make room again, or the title stays squeezed to nothing (it did, on every mode panel).
+            if (Mathf.Abs(placedSize - before) > 0.5f) panel.OnChromeChanged();
+        }
     }
 
     static void Place(PanelChromeButton button, Vector2 center, float size, float disc)

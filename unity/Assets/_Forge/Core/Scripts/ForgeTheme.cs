@@ -49,8 +49,10 @@ public static class ForgeTheme
     // Keep in step with Resources/ForgeLook/PanelSurface.mat (_Top, _Bottom), which draws the plate.
     // Design system (docs/DESIGN_SYSTEM.md): deep graphite glass, a touch cool, 95% opaque so the room shows faintly at the
     // edges without ever eating the text. The plate is drawn from these (PanelSurface is a runtime copy of the .mat with them).
-    public static readonly Color PanelTop = new Color32(52, 55, 63, 242);     // #34373F
-    public static readonly Color PanelBottom = new Color32(27, 28, 33, 242);  // #1B1C21
+    // Looked at in the look set (OSLookShots): the plate's own graphic alpha (about 0.9) multiplies these, so 252 lands near 89%
+    // over a light wall: enough to keep text off the room, still glass at the edges. Was #34373F / #1B1C21 at 242 (reads 85%).
+    public static readonly Color PanelTop = new Color32(48, 51, 59, 252);     // #30333B
+    public static readonly Color PanelBottom = new Color32(22, 23, 28, 252);  // #16171C
     public static readonly Color PanelText = new Color(1f, 1f, 1f, 1f);
     public static readonly Color PanelSubtext = new Color(1f, 1f, 1f, 0.72f);
     public static readonly Color Hairline = new Color(1f, 1f, 1f, 0.08f);
@@ -75,9 +77,11 @@ public static class ForgeTheme
 
     // Elevation. Surface = the window plate. Raised = a card on it. Inset = a well (charts, fields). Floating = above
     // everything (toasts, confirm strips): an opaque fill, a soft dark halo and a light ring.
-    public static readonly Color RaisedFill = new Color(1f, 1f, 1f, 0.055f);
-    public const float RaisedRing = 0.10f;
-    public static readonly Color RaisedHover = new Color(1f, 1f, 1f, 0.09f);
+    // Raised surfaces are drawn lit from above (ForgeSurface.Kind.Raised): a faint sheen in the top of the fill and a rim that is
+    // brightest along the top edge and fades down the sides, so a card reads as a lifted pane, not an outlined box.
+    public static readonly Color RaisedFill = new Color(1f, 1f, 1f, 0.06f);
+    public const float RaisedRing = 0.16f;
+    public static readonly Color RaisedHover = new Color(1f, 1f, 1f, 0.10f);
     public static readonly Color InsetFill = new Color(0f, 0f, 0f, 0.24f);
     public static readonly Color FloatingFill = new Color32(46, 49, 56, 252);
     public const float FloatingRing = 0.14f, FloatingHalo = 0.75f;
@@ -109,7 +113,7 @@ public static class ForgeTheme
     public const float HoverGlow = 0.35f;
     public const float PanelCorner = 24f, PanelHeader = 64f, PanelInset = 18f;
     /// <summary>The title-bar mode badge: accent fill alpha, its ring, and how far its label is lifted toward white (>= 5.3:1 for every mode hue).</summary>
-    public const float BadgeFill = 0.18f, BadgeRing = 0.5f, BadgeTextLift = 0.55f;
+    public const float BadgeFill = 0.20f, BadgeRing = 0f, BadgeTextLift = 0.55f;
 
     // Title-bar window buttons (PanelChrome: Close, Minimise). Quiet glass discs that come up when reached for; Close
     // turns red only while pressed. Owners of PanelChromeButton can read these.
@@ -178,14 +182,20 @@ public static class ForgeTheme
     }
 
 
-    // ---- Dark text on a light fill ----
-    // An SDF font drawn dark on a light fill looks thinner than the same font drawn white on a dark one (the light fill bleeds
-    // into the strokes and anti-aliasing is blended in display space), so a dark label gets a font material with a little face
-    // dilation. One material per font, made on first use and shared by every label.
-    /// <summary>Face dilate added to a dark-on-light label of body size, 20 OS units or so (TextMeshPro units, -1 to 1). Measured in OSMenuTest.</summary>
-    public const float DarkLabelDilate = 0.4f;
-    /// <summary>The same for the small pill labels of the older windows (13 mm or so), where 0.4 would clog the letters.</summary>
-    public const float DarkPillDilate = 0.15f;
+    // ---- Type weight ----
+    // Only Inter Regular is in the project (one static SDF atlas). TextMeshPro's fake bold on it adds 7% of the em between
+    // letters (the asset's boldSpacing) and its own dilation, and the old dark-on-light label added 0.4 face dilation on top:
+    // the strokes ran into each other and the counters filled in (the "double-struck" New project / Projects / Primary).
+    // Weight now comes from one shared material per dilation (crisp, no extra tracking): Strong for headings and emphasis,
+    // and a little more for dark text on a light fill, which reads thinner than white on dark.
+    /// <summary>Face dilate of the strong (semibold) face: headings, section titles, tags (TextMeshPro units, -1 to 1).</summary>
+    public const float StrongDilate = 0.10f;
+    /// <summary>Face dilate of a medium face (tab labels at rest).</summary>
+    public const float MediumDilate = 0.05f;
+    /// <summary>Face dilate of a dark label on a light fill (the primary button, the lit tab). Was 0.4 with fake bold: smeared.</summary>
+    public const float DarkLabelDilate = 0.13f;
+    /// <summary>The same for the small pill labels of the older windows (13 mm or so).</summary>
+    public const float DarkPillDilate = 0.10f;
 
     static readonly System.Collections.Generic.Dictionary<(TMP_FontAsset, int), Material> heavyMaterials =
         new System.Collections.Generic.Dictionary<(TMP_FontAsset, int), Material>();
@@ -199,13 +209,33 @@ public static class ForgeTheme
 
     /// <summary>
     /// Draws a label for a dark-on-light fill (<paramref name="dark"/> true) with a heavier face, or back with the font's own
-    /// material (false). Safe to call every time a button changes state; it only swaps a shared material.
+    /// material (false). Safe to call every time a button changes state; it only swaps a shared material. Never fake bold.
     /// </summary>
     public static void DarkOnLight(TMP_Text label, bool dark, float dilate = DarkLabelDilate)
     {
+        if (label == null) return;
+        if ((label.fontStyle & FontStyles.Bold) != 0) label.fontStyle &= ~FontStyles.Bold;
+        Weight(label, dark ? dilate : 0f);
+    }
+
+    /// <summary>
+    /// The design system's strong face: no fake bold (it adds tracking and smears on the static atlas), a shared semibold
+    /// material instead, and the tracking given. Keeps UpperCase / SmallCaps if they are set.
+    /// </summary>
+    public static void Strong(TMP_Text label, float tracking = 0f)
+    {
+        if (label == null) return;
+        if ((label.fontStyle & FontStyles.Bold) != 0) label.fontStyle &= ~FontStyles.Bold;
+        label.characterSpacing = tracking;
+        Weight(label, StrongDilate);
+    }
+
+    /// <summary>Gives a label its font's material with <paramref name="dilate"/> face dilation (0 = the font's own material). Shared per font and value.</summary>
+    public static void Weight(TMP_Text label, float dilate)
+    {
         if (label == null || label.font == null) return;
         TMP_FontAsset font = label.font;
-        if (!dark)
+        if (dilate <= 0.001f)
         {
             if (label.fontSharedMaterial != font.material) label.fontSharedMaterial = font.material;
             return;
@@ -213,7 +243,7 @@ public static class ForgeTheme
         var key = (font, Mathf.RoundToInt(dilate * 1000f));
         if (!heavyMaterials.TryGetValue(key, out Material heavy) || heavy == null)
         {
-            heavy = new Material(font.material) { name = font.name + " Heavy " + dilate.ToString("0.00"), hideFlags = HideFlags.DontSave };
+            heavy = new Material(font.material) { name = font.name + " Weight " + dilate.ToString("0.00"), hideFlags = HideFlags.DontSave };
             heavy.SetFloat(ShaderUtilities.ID_FaceDilate, dilate);
             heavyMaterials[key] = heavy;
         }

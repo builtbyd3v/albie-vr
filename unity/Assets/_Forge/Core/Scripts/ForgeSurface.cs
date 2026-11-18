@@ -9,7 +9,10 @@ using UnityEngine.UI;
 [RequireComponent(typeof(CanvasRenderer))]
 public class ForgeSurface : MaskableGraphic
 {
-    public enum Kind { Panel, Fill }
+    /// <summary>Panel: the graphite window. Fill: a flat shape. Raised: a fill lit from above (a soft sheen in its top half and a
+    /// rim brightest along the top edge, fading down the sides): cards, list rows, tiles. Raised reads <see cref="Shadow"/> as the
+    /// sheen strength (default 1).</summary>
+    public enum Kind { Panel, Fill, Raised }
 
     [SerializeField] Kind kind = Kind.Fill;
     [Tooltip("Corner radius (mm). Pill rounds the ends fully instead.")]
@@ -53,7 +56,7 @@ public class ForgeSurface : MaskableGraphic
         float pad = kind == Kind.Panel ? 56f * shadow + 1f : glow > 0f ? 14f : 1f;
         // A pill's ends are truly round (the shader reads a negative corner that way); other corners are squircles.
         var shape = new Vector4(half.x, half.y, pill ? -radius : radius, kind == Kind.Panel ? header : 0f);
-        var style = new Vector4(kind == Kind.Panel ? 0f : 1f, glow, shadow, outline);
+        var style = new Vector4(kind == Kind.Panel ? 0f : kind == Kind.Raised ? 2f : 1f, glow, shadow, outline);
         Color32 c = color;
         float x0 = -half.x - pad, x1 = half.x + pad;
         float y0 = -half.y - pad - (kind == Kind.Panel ? 16f * shadow : 0f), y1 = half.y + pad;

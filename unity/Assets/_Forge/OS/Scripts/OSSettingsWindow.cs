@@ -24,7 +24,8 @@ namespace Forge.OS
         /// <summary>Ranges the two sliders offer (inside what <see cref="OSSettings"/> allows).</summary>
         public const float DistanceMin = OSSettings.MinDistance, DistanceMax = OSSettings.MaxDistance, DropMin = OSSettings.MinDrop, DropMax = OSSettings.MaxDrop;
 
-        static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.62f);
+        // 0.62 m tall left the lower half of every page empty in the look set; the longest page (Windows) fits in 0.54.
+        static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.54f);
         const float NoteSize = OSUi.SmallText;
 
         ForgePanel panel;
@@ -228,11 +229,13 @@ namespace Forge.OS
         // Two buttons in a row, the chosen one lit. Choosing rebuilds the page so the lit one moves.
         void Choice(RectTransform section, string label, string first, string second, bool firstChosen, Action<bool> onChosen)
         {
-            RectTransform row = OSUi.Row(section, OSUi.ButtonHeight, 16f);
+            RectTransform row = OSUi.Row(section, OSUi.SegmentHeight, 16f);
             row.name = "Choice " + label;
             OSUi.Text(row, label, OSUi.BodyText);
-            OSUi.Button(row, first, () => Choose(firstChosen, true, onChosen), firstChosen ? OSButtonStyle.Primary : OSButtonStyle.Secondary);
-            OSUi.Button(row, second, () => Choose(!firstChosen, false, onChosen), firstChosen ? OSButtonStyle.Secondary : OSButtonStyle.Primary);
+            // A segmented control: one track, the chosen option lit, the other quiet inside it.
+            RectTransform track = OSUi.Segmented(row);
+            OSUi.Button(track, first, () => Choose(firstChosen, true, onChosen), firstChosen ? OSButtonStyle.Primary : OSButtonStyle.Borderless);
+            OSUi.Button(track, second, () => Choose(!firstChosen, false, onChosen), firstChosen ? OSButtonStyle.Borderless : OSButtonStyle.Primary);
         }
 
         void Choose(bool alreadyChosen, bool firstWanted, Action<bool> onChosen)
@@ -362,18 +365,19 @@ namespace Forge.OS
             }
             HandSplit split = library.Split;
 
-            RectTransform row = OSUi.Row(section, OSUi.ButtonHeight, 16f);
+            RectTransform row = OSUi.Row(section, OSUi.SegmentHeight, 16f);
             row.name = "Choice All windows";
             OSUi.Text(row, "All windows", OSUi.BodyText);
+            RectTransform track = OSUi.Segmented(row);
             for (int i = 0; i < HandChoices.Length; i++)
             {
                 HandSplit choice = HandChoices[i];
-                OSUi.Button(row, HandLabels[i], () =>
+                OSUi.Button(track, HandLabels[i], () =>
                 {
                     if (library.Split == choice) return;
                     library.Split = choice;  // saved with the gestures; the gesture display and Albie see it too
                     Rebuild();
-                }, choice == split ? OSButtonStyle.Primary : OSButtonStyle.Secondary);
+                }, choice == split ? OSButtonStyle.Primary : OSButtonStyle.Borderless);
             }
             OSUi.Text(section, HandsSentence(split), NoteSize, true);
         }

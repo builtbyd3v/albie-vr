@@ -256,7 +256,9 @@ namespace Forge.OS
         public string NextLabel()
         {
             Judge();
-            if (Notice != null) return NoticeUnlock != null ? "Go to " + NameOf(NoticeUnlock) : null;
+            // A locked stage tapped a moment ago: the button goes to the stage that unlocks it. One that nothing unlocks (a
+            // feature this build lacks) only says why on the bar; Next stays what it was, so the way on is never lost.
+            if (Notice != null && NoticeUnlock != null) return "Go to " + NameOf(NoticeUnlock);
             if (next < 0) return null;
             StageState s = stages[next];
             if (s.Status == StageStatus.Stale)
@@ -686,7 +688,10 @@ namespace Forge.OS
             CadModelUpdated info = update?.info;
             if (!Active || info == null || design == null || info.part != design || !OSProjects.IsOpen(projectId)) return;
             int had = Int(RecordObject(), "design_version", 0);
-            if (info.version == had) return;
+            // Only a newer version moves the project on. CAD opening on an older one (the offline sample opens on its
+            // defaults, or the person looks back in its history) must not take the project's design back and make every
+            // stage built on the newest one look out of date.
+            if (info.version <= had) return;
             Remember("design_version", info.version);
             Remember("design_line", DesignWords(info));
             if (had > 0 && info.version > had && current == "design") SetStatus("The " + design + " is now v" + info.version + ".");

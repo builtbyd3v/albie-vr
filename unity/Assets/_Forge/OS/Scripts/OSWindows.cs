@@ -647,6 +647,9 @@ namespace Forge.OS
                             float cost = Mathf.Sqrt(yawOffset * yawOffset + mine.pitch * mine.pitch) + penalty;
                             if (cost >= best || !IsClear(mine, others)) continue;
                             if (room && !fitting && InWall(candidate, width, height)) continue;
+                            // The room's walls and furniture must not stand between the eyes and any part of the window
+                            // (the look set showed a sofa poking through the Notebook and a wall cutting the gallery in half).
+                            if (!fitting && Blocked(candidate, width, height, eye)) continue;
                             best = cost;
                             bestId = id;
                             bestCenter = candidate;
@@ -828,6 +831,38 @@ namespace Forge.OS
         {
             Vector3 local = arc.InverseTransformPoint(center);
             return RoomFit.InWall(local, Quaternion.LookRotation(local, Vector3.up), new Vector3(width, height, 0f), false);
+        }
+
+        // Whether a wall or a piece of furniture of the scanned room (MRUK's scene anchors, not the floor or ceiling) stands
+        // between the eyes and any of 9 points across a window centred at `center` facing the eyes. Only asked of a place that
+        // would otherwise win, so a few dozen raycasts per window opened. False when there is no room.
+        static readonly LabelFilterHolder solids = new LabelFilterHolder();
+        static bool Blocked(Vector3 center, float width, float height, Vector3 eye)
+        {
+            var mruk = Meta.XR.MRUtilityKit.MRUK.Instance;
+            Meta.XR.MRUtilityKit.MRUKRoom roomNow = mruk != null ? mruk.GetCurrentRoom() : null;
+            if (roomNow == null) return false;
+            Vector3 toward = center - eye;
+            if (toward.sqrMagnitude < 1e-4f) return false;
+            Quaternion facing = Quaternion.LookRotation(toward, Vector3.up);
+            Vector3 right = facing * Vector3.right * (width * 0.5f * 0.96f), up = facing * Vector3.up * (height * 0.5f * 0.96f);
+            for (int ix = -1; ix <= 1; ix++)
+            for (int iy = -1; iy <= 1; iy++)
+            {
+                Vector3 target = center + right * ix + up * iy;
+                Vector3 ray = target - eye;
+                float length = ray.magnitude;
+                if (length < 0.05f) continue;
+                if (roomNow.Raycast(new Ray(eye, ray / length), length, solids.Filter, out RaycastHit _, out Meta.XR.MRUtilityKit.MRUKAnchor _)) return true;
+            }
+            return false;
+        }
+
+        sealed class LabelFilterHolder
+        {
+            public readonly Meta.XR.MRUtilityKit.LabelFilter Filter = Meta.XR.MRUtilityKit.LabelFilter.Excluded(
+                Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.FLOOR | Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.CEILING |
+                Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.GLOBAL_MESH);
         }
 
         // True if the walls moved the place.

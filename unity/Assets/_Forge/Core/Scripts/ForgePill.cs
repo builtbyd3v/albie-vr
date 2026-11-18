@@ -67,6 +67,7 @@ public class ForgePill : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
         label.textWrappingMode = TextWrappingModes.NoWrap;
         label.raycastTarget = false;
         label.text = text;
+        label.gameObject.tag = ForgeLook.KeepColorTag;  // an OS window's theme pass would paint it white (white on the lit pill)
         pill.label = label;
         rt.sizeDelta = new Vector2(Mathf.Max(height, label.GetPreferredValues(text).x + 2.2f * textSize), height);
         pill.Refresh();
