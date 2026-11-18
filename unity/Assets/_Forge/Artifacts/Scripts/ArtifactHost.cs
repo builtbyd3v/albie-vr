@@ -281,9 +281,21 @@ namespace Forge.Artifacts
         /// <summary>The open artifact's live numbers.</summary>
         public ArtifactMetrics Metrics => build?.Metrics;
 
-        public void Open(string id)
+        public void Open(string id) => Open(id, false);
+
+        /// <summary>
+        /// Opens <paramref name="id"/> again as it was when a hand closed it (<see cref="ArtifactDismiss.Undo"/>): a course that
+        /// was on the desk goes on the desk again (<paramref name="desk"/>), on its saved layout.
+        /// </summary>
+        public void Reopen(string id, bool desk) => Open(id, desk);
+
+        /// <summary>True while the open room course is laid out on the desk ("Put it on the desk").</summary>
+        public bool OnDesk => onDesk;
+
+        void Open(string id, bool desk)
         {
             Close();
+            onDesk = desk;
             var package = ArtifactPackage.Load(id, out string error);
             if (package == null)
             {
@@ -366,7 +378,8 @@ namespace Forge.Artifacts
                 // Destroy waits for the end of the frame. Detached, the old artifact is gone for anyone looking now.
                 go.SetActive(false);
                 go.transform.SetParent(null, false);
-                Destroy(go);
+                if (Application.isPlaying) Destroy(go);
+                else DestroyImmediate(go);  // the editor checks open and close artifacts outside Play mode
             }
             spawned.Clear();
             volume = null;
@@ -397,6 +410,10 @@ namespace Forge.Artifacts
             if (placeholder != null) placeholder.gameObject.SetActive(false);
             PlacePanel(panel.transform, panelOffset);
             spawned.Add(panel.gameObject);
+            // Its X closes the whole artifact (course, Thing and all), with the undo; a flick on its title bar throws it all away.
+            // (The OS notices the host closing and lets go of its windows: OSArtifactWatcher.)
+            panel.CloseHandler = () => ArtifactDismiss.Close(this);
+            panel.ThrowHandler = velocity => ArtifactDismiss.Throw(this, velocity);
             return panel;
         }
 
@@ -688,11 +705,14 @@ namespace Forge.Artifacts
 
         // A room scene stands on the real floor at the course origin, at true scale. It isn't parented to the host, so
         // moving the host (or the desk it sits on) never drags a course across the room.
+        // The course gets a marker over its start (ArtifactCourseMarker): its name, Close and Play area, as the volume has its chip.
         void PlaceInRoom(Transform root)
         {
             root.SetParent(null, false);
             root.SetPositionAndRotation(courseOrigin.position, courseOrigin.rotation);
             spawned.Add(root.gameObject);
+            var marker = ArtifactCourseMarker.Create(this, panelPrefab, open.Title);
+            if (marker != null) spawned.Add(marker.gameObject);
         }
 
         static void CollectInputs(JToken token, HashSet<string> into)
@@ -725,6 +745,10 @@ namespace Forge.Artifacts
             volume.SetAccent(accent);
             volume.SetSize(volumeSize);
             volume.gameObject.AddComponent<ArtifactHandGrab>();  // pick it up and turn it with your hands
+            // Closed as a whole by its chip beside the label, the close gesture, or thrown away (hands or ray), with the undo.
+            volume.CloseHandler = () => ArtifactDismiss.Close(this);
+            volume.ThrowHandler = velocity => ArtifactDismiss.Throw(this, velocity);
+            ForgeVolumeChrome.Of(volume, panelPrefab);
             spawned.Add(volume.gameObject);
             float radius = open.Scene["view"]?.Value<float?>("radius") ?? 0f;
             fitOnLoad = radius <= 0f;

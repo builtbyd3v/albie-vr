@@ -33,16 +33,30 @@ namespace Forge.Controllers
 
         /// <param name="files">The trained candidates, in the order to try them.</param>
         /// <param name="fallback">The pretrained controller to use when every candidate failed, or null.</param>
-        public Autopilot(IEnumerable<ControllerFile> files, ControllerFile fallback = null)
+        public Autopilot(IEnumerable<ControllerFile> files, ControllerFile fallback = null) : this(files, fallback, int.MaxValue) { }
+
+        /// <summary>
+        /// As above, with the fallback tried at position <paramref name="fallbackAt"/> (0: first) instead of last: when the
+        /// rehearsal says no trained candidate finishes the course but the fallback does (<see cref="AutopilotPlan"/>).
+        /// </summary>
+        public Autopilot(IEnumerable<ControllerFile> files, ControllerFile fallback, int fallbackAt)
         {
             if (files == null) throw new ArgumentNullException(nameof(files));
             candidates.AddRange(files);
-            if (fallback != null) { candidates.Add(fallback); fallbackIndex = candidates.Count - 1; }
+            if (fallback != null)
+            {
+                int at = fallbackAt < 0 ? 0 : fallbackAt > candidates.Count ? candidates.Count : fallbackAt;
+                candidates.Insert(at, fallback);
+                fallbackIndex = at;
+            }
             Index = candidates.Count > 0 ? 0 : -1;
         }
 
+        /// <summary>The driving candidate's number among the trained ones, in the order they are tried (1-based; 0 for the fallback or none).</summary>
+        public int CandidateNumber => Exhausted || UsingFallback ? 0 : fallbackIndex >= 0 && Index > fallbackIndex ? Index : Index + 1;
+
         /// <summary>The one driving, for the UI: "candidate 2 of 3" or "the pretrained fallback".</summary>
-        public string Describe() => Exhausted ? "none" : UsingFallback ? "the pretrained fallback" : $"candidate {Index + 1} of {Count}";
+        public string Describe() => Exhausted ? "none" : UsingFallback ? "the pretrained fallback" : $"candidate {CandidateNumber} of {Count}";
 
         /// <summary>Attaches the current candidate, skipping any the host refuses. Returns null, or why nothing is attached.</summary>
         public string Engage(ControllerHost host)

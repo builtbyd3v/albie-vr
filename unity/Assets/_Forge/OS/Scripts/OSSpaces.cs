@@ -195,6 +195,17 @@ namespace Forge.OS
             }
             AddThings(into, host, artifactId);
 
+            // An artifact a hand closed (thrown away, its chip, the close gesture) can come back for a little while: undo.
+            ArtifactDismiss.Record closedByHand = ArtifactDismiss.Last;
+            if (closedByHand != null && artifactId == null)
+            {
+                var item = new SpaceItem { key = "closed:artifact", kind = SpaceKind.Artifact, title = closedByHand.title + " (closed)", icon = "artifact", away = true };
+                item.restore = () => ArtifactDismiss.Undo();
+                item.bring = () => ArtifactDismiss.Undo();
+                item.close = ArtifactDismiss.Forget;
+                into.Add(item);
+            }
+
             // The transmitter, out in the room or tucked in the tray.
             RcTransmitter transmitter = RcTransmitter.Instance;
             bool transmitterAway = InTray("transmitter");
@@ -275,6 +286,32 @@ namespace Forge.OS
                 ForgePanel p = t.dots.Count > 0 && t.dots[0] != null ? t.dots[0].GetComponent<ForgePanel>() : t.hidden.Count > 0 && t.hidden[0] != null ? t.hidden[0].GetComponent<ForgePanel>() : null;
                 if (p != null) into.Add(LooseRow(p, t.key, true));
             }
+            // Closed by their own X (hidden by the default close) or thrown away and not yet gone: back from here (undo).
+            var closed = PanelChrome.Remembered;
+            for (int i = 0; i < closed.Count; i++)
+            {
+                PanelChrome.Closed c = closed[i];
+                ForgePanel p = c.panel;
+                if (p == null || p.GetComponent<OSWindow>() != null || (ws != null && ws.IsOpenItem(p.gameObject))) continue;  // listed above
+                if (host != null && p.transform.IsChildOf(host.transform)) continue;
+                into.Add(ClosedRow(c));
+            }
+        }
+
+        static SpaceItem ClosedRow(PanelChrome.Closed c)
+        {
+            ForgePanel p = c.panel;
+            var item = new SpaceItem { key = "closed:" + p.GetEntityId(), kind = SpaceKind.Panel, title = c.title + (c.thrown ? " (thrown away)" : " (closed)"), icon = "apps", away = true };
+            item.hasPlace = true;
+            item.place = CenterOf(p.transform);
+            item.restore = () => PanelChrome.Reopen(p);
+            item.bring = () => PanelChrome.Reopen(p);
+            item.close = () =>
+            {
+                PanelChrome.Forget(p);
+                if (c.thrown && p != null) p.CloseNow();
+            };
+            return item;
         }
 
         static bool IsLoose(ForgePanel p, Workspace ws, ArtifactHost host)
@@ -283,6 +320,7 @@ namespace Forge.OS
             if (p.GetComponent<OSWindow>() != null) return false;
             if (ws != null && ws.IsOpenItem(p.gameObject)) return false;
             if (host != null && p.transform.IsChildOf(host.transform)) return false;
+            if (p.GetComponent<ArtifactCourseMarker>() != null) return false;  // the course's own card: the course row is it
             return true;
         }
 
@@ -302,6 +340,7 @@ namespace Forge.OS
             item.send = () => SendPanelAway(p, key, title, item.icon, item.kind);
             item.restore = () => RestoreTray(key);
             item.close = () => HidePanel(p, key);
+            item.closeLabel = p.Closable ? "Close" : "Hide";
             return item;
         }
 
@@ -410,13 +449,15 @@ namespace Forge.OS
             if (transmitter != null && transmitter.Shown) Run(transmitter.Hide);
             if (OSArtifacts.OpenId() != null) Run(() => OSArtifacts.CloseArtifact());
 
-            // Loose panels and Albie's card.
+            // Loose panels and Albie's card: hidden at once (their owners' own close could open something else, the help dot).
             panelScratch.Clear();
             panelScratch.AddRange(ForgePanel.All);
             for (int i = 0; i < panelScratch.Count; i++)
                 if (IsLoose(panelScratch[i], ws, host)) panelScratch[i].gameObject.SetActive(false);
             panelScratch.Clear();
             tray.Clear();
+            PanelChrome.FinishAll();  // thrown-away panels close for real now; closed ones are no longer offered back
+            ArtifactDismiss.Forget();  // and so is an artifact a hand closed
 
             if (shell != null) shell.Windows.CloseAllBut(keepSpaces ? WindowId : null);
             else if (ws != null && !string.IsNullOrEmpty(ws.ActiveMode)) ws.Close();
@@ -498,11 +539,18 @@ namespace Forge.OS
             t.hidden.Add(go);
         }
 
+        // Close on a loose panel: its own close (an Albie card turns its offer down, the help card folds into its dot); one that
+        // must not close, or is already hidden, is just hidden.
         static void HidePanel(ForgePanel p, string key)
         {
             ForgetTray(key);
             if (p == null) return;
             if (!p.gameObject.activeSelf) DropDot(p.gameObject);
+            if (p.gameObject.activeSelf && p.Closable)
+            {
+                p.CloseNow();
+                return;
+            }
             p.gameObject.SetActive(false);
         }
 
@@ -768,6 +816,20 @@ namespace Forge.OS
         }
 
         static JObject CloseAllTool(JObject args) => CloseAllByVoice();
+
+        /// <summary>
+        /// The panic exit (hold the corner or wrist button): everything closes now, unless a run going on would be lost, then
+        /// the Spaces list opens with the question on it. Works with no panel in reach.
+        /// </summary>
+        public static void PanicClose()
+        {
+            if (AtRisk())
+            {
+                OSSpacesWindow.AskToCloseEverything();
+                return;
+            }
+            CloseEverything();
+        }
 
         /// <summary>
         /// "Close everything" by voice (spaces_close_all, os_windows close_all): closes everything now, unless something going

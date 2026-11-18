@@ -150,7 +150,9 @@ public sealed class CadPanelHeader
         }
         float titleWidth = coreTitle != null ? CadUi.Width(coreTitle, title) : 120f;
         float subWidth = coreSubtitle != null ? CadUi.Width(coreSubtitle, "<space=1.13em>" + line) : 160f;
-        float maxWidth = panel.SizeMeters.x / ForgePanel.MetersPerUnit - left - 190f;  // clear of Straight / Face me
+        // Clear of Straight / Face me, and of the panel's own Close and Minimise right of them (PanelChrome).
+        float buttons = panel.Chrome != null ? panel.Chrome.ReservedWidth : 2f * (PanelChrome.ButtonSize + PanelChrome.ButtonGap) + PanelChrome.RightMargin;
+        float maxWidth = panel.SizeMeters.x / ForgePanel.MetersPerUnit - left - 190f - buttons;
         titleWidth = Mathf.Min(titleWidth, maxWidth - ChevronSize - 6f);
         float right = Mathf.Min(maxWidth, Mathf.Max(titleWidth + 6f + ChevronSize, subWidth));
         CadUi.Place(titleButton.Rect, left - 8f, 10f, right + 16f, 44f);

@@ -52,6 +52,14 @@ public class DraftCard : MonoBehaviour
         AddFace();
         send.onClick.AddListener(Send);
         cancel.onClick.AddListener(Cancel);
+        // Its X is Cancel (never Send): the draft is dropped, nothing goes out. A card with nothing to cancel just goes.
+        var panel = GetComponent<ForgePanel>();
+        if (panel != null)
+            panel.CloseHandler = () =>
+            {
+                if (Draft != null && !Closing && !busy) Cancel();
+                else if (!busy) gameObject.SetActive(false);
+            };
     }
 
     // Albie's picture at the top right of the content, above his sticker; the two lines beside him give up its width.

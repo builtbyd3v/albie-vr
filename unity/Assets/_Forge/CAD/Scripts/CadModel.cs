@@ -59,6 +59,22 @@ public sealed class CadModel : IDisposable
         }
     }
 
+    /// <summary>
+    /// A model made of objects already in the scene, each listed part a leaf (the CAD editor checks: no GLB, no metadata).
+    /// Disposing it destroys <paramref name="root"/>.
+    /// </summary>
+    public static CadModel FromObjects(int version, GameObject root, IDictionary<string, GameObject> parts)
+    {
+        var model = new CadModel { Version = version, Root = root };
+        foreach (var pair in parts)
+        {
+            if (pair.Value.GetComponent<CadPart>() == null) pair.Value.AddComponent<CadPart>().id = pair.Key;
+            model.objects[pair.Key] = pair.Value;
+            model.partIds.Add(pair.Key);
+        }
+        return model;
+    }
+
     /// <summary>Renderers under one CAD object (a part or a whole assembly).</summary>
     public Renderer[] Renderers(string id) =>
         objects.TryGetValue(id, out var go) ? go.GetComponentsInChildren<Renderer>(true) : Array.Empty<Renderer>();

@@ -5,9 +5,33 @@ using UnityEngine;
 /// Every window at once, for the hand that opens and closes all of them: <see cref="HideAll"/> fades out each open
 /// <see cref="ForgePanel"/> and remembers it, <see cref="ShowAll"/> brings back the ones still there. A window the
 /// workspace folds away meanwhile is gone for good, and one it opens meanwhile is simply shown.
+/// Things that are not panels (an artifact's 3D model, its room course and the truck or drone on it) take part through
+/// an <see cref="IStashable"/> their owner registers (<see cref="Register"/>).
 /// </summary>
 public static class WindowStash
 {
+    /// <summary>Something besides panels that hides with every window and comes back with them.</summary>
+    public interface IStashable
+    {
+        /// <summary>Hide what is showing now; returns how many things it hid (0: nothing to hide).</summary>
+        int Hide(MonoBehaviour runner);
+        /// <summary>Bring back what <see cref="Hide"/> hid and is still there; returns how many came back.</summary>
+        int Show(MonoBehaviour runner);
+        /// <summary>How many things are hidden and could come back.</summary>
+        int HiddenCount { get; }
+    }
+
+    static readonly List<IStashable> others = new List<IStashable>();
+
+    /// <summary>Adds an <see cref="IStashable"/> (once).</summary>
+    public static void Register(IStashable stashable)
+    {
+        if (stashable != null && !others.Contains(stashable)) others.Add(stashable);
+    }
+
+    /// <summary>Takes an <see cref="IStashable"/> out again (a check's stand-in).</summary>
+    public static void Unregister(IStashable stashable) => others.Remove(stashable);
+
     const float HideSeconds = 0.18f, ShowSeconds = 0.28f;
     const float HiddenScale = 0.92f;
 
@@ -23,7 +47,9 @@ public static class WindowStash
         get
         {
             hidden.RemoveAll(p => p == null);
-            return hidden.Count;
+            int count = hidden.Count;
+            for (int i = 0; i < others.Count; i++) count += others[i].HiddenCount;
+            return count;
         }
     }
 
@@ -41,6 +67,11 @@ public static class WindowStash
             count++;
         }
         scratch.Clear();
+        for (int i = 0; i < others.Count; i++)
+        {
+            try { count += others[i].Hide(runner); }
+            catch (System.Exception e) { Debug.LogException(e); }
+        }
         if (count > 0) return null;
         return HiddenCount > 0 ? "Already hidden" : "No windows open";
     }
@@ -57,6 +88,11 @@ public static class WindowStash
             count++;
         }
         hidden.Clear();
+        for (int i = 0; i < others.Count; i++)
+        {
+            try { count += others[i].Show(runner); }
+            catch (System.Exception e) { Debug.LogException(e); }
+        }
         return count > 0 ? null : "Nothing hidden";
     }
 

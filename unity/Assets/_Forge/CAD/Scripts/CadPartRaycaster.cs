@@ -4,7 +4,8 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 
 /// <summary>
-/// Puts the <see cref="CadPartHandle"/> boxes and the <see cref="CadExpandButton"/> ring into the EventSystem's raycast
+/// Puts the <see cref="CadPartHandle"/> boxes, the <see cref="CadExpandButton"/> ring and the stage's turn ring
+/// (<see cref="CadTurnHandle"/>) into the EventSystem's raycast
 /// for a mouse: DesktopRig's pointer in desktop mode (it hit-tests UI through the EventSystem, plus Core's volume boxes)
 /// and the input module in the sandbox. Nearest wins against panels, as between two canvases. XR rays reach them
 /// through their RayInteractables instead (the Interaction SDK's canvas module only keeps hits on its own canvas).
@@ -18,7 +19,7 @@ public class CadPartRaycaster : BaseRaycaster
 
     public override void Raycast(PointerEventData e, List<RaycastResult> results)
     {
-        if (CadPartHandle.Count == 0 && CadExpandButton.Count == 0) return;
+        if (CadPartHandle.Count == 0 && CadExpandButton.Count == 0 && CadTurnHandle.Count == 0) return;
         Ray ray;
         var rig = DesktopRig.Current;
         if (rig != null && rig.OwnsPointer(e)) ray = rig.PointerRay;
@@ -29,6 +30,8 @@ public class CadPartRaycaster : BaseRaycaster
             Add(results, e, handle.gameObject, hit);
         if (CadExpandButton.Count > 0 && CadExpandButton.Raycast(ray, MaxDistance, out RaycastHit ringHit, out CadExpandButton button))
             Add(results, e, button.gameObject, ringHit);
+        if (CadTurnHandle.Count > 0 && CadTurnHandle.Raycast(ray, MaxDistance, out RaycastHit turnHit, out CadTurnHandle turner))
+            Add(results, e, turner.gameObject, turnHit);
     }
 
     void Add(List<RaycastResult> results, PointerEventData e, GameObject target, RaycastHit hit)

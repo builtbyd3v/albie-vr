@@ -1225,6 +1225,8 @@ namespace Forge.OS.Editor
         {
             OSWindow win = ProjectWin();
             if (win == null) { Check(false, "press '" + label + "': the project window is not open"); return false; }
+            // A stage tucks the project window away; the project bar has the same stages.
+            if (!win.gameObject.activeSelf) win = shell.Windows.Find(OSProjectRail.WindowId) ?? win;
             rig.LookAt(CenterOf(win));
             return PressButton(label, win);
         }

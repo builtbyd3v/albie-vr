@@ -359,12 +359,16 @@ namespace Forge.OS
             RectTransform names = OSUi.Column(row, 2f);
             names.anchorMin = names.anchorMax = new Vector2(0f, 1f);
             names.pivot = new Vector2(0f, 1f);
-            OSUi.Size(names, NameWidth, 52f);
+            // 60 units holds the name and the role line. At 52 the column squeezed both labels below their line height and
+            // their ellipsis hid them entirely (blank name column in the look set).
+            OSUi.Size(names, NameWidth, 60f);
             TMP_Text title = Label(names, line.name, NameSize, false);
-            title.fontStyle = FontStyles.Bold;
+            title.GetComponent<LayoutElement>().minHeight = 29f;
+            ForgeTheme.Strong(title);
             title.textWrappingMode = TextWrappingModes.NoWrap;
             title.overflowMode = TextOverflowModes.Ellipsis;
             TMP_Text role = Label(names, line.role, SmallSize, true);
+            role.GetComponent<LayoutElement>().minHeight = 27f;
             role.textWrappingMode = TextWrappingModes.NoWrap;
             role.overflowMode = TextOverflowModes.Ellipsis;
 

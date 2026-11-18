@@ -43,6 +43,76 @@ public class ForgeVolume : MonoBehaviour
 
     public Transform ContentRoot => contentRoot;
 
+    // ---------------------------------------------------------------- close and throw
+    // A volume closes only when its owner says what that means (an artifact closes as a whole); a mode's volume has neither.
+
+    /// <summary>Every enabled volume, for the hand gesture that closes what you look at (<see cref="GestureActions"/>).</summary>
+    public static readonly System.Collections.Generic.List<ForgeVolume> All = new System.Collections.Generic.List<ForgeVolume>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() => All.Clear();
+
+    void OnEnable() => All.Add(this);
+    void OnDisable() => All.Remove(this);
+
+    System.Action closeHandler;
+
+    /// <summary>
+    /// What closing this volume does (its close chip, <see cref="ForgeVolumeChrome"/>; the close gesture). Null (the
+    /// default): it can't be closed by hand, and shows no chip.
+    /// </summary>
+    public System.Action CloseHandler
+    {
+        get => closeHandler;
+        set
+        {
+            closeHandler = value;
+            var chrome = GetComponent<ForgeVolumeChrome>();
+            if (chrome != null) chrome.Refresh();
+        }
+    }
+
+    /// <summary>What throwing it away does, with the hand's velocity (m/s, world). Null: a fling is just a fast move.</summary>
+    public System.Action<Vector3> ThrowHandler { get; set; }
+
+    /// <summary>It can be closed by hand (<see cref="CloseHandler"/> is set).</summary>
+    public bool Closable => closeHandler != null;
+
+    /// <summary>The close chip or the close gesture: runs <see cref="CloseHandler"/>. False when it can't close.</summary>
+    public bool RequestClose()
+    {
+        if (closeHandler == null) return false;
+        try { closeHandler(); }
+        catch (System.Exception e) { Debug.LogException(e); }
+        return true;
+    }
+
+    /// <summary>Flung away by hand (<see cref="VolumeManipulator"/>, an artifact's hand grab): runs <see cref="ThrowHandler"/>. False without one.</summary>
+    public bool ThrowAway(Vector3 velocity)
+    {
+        if (ThrowHandler == null || !gameObject.activeInHierarchy) return false;
+        try { ThrowHandler(velocity); }
+        catch (System.Exception e) { Debug.LogException(e); }
+        return true;
+    }
+
+    /// <summary>
+    /// Where the name label lies, in this volume's own space: its centre and its half width (m), for something placed
+    /// beside it (the close chip). False with no label.
+    /// </summary>
+    public bool LabelExtent(out Vector3 centre, out float halfWidth)
+    {
+        centre = default;
+        halfWidth = 0f;
+        if (label == null) return false;
+        Transform canvas = label.transform.parent;
+        centre = transform.InverseTransformPoint(canvas.position);
+        float units = labelPlate != null && labelPlate.gameObject.activeSelf ? labelPlate.rectTransform.sizeDelta.x : 0f;
+        float own = Mathf.Abs(transform.lossyScale.x);
+        halfWidth = own > 1e-6f ? units * 0.5f * Mathf.Abs(canvas.lossyScale.x) / own : 0f;
+        return true;
+    }
+
     /// <summary>The content's turn about its own up axis and its tilt toward the viewer (deg), from <see cref="SetView"/>.</summary>
     public float ViewYaw { get; private set; }
     public float ViewTilt { get; private set; }

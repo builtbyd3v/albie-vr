@@ -58,10 +58,12 @@ namespace Forge.OS
             }
             if (title != null) title.text = e.title ?? e.id;
             string line = null;
+            bool open = false;
             try
             {
                 if (e.status != null) line = e.status();
-                if (string.IsNullOrEmpty(line) && e.isOpen != null && e.isOpen()) line = "open";
+                open = e.isOpen != null && e.isOpen();
+                if (string.IsNullOrEmpty(line) && open) line = "open";
             }
             catch (System.Exception ex)
             {
@@ -72,6 +74,32 @@ namespace Forge.OS
                 status.text = line ?? "";
                 if (status.color != CaptionColor) status.color = CaptionColor;
             }
+            ShowOpenDot(open);
+        }
+
+        // The design system's "running" mark: a small accent dot with a soft glow in the tile's top-right corner while the
+        // thing is open (like a dock's running light). Made on first use, then only switched on and off.
+        ForgeSurface openDot;
+        const float DotSize = 12f, DotInset = 14f;
+
+        void ShowOpenDot(bool open)
+        {
+            if (openDot == null)
+            {
+                if (!open) return;
+                var rt = (RectTransform)new GameObject("Open dot", typeof(RectTransform)).transform;
+                rt.SetParent(transform, false);
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
+                rt.sizeDelta = new Vector2(DotSize, DotSize);
+                rt.anchoredPosition = new Vector2(-DotInset, -DotInset);
+                rt.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                openDot = rt.gameObject.AddComponent<ForgeSurface>();
+                openDot.Pill = true;
+                openDot.color = ForgeTheme.Accent;
+                openDot.Glow = 0.6f;
+                openDot.raycastTarget = false;
+            }
+            if (openDot.gameObject.activeSelf != open) openDot.gameObject.SetActive(open);
         }
     }
 }

@@ -14,6 +14,9 @@ namespace Forge.Artifacts
     /// Hand tracking jitters, so the pinch point and hand direction are smoothed: heavily while the hand is still,
     /// lightly while it moves fast, which keeps it steady without feeling laggy. The pinch has hysteresis (closes at
     /// 24% of the hand's size, opens at 40%) and survives a quarter second of lost tracking, so it doesn't drop.
+    /// - Fling it away and let go (one hand, fast, away from you: <see cref="HandThrow"/>, measured on the raw palm) and the
+    ///   volume is thrown away (<see cref="ForgeVolume.ThrowAway"/>: an artifact closes, with an undo). Two hands on it
+    ///   (resizing) or a part in hand never throw.
     /// While a hand is near or holding the model, the volume's ray grips (<see cref="VolumeManipulator"/>, for
     /// pointing from afar) stand aside, so the two never fight over it.
     /// The logic is <see cref="HandGrabCore"/>, which checks drive with synthetic hands; this component feeds it the
@@ -38,6 +41,12 @@ namespace Forge.Artifacts
         Vector3 homePosition;
         float homeScale, homeYaw, homeTilt;
         HandGrabCore.Mode shownMode = HandGrabCore.Mode.None;
+        readonly HandThrow fling = new HandThrow();
+        HandGrabCore.Mode lastGrab = HandGrabCore.Mode.None;
+        int lastHolder = -1;
+
+        /// <summary>The throw detector for the hand holding it (checks read it).</summary>
+        public HandThrow Fling => fling;
         bool shownHover;
         Transform shownPart;
 
@@ -50,6 +59,8 @@ namespace Forge.Artifacts
         void OnDisable()
         {
             core.Release(this);
+            fling.End();
+            lastGrab = HandGrabCore.Mode.None;
             StandGripsDown(false);
         }
 
@@ -75,10 +86,69 @@ namespace Forge.Artifacts
                 left = own[0];
                 right = own[1];
             }
-            if (Time.unscaledTime >= rescanAt) Rescan();
-            core.Step(left, right, Time.deltaTime, this);
-            Show();
+            Step(left, right, Time.deltaTime, Time.unscaledTime);
         }
+
+        /// <summary>
+        /// One frame of both hands on the model: what <see cref="Update"/> does with the real hands, public so the checks can
+        /// drive it with synthetic ones (with the component switched off, so Update doesn't step it too). True when this frame
+        /// threw it away.
+        /// </summary>
+        public bool Step(HandSample left, HandSample right, float dt, float now)
+        {
+            if (now >= rescanAt) Rescan(now);
+            core.Step(left, right, dt, this);
+            if (TrackThrow(left, right, now)) return true;  // thrown: it's on its way out
+            Show();
+            return false;
+        }
+
+        /// <summary>
+        /// Follows the holding hand's raw palm while one hand holds the model; on the release (or the hand lost mid-fling,
+        /// which fast hands often are) a throw throws the volume away. True when it did. Public for the checks, which drive
+        /// it with synthetic hands.
+        /// </summary>
+        public bool TrackThrow(HandSample left, HandSample right, float now)
+        {
+            HandGrabCore.Mode mode = core.Grab;
+            bool thrown = false;
+            if (mode == HandGrabCore.Mode.One)
+            {
+                HandSample hand = core.Holder == 0 ? left : right;
+                bool tracked = hand != null && hand.tracked;
+                if (lastGrab != HandGrabCore.Mode.One || lastHolder != core.Holder)
+                {
+                    if (tracked) fling.Begin(now, HandFeatures.PalmCenter(hand));
+                    else fling.End();
+                }
+                else if (tracked) fling.Sample(now, HandFeatures.PalmCenter(hand));
+                else if (fling.Armed)
+                {
+                    // Lost mid-fling: let go now rather than a quarter second later, when the speed is long gone.
+                    thrown = Throw(now);
+                    if (thrown) core.Release(this);
+                }
+            }
+            else if (lastGrab == HandGrabCore.Mode.One && mode == HandGrabCore.Mode.None) thrown = Throw(now);
+            else fling.End();  // two hands (resizing) or a part in hand: never a throw
+            lastGrab = core.Grab;
+            lastHolder = core.Holder;
+            return thrown;
+        }
+
+        bool Throw(float now)
+        {
+            var cam = Camera.main;
+            bool thrown = fling.Holding && volume.ThrowHandler != null && cam != null
+                          && fling.Release(now, cam.transform.position, transform.position, out flungAt);
+            fling.End();
+            if (!thrown) return false;
+            Debug.Log($"[ArtifactHandGrab] {name} thrown away by hand at {flungAt.magnitude:0.0} m/s.");
+            volume.ThrowAway(flungAt);
+            return true;
+        }
+
+        Vector3 flungAt;
 
         /// <summary>Puts the model back where it stood before hands first moved it (Reset view).</summary>
         public void ResetPose()
@@ -142,9 +212,9 @@ namespace Forge.Artifacts
 
         // ---------------------------------------------------------------- upkeep and feedback
         // The model's own renderers (not its labels or leader lines), and the explorer once its glTF has loaded.
-        void Rescan()
+        void Rescan(float now)
         {
-            rescanAt = Time.unscaledTime + RescanSeconds;
+            rescanAt = now + RescanSeconds;
             if (grips == null) grips = GetComponent<VolumeManipulator>();
             var root = volume.ContentRoot;
             if (root == null) return;

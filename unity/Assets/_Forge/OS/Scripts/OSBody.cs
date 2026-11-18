@@ -51,7 +51,7 @@ namespace Forge.OS
             if (kit != null && kit.theme != null)
             {
                 body.manager = go.AddComponent<UIThemeManager>();
-                SetThemes(body.manager, kit.theme);
+                SetThemes(body.manager, OSUi.Theme != null ? OSUi.Theme : kit.theme);  // the design system's runtime copy (Inter, token colours)
             }
             return body;
         }

@@ -77,6 +77,8 @@ namespace Forge.Pet
                 panel.name = "AlbieCard";
                 panel.SizeMeters = size;
                 panel.Title = "Albie";
+                panel.CloseHandler = Hide;  // its X: the offer is turned down, as when it times out
+                panel.Minimisable = false;  // it follows Albie; a dot left behind would be lost
                 var placeholder = panel.Content.Find("Placeholder");
                 if (placeholder != null) placeholder.gameObject.SetActive(false);
                 line = new GameObject("Line", typeof(RectTransform), typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();

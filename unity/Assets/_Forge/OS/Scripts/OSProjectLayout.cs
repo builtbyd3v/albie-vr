@@ -6,16 +6,26 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// Layout pieces of the Project window that <see cref="OSUi"/> doesn't have: the one big primary button (the next step),
-    /// and spacers. Sizes are OS units (0.65 mm). Built from <see cref="OSUi"/> controls, so the look, sound and input are the
-    /// same as every other button (mouse, ray and poke).
+    /// Layout pieces of the project screens that <see cref="OSUi"/> doesn't have: the one big primary button (Next), a stage
+    /// chip of the project bar, a stage row of the project window, and spacers. Sizes are OS units (0.65 mm).
+    /// Everything is built from <see cref="OSUi"/> controls and <see cref="ForgeTheme"/> / <see cref="OSUi"/> tokens, so the
+    /// shared look, sound and input (mouse, ray and poke) are the same as every other button and a restyle of those helpers
+    /// reaches these too.
     /// </summary>
     public static class OSProjectLayout
     {
-        /// <summary>The big button is 72 units tall (47 mm) and at least 380 wide (247 mm), its label 26 units (the title size).</summary>
-        public const float HeroHeight = 72f, HeroMinWidth = 380f, HeroText = 26f;
-        /// <summary>Space between the groups of the window (lead, big button, steps, bottom row): 28 units, 18 mm.</summary>
-        public const float GroupGap = 28f;
+        /// <summary>The big button: the UI Set pill's own height (48 units, 31 mm; the prefab draws no taller), at least 380 wide (247 mm), its label 26 units (the title size).</summary>
+        public const float HeroHeight = OSUi.ButtonHeight, HeroMinWidth = 380f, HeroText = OSUi.TitleText;
+        /// <summary>Space between the groups of the window (lead, big button, stages, bottom row): 24 units, 16 mm.</summary>
+        public const float GroupGap = ForgeTheme.Space5;
+        /// <summary>The project bar: its chips are <see cref="OSUi.ChipHeight"/> tall (34 mm, a hand-sized target), this far apart, with this padding around the row.</summary>
+        public const float RailGap = ForgeTheme.Space2, RailPadding = ForgeTheme.Space3;
+        /// <summary>The stage rows of the project window are this far apart.</summary>
+        public const float StageRowGap = ForgeTheme.Space2;
+        /// <summary>How much of its look a locked stage keeps (it stays tappable: a tap says why and where to go first).</summary>
+        public const float LockedAlpha = 0.45f;
+        /// <summary>The ring around the stage the person is at, this far outside the chip (units).</summary>
+        public const float RingOutset = ForgeTheme.Space1;
 
         /// <summary>The window's one big primary button, alone on its row. Named "Button " + label like every OSUi button.</summary>
         public static Button Hero(Transform parent, string label, Action onClick, string icon)
@@ -26,8 +36,7 @@ namespace Forge.OS
             if (button == null) return null;
             bool hasIcon = button.transform.Find("Content/Background/Elements/Icon") is Transform i && i.gameObject.activeSelf;
             float width = HeroMinWidth;
-            Transform labelTransform = button.transform.Find("Content/Background/Elements/Text/Label");
-            TMP_Text text = labelTransform != null ? labelTransform.GetComponent<TMP_Text>() : null;
+            TMP_Text text = LabelOf(button);
             if (text != null && !string.IsNullOrEmpty(label))
             {
                 text.fontSize = HeroText;
@@ -39,6 +48,165 @@ namespace Forge.OS
             }
             OSUi.Size(button.transform, width, HeroHeight);
             return button;
+        }
+
+        /// <summary>
+        /// One stage on the project bar: its name; a check when done, a warning mark when stale (it learned on an older
+        /// design), the stage's icon when it is the one the person is at (which is also ringed); quiet when done, faded when
+        /// locked (still tappable). Named "Button " + the stage's name.
+        /// </summary>
+        public static Button RailChip(Transform parent, StageState s, Action onClick)
+        {
+            string icon = s.Status == StageStatus.Done ? "check" : s.Status == StageStatus.Stale ? "warning" : s.IsCurrent ? s.Def.Icon : null;
+            OSButtonStyle style = s.Status == StageStatus.Done && !s.IsCurrent ? OSButtonStyle.Borderless : OSButtonStyle.Secondary;
+            Button chip = OSUi.Button(parent, s.Def.Name, onClick, style, icon);
+            if (chip == null) return null;
+            Fit(chip, OSUi.ChipHeight);
+            if (s.IsCurrent) Ring(chip);
+            if (s.Status == StageStatus.Locked) Fade(chip);
+            return chip;
+        }
+
+        /// <summary>
+        /// One stage of the project window, as a list row (<see cref="OSUi.ListRow"/>): a check when done, a warning mark when
+        /// stale, else the stage's icon; the stage's name; and at the right its one-line result ("v7 · 160 mm arms", "2 laps
+        /// flown"). A locked stage says why under its name and "Go to Course" at the right (a tap goes there), faded. The stage
+        /// where the person is, is ringed; a done stage's check is in the accent, a stale one's mark and result in amber. Named "Button " + the stage's name.
+        /// </summary>
+        public static Button StageRow(Transform parent, StageState s, string goTo, Action onClick) => StageRow(parent, s, goTo, onClick, s.IsCurrent);
+
+        /// <summary>A stage row; <paramref name="ringed"/> says whether it carries the "you are here" ring.</summary>
+        public static Button StageRow(Transform parent, StageState s, string goTo, Action onClick, bool ringed)
+        {
+            bool locked = s.Status == StageStatus.Locked;
+            string icon = s.Status == StageStatus.Done ? "check" : s.Status == StageStatus.Stale ? "warning" : s.Def.Icon;
+            string detail = locked ? s.Reason : null;
+            // Locked: the way there ("Go to Course"), or "Off" when nothing the person does unlocks it (no chevron promising a way).
+            string trailing = locked ? (goTo != null ? "Go to " + goTo : OffWord) : s.Result;
+            Button row = OSUi.ListRow(parent, s.Def.Name, detail, icon, trailing, onClick);
+            if (row == null) return null;
+            // Status at a glance: a lime check when done, an amber mark (and amber result) when out of date.
+            Transform mark = row.transform.Find("Icon");
+            Image markImage = mark != null ? mark.GetComponent<Image>() : null;
+            if (markImage != null && s.Status == StageStatus.Done) markImage.color = OSUi.AccentFor(row.transform);
+            if (s.Status == StageStatus.Stale)
+            {
+                if (markImage != null) markImage.color = ForgeTheme.WarningText;
+                TMP_Text result = TrailingOf(row);
+                if (result != null) ForgeLook.Tint(result, ForgeTheme.WarningText);
+            }
+            if (ringed) Ring(row);  // where the person is (the same chip is ringed on the bar)
+            if (locked) Fade(row);
+            return row;
+        }
+
+        // A list row's trailing value: its last text child that sits right on the row (not in the title column).
+        static TMP_Text TrailingOf(Button row)
+        {
+            for (int i = row.transform.childCount - 1; i >= 0; i--)
+            {
+                TMP_Text t = row.transform.GetChild(i).GetComponent<TMP_Text>();
+                if (t != null) return t;
+            }
+            return null;
+        }
+
+        // ---------------------------------------------------------------- windows as tall as what they hold
+
+        /// <summary>Extra units kept under the content when a window is fitted to it (the body's own breathing room).</summary>
+        public const float FitSlack = ForgeTheme.Space5;
+
+        // The OS unit in the panel's own units (mm), and the panel's frame (header, padding) in panel units.
+        static float Scale => (OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f) / ForgePanel.MetersPerUnit;
+
+        static float FrameHeight(ForgePanel panel)
+        {
+            var rect = (RectTransform)panel.transform;
+            return panel.Content != null ? rect.sizeDelta.y - panel.Content.rect.height : 100f;
+        }
+
+        /// <summary>How many OS units of content a window of <paramref name="heightMeters"/> has room for.</summary>
+        public static float BodyUnitsFor(ForgePanel panel, float heightMeters)
+        {
+            if (panel == null) return 0f;
+            return (heightMeters / ForgePanel.MetersPerUnit - FrameHeight(panel)) / Scale - FitSlack;
+        }
+
+        /// <summary>The OS units a column asks for now (its layout rebuilt first; flexible spacers count as nothing).</summary>
+        public static float PreferredUnits(RectTransform column)
+        {
+            if (column == null) return 0f;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(column);
+            return LayoutUtility.GetPreferredHeight(column);
+        }
+
+        /// <summary>
+        /// Makes a window as tall as <paramref name="units"/> of content (kept between <paramref name="minMeters"/> and
+        /// <paramref name="maxMeters"/>), so a short card has no empty band at the bottom. Its width is kept. Nothing moves
+        /// when the height is already right.
+        /// </summary>
+        public static void FitWindowHeight(ForgePanel panel, float units, float minMeters, float maxMeters)
+        {
+            if (panel == null || panel.Content == null) return;
+            float meters = ((units + FitSlack) * Scale + FrameHeight(panel)) * ForgePanel.MetersPerUnit;
+            meters = Mathf.Clamp(meters, minMeters, maxMeters);
+            Vector2 size = panel.SizeMeters;
+            if (Mathf.Abs(size.y - meters) < 0.004f) return;
+            panel.SizeMeters = new Vector2(size.x, meters);
+        }
+
+        /// <summary>What a locked stage row says at its right when nothing the person can do unlocks it.</summary>
+        public const string OffWord = "Off";
+
+        /// <summary>A fixed gap of <paramref name="height"/> units in a column.</summary>
+        public static void Spacer(Transform parent, float height)
+        {
+            var go = new GameObject("Gap", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var element = go.AddComponent<LayoutElement>();
+            element.minHeight = element.preferredHeight = height;
+            element.flexibleHeight = 0f;
+        }
+
+        // The outline ring of the stage at hand (the same sprite as the "new" tile and the stepper's current chip).
+        static void Ring(Button button)
+        {
+            var ring = new GameObject("Ring", typeof(RectTransform));
+            ring.transform.SetParent(button.transform, false);
+            var rect = (RectTransform)ring.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(-RingOutset, -RingOutset);
+            rect.offsetMax = new Vector2(RingOutset, RingOutset);
+            ring.AddComponent<LayoutElement>().ignoreLayout = true;
+            var image = ring.AddComponent<Image>();
+            image.sprite = OSUi.OutlineSprite();
+            image.type = Image.Type.Sliced;
+            image.color = ForgeTheme.PillOn;
+            image.raycastTarget = false;
+        }
+
+        static void Fade(Button button)
+        {
+            var group = button.GetComponent<CanvasGroup>();
+            if (group == null) group = button.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = LockedAlpha;
+        }
+
+        static TMP_Text LabelOf(Button button)
+        {
+            Transform t = button != null ? button.transform.Find("Content/Background/Elements/Text/Label") : null;
+            return t != null ? t.GetComponent<TMP_Text>() : null;
+        }
+
+        /// <summary>A column made by <see cref="OSUi.Column"/> inside another: as tall as what it holds, as wide as its parent.</summary>
+        public static void FitHeight(RectTransform column)
+        {
+            if (column == null) return;
+            var element = column.GetComponent<LayoutElement>();
+            if (element == null) element = column.gameObject.AddComponent<LayoutElement>();
+            element.flexibleWidth = 1f;
+            element.flexibleHeight = 0f;
         }
 
         /// <summary>An empty element that takes the spare height of a column (pushes what follows to the bottom).</summary>

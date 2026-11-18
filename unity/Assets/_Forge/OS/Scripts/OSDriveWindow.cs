@@ -34,16 +34,16 @@ namespace Forge.OS
         /// <summary>Window id, and the id of the tool's tile.</summary>
         public const string WindowId = "drive";
 
-        static readonly Vector2 SizeMeters = new Vector2(0.50f, 0.86f);
+        static readonly Vector2 SizeMeters = new Vector2(0.50f, 0.96f);  // the docking switch and the aids row (Nov 18)
         const float PadSize = 260f, KnobSize = 84f;            // OS units: 169 mm and 55 mm
         const float StopWidth = 300f, StopHeight = 76f;         // OS units: 195 x 49 mm
         const float PadGap = 28f;                               // between the drone's two pads
         const float PollSeconds = 0.2f;
-        const string TruckHint = "Grip the transmitter: left thumb is the throttle, right thumb steers. Let go and it stops. "
+        const string TruckHint = "Rest your thumbs on the transmitter's sticks: left is the throttle, right steers. Lift a thumb and that stick centres. "
                                + "No hands? Drag this pad: up drives, sideways steers.";
         const string DroneHint = "Transmitter, mode 2: left stick climbs and turns, right stick flies. Let go and it hovers. "
                                + "The pads here do the same.";
-        const string TransmitterLine = "Pick it up with one or both hands; put it down and the sticks centre.";
+        const string TransmitterLine = "Docked, it waits there: rest a thumb on each stick. Pinch its body to move it; close a hand round it and lift to hold it.";
         const int FlyTakeOff = 0, FlyLand = 1, FlyHome = 2, FlyReset = 3, FlyFollow = 4, FlyCam = 5;
         const float LineSize = OSUi.BodyText, HintSize = OSUi.SmallText;
 
@@ -71,6 +71,13 @@ namespace Forge.OS
         Button takeOff, land, comeHome, reset, follow, camButton;
         TMP_Text followLabel, camLabel, bodyText;
         GameObject setupBar, actionsBar, flightBar, flightBar2, options;
+        // The transmitter's docking switch (truck and drone) and the truck's driving aids, shown in place of the pad.
+        Toggle dockToggle, steadyToggle, softToggle;
+        Slider speedSlider, steerSlider;
+        GameObject aidsPanel, padRowObject, aidsRow;
+        TMP_Text aidsButtonLabel, aidsSummary;
+        bool aidsOpen;
+        int aidsKey = int.MinValue;
         int bodyKey = int.MinValue;
         bool wasFollowing;
         TMP_Text actionText, hintText;
@@ -171,6 +178,23 @@ namespace Forge.OS
                 if (actionText != null) actionText.text = "Truck design is open. Move a slider and the truck changes as you drive.";
             });
 
+            // Docked (the default): the transmitter waits on a fixed spot and the fingertips work its sticks.
+            dockToggle = OSUi.Toggle(column, "Docked transmitter (fixed spot; rest your thumbs on the sticks)", RcTransmitter.Docked, on =>
+            {
+                string where = RcTransmitter.Ensure().SetDocked(on);
+                if (actionText != null)
+                    actionText.text = on ? "Docked" + (where != null ? ": " + where : "") + ". Rest a thumb on each stick; lift a thumb and that stick centres."
+                                         : "Handheld: close your hands round it to pick it up; put it down anywhere.";
+                aidsKey = int.MinValue;
+            });
+
+            // The truck's driving aids: a button swaps the pad for them, a line says what they are set to.
+            RectTransform aidsBar = OSUi.Row(column, OSUi.ButtonHeight, 12f);
+            aidsRow = aidsBar.gameObject;
+            Button aidsButton = OSUi.Button(aidsBar, "Driving aids", ToggleAids);
+            aidsButtonLabel = aidsButton != null ? aidsButton.GetComponentInChildren<TMP_Text>(true) : null;
+            aidsSummary = OSUi.Text(aidsBar, "", HintSize, true);
+
             RectTransform setupRow = OSUi.Row(column, OSUi.ButtonHeight, 12f);
             setupBar = setupRow.gameObject;
             setup = OSUi.Button(setupRow, "Set up truck", () => RunProjectAction("course"), OSButtonStyle.Primary);
@@ -205,6 +229,9 @@ namespace Forge.OS
             leftPad.SetChannels("stick2.x", "stick2.y");
             leftPad.gameObject.SetActive(false);
             pad = OSDrivePad.Create(padRow, PadSize, KnobSize);
+            padRowObject = padRow.gameObject;
+
+            BuildAids(column);
 
             hintText = OSUi.Text(column, TruckHint, HintSize, true);
             hintText.alignment = TextAlignmentOptions.Center;
@@ -278,6 +305,63 @@ namespace Forge.OS
             Poll(true);
         }
 
+        // The aids, each with what it does in one short line. They only shape the transmitter's sticks for the brain truck.
+        void BuildAids(RectTransform column)
+        {
+            RectTransform aids = OSUi.Column(column, 2f);
+            aids.anchorMin = aids.anchorMax = aids.pivot = new Vector2(0f, 1f);
+            aids.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            aidsPanel = aids.gameObject;
+            speedSlider = OSUi.Slider(aids, "Training speed (m/s)", DriveAids.MinTrainingSpeed, DriveAids.MaxTrainingSpeed, DriveAids.TrainingSpeed,
+                                      v => { DriveAids.TrainingSpeed = Mathf.Round(v * 10f) / 10f; aidsKey = int.MinValue; });
+            OSUi.Text(aids, "A full left stick drives this fast. Slower is easier, and the Autopilot learns your speed.", HintSize, true);
+            steerSlider = OSUi.Slider(aids, "Steering (%)", DriveAids.MinSteerRate * 100f, 100f, DriveAids.SteerRate * 100f,
+                                      v => { DriveAids.SteerRate = Mathf.Round(v) / 100f; aidsKey = int.MinValue; });
+            OSUi.Text(aids, "How much of the steering lock a full right stick gives. Lower is calmer but turns wider.", HintSize, true);
+            softToggle = OSUi.Toggle(aids, "Soft steering centre", DriveAids.SteerExpo > 0.01f, on =>
+            {
+                DriveAids.SteerExpo = on ? DriveAids.DefaultSteerExpo : 0f;
+                aidsKey = int.MinValue;
+            });
+            OSUi.Text(aids, "Small thumb moves make small turns; the end of the stick is still full lock.", HintSize, true);
+            steadyToggle = OSUi.Toggle(aids, "Steady throttle", DriveAids.SteadyThrottle, on =>
+            {
+                DriveAids.SteadyThrottle = on;
+                if (!on) DriveAids.EndCruise();
+                aidsKey = int.MinValue;
+            });
+            OSUi.Text(aids, "Push the left stick once and the truck holds training speed: you only steer. Pull it back to stop.", HintSize, true);
+            aidsPanel.SetActive(false);
+        }
+
+        void ToggleAids()
+        {
+            aidsOpen = !aidsOpen;
+            aidsKey = int.MinValue;
+            nextPoll = 0f;
+        }
+
+        // The pad or the aids (truck only), the switches following the settings, and the summary line, on change only.
+        void PollAids(bool flying)
+        {
+            bool open = aidsOpen && !flying;
+            int key = (open ? 1 : 0) + (flying ? 2 : 0) + (RcTransmitter.Docked ? 4 : 0) + (DriveAids.SteadyThrottle ? 8 : 0) + (DriveAids.SteerExpo > 0.01f ? 16 : 0)
+                    + 32 * Mathf.RoundToInt(DriveAids.TrainingSpeed * 10f) + 4096 * Mathf.RoundToInt(DriveAids.SteerRate * 100f);
+            if (dockToggle != null && dockToggle.isOn != RcTransmitter.Docked) dockToggle.SetIsOnWithoutNotify(RcTransmitter.Docked);
+            if (key == aidsKey) return;
+            aidsKey = key;
+            if (aidsPanel != null && aidsPanel.activeSelf != open) aidsPanel.SetActive(open);
+            if (padRowObject != null && padRowObject.activeSelf == open) padRowObject.SetActive(!open);
+            if (hintText != null && hintText.gameObject.activeSelf == open) hintText.gameObject.SetActive(!open);
+            if (aidsRow != null && aidsRow.activeSelf == flying) aidsRow.SetActive(!flying);
+            if (aidsButtonLabel != null) aidsButtonLabel.text = open ? "Back to the pad" : "Driving aids";
+            if (aidsSummary != null) aidsSummary.text = DriveAids.Summary(RcTransmitter.Docked);
+            if (steadyToggle != null && steadyToggle.isOn != DriveAids.SteadyThrottle) steadyToggle.SetIsOnWithoutNotify(DriveAids.SteadyThrottle);
+            if (softToggle != null && softToggle.isOn != DriveAids.SteerExpo > 0.01f) softToggle.SetIsOnWithoutNotify(DriveAids.SteerExpo > 0.01f);
+            if (speedSlider != null && Mathf.Abs(speedSlider.value - DriveAids.TrainingSpeed) > 0.049f) speedSlider.SetValueWithoutNotify(DriveAids.TrainingSpeed);
+            if (steerSlider != null && Mathf.Abs(steerSlider.value - DriveAids.SteerRate * 100f) > 0.5f) steerSlider.SetValueWithoutNotify(DriveAids.SteerRate * 100f);
+        }
+
         void OnDisable()
         {
             if (pad != null) pad.Release();  // the pad also zeroes itself when it goes; this covers a hidden window
@@ -304,6 +388,7 @@ namespace Forge.OS
             if (easyToggle != null && easyToggle.isOn != easySteering) easyToggle.isOn = easySteering;
             if (pinchDriveToggle != null && pinchDriveToggle.isOn != HandsTransmitter.PinchDriveEnabled) pinchDriveToggle.isOn = HandsTransmitter.PinchDriveEnabled;
             if (putAway != null) putAway.interactable = RcTransmitter.Instance != null && RcTransmitter.Instance.Shown;
+            PollAids(flying);
             if (setupBar != null) setupBar.SetActive(!flying && loop == null && ThingHosts.Count == 0);
             if (flying)
             {
@@ -385,7 +470,8 @@ namespace Forge.OS
                 stateText.text = stateLine;
                 if (!flying && brain != null && actionText != null)
                     actionText.text = brain.State == SlalomBrain.Mode.Idle
-                        ? "Pick up the transmitter and drive it around any time (not recorded). Record two laps to teach Albie, then Train and Autopilot."
+                        ? (brain.LastSaid != null && (brain.Drove != null || brain.VersionCount > 0) ? brain.LastSaid
+                           : "Rest your thumbs on the transmitter and drive around any time (not recorded). Record two laps to teach Albie, then Train and Autopilot.")
                         : "Let go of the sticks to brake. Stop ends the recording or Autopilot.";
             }
         }
@@ -471,6 +557,7 @@ namespace Forge.OS
             if (bodyText != null) bodyText.gameObject.SetActive(on);
             bodyKey = int.MinValue;
             if (hintText != null) hintText.text = on ? DroneHint : TruckHint;
+            aidsKey = int.MinValue;
             if (!on) return;
             if (drone != null) drone.Body.headless = easySteering;
             if (actionText != null) actionText.text = "Pick up the transmitter: Take off, fly with the two sticks, then Land. Stop makes it hover.";

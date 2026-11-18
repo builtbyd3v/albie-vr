@@ -7,6 +7,9 @@ using UnityEngine;
 /// - Drag the model: spin it (sideways) and tilt it toward you (up and down). Scroll wheel / thumbstick: scale it.
 /// Hands have no thumbstick: reaching out (past a small dead zone) does what pushing the stick forward does.
 /// A line of help fades in under the label while it's pointed at (<see cref="ForgeVolume.SetHint"/>).
+/// - Throw: let go mid-fling (the hand or controller moving fast, away from you: <see cref="HandThrow"/>) and a volume
+///   whose owner says what throwing means (<see cref="ForgeVolume.ThrowHandler"/>, an artifact) is thrown away. Measured
+///   from the hand's own speed (the ray's origin), not how fast the ray swings, so a far-off placing drag never throws.
 /// </summary>
 [RequireComponent(typeof(ForgeVolume))]
 public class VolumeManipulator : MonoBehaviour
@@ -52,6 +55,7 @@ public class VolumeManipulator : MonoBehaviour
     float grabHeight, raised;
     float yawAtGrab, tiltAtGrab, rayYawAtGrab, rayPitchAtGrab;
     float reachAtGrab, reachUsed;
+    readonly HandThrow fling = new HandThrow();
 
     /// <summary>Set up the grab boxes. <paramref name="eyes"/>: the player's head; <paramref name="deskFrame"/>: the desk top it rests on.</summary>
     public void Init(Transform eyes, Transform deskFrame)
@@ -74,8 +78,10 @@ public class VolumeManipulator : MonoBehaviour
         UserPlaced = byUser;
     }
 
+    /// <summary>Drop the volume if it's held (never a throw).</summary>
     public void Cancel()
     {
+        fling.End();
         if (grab != Grab.None) EndGrab(heldHandle);
     }
 
@@ -111,6 +117,8 @@ public class VolumeManipulator : MonoBehaviour
         reachAtGrab = pointer.Reach;
         reachUsed = 0f;
         Ray r = pointer.Ray;
+        if (pointer.source == ForgePointer.Source.Ray) fling.Begin(Time.unscaledTime, r.origin);  // the hand or controller
+        else fling.End();
         if (grab == Grab.Move)
         {
             // Slide in the horizontal plane through the grab point.
@@ -129,12 +137,21 @@ public class VolumeManipulator : MonoBehaviour
         }
     }
 
+    /// <summary>Let go (the ray's release, or the release was lost): a fling away from the user throws it away.</summary>
     public void EndGrab(VolumeHandle handle)
     {
         if (grab == Grab.None || handle != heldHandle) return;
+        bool thrown = false;
+        Vector3 velocity = Vector3.zero;
+        if (fling.Holding && volume.ThrowHandler != null && Head != null)
+            thrown = fling.Release(Time.unscaledTime, Head.position, transform.position, out velocity);
+        fling.End();
         grab = Grab.None;
         pointer = null;
         heldHandle = null;
+        if (!thrown) return;
+        Debug.Log($"[VolumeManipulator] {name} thrown away at {velocity.magnitude:0.0} m/s.");
+        volume.ThrowAway(velocity);
     }
 
     void LateUpdate()
@@ -149,6 +166,7 @@ public class VolumeManipulator : MonoBehaviour
             return;
         }
         Ray r = pointer.Ray;
+        fling.Sample(Time.unscaledTime, r.origin);
         float notches = pointer.Notches(Time.deltaTime) + ReachNotches();
         if (grab == Grab.Move) Move(r, notches);
         else Turn(r, notches);

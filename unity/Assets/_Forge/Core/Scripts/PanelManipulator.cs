@@ -16,7 +16,10 @@ public enum PanelGrab { None, Move, ResizeLeft, ResizeRight, TurnLeft, TurnRight
 ///   Push back / pull in with the scroll wheel, the thumbstick, or by reaching out / pulling the hand in.
 /// - Brackets at the bottom corners: resize (the opposite corner stays put). Changes SizeMeters, not scale.
 /// - Bars at the sides: turn left / right. Bar under the bottom edge: tilt. Both snap to Face me and Straight.
-/// - Title bar buttons: Face me, Straight (and − on a panel that minimizes, <see cref="AddMinimize"/>).
+/// - Title bar buttons: Face me, Straight, left of the panel's own Close and Minimise (<see cref="PanelChrome"/>).
+/// - Throw: let go of the title bar mid-flick (a hand or controller ray swinging fast, or the hand itself moving fast away
+///   from you: <see cref="HandThrow"/>) and the panel is thrown away: it flies off and fades, and can be brought back from
+///   the Spaces list for <see cref="PanelChrome.UndoSeconds"/>. An artifact's panel throws the whole artifact away.
 /// </summary>
 [RequireComponent(typeof(ForgePanel))]
 public class PanelManipulator : MonoBehaviour
@@ -31,6 +34,9 @@ public class PanelManipulator : MonoBehaviour
     const float TurnGain = 2.5f;          // degrees of turn per degree of pointer swing
     const float SnapDegrees = 4f;
     const float MaxTurn = 80f, MaxTilt = 60f;
+    // Throw: the ray swinging at least this fast (deg/s) over the last ThrowWindow seconds before letting go, after a grab of
+    // at least ThrowMinHold seconds (a quick tap on the bar is not a throw). Slow placing drags never get there.
+    const float ThrowDegreesPerSecond = 260f, ThrowWindow = 0.09f, ThrowMinHold = 0.15f;
 
     /// <summary>How many panels are being held right now (DesktopRig's hint line uses it).</summary>
     public static int Grabbing { get; private set; }
@@ -55,7 +61,7 @@ public class PanelManipulator : MonoBehaviour
     CanvasGroup controls;
     RayInteractable[] rays;
     PokeInteractable[] pokes;
-    ForgePill faceButton, straightButton, minimizeButton;
+    ForgePill faceButton, straightButton;
     ForgeSurface frameSurface;
     float showTimer, lit, pulseLeft;
     const float PulsePeriod = 0.5f;
@@ -96,6 +102,7 @@ public class PanelManipulator : MonoBehaviour
     /// <summary>Drop the panel if it's held (the workspace is folding it away).</summary>
     public void Cancel()
     {
+        fling.End();  // dropped, never thrown
         if (grab != PanelGrab.None) EndGrab(heldHandle);
         if (turning != null) StopCoroutine(turning);
         turning = null;
@@ -110,11 +117,18 @@ public class PanelManipulator : MonoBehaviour
     /// </summary>
     public void AddMinimize(UnityEngine.Events.UnityAction onMinimize)
     {
-        if (controls == null || straightButton == null || minimizeButton != null) return;
+        if (minimizeAction != null) return;
+        // The panel's own Minimise button (PanelChrome) presses this now, so there is one "−", always shown.
         minimizeAction = onMinimize;
-        float fromRight = faceButton.Rect.sizeDelta.x + 8f + straightButton.Rect.sizeDelta.x + 8f;
-        minimizeButton = TitleButton((RectTransform)controls.transform, "−", fromRight, onMinimize);
-        minimizeButton.Rect.sizeDelta = new Vector2(ForgeTheme.PillHeight, ForgeTheme.PillHeight);
+    }
+
+    /// <summary>Face me and Straight sit just left of the panel's Close and Minimise buttons (<see cref="PanelChrome"/>).</summary>
+    public void LayoutTitleButtons()
+    {
+        if (faceButton == null || straightButton == null) return;
+        float buttons = panel != null && panel.Chrome != null ? panel.Chrome.ReservedWidth : 0f;
+        PlaceTitleButton(faceButton, buttons);
+        PlaceTitleButton(straightButton, buttons + faceButton.Rect.sizeDelta.x + 8f);
     }
 
     /// <summary>Press this panel's own "−" (<see cref="AddMinimize"/>). False if it doesn't have one.</summary>
@@ -149,6 +163,11 @@ public class PanelManipulator : MonoBehaviour
         Vector3 hit = plane.Raycast(r, out float enter) ? r.GetPoint(enter) : e.pointerCurrentRaycast.worldPosition;
         grab = handle.grab;
         heldHandle = handle;
+        grabbedAt = Time.unscaledTime;
+        swingCount = 0;
+        swingNext = 0;
+        if (grab == PanelGrab.Move && pointer.source == ForgePointer.Source.Ray) fling.Begin(grabbedAt, r.origin);
+        else fling.End();
         handle.SetHeld(true);
         Grabbing++;
         UserPlaced = true;
@@ -182,8 +201,19 @@ public class PanelManipulator : MonoBehaviour
     public void EndGrab(PanelHandle handle)
     {
         if (grab == PanelGrab.None || handle != heldHandle) return;
+        Vector3 throwDirection = Vector3.zero;
+        bool thrown = grab == PanelGrab.Move && IsThrow(out throwDirection);
         grab = PanelGrab.None;
         pointer = null;
+        if (thrown)
+        {
+            if (heldHandle != null) heldHandle.SetHeld(false);
+            heldHandle = null;
+            Grabbing = Mathf.Max(0, Grabbing - 1);
+            Debug.Log($"[PanelManipulator] {name} thrown away (Spaces can bring it back for {PanelChrome.UndoSeconds:0} s).");
+            panel.ThrowAway(throwDirection);
+            return;
+        }
         if (heldHandle != null) heldHandle.SetHeld(false);
         heldHandle = null;
         Grabbing = Mathf.Max(0, Grabbing - 1);
@@ -204,7 +234,7 @@ public class PanelManipulator : MonoBehaviour
         Ray r = pointer.Ray;
         switch (grab)
         {
-            case PanelGrab.Move: Move(r); break;
+            case PanelGrab.Move: Swing(r); Move(r); break;
             case PanelGrab.ResizeLeft:
             case PanelGrab.ResizeRight: Resize(r); break;
             case PanelGrab.TurnLeft:
@@ -247,6 +277,63 @@ public class PanelManipulator : MonoBehaviour
         }
         transform.rotation = rot;
         transform.position = target - transform.TransformVector(grabLocal);
+    }
+
+    // ---------------------------------------------------------------- throw
+
+    // The ray's direction over the last few frames (a small ring, no allocations), to tell a flick from a placing drag.
+    const int SwingSamples = 8;
+    readonly Vector3[] swingDir = new Vector3[SwingSamples];
+    readonly Vector3[] swingPos = new Vector3[SwingSamples];
+    readonly float[] swingTime = new float[SwingSamples];
+    int swingCount, swingNext;
+    float grabbedAt;
+    readonly HandThrow fling = new HandThrow();  // the hand's own speed (the ray's origin moves with the hand)
+
+    void Swing(Ray r)
+    {
+        swingDir[swingNext] = r.direction.normalized;
+        swingPos[swingNext] = transform.position;
+        swingTime[swingNext] = Time.unscaledTime;
+        swingNext = (swingNext + 1) % SwingSamples;
+        if (swingCount < SwingSamples) swingCount++;
+        fling.Sample(Time.unscaledTime, r.origin);
+    }
+
+    // A throw: a hand or controller ray (not the mouse, not a poke) swinging fast when it let go, on a closable panel.
+    bool IsThrow(out Vector3 direction)
+    {
+        direction = Vector3.zero;
+        if (pointer == null || pointer.source != ForgePointer.Source.Ray || panel == null || !panel.Closable)
+        {
+            fling.End();
+            return false;
+        }
+        // The hand flung it away (its own speed, toward the room): a throw whatever the ray's swing.
+        Vector3 velocity = Vector3.zero;
+        bool flung = fling.Holding && head != null && fling.Release(Time.unscaledTime, head.position, Center(), out velocity);
+        fling.End();
+        if (flung)
+        {
+            direction = velocity;
+            return true;
+        }
+        if (Time.unscaledTime - grabbedAt < ThrowMinHold || swingCount < 3) return false;
+        int newest = (swingNext - 1 + SwingSamples) % SwingSamples;
+        float now = swingTime[newest];
+        int oldest = newest;
+        for (int i = 1; i < swingCount; i++)
+        {
+            int k = (newest - i + SwingSamples) % SwingSamples;
+            oldest = k;
+            if (now - swingTime[k] >= ThrowWindow) break;
+        }
+        float dt = now - swingTime[oldest];
+        if (dt < 1e-3f) return false;
+        float speed = Vector3.Angle(swingDir[oldest], swingDir[newest]) / dt;
+        if (speed < ThrowDegreesPerSecond) return false;
+        direction = (swingPos[newest] - swingPos[oldest]) / dt;
+        return true;
     }
 
     // The grabbed corner follows the pointer across the panel's plane; the opposite top corner stays put.
@@ -434,6 +521,7 @@ public class PanelManipulator : MonoBehaviour
             move.grab = PanelGrab.Move;
             faceButton = TitleButton(root, "Face me", 0f, FaceMe);
             straightButton = TitleButton(root, "Straight", faceButton.Rect.sizeDelta.x + 8f, Straighten);
+            LayoutTitleButtons();
         }
         else
         {
@@ -495,11 +583,16 @@ public class PanelManipulator : MonoBehaviour
     {
         var pill = ForgePill.Create(parent, label, onClick);
         pill.Quiet = true;
+        PlaceTitleButton(pill, fromRight);
+        return pill;
+    }
+
+    static void PlaceTitleButton(ForgePill pill, float fromRight)
+    {
         var rt = pill.Rect;
         rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
         rt.pivot = new Vector2(1f, 0.5f);
         rt.anchoredPosition = new Vector2(-14f - fromRight, -ForgeTheme.PanelHeader * 0.5f);
-        return pill;
     }
 
     static RectTransform NewRect(string name, RectTransform parent)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -20,6 +21,8 @@ using UnityEngine.InputSystem;
 /// - Markers (CG, CP, thrust, input, output...; on by default, key N) and dimension callouts (Measure, key M; when another system owns a plain M as its menu (it sets <see cref="MenuOwnsM"/>), measure is Shift+M).
 /// - The demo (<see cref="CadDemoPlayer"/>): Fly, Hover or Run.
 /// - A parameter's parts and dimension on the model while a panel points at it (<see cref="HighlightParam"/>).
+/// - Turning the whole model (<see cref="CadTurn"/>: Albie's cad_turn, <see cref="ApplyTurn"/>; on the stage, the ring under
+///   it is a lazy Susan, <see cref="CadTurnHandle"/>), without touching its explode or its trip to the stage.
 /// Panels drive these through <see cref="CadSession"/> (SetView, SetInspecting, RequestDemo, SetMeasuring,
 /// SetMarkersShown) or this class's API (<see cref="Active"/> finds the viewer); both end up in the same place.
 /// Everything new is made at runtime under a "CadOverlay" child, so the prefab needs nothing.
@@ -189,6 +192,64 @@ public class CadViewer : MonoBehaviour
         if (player != null) player.Stop(instant);
     }
 
+    /// <summary>
+    /// Turn the model as a whole (Albie's cad_turn, the hub's cad.turn): on the stage if it is up there, else in the desk
+    /// volume. Answers at once; the turn eases in over the next frames. An exploded model stays exploded, an expanded one
+    /// stays up. Never throws.
+    /// </summary>
+    public JObject ApplyTurn(CadTurnRequest request)
+    {
+        if (request == null) return new JObject { ["error"] = "Nothing to do: pass degrees, face, spin or reset." };
+        if (player != null && player.Running && player.Kind == CadDemoPlayer.Launch)
+            return new JObject { ["error"] = "The rocket is flying; it can turn once it has landed, or stop the demo first." };
+        string did;
+        string error;
+        try { did = turn.Apply(request, onStage, out error); }
+        catch (Exception e)
+        {
+            Debug.LogException(e);
+            return new JObject { ["error"] = "Couldn't turn it: " + e.Message };
+        }
+        if (error != null) return new JObject { ["error"] = error };
+        return new JObject
+        {
+            ["ok"] = true,
+            ["did"] = did,
+            ["where"] = onStage ? "expanded in front of the user" : "on the desk",
+            ["expanded"] = onStage,
+            ["exploded"] = Exploded,
+            ["spinning"] = turn.Spinning(onStage),
+            ["yaw_deg"] = Mathf.Round(onStage ? turn.StageYaw : turn.DeskYaw),
+            ["design"] = part ?? "",
+        };
+    }
+
+    /// <summary>The model's turn (voice and hands).</summary>
+    public CadTurn Turn => turn;
+
+    /// <summary>
+    /// <see cref="ApplyTurn"/> on the viewer that is up; with none yet (the CAD view is still opening), the turn waits up
+    /// to a few seconds for one and null comes back.
+    /// </summary>
+    public static JObject RequestTurn(CadTurnRequest request)
+    {
+        if (Active != null) return Active.ApplyTurn(request);
+        pendingTurn = request;
+        pendingTurnAt = Time.realtimeSinceStartup;
+        return null;
+    }
+
+    static CadTurnRequest pendingTurn;
+    static float pendingTurnAt = -100f;
+    const float PendingTurnSeconds = 6f;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetPendingTurn()
+    {
+        pendingTurn = null;
+        pendingTurnAt = -100f;
+    }
+
     /// <summary>Dimension callouts on or off (through the session, so every panel's Measure agrees). Off by default;
     /// on by themselves while the model is up on the stage.</summary>
     public void ShowMeasure(bool on)
@@ -275,6 +336,13 @@ public class CadViewer : MonoBehaviour
     float stageScale = 1f, tripProgress = 1f, stageRing, scaleShown = -1f;
     Quaternion stageTurn = Quaternion.identity;
     Coroutine trip;      // the model springing to or from the stage
+    Transform stagePivot;            // the stage's child the holder rides on: CadTurn turns it about the model's centre
+    CadTurn turn;
+    CadTurnHandle turnHandle;
+    bool turnChipShown;              // the scale chip says how to turn it (the ring is pointed at or held)
+    Vector3 tripPosition, tripScale; // where the running trip ends, so it can jump there if it's cut short
+    Quaternion tripRotation;
+    bool tripToStage;
 
     void Awake()
     {
@@ -311,6 +379,8 @@ public class CadViewer : MonoBehaviour
         // Expand's ring of light on the desk, 155 mm from the base's centre toward the front right.
         expandButton = CadExpandButton.Create(transform, new Vector3(0.1096f, 0f, -0.1096f));
         expandButton.Pressed += ToggleExpand;
+        turn = new CadTurn(volume);
+        turnHandle = CadTurnHandle.Create(overlay, turn);
         if (apart == null && GetComponent<CadPartRaycaster>() == null) gameObject.AddComponent<CadPartRaycaster>();  // the ring's mouse
     }
 
@@ -325,6 +395,8 @@ public class CadViewer : MonoBehaviour
         if (session.Latest != null) OnModelChanged(session.Latest);  // spawned after the first version arrived
         OnViewChanged(session.View);
         OnInspectChanged();
+        if (pendingTurn != null && Time.realtimeSinceStartup - pendingTurnAt < PendingTurnSeconds) ApplyTurn(pendingTurn);
+        pendingTurn = null;
     }
 
     void Start()
@@ -340,6 +412,9 @@ public class CadViewer : MonoBehaviour
     {
         player?.Stop(instant: true);
         GoHome(animate: false);
+        // A trip cut short (the view folding mid-flight home): Unity stops its coroutine with the component, but the field
+        // would stay set and hold every later demo in its prep (player.hold) until it timed out. Land it now.
+        if (trip != null) EndTripNow();
         reveal?.Reset();
         annotations?.Hide();
         stageRing = 0f;
@@ -409,6 +484,7 @@ public class CadViewer : MonoBehaviour
         current = model;
         shown = info;
         bool samePart = previous != null && info.part == part;
+        if (part != null && info.part != part) turn.ResetStage();  // another design stands as the stage poses it; a new version keeps the turn
         bool animate = samePart && info.previousVersion.HasValue;  // glow and ghost compare versions of one design
         if (!samePart) fitted = stageFitted = false;
         part = info.part;
@@ -484,6 +560,7 @@ public class CadViewer : MonoBehaviour
             SetHeight(cpRing, Mathf.Lerp(cpFrom, cpTo, e));
         }
         exploder.Tick();
+        turn.Tick(dt, onStage);
         SyncCollars();
     }
 
@@ -669,6 +746,12 @@ public class CadViewer : MonoBehaviour
     void PoseStage()
     {
         if (stage == null) stage = new GameObject("CadStage").transform;
+        if (stagePivot == null)
+        {
+            stagePivot = new GameObject("CadStageTurn").transform;
+            stagePivot.SetParent(stage, false);
+            turn.BindStage(stagePivot);
+        }
         var cam = Camera.main;
         Transform head = cam != null ? cam.transform : transform;
         Vector3 toward = Vector3.ProjectOnPlane(transform.position - head.position, Vector3.up);
@@ -715,7 +798,9 @@ public class CadViewer : MonoBehaviour
         bool flat = b.size.y < 0.35f * footprint;
         var demo = Demo;
         float yaw = (demo != null && demo.kind == CadDemoPlayer.Spin ? 0f : stageYaw) + 180f;
-        stageTurn = Quaternion.Euler(stageTall ? 0f : flat ? stageFlatTilt : stageTilt, 0f, 0f) * Quaternion.Euler(0f, yaw, 0f);
+        float tilt = stageTall ? 0f : flat ? stageFlatTilt : stageTilt;
+        stageTurn = Quaternion.Euler(tilt, 0f, 0f) * Quaternion.Euler(0f, yaw, 0f);
+        turn.SetStageBase(trueSize ? 0f : tilt, yaw - 180f, trueSize);  // its own turn (cad_turn, the ring) goes on top, about its centre
         var size = TurnedSize(b.size, stageTurn);
         stageScale = Mathf.Min(stageSize.x / Mathf.Max(size.x, 1e-4f), stageSize.y / Mathf.Max(size.y, 1e-4f),
             stageSize.z / Mathf.Max(size.z, 1e-4f));
@@ -724,11 +809,11 @@ public class CadViewer : MonoBehaviour
         {
             // Real size, upright, its feet on the stage's origin (the floor), turned to show a corner.
             stageTurn = Quaternion.Euler(0f, yaw, 0f);
-            FlyTo(stage, -(stageTurn * new Vector3(b.center.x, b.min.y, b.center.z)), stageTurn, 1f, animate ? inspectSeconds : 0f);
+            FlyTo(stagePivot, -(stageTurn * new Vector3(b.center.x, b.min.y, b.center.z)), stageTurn, 1f, animate ? inspectSeconds : 0f);
             return;
         }
         float s = stageScale;
-        FlyTo(stage, -(stageTurn * b.center) * s, stageTurn, s, animate ? inspectSeconds : 0f);
+        FlyTo(stagePivot, -(stageTurn * b.center) * s, stageTurn, s, animate ? inspectSeconds : 0f);
     }
 
     bool StageOutgrown()
@@ -751,18 +836,33 @@ public class CadViewer : MonoBehaviour
         if (trip != null) StopCoroutine(trip);
         trip = null;
         holder.SetParent(parent, true);
-        bool toStage = parent == stage;
+        bool toStage = parent != null && parent == stagePivot;
+        tripPosition = position;
+        tripRotation = rotation;
+        tripScale = Vector3.one * scale;
+        tripToStage = toStage;
         if (seconds <= 0f || !isActiveAndEnabled)
         {
-            holder.localPosition = position;
-            holder.localRotation = rotation;
-            holder.localScale = Vector3.one * scale;
-            tripProgress = 1f;
-            if (toStage) ArriveOnStage();
+            EndTripNow();
             return;
         }
         tripProgress = 0f;
         trip = StartCoroutine(Trip(position, rotation, scale, toStage));
+    }
+
+    // Jump to where the trip ends (FlyTo's target) and clear it.
+    void EndTripNow()
+    {
+        if (trip != null) StopCoroutine(trip);
+        trip = null;
+        if (holder != null)
+        {
+            holder.localPosition = tripPosition;
+            holder.localRotation = tripRotation;
+            holder.localScale = tripScale;
+        }
+        tripProgress = 1f;
+        if (tripToStage) ArriveOnStage();
     }
 
     // Position and turn on a critically damped spring (omega 9) along an arc rising 0.14 m above the straight line;
@@ -799,6 +899,7 @@ public class CadViewer : MonoBehaviour
         stageRing = target >= stageRing ? target : Mathf.MoveTowards(stageRing, target, dt / 0.25f);
         if (stageRing <= 0.003f || stage == null)
         {
+            turnHandle.Place(Vector3.zero, 0f, false);
             if (scaleChip.Alpha > 0f)
             {
                 stageLines.Hide();
@@ -812,15 +913,19 @@ public class CadViewer : MonoBehaviour
         var size = TurnedSize(assembled.size, stageTurn) * s;
         Vector3 c = trueSize ? stage.position + Vector3.up * 0.004f : stage.position + Vector3.down * (size.y * (stageTall ? 0.5f : 0.34f) + 0.02f);
         float r = trueSize ? Mathf.Max(size.x, size.z) * 0.62f : Mathf.Clamp(Mathf.Max(size.x, size.z) * 0.46f, 0.13f, 0.26f);
+        // The ring is also the turn handle (a lazy Susan): there once the model has settled, brighter while pointed at or held.
+        turnHandle.Place(c, r, stageSettled && stageRing > 0.3f);
+        bool hot = turnHandle.Held || turnHandle.Hovered;
         stageLines.Begin(eye);
-        stageLines.Disc(c, Vector3.up, r * 1.12f, CadLook.Alpha(CadLook.Hue, 0.3f * stageRing));
-        stageLines.Circle(c, Vector3.up, r, CadLook.Line, CadLook.Alpha(Color.Lerp(Color.white, CadLook.Hue, 0.4f), 0.9f * stageRing), 72);
+        stageLines.Disc(c, Vector3.up, r * 1.12f, CadLook.Alpha(CadLook.Hue, (hot ? 0.5f : 0.3f) * stageRing));
+        stageLines.Circle(c, Vector3.up, r, CadLook.Line, CadLook.Alpha(Color.Lerp(Color.white, CadLook.Hue, hot ? 0.15f : 0.4f), (hot ? 1f : 0.9f) * stageRing), 72);
         stageLines.End();
         float shownScale = Mathf.Round(holder.lossyScale.x * 10f) / 10f;
-        if (shownScale != scaleShown)
+        if (shownScale != scaleShown || hot != turnChipShown)
         {
             scaleShown = shownScale;
-            scaleChip.SetText(trueSize ? "Real size, 1 : 1" : shownScale.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "× real size");
+            turnChipShown = hot;
+            scaleChip.SetText(hot ? "Drag the ring to turn it" : trueSize ? "Real size, 1 : 1" : shownScale.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "× real size");
         }
         scaleChip.SetAnchor(1);
         scaleChip.MoveTo(c + stage.right * (r * 0.94f) - stage.forward * (r * 0.34f), eye, dt);

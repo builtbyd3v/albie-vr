@@ -306,6 +306,7 @@ public class Workspace : MonoBehaviour
     public void Reanchor()
     {
         if (ActiveMode == null) return;
+        ShowClosedItems();
         Transform old = freeFrame, target = presence.Frame;
         if (!presence.AtDesk)
         {
@@ -372,6 +373,62 @@ public class Workspace : MonoBehaviour
         foreach (var o in openItems)
             if (o.go == go) return true;
         return false;
+    }
+
+    /// <summary>
+    /// The user closed one of the open mode's panels (its X, a throw): it fades and is hidden, and the rest of the mode stays.
+    /// When none of the mode's panels is left showing, the mode closes (its models fold away with it). Bring here (<see cref="Reanchor"/>) or opening the mode
+    /// again shows it. False if <paramref name="go"/> isn't an open item.
+    /// </summary>
+    public bool CloseItem(GameObject go)
+    {
+        OpenItem item = null;
+        foreach (var o in openItems)
+            if (o.go == go) item = o;
+        if (item == null) return false;
+        if (item.handles != null) item.handles.Cancel();
+        bool anyLeft = false;
+        foreach (var o in openItems)
+            if (o != item && o.panel != null && o.go != null && o.go.activeSelf) anyLeft = true;  // the mode's models go with its last panel
+        if (!anyLeft)
+        {
+            Close();
+            return true;
+        }
+        if (!go.activeSelf) return true;
+        StopMotion(item);
+        CanvasGroup group = Group(item);
+        Transform t = go.transform;
+        Vector3 s0 = t.localScale;
+        float a0 = group != null ? group.alpha : 1f;
+        if (group != null) group.blocksRaycasts = false;
+        SetBusy(item, true);
+        item.motion = StartCoroutine(ForgeTween.Run(0.18f, 0f, k =>
+        {
+            if (t == null) return;
+            t.localScale = s0 * Mathf.Lerp(1f, 0.92f, ForgeTween.EaseInCubic(k));
+            if (group != null) group.alpha = a0 * (1f - Mathf.SmoothStep(0f, 1f, k));
+        }, () =>
+        {
+            item.motion = null;
+            if (t == null) return;
+            t.localScale = s0;
+            if (group != null)
+            {
+                group.alpha = a0;
+                group.blocksRaycasts = true;
+            }
+            SetBusy(item, false);
+            go.SetActive(false);
+        }));
+        return true;
+    }
+
+    /// <summary>Panels of the open mode the user closed one by one (<see cref="CloseItem"/>) are shown again.</summary>
+    public void ShowClosedItems()
+    {
+        foreach (var o in openItems)
+            if (o.go != null && !o.go.activeSelf && (o.panel == null || !o.panel.IsMinimised)) o.go.SetActive(true);
     }
 
     /// <summary>Switch between the curved arc and the flat row. Re-lays out the open mode (keeps panel sizes).</summary>

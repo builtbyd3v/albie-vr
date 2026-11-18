@@ -72,6 +72,7 @@ namespace Forge.OS
             noticeAt.Clear();
             lastFetch = -1000f;
             fetching = built = parsedOnce = false;
+            Registered = false;
         }
 
         static bool parsedOnce;
@@ -119,9 +120,17 @@ namespace Forge.OS
         {
             OSRegistry.UnregisterSource(Fill);
             OSRegistry.RegisterSource(OSTab.Projects, Fill);
+            Registered = true;
         }
 
-        public static void Unregister() => OSRegistry.UnregisterSource(Fill);
+        public static void Unregister()
+        {
+            OSRegistry.UnregisterSource(Fill);
+            Registered = false;
+        }
+
+        /// <summary>True while the section is on the tab (<see cref="OSProjects.Register"/> then puts it back after itself, so it stays last).</summary>
+        public static bool Registered { get; private set; }
 
         /// <summary>Whether the hub or Albie's cloud can run ML for real right now.</summary>
         static bool Live => ForgeCloud.Serves("/ml/");

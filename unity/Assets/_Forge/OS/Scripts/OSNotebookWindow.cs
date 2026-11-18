@@ -133,12 +133,15 @@ namespace Forge.OS
         {
             if (!fitPending || column == null) return;
             fitPending = false;
-            var host = column.parent as RectTransform;
-            if (host == null) return;
-            LayoutRebuilder.ForceRebuildLayoutImmediate(column);
-            if (LayoutUtility.GetPreferredHeight(column) <= host.rect.height - 6f || level >= AttemptCaps.Length - 1) return;
-            level++;
-            Rebuild();
+            float wanted = OSProjectLayout.PreferredUnits(column);
+            if (wanted > OSProjectLayout.BodyUnitsFor(panel, WindowSize.y) - 6f && level < AttemptCaps.Length - 1)
+            {
+                level++;
+                Rebuild();
+                return;
+            }
+            // It fits: the window is as tall as the page (no empty band under a short notebook), never taller than its size.
+            OSProjectLayout.FitWindowHeight(panel, wanted, 0.4f, WindowSize.y);
         }
 
         // ---------------------------------------------------------------- building
@@ -214,15 +217,20 @@ namespace Forge.OS
 
             // The newest attempt with no outcome yet comes first, with the two buttons that settle it.
             JObject waiting = NotebookStore.NewestOpen();
+            // A postmortem (the note a new plan leaves) is not something to judge: only an attempt or a training asks for a verdict.
+            if (waiting != null && (string)waiting["kind"] == "postmortem") waiting = null;
             if (waiting != null)
             {
-                Line(section, "Waiting for your verdict", SmallSize, true);
-                Line(section, Clip((string)waiting["change"], 110), BodySize, false);
-                Line(section, Describe(waiting), SmallSize, true);
+                // The one thing here that asks for the person: on a card of its own, so it reads first.
+                RectTransform box = OSUi.Card(section, ForgeTheme.Space4, ForgeTheme.Space2);
+                OSUi.Tag(box, "Waiting for your verdict");
+                Line(box, Clip((string)waiting["change"], 110), BodySize, false);
+                Line(box, Describe(waiting), SmallSize, true);
                 string waitingId = (string)waiting["id"];
-                RectTransform buttons = OSUi.Row(section, 48f, 16f);
-                OSUi.Button(buttons, "Mark worked", () => MarkNewest(waitingId, "worked"), OSButtonStyle.Primary);
-                OSUi.Button(buttons, "Mark failed", () => MarkNewest(waitingId, "failed"), OSButtonStyle.Secondary);
+                RectTransform buttons = OSUi.Row(box, 48f, 16f);
+                OSUi.Rigid(buttons);  // the stock buttons ask for spare height: the row would push the next section to the bottom
+                OSUi.Rigid(OSUi.Button(buttons, "Mark worked", () => MarkNewest(waitingId, "worked"), OSButtonStyle.Primary));
+                OSUi.Rigid(OSUi.Button(buttons, "Mark failed", () => MarkNewest(waitingId, "failed"), OSButtonStyle.Secondary));
             }
 
             int shown = 0;

@@ -11,7 +11,7 @@ namespace Forge.OS
     /// <summary>
     /// The window manager. A window is a free ForgePanel at the scene root (never under the desk frame, so it doesn't
     /// fold when the user leaves the desk) with a PanelManipulator, so the move, turn and resize handles and the hand
-    /// gestures reach it, and a close button in its header. Opening an id that is already open brings that window forward
+    /// gestures reach it, and the panel's own Close (X) and Minimise in its header (<see cref="PanelChrome"/>). Opening an id that is already open brings that window forward
     /// instead of making another. <see cref="Adopt"/> tracks something that already exists (the gesture display, an
     /// artifact's panels, the open Workspace mode as one group), so <see cref="BringHere"/> and <see cref="CloseAll"/>
     /// reach it too.
@@ -36,7 +36,6 @@ namespace Forge.OS
         const int MaxAttempts = 40;
         const float OuterRingCost = 15f;  // degrees: a place on the further ring counts as this much further from straight ahead
         const float FallbackWidth = 0.5f, FallbackHeight = 0.4f;
-        const float CloseMargin = 14f;  // mm from the panel's right edge
 
         readonly List<OSWindow> windows = new List<OSWindow>();
         readonly Dictionary<string, OSWindow> byId = new Dictionary<string, OSWindow>(StringComparer.Ordinal);
@@ -55,6 +54,7 @@ namespace Forge.OS
 
         void OnEnable()
         {
+            ForgePanel.CloseRouter = RouteClose;
             var shell = GetComponent<OSShell>();
             workspace = shell != null && shell.workspace != null ? shell.workspace : Workspace.Current;
             if (workspace == null) return;
@@ -65,6 +65,7 @@ namespace Forge.OS
 
         void OnDisable()
         {
+            if (ForgePanel.CloseRouter == (Func<ForgePanel, bool>)RouteClose) ForgePanel.CloseRouter = null;
             if (workspace != null) workspace.modeChanged.RemoveListener(OnModeChanged);
         }
 
@@ -186,7 +187,7 @@ namespace Forge.OS
             var window = panel.gameObject.AddComponent<OSWindow>();
             window.Init(this, id, title, panel, null, false, true, null);
             Track(window);
-            AddCloseButton(window);
+            PanelChrome.Of(panel);  // the panel's own Close (X) and Minimise: ForgePanel.RequestClose comes back here (RouteClose)
             PlaceNew(window);
 
             try
@@ -336,65 +337,15 @@ namespace Forge.OS
 
         // ---------------------------------------------------------------- the header's close button
 
-        // A UI Set icon button at the right end of the header, in OS units (the host is scaled to them), 48 units (31 mm).
-        // The panel's own Face me and Straight pills move left to make room.
-        void AddCloseButton(OSWindow window)
+        // Every panel has its own Close (X) now (PanelChrome). Pressed on a window this manager tracks, it closes the window the
+        // OS way: an opened one goes, an adopted one runs its close action (an artifact's panel closes the artifact).
+        static bool RouteClose(ForgePanel panel)
         {
-            ForgePanel panel = window.Panel;
-            OSKit kit = OSKit.Current;
-            if (panel == null || kit == null) return;
-
-            const float units = 48f;
-            float scale = kit.unitMeters / ForgePanel.MetersPerUnit;  // OS units to the panel's millimetres
-            var host = new GameObject("OSClose", typeof(RectTransform));
-            var rect = (RectTransform)host.transform;
-            rect.SetParent(panel.transform, false);
-            rect.anchorMin = rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 0.5f);
-            rect.sizeDelta = new Vector2(units, units);
-            rect.localScale = Vector3.one * scale;
-            rect.anchoredPosition = new Vector2(-CloseMargin, -ForgeTheme.PanelHeader * 0.5f);
-            OSBody.EnsureCanvas(panel.GetComponent<Canvas>());
-            UIThemeManager manager = null;
-            if (kit.theme != null)
-            {
-                manager = host.AddComponent<UIThemeManager>();
-                OSBody.SetThemes(manager, kit.theme);
-            }
-
-            Button button = OSUi.Button(host.transform, null, window.Close, OSButtonStyle.Borderless, "close");
-            if (button == null)
-            {
-                Destroy(host);
-                return;
-            }
-            var buttonRect = (RectTransform)button.transform;
-            buttonRect.anchorMin = buttonRect.anchorMax = buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            buttonRect.anchoredPosition = Vector2.zero;
-            OSUi.Size(buttonRect, units, units);
-            var layout = button.GetComponent<LayoutElement>();
-            if (layout != null) layout.ignoreLayout = true;
-            if (manager != null) manager.ApplyCurrentTheme();
-
-            // Make room: the pills sit at the right end of the header and fade in when the panel is pointed at.
-            float shift = units * scale + 10f;
-            Transform controls = panel.transform.Find("Manipulation");
-            if (controls != null)
-            {
-                foreach (string pill in new[] { "Face me", "Straight" })
-                {
-                    var t = controls.Find(pill) as RectTransform;
-                    if (t != null) t.anchoredPosition += new Vector2(-shift, 0f);
-                }
-            }
-            // The title keeps clear of the button as well.
-            foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true))
-            {
-                if (text.name != "Title") continue;
-                var title = text.rectTransform;
-                title.offsetMax = new Vector2(title.offsetMax.x - shift, title.offsetMax.y);
-                break;
-            }
+            if (panel == null) return false;
+            var window = panel.GetComponent<OSWindow>();
+            if (window == null || window.IsGroup) return false;
+            window.Close();
+            return true;
         }
 
         // ---------------------------------------------------------------- open and close motion
@@ -696,6 +647,9 @@ namespace Forge.OS
                             float cost = Mathf.Sqrt(yawOffset * yawOffset + mine.pitch * mine.pitch) + penalty;
                             if (cost >= best || !IsClear(mine, others)) continue;
                             if (room && !fitting && InWall(candidate, width, height)) continue;
+                            // The room's walls and furniture must not stand between the eyes and any part of the window
+                            // (the look set showed a sofa poking through the Notebook and a wall cutting the gallery in half).
+                            if (!fitting && Blocked(candidate, width, height, eye)) continue;
                             best = cost;
                             bestId = id;
                             bestCenter = candidate;
@@ -877,6 +831,38 @@ namespace Forge.OS
         {
             Vector3 local = arc.InverseTransformPoint(center);
             return RoomFit.InWall(local, Quaternion.LookRotation(local, Vector3.up), new Vector3(width, height, 0f), false);
+        }
+
+        // Whether a wall or a piece of furniture of the scanned room (MRUK's scene anchors, not the floor or ceiling) stands
+        // between the eyes and any of 9 points across a window centred at `center` facing the eyes. Only asked of a place that
+        // would otherwise win, so a few dozen raycasts per window opened. False when there is no room.
+        static readonly LabelFilterHolder solids = new LabelFilterHolder();
+        static bool Blocked(Vector3 center, float width, float height, Vector3 eye)
+        {
+            var mruk = Meta.XR.MRUtilityKit.MRUK.Instance;
+            Meta.XR.MRUtilityKit.MRUKRoom roomNow = mruk != null ? mruk.GetCurrentRoom() : null;
+            if (roomNow == null) return false;
+            Vector3 toward = center - eye;
+            if (toward.sqrMagnitude < 1e-4f) return false;
+            Quaternion facing = Quaternion.LookRotation(toward, Vector3.up);
+            Vector3 right = facing * Vector3.right * (width * 0.5f * 0.96f), up = facing * Vector3.up * (height * 0.5f * 0.96f);
+            for (int ix = -1; ix <= 1; ix++)
+            for (int iy = -1; iy <= 1; iy++)
+            {
+                Vector3 target = center + right * ix + up * iy;
+                Vector3 ray = target - eye;
+                float length = ray.magnitude;
+                if (length < 0.05f) continue;
+                if (roomNow.Raycast(new Ray(eye, ray / length), length, solids.Filter, out RaycastHit _, out Meta.XR.MRUtilityKit.MRUKAnchor _)) return true;
+            }
+            return false;
+        }
+
+        sealed class LabelFilterHolder
+        {
+            public readonly Meta.XR.MRUtilityKit.LabelFilter Filter = Meta.XR.MRUtilityKit.LabelFilter.Excluded(
+                Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.FLOOR | Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.CEILING |
+                Meta.XR.MRUtilityKit.MRUKAnchor.SceneLabels.GLOBAL_MESH);
         }
 
         // True if the walls moved the place.

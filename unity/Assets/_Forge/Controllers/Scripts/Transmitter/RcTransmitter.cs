@@ -20,6 +20,13 @@ namespace Forge.Controllers
     /// left it: settled onto a table or desk just under it, or floating; the sticks centre, so the truck coasts to a stop and
     /// the drone hovers. The Interaction SDK's hand grab and ray are used where the rig has them (<see cref="TransmitterIsdk"/>).
     ///
+    /// Docked (the default, <see cref="Docked"/>): it waits on a fixed spot instead of in the hands, on the table in front of
+    /// you or floating at lap height about 40 cm ahead, and doesn't move with hand jitter. Rest a thumb or an index finger
+    /// on each stick: the nearest tip within a generous zone takes it, centred where it touched, and its movement across the
+    /// face from there is the stick (dead zone, smoothing, the cap tilts to show it); lift the finger and the stick centres.
+    /// Pinch the body (away from the sticks and buttons) and move to put the dock somewhere else. Close a hand round it and
+    /// lift to hold it (handheld); let go and it goes back to its dock. The Drive window's switch turns docking off.
+    ///
     /// Mouse (<see cref="TransmitterRaycaster"/>): click the body to take it in front of the camera (click again to put it
     /// down), drag a stick cap, click a button or the mode switch.
     ///
@@ -67,8 +74,15 @@ namespace Forge.Controllers
         public static bool TiltFallback = true;
         /// <summary>The drone's easy steering (headless: forward is away from you). The Drive window's switch and the transmitter's share it.</summary>
         public static bool EasySteering = true;
-        /// <summary>The truck at full throttle; off holds the hand speed the brain trains at (as the W key and the Drive pad do).</summary>
+        /// <summary>The truck at full throttle; off holds the training speed the brain trains at (<see cref="DriveAids.TrainingSpeed"/>).</summary>
         public static bool FullSpeed;
+        /// <summary>Docked: it waits on a fixed spot and the fingertips work the sticks (see the class notes). On by default.</summary>
+        public static bool Docked = true;
+
+        /// <summary>The dock: this far ahead of the head (m, level) and this far below it, tilted this much towards you when floating.</summary>
+        public const float DockAhead = 0.40f, DockBelow = 0.42f, DockTiltDegrees = 30f;
+        /// <summary>A table top this far below the head (m) or less, and no nearer than <see cref="DockTableMinBelow"/>, takes the dock.</summary>
+        public const float DockTableMaxBelow = 0.9f, DockTableMinBelow = 0.2f;
 
         static readonly int StickX = ManualInputs.IndexOf("stick.x"), StickY = ManualInputs.IndexOf("stick.y"),
                             Stick2X = ManualInputs.IndexOf("stick2.x"), Stick2Y = ManualInputs.IndexOf("stick2.y");
@@ -80,6 +94,7 @@ namespace Forge.Controllers
             TiltFallback = true;
             EasySteering = true;
             FullSpeed = false;
+            Docked = true;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -190,6 +205,21 @@ namespace Forge.Controllers
             Transform head = cam.transform;
             string where;
             Vector3 at;
+            if (Docked)
+            {
+                DockPose(head, out at, out Quaternion dockRot, out where);
+                if (!wasShown)
+                {
+                    transform.SetPositionAndRotation(at, dockRot);
+                    measurePos = at;
+                    measureRot = dockRot;
+                    appear = 0f;
+                    model.transform.localScale = Vector3.one * 0.01f;
+                }
+                else StartGlide(at, dockRot);
+                Debug.Log("[Transmitter] docked " + where);
+                return where;
+            }
             if (PalmsBetween(out Vector3 between))
             {
                 at = between + Vector3.up * 0.03f;
@@ -228,6 +258,7 @@ namespace Forge.Controllers
             if (model != null) model.SetActive(false);
             HandsTransmitter.TransmitterInUse = false;
             StopFreeDrive();
+            DriveAids.EndCruise();
             Debug.Log("[Transmitter] hidden");
         }
 
@@ -243,8 +274,102 @@ namespace Forge.Controllers
                 if (locks[s].Locked) { locks[s].Locked = false; locks[s].LastX = locks[s].LastY = 0f; }
             }
             mouseStick = -1;
+            DriveAids.EndCruise();
             ZeroWritten();
             PlaceSticks();
+        }
+
+        // ---- The dock -------------------------------------------------------------------------------------------------
+
+        bool dockSet;
+        Vector3 dockPos;
+        Quaternion dockRot = Quaternion.identity;
+
+        /// <summary>
+        /// Docks it (on) or lets it be held and put down anywhere (off). Docking lets go of it, centres the sticks and
+        /// sends it to its dock in front of you. Returns where it went, or null when it was only switched off.
+        /// </summary>
+        public string SetDocked(bool on)
+        {
+            Docked = on;
+            liftHand = -1;
+            if (dragHand >= 0) dragHand = -1;
+            if (!on) { labelKey = int.MinValue; return null; }
+            ReleaseAll();
+            mouseHeld = false;
+            CentreSticks();
+            HandsTransmitter.TransmitterInUse = false;
+            return shown ? Show() : null;
+        }
+
+        /// <summary>Forgets where the dock was moved to: the next show docks it in front of you again.</summary>
+        public void ResetDock() => dockSet = false;
+
+        // Where it docks: where it was last put (a pinch-drag) if that is still near you, else on the table in front of you
+        // (a surface 20-90 cm under your head, about 40 cm ahead), else floating at lap height, tilted towards you.
+        void DockPose(Transform head, out Vector3 at, out Quaternion rot, out string where)
+        {
+            if (dockSet && (dockPos - head.position).sqrMagnitude < 1.2f * 1.2f)
+            {
+                at = dockPos; rot = dockRot; where = "where you docked it";
+                return;
+            }
+            Vector3 flat = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            if (flat.sqrMagnitude < 1e-4f) flat = Vector3.ProjectOnPlane(head.up, Vector3.up);
+            if (flat.sqrMagnitude < 1e-4f) flat = Vector3.forward;
+            flat.Normalize();
+            Vector3 ahead = head.position + flat * DockAhead;
+            if (FindSurface(ahead + Vector3.up * 0.05f, DockTableMaxBelow + 0.05f, out Vector3 top) && head.position.y - top.y >= DockTableMinBelow)
+            {
+                // On a desk course the table is the course: the dock hovers a little above it, at its near edge.
+                at = top + Vector3.up * (RestHeight + (OnDeskCourse ? 0.05f : 0f));
+                rot = Quaternion.LookRotation(flat, Vector3.up) * Quaternion.Euler(OnDeskCourse ? -DockTiltDegrees * 0.5f : 0f, 0f, 0f);
+                where = OnDeskCourse ? "docked just above the table in front of you" : "docked on the table in front of you";
+                return;
+            }
+            at = ahead + Vector3.down * DockBelow;
+            rot = Quaternion.LookRotation(flat, Vector3.up) * Quaternion.Euler(-DockTiltDegrees, 0f, 0f);
+            where = "docked in front of you at lap height";
+        }
+
+        bool OnDeskCourse => target == Target.Truck && brain != null && brain.CourseScale < 0.99f;
+
+        // A pinch-drag ended (or a docked one was let go): the dock is here; settled onto a surface just under it, and
+        // turned to face you.
+        void SetDockHere()
+        {
+            var cam = Camera.main;
+            Vector3 at = transform.position;
+            Vector3 flat = cam != null ? Vector3.ProjectOnPlane(at - cam.transform.position, Vector3.up) : Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            if (flat.sqrMagnitude < 1e-4f) flat = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            if (flat.sqrMagnitude < 1e-4f) flat = Vector3.forward;
+            flat.Normalize();
+            Quaternion rot;
+            if (FindSurface(at + Vector3.up * 0.02f, RestHeight + 0.10f, out Vector3 top))
+            {
+                at = top + Vector3.up * RestHeight;
+                rot = Quaternion.LookRotation(flat, Vector3.up);
+            }
+            else rot = Quaternion.LookRotation(flat, Vector3.up) * Quaternion.Euler(-DockTiltDegrees, 0f, 0f);
+            dockPos = at; dockRot = rot; dockSet = true;
+            StartGlide(at, rot);
+            Debug.Log("[Transmitter] dock moved");
+        }
+
+        // The nearest surface to lie on straight under a point, within depth (a table, the desk, the floor): hands and moving
+        // things have a rigidbody, so they are skipped, as are slopes.
+        bool FindSurface(Vector3 from, float depth, out Vector3 top)
+        {
+            top = default;
+            int n = Physics.RaycastNonAlloc(from, Vector3.down, restHits, depth, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            float best = float.PositiveInfinity;
+            for (int i = 0; i < n; i++)
+            {
+                var h = restHits[i];
+                if (h.collider == null || h.collider.attachedRigidbody != null || h.normal.y < 0.7f) continue;
+                if (h.distance < best) { best = h.distance; top = h.point; }
+            }
+            return !float.IsPositiveInfinity(best);
         }
 
         // Rotation with the face (local +y) towards the eye, a little flatter than straight at it, antenna away.
@@ -274,6 +399,13 @@ namespace Forge.Controllers
         {
             HandsTransmitter.TransmitterInUse = false;
             HoverOnLetGo();
+            // Docked: back to its dock (it was lifted off it to be held).
+            if (Docked)
+            {
+                var cam = Camera.main;
+                if (cam != null) { DockPose(cam.transform, out Vector3 at, out Quaternion rot, out _); StartGlide(at, rot); }
+                return;
+            }
             if (FindRest(out Vector3 rest, out Quaternion flat)) StartGlide(rest, flat);
         }
 
@@ -328,7 +460,8 @@ namespace Forge.Controllers
         // The drone, landed: pushing the climb stick (left) up for a moment takes off, as A does.
         void StickTakeOff(float dt)
         {
-            var drone = target == Target.Drone && HeldMask() != 0 ? ArtifactDrone.Live : null;
+            bool inHand = HeldMask() != 0 || (Docked && owner[0] >= 0);
+            var drone = target == Target.Drone && inHand ? ArtifactDrone.Live : null;
             if (drone == null || drone.Body.State != DroneBody.Phase.Landed || stick[0].y < 0.8f)
             {
                 stickUpFor = 0f;
@@ -483,7 +616,18 @@ namespace Forge.Controllers
                 gliding = false;
                 measurePos = p;
                 measureRot = r;
-                transform.SetPositionAndRotation(Vector3.Lerp(transform.position, p, k), Quaternion.Slerp(transform.rotation, r, k));
+                // Drawn steadier than it is measured: the sticks are read in each hand's own frame (LocalToHand).
+                float kh = 1f - Mathf.Exp(-dt / HeldPoseSmoothing);
+                transform.SetPositionAndRotation(Vector3.Lerp(transform.position, p, kh), Quaternion.Slerp(transform.rotation, r, kh));
+                return;
+            }
+            if (dragHand >= 0)
+            {
+                // A pinch moving the dock: it follows the pinch, keeping its turn.
+                gliding = false;
+                transform.position = Vector3.Lerp(transform.position, dragTo, k);
+                measurePos = transform.position;
+                measureRot = transform.rotation;
                 return;
             }
             FollowFree(dt, k);
@@ -543,8 +687,22 @@ namespace Forge.Controllers
             return ThingHosts.Find("truck") != null ? Target.OtherTruck : Target.None;
         }
 
-        // The brain truck holds a hand's speed unless the switch says full (OSDriveWindow.HandThrottle, the same number).
-        float TruckThrottle => target == Target.Truck && !FullSpeed ? SlalomBrain.KeySpeed * MockTruckSim.Drag / MockTruckSim.MaxAccel : 1f;
+        // The brain truck holds the training speed unless the switch says full: the throttle that holds it on the truck's
+        // own design and scale (DriveAids.TrainingSpeed), the stock tuning's number while there is no body.
+        float TruckThrottle => target == Target.Truck && !FullSpeed
+            ? (brain != null && brain.Body != null ? brain.Body.ThrottleFor(DriveAids.TrainingSpeed) : DriveAids.TrainingSpeed * MockTruckSim.Drag / MockTruckSim.MaxAccel)
+            : 1f;
+
+        // The steady throttle ends when the truck's lap ends, the Autopilot or training takes over, or it is reset.
+        SlalomBrain.Mode lastBrainMode;
+
+        void CruiseGuard()
+        {
+            if (brain == null) { DriveAids.EndCruise(); return; }
+            var mode = brain.State;
+            if (mode != lastBrainMode || mode == SlalomBrain.Mode.Autopilot || mode == SlalomBrain.Mode.Training || brain.Hidden) DriveAids.EndCruise();
+            lastBrainMode = mode;
+        }
 
         void WriteChannels()
         {
@@ -559,6 +717,12 @@ namespace Forge.Controllers
                     if (stick[0] != Vector2.zero || stick[1] != Vector2.zero) flownByHand = true;
                     break;
                 case Target.Truck:
+                    // The brain truck, with the driving aids: the training speed cap, the steady throttle, the soft
+                    // steering (DriveAids). truck_manual: stick.y is the throttle, stick.x steers (+ right).
+                    CruiseGuard();
+                    Put(StickY, DriveAids.Throttle(stick[0].y, TruckThrottle, FullSpeed));
+                    Put(StickX, FullSpeed ? stick[1].x : DriveAids.Steer(stick[1].x));
+                    break;
                 case Target.OtherTruck:
                     // truck_manual: stick.y is the throttle (left stick), stick.x steers (right stick, + right).
                     Put(StickY, stick[0].y * TruckThrottle);

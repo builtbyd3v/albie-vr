@@ -19,6 +19,27 @@ namespace Forge.Controllers
         public const float LostGraceSeconds = 0.5f;
         /// <summary>Time constant of the transmitter following the hands (s): smooths tracking jitter.</summary>
         public const float PoseSmoothing = 0.025f;
+        /// <summary>While held, the drawn pose follows the hands this slowly (s): steadier, and the sticks are read in each
+        /// hand's own frame (unsmoothed), so the smoothing never reads as a thumb moving.</summary>
+        public const float HeldPoseSmoothing = 0.07f;
+        /// <summary>A hand holding it that loses tracking keeps holding (frozen where it was) this long (s).</summary>
+        public const float HeldLostGraceSeconds = 0.8f;
+
+        // ---- Docked (the default): it waits on a fixed spot and the fingertips work the sticks -------------------------
+
+        /// <summary>A thumb or index tip takes a docked stick within this of the cap across the face (m), between
+        /// <see cref="DockEngageBelow"/> under and <see cref="DockEngageAbove"/> over the cap's top.</summary>
+        public const float DockCaptureRadius = 0.04f, DockEngageAbove = 0.03f, DockEngageBelow = 0.025f;
+        /// <summary>It lets go when the tip lifts this far above the cap's top, or slides this far from where it touched (m).</summary>
+        public const float DockReleaseHeight = 0.05f, DockReleaseRadius = 0.065f;
+        /// <summary>Tip travel from where it touched for a full stick (m), the dead zone (a fraction of it) and the expo.</summary>
+        public const float DockTravel = 0.02f, DockDeadzone = 0.15f, DockExpo = 0.25f;
+        /// <summary>A tip lost to tracking holds its stick this long (s), then the stick centres.</summary>
+        public const float DockLostGrace = 0.35f;
+        /// <summary>A hand that closes round the docked body and moves it this far (m) picks it up (handheld).</summary>
+        public const float LiftToHold = 0.07f;
+        /// <summary>A pinch on the body this far (m, across the face) from every stick and button drags the dock.</summary>
+        public const float DragClear = 0.022f;
         /// <summary>Button: the cap's radius, how far a fingertip goes in to press it, and where it lets go (m).</summary>
         public const float ButtonRadius = 0.011f, ButtonPressDepth = 0.003f, ButtonReleaseDepth = 0.0012f;
         /// <summary>A fingertip more than this under a cap's rest top (m) is ignored: it is behind the face, not pressing.</summary>
@@ -100,6 +121,9 @@ namespace Forge.Controllers
         public void SdkGrip(int hand, bool on)
         {
             if (hand < 0 || hand > 1) return;
+            // Docked, the SDK's grab doesn't pick it up (fingers resting on the sticks would): closing a hand round it and
+            // lifting it does (DockGestures).
+            if (on && Docked && !hands[hand].own) return;
             // Placing it needs that hand's joints: a grab from a hand this hasn't tracked yet waits for the joint grip.
             if (on && !hands[hand].tracked) return;
             hands[hand].sdk = on;
@@ -163,7 +187,9 @@ namespace Forge.Controllers
                     // Lost or untrusted for a moment (a thumb hidden behind the other hand): keep holding, frozen.
                     s.tracked = false;
                     s.lostFor += dt;
-                    if (s.own && s.lostFor > LostGraceSeconds) s.own = false;
+                    if (s.own && s.lostFor > HeldLostGraceSeconds) s.own = false;
+                    if (liftHand == h && s.lostFor > DockLostGrace) liftHand = -1;
+                    if (dragHand == h && s.lostFor > DockLostGrace) EndDockDrag();
                     continue;
                 }
                 s.tracked = true;
@@ -193,6 +219,9 @@ namespace Forge.Controllers
                 // A grip has to close near it from an open hand: a fist that wanders into it doesn't pick it up.
                 if (s.curl < GripOpen) s.armed = true;
                 if (s.pinch >= HandsTransmitter.PinchOpen) s.pinchArmed = true;
+                // Docked and nobody holds it: fingertips drive the sticks (Fingers); a pinch on the body drags the dock, and
+                // closing a hand round it and lifting picks it up.
+                if (Docked && !mouseHeld && HeldMask() == 0) { DockGestures(h, ref s, indexBend); continue; }
                 // The index has to close too: a pointing hand (three fingers curled, index out) pushing a stick isn't a grip.
                 if (s.armed && s.curl >= GripClose && indexBend >= GripIndexClose && BoxGap(s.palm) <= GripReach)
                 {
@@ -273,6 +302,77 @@ namespace Forge.Controllers
             if (before != 0 && mask == 0) PutDown();
         }
 
+        // ---- Docked gestures ------------------------------------------------------------------------------------------
+
+        int liftHand = -1, dragHand = -1;
+        Vector3 liftFrom, dragFromPinch, dragFromPos, dragTo;
+
+        /// <summary>True while a pinch on its body is moving the dock.</summary>
+        public bool DraggingDock => dragHand >= 0;
+
+        void DockGestures(int h, ref HandState s, float indexBend)
+        {
+            Vector3 pinchAt = (s.thumb + s.index) * 0.5f;
+            if (dragHand == h)
+            {
+                if (s.pinch < HandsTransmitter.PinchOpen) dragTo = dragFromPos + (pinchAt - dragFromPinch);
+                else EndDockDrag();
+                return;
+            }
+            if (liftHand == h)
+            {
+                if (!TransmitterMath.Gripping(true, s.curl, GripClose, GripOpen)) { liftHand = -1; return; }
+                if ((s.palm - liftFrom).sqrMagnitude < LiftToHold * LiftToHold) return;
+                // Lifted off the dock: held in that hand, as a grip in handheld mode (the seat and thumb lock follow).
+                liftHand = -1;
+                s.own = true; s.kind = GripKind.Palm; s.armed = false;
+                for (int st = 0; st < 2; st++) if (owner[st] == h) owner[st] = -1;
+                return;
+            }
+            bool driving = owner[0] == h || owner[1] == h;
+            if (dragHand < 0 && s.pinchArmed && s.pinch <= HandsTransmitter.PinchClosed && BoxGap(pinchAt) <= 0.015f && ClearOfControls(Local(pinchAt)))
+            {
+                dragHand = h;
+                dragFromPinch = pinchAt;
+                dragFromPos = dragTo = transform.position;
+                s.pinchArmed = false;
+                gliding = false;
+                return;
+            }
+            // A hand driving a stick isn't picking it up; one that closes round the body from open may be.
+            if (!driving && liftHand < 0 && s.armed && s.curl >= GripClose && indexBend >= GripIndexClose && BoxGap(s.palm) <= GripReach)
+            {
+                liftHand = h;
+                liftFrom = s.palm;
+                s.armed = false;
+            }
+        }
+
+        // A point (the transmitter's frame) away from both sticks and every button and the switch, across the face.
+        static bool ClearOfControls(Vector3 local)
+        {
+            for (int st = 0; st < 2; st++)
+            {
+                Vector2 p = StickPivot(st);
+                float dx = local.x - p.x, dz = local.z - p.y;
+                if (dx * dx + dz * dz < (DockCaptureRadius * 0.75f) * (DockCaptureRadius * 0.75f)) return false;
+            }
+            for (int c = 0; c < 3; c++)
+            {
+                Vector2 p = ControlAt(c);
+                float dx = local.x - p.x, dz = local.z - p.y;
+                if (dx * dx + dz * dz < DragClear * DragClear) return false;
+            }
+            return true;
+        }
+
+        void EndDockDrag()
+        {
+            if (dragHand < 0) return;
+            dragHand = -1;
+            SetDockHere();
+        }
+
         // Where the holding hands put it: each hand's own idea, averaged (two hands: halfway between).
         bool HandTarget(out Vector3 p, out Quaternion r)
         {
@@ -301,11 +401,102 @@ namespace Forge.Controllers
             return Mathf.Sqrt(x * x + y * y + z * z);
         }
 
+        // A holding hand's own idea of the transmitter's frame: a thumb is read against its own hand, so the other hand's
+        // tracking jitter (and the drawn pose's smoothing) never moves its stick.
+        Vector3 LocalToHand(int h, Vector3 world)
+        {
+            ref HandState s = ref hands[h];
+            if (!s.Held) return Local(world);
+            Quaternion r = s.rot * s.offRot;
+            return Quaternion.Inverse(r) * (world - (s.pos + s.rot * s.offPos));
+        }
+
+        // ---- Docked: the nearest fingertip on each stick ---------------------------------------------------------------
+
+        float lastDockTouch = -10f;
+
+        void DockedFingers()
+        {
+            bool anyBefore = owner[0] >= 0 || owner[1] >= 0;
+            for (int st = 0; st < 2; st++)
+            {
+                if (mouseStick == st) continue;
+                Vector2 pivot = StickPivot(st);
+                int o = owner[st];
+                if (o >= 0)
+                {
+                    ref HandState hs = ref hands[o];
+                    if (!hs.tracked)
+                    {
+                        // A tracking flicker holds the stick where it was; a long gap lets it spring home.
+                        if (hs.lostFor > DockLostGrace) { owner[st] = -1; continue; }
+                        raw[st] = stick[st];
+                        driven[st] = true;
+                        continue;
+                    }
+                    Vector3 local = Local(ownerThumb[st] ? hs.thumb : hs.index);
+                    float dx = local.x - pivot.x - anchor[st].x, dz = local.z - pivot.y - anchor[st].y;
+                    if (local.y - CapTopY > DockReleaseHeight || dx * dx + dz * dz > DockReleaseRadius * DockReleaseRadius)
+                    {
+                        owner[st] = -1;  // lifted or slid away: the stick springs home (StepSticks)
+                        continue;
+                    }
+                    TransmitterMath.ThumbStick(dx, dz, DockTravel, DockDeadzone, DockExpo, out float x, out float y);
+                    raw[st] = new Vector2(x, y);
+                    driven[st] = true;
+                    float m2 = x * x + y * y;
+                    if (!atEnd[st] && m2 >= 0.94f) { atEnd[st] = true; Seat(st); Click(true); }
+                    else if (atEnd[st] && m2 < 0.7f) atEnd[st] = false;
+                    continue;
+                }
+                // Free: the nearest thumb or index tip in the capture zone takes it, centred where it touched.
+                int bestHand = -1; bool bestThumb = false; float best = float.PositiveInfinity; Vector2 at = default;
+                for (int h = 0; h < 2; h++)
+                {
+                    ref HandState hs = ref hands[h];
+                    if (!hs.tracked || dragHand == h) continue;
+                    for (int f = 0; f < 2; f++)
+                    {
+                        bool thumb = f == 0;
+                        int other = owner[1 - st];
+                        if (other == h && ownerThumb[1 - st] == thumb) continue;  // that tip has the other stick
+                        Vector3 local = Local(thumb ? hs.thumb : hs.index);
+                        float dx = local.x - pivot.x, dz = local.z - pivot.y, height = local.y - CapTopY;
+                        float d2 = dx * dx + dz * dz;
+                        if (d2 > DockCaptureRadius * DockCaptureRadius || height > DockEngageAbove || height < -DockEngageBelow) continue;
+                        if (d2 >= best) continue;
+                        best = d2; bestHand = h; bestThumb = thumb; at = new Vector2(dx, dz);
+                    }
+                }
+                if (bestHand < 0) continue;
+                owner[st] = bestHand;
+                ownerThumb[st] = bestThumb;
+                anchor[st] = at;
+                atEnd[st] = false;
+                driven[st] = true;  // centred this frame
+                Seat(st);
+                Click(false);
+            }
+            bool anyNow = owner[0] >= 0 || owner[1] >= 0;
+            if (anyNow && !anyBefore)
+            {
+                // Fingers back on the sticks after a while: what to do next, as a pick-up would say it.
+                if (Time.unscaledTime - lastDockTouch > 3f) PickedUp();
+            }
+            if (anyNow) lastDockTouch = Time.unscaledTime;
+        }
+
         // ---- Fingertips: the sticks, then the buttons --------------------------------------------------------------------
 
         void Fingers(float now)
         {
             for (int st = 0; st < 2; st++) { driven[st] = false; raw[st] = Vector2.zero; }
+            if (Docked && HeldMask() == 0 && !mouseHeld)
+            {
+                DockedFingers();
+                for (int c = 0; c < 3; c++) Button(c);
+                return;
+            }
 
             for (int st = 0; st < 2; st++)
             {
@@ -315,7 +506,7 @@ namespace Forge.Controllers
                 if (lk.Seated && mouseStick != st)
                 {
                     ref HandState th = ref hands[st];
-                    Vector3 tl = th.tracked ? Local(th.thumb) : Vector3.zero;
+                    Vector3 tl = th.tracked ? LocalToHand(st, th.thumb) : Vector3.zero;
                     int happened = lk.Step(th.tracked, th.lostFor, tl.x, tl.y, tl.z, in Thumb, out float tx, out float ty);
                     if (happened == ThumbLock.LockedNow) { Seat(st); Click(false); }
                     if (lk.Locked)
@@ -410,6 +601,8 @@ namespace Forge.Controllers
                     bool thumb = f == 0;
                     // A thumb locked on its stick isn't pressing; one slid off it (onto the button) or lifted is free to.
                     if (thumb && locks[h].Locked) continue;
+                    // Nor is a tip working a stick (docked, or a free hand's index).
+                    if ((owner[0] == h && ownerThumb[0] == thumb) || (owner[1] == h && ownerThumb[1] == thumb)) continue;
                     Vector3 local = Local(thumb ? hs.thumb : hs.index);
                     float dx = local.x - at.x, dz = local.z - at.y;
                     float a = Mathf.Sqrt(dx * dx + dz * dz), depth = top - local.y;

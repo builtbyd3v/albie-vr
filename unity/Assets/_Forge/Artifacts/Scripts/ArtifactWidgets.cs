@@ -334,6 +334,8 @@ namespace Forge.Artifacts
             handleArea.offsetMax = new Vector2(-9f, handleArea.offsetMax.y);
             var knob = Surface(handleArea, "Knob", Color.white);
             knob.rectTransform.sizeDelta = new Vector2(18f, 0f);
+            knob.Glow = ForgeTheme.HoverGlow;  // design system: the thumb sits a little above the rail
+            fill.Glow = 0.3f;
 
             var slider = track.gameObject.AddComponent<Slider>();
             slider.transition = Selectable.Transition.None;
