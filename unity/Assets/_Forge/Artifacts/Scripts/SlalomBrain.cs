@@ -21,6 +21,8 @@ namespace Forge.Artifacts
     /// - by voice (<see cref="IBrainLoop"/>, the <c>brain_*</c> and <c>autopilot_*</c> tools), <see cref="Record"/>
     ///   chains it all: "drive it twice and I'll learn it" records 2 completed laps, trains, then runs the Autopilot.
     /// A run that touches a cone or a wall is aborted (the artifact only counts hits; the demo shouldn't keep a crash).
+    /// Between laps (<see cref="FreeDrive"/>) the truck drives around the course by hand, the way the drone flies free:
+    /// nothing is recorded or scored, and a touch stops it where it touched so it can back away.
     /// </summary>
     [DefaultExecutionOrder(-100)]  // the scripted driver's FixedUpdate writes the stick before ControllerThing reads it
     public sealed class SlalomBrain : MonoBehaviour, ICourseBrain
@@ -51,6 +53,14 @@ namespace Forge.Artifacts
         /// <see cref="KeysFromKeyboard"/>; a check sets them itself.</summary>
         public float KeyForward, KeyLeft;
         public bool KeysFromKeyboard = true;
+        /// <summary>
+        /// Free driving between laps (<see cref="Mode.Idle"/>, shown): the transmitter, the Drive pad, a Touch thumbstick
+        /// or the hands drive the truck through <c>truck_manual</c> with no lap recorded and no run armed, as the drone
+        /// flies whenever it is up. The keyboard is left to the desktop rig (WASD walks it) and drives laps only. A cone,
+        /// a wall or a desk course's table edge stops the truck where it touched; it can back away (or drive on, after
+        /// touching while reversing). Nothing ticks while it is at rest with no throttle. On by default.
+        /// </summary>
+        public bool FreeDrive = true;
         /// <summary>Checks only: <see cref="Record"/>'s laps are driven by the scripted driver, not by hand. No tool
         /// sets it, so "drive it yourself" by voice is always the person's own laps.</summary>
         public bool ScriptedLaps;
@@ -93,6 +103,8 @@ namespace Forge.Artifacts
         // What the keys, the thumbstick and the hands last wrote: each writes only when it changes (see Keys).
         float lastKeyForward, lastKeyLeft, lastHandThrottle, lastHandRoll;
         Vector2 lastStick;
+        // Free driving: the way the truck was going when it last touched something (+1 forward, -1 reversing, 0 clear).
+        int bumpSign;
 
         /// <summary>Makes the brain truck and binds it to <paramref name="host"/>'s runs.</summary>
         public static SlalomBrain Spawn(ArtifactHost host, bool keyHints = true)
@@ -127,7 +139,7 @@ namespace Forge.Artifacts
             brain.shell = go.GetComponentsInChildren<Renderer>();
             brain.Fit(host);
             brain.KeyHints = keyHints;
-            if (!keyHints) brain.Status = "brain truck at the start: ready for a lap driven by hand";
+            if (!keyHints) brain.Status = "brain truck at the start: drive it around, or record a lap to teach it";
             brain.PlaceAtStart();
             brain.Park();
             host.Shown += brain.OnHostShown;
@@ -346,13 +358,20 @@ namespace Forge.Artifacts
             Thing.BeginLap();
             // The lap's own inputs start at rest (EndLap clears them): a source writes once it moves, so an untouched
             // stick never zeroes the keys (or the transmitter) at the start.
-            lastKeyForward = lastKeyLeft = lastHandThrottle = lastHandRoll = 0f;
-            lastStick = Vector2.zero;
+            ForgetSources();
             State = Mode.Lap;
             Status = driver != null ? "scripted lap: recording"
                 : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)"
                 : "lap: pinch to drive, tilt your hand to steer (recording)";
             return null;
+        }
+
+        // Every input source starts at rest: each writes once it moves (see Keys).
+        void ForgetSources()
+        {
+            lastKeyForward = lastKeyLeft = lastHandThrottle = lastHandRoll = 0f;
+            lastStick = Vector2.zero;
+            bumpSign = 0;
         }
 
         void EndLap(string outcome)
@@ -361,6 +380,9 @@ namespace Forge.Artifacts
             State = Mode.Idle;
             script = null;
             ManualInputs.Clear();
+            // Free driving reads the sources next: what they last wrote is gone with the clear, so a stale "let go" from
+            // one source (a pinch the lap ended on) can't zero another's first write.
+            ForgetSources();
             Park();
             Status = $"lap {outcome} in {(lap != null ? lap.Seconds : 0f):0.0} s; {CompletedLaps} completed lap{(CompletedLaps == 1 ? "" : "s")}" +
                      Hint(CompletedLaps >= 2 ? " (T trains)" : " (L for another)");
@@ -613,8 +635,11 @@ namespace Forge.Artifacts
         {
             switch (State)
             {
+                case Mode.Idle:
+                    if (FreeDrive && !Hidden) Keys(false);
+                    break;
                 case Mode.Lap:
-                    if (script == null) Keys();
+                    if (script == null) Keys(true);
                     if (RunOver(out bool completed, out string how)) EndLap(LapOutcome(completed, how));
                     break;
                 case Mode.Training:
@@ -630,6 +655,39 @@ namespace Forge.Artifacts
         void FixedUpdate()
         {
             if (State == Mode.Lap && script != null) { Mirror(); script.Drive(view); }
+            else if (State == Mode.Idle && FreeDrive && !Hidden && !Thing.tickInFixedUpdate) FreeStep(Time.fixedDeltaTime);
+        }
+
+        // One free-driving physics step (FreeDrive): truck_manual drives the same body a lap does. A touch, or a desk
+        // course's table edge, puts the truck back where it was this step, stopped; touching going one way, it can still
+        // go the other way, out of what it touched. No allocations.
+        void FreeStep(float dt)
+        {
+            if (manual == null || Thing.Host == null) return;
+            float throttle = stickY >= 0 ? ManualInputs.Values[stickY] : 0f;
+            if (throttle == 0f && Mathf.Abs(Body.Speed) < 1e-3f) return;  // at rest: no sensing, no physics
+            if (Thing.Host.File?.Name != manual.Name)
+            {
+                // The Autopilot's controller stays attached after its run: the truck stays parked until a hand drives.
+                if (throttle == 0f) return;
+                Thing.Host.Attach(manual);
+            }
+            var t = transform;
+            Vector3 position = t.position;
+            Quaternion rotation = t.rotation;
+            float before = Body.Speed;
+            if (Body.Crashed) Body.Place(position, rotation);  // a lap that ended in a touch: free to drive off it
+            Thing.Tick(dt);
+            if (!Body.Crashed && !LeftTable()) { bumpSign = 0; return; }
+            int going = Mathf.Abs(before) > 1e-3f ? (before > 0f ? 1 : -1) : throttle > 0f ? 1 : throttle < 0f ? -1 : 0;
+            Body.Place(position, rotation);
+            if (bumpSign != 0 && going == -bumpSign)
+            {
+                // Backing out of (or driving forward off) what it touched: at the hand's speed, straight, until clear.
+                Body.Place(position + rotation * Vector3.forward * (going * KeySpeed * Body.Scale * dt), rotation);
+                return;
+            }
+            if (going != 0) bumpSign = going;
         }
 
         // The artifact decides completed or failed; a touch, or 30 s without a finish, stops the run here.
@@ -650,11 +708,12 @@ namespace Forge.Artifacts
             return false;
         }
 
-        void Keys()
+        // keyboard: WASD too (laps). Free driving leaves the keyboard to the desktop rig, which walks with WASD.
+        void Keys(bool keyboard)
         {
 #if ENABLE_INPUT_SYSTEM
             var k = Keyboard.current;
-            if (KeysFromKeyboard && k != null)
+            if (keyboard && KeysFromKeyboard && k != null)
             {
                 KeyForward = (k.wKey.isPressed ? 1f : 0f) - (k.sKey.isPressed ? 1f : 0f);
                 KeyLeft = (k.aKey.isPressed ? 1f : 0f) - (k.dKey.isPressed ? 1f : 0f);
