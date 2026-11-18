@@ -342,6 +342,8 @@ public class Workspace : MonoBehaviour
     {
         public Vector3 center;
         public Vector2 size;
+        /// <summary>True for a model on the table (its box), false for a panel.</summary>
+        public bool isVolume;
     }
 
     /// <summary>
@@ -363,7 +365,7 @@ public class Workspace : MonoBehaviour
                 size = new Vector2(box.x, box.y);
                 center += Vector3.up * (box.y * 0.5f);
             }
-            into.Add(new ItemSlot { center = center, size = size });
+            into.Add(new ItemSlot { center = center, size = size, isVolume = o.panel == null && o.volume != null });
         }
     }
 

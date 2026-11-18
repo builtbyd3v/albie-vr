@@ -171,10 +171,20 @@ public sealed class CadVerdictCard
         CadUi.Band(busyline.rectTransform, top + sentenceH + 6f, 16f, PadLeft, right);
 
         float stripWidth = Strip.Rect.rect.width > 1f ? Strip.Rect.rect.width : 444f;
-        float headlineW = CadUi.Width(stripHeadline, stripHeadline.text) + 2f;
-        headlineW = Mathf.Min(headlineW, stripWidth - 35f - 14f - BarW - 20f);
-        CadUi.Place(stripHeadline.rectTransform, 35f, 0f, headlineW, StripH);
-        CadUi.Band(stripDetail.rectTransform, 0f, StripH, 35f + headlineW + 10f, 14f + BarW + 10f);
+        float room = stripWidth - 35f - 14f - BarW - 10f;  // from the dot to the bar
+        float headlineW = Mathf.Min(CadUi.Width(stripHeadline, stripHeadline.text) + 2f, room - 10f);
+        float detailW = CadUi.Width(stripDetail, stripDetail.text) + 2f;
+        if (headlineW + 10f + detailW <= room)
+        {
+            CadUi.Place(stripHeadline.rectTransform, 35f, 0f, headlineW, StripH);
+            CadUi.Band(stripDetail.rectTransform, 0f, StripH, 35f + headlineW + 10f, 14f + BarW + 10f);
+        }
+        else
+        {
+            // No room for both on one line: the detail goes under the headline, so it never runs under the bar.
+            CadUi.Place(stripHeadline.rectTransform, 35f, 8f, headlineW, 22f);
+            CadUi.Band(stripDetail.rectTransform, 29f, 20f, 35f, 14f + BarW + 10f);
+        }
     }
 
     /// <summary>The line of light while building; the content dims to 42% (0.2 s).</summary>
