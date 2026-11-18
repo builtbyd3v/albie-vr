@@ -89,6 +89,171 @@ public static class ArtifactChecks
             UnityEngine.Object.DestroyImmediate(mesh);
         }
         ExplorationParts();
+        HandGrab();
+        HandGrabParts();
+    }
+
+    // ---- hands (HandGrabCore) with synthetic hands: no headset needed ------------------------------------------
+    sealed class FakeTarget : HandGrabCore.ITarget
+    {
+        public Vector3 Position { get; set; }
+        public float Scale { get; set; } = 1f;
+        public float Yaw { get; private set; }
+        public float Tilt { get; private set; }
+        public Bounds model = new Bounds(new Vector3(0f, 1.2f, 0.5f), Vector3.one * 0.2f);
+        public Transform part;
+        public HandGrabCore.Mode lastGrab;
+        public void SetView(float yaw, float tilt) { Yaw = yaw; Tilt = tilt; }
+        public bool Near(Vector3 world, float margin) { var b = model; b.Expand(margin * 2f); return b.Contains(world); }
+        public Transform PartAt(Vector3 world, float margin) =>
+            part != null && (world - part.position).magnitude < 0.03f + margin ? part : null;
+        public void Grabbed(HandGrabCore.Mode mode, Transform p) => lastGrab = mode;
+    }
+
+    // A hand whose pinch point is at <at>, pointing along <forward>, pinched or open.
+    static void Pose(HandSample s, Vector3 at, Vector3 forward, bool pinched)
+    {
+        forward.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, forward).normalized;
+        Vector3 wrist = at - forward * 0.12f;
+        s.tracked = true;
+        s.highConfidence = true;
+        for (int i = 0; i < HandJoint.Count; i++) s.joints[i] = wrist;
+        s.joints[HandJoint.Middle1] = wrist + forward * 0.09f;
+        s.joints[HandJoint.Index1] = wrist + forward * 0.09f + side * 0.02f;
+        s.joints[HandJoint.Pinky1] = wrist + forward * 0.08f - side * 0.03f;
+        float half = pinched ? 0.004f : 0.02f;
+        s.joints[HandJoint.ThumbTip] = at - side * half;
+        s.joints[HandJoint.IndexTip] = at + side * half;
+    }
+
+    static void Run(HandGrabCore core, FakeTarget t, HandSample l, HandSample r, int frames)
+    {
+        for (int i = 0; i < frames; i++) core.Step(l, r, 1f / 72f, t);
+    }
+
+    static void HandGrab()
+    {
+        var core = new HandGrabCore();
+        var t = new FakeTarget { Position = new Vector3(0f, 1.1f, 0.5f) };
+        var left = new HandSample { isLeft = true };
+        var right = new HandSample();
+        left.tracked = false;
+        Vector3 fwd = Vector3.forward;
+
+        // A pinch far from the model does nothing; an open hand near it shows the model can be picked up.
+        Pose(right, new Vector3(0.6f, 1.2f, 0.5f), fwd, true);
+        Run(core, t, left, right, 10);
+        Pose(right, new Vector3(0.6f, 1.2f, 0.5f), fwd, false);
+        Run(core, t, left, right, 10);
+        Check(core.Grab == HandGrabCore.Mode.None && t.Position == new Vector3(0f, 1.1f, 0.5f), "a pinch away from the model picks nothing up");
+        Pose(right, new Vector3(0.05f, 1.2f, 0.5f), fwd, false);
+        Run(core, t, left, right, 30);
+        Check(core.Hovering && core.Grab == HandGrabCore.Mode.None, "an open hand at the model offers to pick it up");
+
+        // Pinch on it and move the hand 20 cm right and 10 cm up: the model follows, settling smoothly.
+        Pose(right, new Vector3(0.05f, 1.2f, 0.5f), fwd, true);
+        Run(core, t, left, right, 2);
+        Check(core.Grab == HandGrabCore.Mode.One && core.Holder == 1, "pinching the model picks it up with that hand");
+        Pose(right, new Vector3(0.25f, 1.3f, 0.5f), fwd, true);
+        core.Step(left, right, 1f / 72f, t);
+        float firstStep = (t.Position - new Vector3(0f, 1.1f, 0.5f)).magnitude;
+        Run(core, t, left, right, 60);
+        Vector3 moved = t.Position - new Vector3(0f, 1.1f, 0.5f);
+        Check(firstStep > 0.01f && firstStep < 0.2f, $"the first frame moves part of the way, not a jump ({firstStep:0.000} m)");
+        Check((moved - new Vector3(0.2f, 0.1f, 0f)).magnitude < 0.005f, "after settling the model has moved with the hand: " + moved.ToString("F3"));
+
+        // Jitter: a still pinch shaking by 4 mm moves the model much less than that.
+        Vector3 before = t.Position;
+        float worst = 0f;
+        for (int i = 0; i < 72; i++)
+        {
+            Vector3 shake = new Vector3((i % 2 == 0 ? 1 : -1) * 0.004f, 0f, 0f);
+            Pose(right, new Vector3(0.25f, 1.3f, 0.5f) + shake, fwd, true);
+            core.Step(left, right, 1f / 72f, t);
+            worst = Mathf.Max(worst, (t.Position - before).magnitude);
+        }
+        Check(worst < 0.0025f, $"tracking jitter of 4 mm moves the held model at most {worst * 1000f:0.0} mm");
+
+        // Turning the wrist 30 degrees to the right spins it; pointing the hand up tilts it.
+        Pose(right, new Vector3(0.25f, 1.3f, 0.5f), Quaternion.Euler(0f, 30f, 0f) * fwd, true);
+        Run(core, t, left, right, 60);
+        Check(Mathf.Abs(t.Yaw - 30f * HandGrabCore.YawGain) < 1f, $"turning the wrist 30° turns the model {t.Yaw:0}°");
+        Pose(right, new Vector3(0.25f, 1.3f, 0.5f), fwd, true);
+        Run(core, t, left, right, 60);
+
+        // A brief tracking loss doesn't drop it; a long one does.
+        right.tracked = false;
+        Run(core, t, left, right, 9);  // 0.125 s
+        Check(core.Grab == HandGrabCore.Mode.One, "a blink of lost tracking keeps hold");
+        Pose(right, new Vector3(0.25f, 1.3f, 0.5f), fwd, true);
+        Run(core, t, left, right, 5);
+
+        // The other hand pinches near it: two hands. Pulling them apart doubles the size; turning them spins it.
+        // The right hand settles 10 cm right of the model's middle, then the left pinches 10 cm left of it.
+        Vector3 centre = new Vector3(0.15f, 1.2f, 0.5f);
+        Pose(right, centre + new Vector3(0.1f, 0f, 0f), fwd, true);
+        Run(core, t, left, right, 90);
+        Pose(left, centre + new Vector3(-0.1f, 0f, 0f), fwd, true);
+        Run(core, t, left, right, 3);
+        Check(core.Grab == HandGrabCore.Mode.Two, "pinching with the other hand too holds it with both");
+        float yawBefore = t.Yaw;
+        Pose(left, centre + new Vector3(-0.2f, 0f, 0f), fwd, true);
+        Pose(right, centre + new Vector3(0.2f, 0f, 0f), fwd, true);
+        Run(core, t, left, right, 90);
+        Check(Mathf.Abs(t.Scale - 2f) < 0.05f, $"pulling the hands twice as far apart makes it twice the size ({t.Scale:0.00})");
+        Pose(left, centre + Quaternion.Euler(0f, 45f, 0f) * new Vector3(-0.2f, 0f, 0f), fwd, true);
+        Pose(right, centre + Quaternion.Euler(0f, 45f, 0f) * new Vector3(0.2f, 0f, 0f), fwd, true);
+        Run(core, t, left, right, 90);
+        Check(Mathf.Abs(Mathf.DeltaAngle(yawBefore + 45f, t.Yaw)) < 2f, $"turning both hands 45° like a wheel spins it 45° ({t.Yaw - yawBefore:0}°)");
+        Pose(left, centre + new Vector3(-2f, 0f, 0f), fwd, true);
+        Pose(right, centre + new Vector3(2f, 0f, 0f), fwd, true);
+        Run(core, t, left, right, 90);
+        Check(t.Scale <= HandGrabCore.MaxScale + 1e-4f, "it can't be stretched past three times its size");
+
+        // Let go with one hand: the other keeps holding. Let go with both: it's put down where it is.
+        Pose(left, centre + new Vector3(-0.2f, 0f, 0f), fwd, false);
+        Run(core, t, left, right, 3);
+        Check(core.Grab == HandGrabCore.Mode.One && core.Holder == 1, "letting go with one hand leaves it in the other");
+        Pose(right, centre + new Vector3(0.2f, 0f, 0f), fwd, false);
+        Run(core, t, left, right, 3);
+        Vector3 down = t.Position;
+        Run(core, t, left, right, 30);
+        Check(core.Grab == HandGrabCore.Mode.None && t.Position == down, "letting go puts it down and it stays");
+    }
+
+    static void HandGrabParts()
+    {
+        var core = new HandGrabCore();
+        var holder = new GameObject("hand grab part check");
+        try
+        {
+            var part = new GameObject("Left ventricle.001").transform;
+            part.SetParent(holder.transform, false);
+            part.position = new Vector3(0.3f, 1.2f, 0.5f);
+            var t = new FakeTarget { part = part };
+            var left = new HandSample { isLeft = true };
+            var right = new HandSample();
+            left.tracked = false;
+            Pose(right, part.position, Vector3.forward, false);
+            Run(core, t, left, right, 30);
+            Check(core.HoverPart == part, "an open hand at a separated part offers that part");
+            Pose(right, part.position, Vector3.forward, true);
+            Run(core, t, left, right, 2);
+            Check(core.Grab == HandGrabCore.Mode.Part && core.HeldPart == part && t.lastGrab == HandGrabCore.Mode.Part, "pinching a part takes just that part");
+            Pose(right, part.position + new Vector3(0f, 0.15f, -0.1f), Quaternion.Euler(0f, 90f, 0f) * Vector3.forward, true);
+            Run(core, t, left, right, 90);
+            Check((part.position - new Vector3(0.3f, 1.35f, 0.4f)).magnitude < 0.01f, "the part goes where the hand takes it: " + part.position.ToString("F3"));
+            Check(Quaternion.Angle(part.rotation, Quaternion.Euler(0f, 90f, 0f)) < 3f, "and turns with the hand");
+            Check(ArtifactExplorer.NameOf(part) == "Left ventricle", "its name shows without Blender's .001");
+            Pose(right, part.position, Quaternion.Euler(0f, 90f, 0f) * Vector3.forward, false);
+            Run(core, t, left, right, 3);
+            Check(core.Grab == HandGrabCore.Mode.None, "opening the pinch puts the part down");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(holder);
+        }
     }
 
     // Two parts: a big shell with an authored "explode" marker, and a small inner part with none.

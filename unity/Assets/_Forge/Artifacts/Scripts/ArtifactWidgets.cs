@@ -67,7 +67,7 @@ namespace Forge.Artifacts
             // Resolve at press time: glTF loads asynchronously, after the panel has been built.
             if (build.Assets.Count > 0)
             {
-                y += Note(panel.Content, y, "Explore the model: cut it open, separate its parts (each one is named), or see through the outer layers.") + Gap;
+                y += Note(panel.Content, y, "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
                 // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
                 var hiddenLabels = new List<GameObject>();
                 Action<bool> sceneLabels = apart =>
@@ -105,7 +105,12 @@ namespace Forge.Artifacts
                 Pill(panel.Content, y, x, "X-ray", () => inspect(e => e.ToggleXRay()));
                 y += PillRow + Gap;
                 x = Pill(panel.Content, y, 0f, "Separate / Assemble", () => inspect(e => e.Separate())) + 10f;
-                Pill(panel.Content, y, x, "Reset view", () => inspect(e => e.ResetView()));
+                Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                {
+                    e.ResetView();
+                    var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
+                    if (hands != null) hands.ResetPose();
+                }));
                 y += PillRow + Gap;
             }
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;

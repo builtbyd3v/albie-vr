@@ -35,12 +35,16 @@ namespace Forge.Artifacts
             public int column;                     // the column it goes in this frame
             public float across, height, slot;     // layout scratch, metres
             public float width;                    // the name's width, metres
+            public Quaternion rotation;            // its local rotation as the model was built
+            public bool moved;                     // picked up and put somewhere by hand (ArtifactHandGrab)
+            public Vector3 drift;                  // how far a moved part was from its layout spot when it started home
+            public Quaternion heldRotation;        // and how it was turned then
         }
 
         readonly List<Part> parts = new List<Part>();
         Quaternion rotation;
         Vector3 position, scale, centre;
-        float radius, apart, apartTarget;
+        float radius, apart, apartTarget, homeFrom = 1f;
         public int PartCount => parts.Count;
         public bool Separated { get; private set; }
         public bool Sectioned { get; private set; }
@@ -60,6 +64,7 @@ namespace Forge.Artifacts
                 if (filter.sharedMesh == null || !filter.sharedMesh.isReadable) continue;
                 var renderer = filter.GetComponent<Renderer>();
                 var part = new Part { transform = filter.transform, position = filter.transform.localPosition, filter = filter,
+                    rotation = filter.transform.localRotation, heldRotation = filter.transform.localRotation,
                     original = filter.sharedMesh, renderer = renderer, materials = renderer != null ? renderer.sharedMaterials : null };
                 parts.Add(part);
                 if (renderer == null) continue;
@@ -91,7 +96,56 @@ namespace Forge.Artifacts
             Separated = !Separated;
             apartTarget = Separated ? 1f : 0f;
             if (Separated) MakeLabels();
+            else StartHome();
         }
+
+        // Parts moved by hand glide home from wherever they were put, instead of jumping to their spot in the layout.
+        void StartHome()
+        {
+            float eased = Ease(apart);
+            homeFrom = Mathf.Max(eased, 0.01f);
+            foreach (var part in parts)
+            {
+                if (!part.moved) continue;
+                part.drift = (part.transform.localPosition - part.position - part.offset * eased) / homeFrom;
+                part.heldRotation = part.transform.localRotation;
+            }
+        }
+
+        static float Ease(float t) => t * t * (3f - 2f * t);
+
+        /// <summary>
+        /// The part a hand pinching at <paramref name="world"/> picks up: of the parts whose bounds (grown by
+        /// <paramref name="margin"/> metres) hold the point, the smallest, so a valve beats the ventricle around it.
+        /// Only once the model is fully apart; null otherwise.
+        /// </summary>
+        public Transform PartAt(Vector3 world, float margin)
+        {
+            if (!Separated || apart < 0.99f) return null;
+            Transform best = null;
+            float bestVolume = float.MaxValue;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                var part = parts[i];
+                if (part.renderer == null || !part.renderer.enabled) continue;
+                var b = part.renderer.bounds;
+                b.Expand(margin * 2f);
+                if (!b.Contains(world)) continue;
+                float v = Volume(b);
+                if (v < bestVolume) { bestVolume = v; best = part.transform; }
+            }
+            return best;
+        }
+
+        /// <summary>A hand moved this part: Assemble and Reset view bring it home from where it is.</summary>
+        public void MarkMoved(Transform part)
+        {
+            for (int i = 0; i < parts.Count; i++)
+                if (parts[i].transform == part) { parts[i].moved = true; return; }
+        }
+
+        /// <summary>The name a part shows (its node name without a ".001").</summary>
+        public static string NameOf(Transform part) => part != null ? DisplayName(part.name) : null;
 
         void Update()
         {
@@ -104,11 +158,25 @@ namespace Forge.Artifacts
         public void Place(float t)
         {
             apart = t;
-            float eased = t * t * (3f - 2f * t);
+            float eased = Ease(t);
             for (int i = 0; i < parts.Count; i++)
             {
                 var part = parts[i];
-                part.transform.localPosition = part.position + part.offset * eased;
+                if (!part.moved)
+                {
+                    part.transform.localPosition = part.position + part.offset * eased;
+                    continue;
+                }
+                // On its way home from where a hand put it: the drift and the turn fade out with the separation.
+                float k = Mathf.Clamp01(eased / homeFrom);
+                part.transform.localPosition = part.position + part.offset * eased + part.drift * eased;
+                part.transform.localRotation = Quaternion.Slerp(part.rotation, part.heldRotation, k);
+                if (t <= 0f)
+                {
+                    part.moved = false;
+                    part.drift = Vector3.zero;
+                    part.transform.localRotation = part.rotation;
+                }
             }
             ShowLabels(t > 0.6f);
         }
@@ -151,6 +219,7 @@ namespace Forge.Artifacts
         {
             if (Sectioned) Section();
             if (XRay) ToggleXRay();
+            if (Separated) StartHome();
             Separated = false;
             apartTarget = 0f;
             Place(0f);
