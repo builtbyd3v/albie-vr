@@ -18,7 +18,7 @@ namespace Forge.ML
         static readonly string[] Supported = { "ml-datastack", "ml-model3d", "ml-results", "ml-training", "ml-controller-brain", "ml-viz-card", "ml-regression-results" };
         static readonly string[] ResourceNames = { "MLPanels/DataStack", "MLPanels/Model3D", "MLPanels/ResultsWall", "MLPanels/TrainingDash", "MLPanels/ControllerBrain", "MLPanels/VizCard", "MLPanels/RegressionResults" };
         Workspace workspace;
-        IDisposable subscription;
+        IDisposable subscription, cloudReady;
         readonly Dictionary<string, GameObject> assigned = new Dictionary<string, GameObject>();  // prefabs from Main
         // Neural Net Lab view: the lab alone in the middle of the ML desk. The project's panels wait in projectItems.
         List<WorkspaceItem> projectItems;
@@ -43,13 +43,15 @@ namespace Forge.ML
             publishEvents = ForgeNet.On("ml.publish_offer", OnPublishOffer);  // Albie described a pull request: the confirm card
             MLPublishCard.Dismissed += ClosePublish;
             ForgeNet.StatusChanged += OnNetStatus;
-            if (ForgeNet.Status == ForgeNetStatus.Live) OnNetStatus(ForgeNetStatus.Live);
+            cloudReady = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNet.Status));  // hub off: Albie's cloud came up
+            if (ForgeCloud.Serves("/ml/")) OnNetStatus(ForgeNet.Status);
         }
         void OnDestroy()
         {
             subscription?.Dispose(); researchEvents?.Dispose(); publishEvents?.Dispose();
             MLPublishCard.Dismissed -= ClosePublish;
             ForgeNet.StatusChanged -= OnNetStatus;
+            cloudReady?.Dispose(); cloudReady = null;
             if (templates != null) Destroy(templates);
         }
 
@@ -124,7 +126,7 @@ namespace Forge.ML
         void OnNetStatus(ForgeNetStatus status)
         {
             if (FitToComputer()) Reopen();
-            if (status != ForgeNetStatus.Live) return;
+            if (!ForgeCloud.Serves("/ml/")) return;  // the hub, or Albie's cloud with the hub off
             ForgeNet.Get("/ml/project", text =>
             {
                 JToken layout;

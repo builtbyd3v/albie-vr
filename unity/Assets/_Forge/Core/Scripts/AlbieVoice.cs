@@ -19,7 +19,8 @@ using UnityEngine;
 /// hub's events (voice.ready, stt.partial/final, agent.*, tts.start + PCM16 frames + tts.end/stop, pet.state), as
 /// hub/agent/voice.py does (contract: docs/archive/PET_AGENT_CONTRACT.md Addendum B). Tool calls run on the device through
 /// <see cref="AlbieTools"/>. Kept from voice.py: barge-in, the no-reply guard, tool results after response.done with
-/// one response.create. Not yet: name gating, the reply-length cut, delegate (the Claude runner).
+/// one response.create; name gating (speech while not facing Albie counts only if it names him). Not yet: the
+/// reply-length cut, delegate (the Claude runner).
 /// Cost: xAI bills every minute the session is open, so it opens only for a turn (lazy), room speech (WakeListener's
 /// wake, follow-up and barge-in turns) reaches it only while the user faces Albie, and it closes FollowUpS + IdleCloseS after his last word.
 /// A new session gets the last few lines in its instructions, so a reconnect keeps the thread. Cold start: a turn's
@@ -132,8 +133,17 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     // The turn and the reply in progress.
     int turnSeq, fed;
-    bool turnOpen, turnCancelled, committed, finalSent, droppedTurn;
+    bool turnOpen, turnCancelled, committed, finalSent;
     bool heardText, replied, retried;  // this turn: a non-empty final, a response.created, the one retry sent
+    // Name gating: a turn spoken while not facing Albie counts only if it says his name ("Albie, expand it"), as the
+    // hub's wake.py does. Until its transcript says so, nothing shows or plays, and Grok's own reply is cancelled.
+    enum Gate { None, Pending, Named, Rejected }
+    Gate gate;
+    bool suppressing, askAgain;  // a reply to a gated turn is being cancelled; ask for one once that has ended
+    bool heldBack;               // this turn's own reply was held back (cancelled) while its gate was pending
+    static readonly System.Text.RegularExpressions.Regex NameRx = new System.Text.RegularExpressions.Regex(
+        @"\b(albie|alby|albee|albi|elbie|alvie|al bee|albey)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    internal static bool NamesAlbie(string text) => !string.IsNullOrEmpty(text) && NameRx.IsMatch(text);
     int guardSeq = -1;                 // the committed turn the no-reply guard watches (turnSeq), from guardAt
     float guardAt;
     string partial = "";
@@ -243,20 +253,17 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 ForgeNet.Inject("voice.ready", new JObject { ["pet_id"] = PetId, ["provider"] = "grok", ["sample_rate"] = outRate });
                 break;  // no connect here: the first turn opens the session
             case "stt.start":
-                // Hands-free speech reaches Grok only while the user faces Albie (each open minute is billed, and side
-                // talk kept answering itself). Wake turns carry facing; follow-up / barge-in turns carry require_name
-                // when not facing (AlbieFollowUp). Button and whistle turns always count. The hub drops these too.
+                // Hands-free speech while not facing Albie counts only if it names him (side talk kept answering itself,
+                // and looking at an artifact while saying "Albie, expand it" must still work). Wake turns carry facing;
+                // follow-up / barge-in turns carry require_name when not facing (AlbieFollowUp). Button and whistle turns
+                // always count. The hub's wake.py gates the same way.
                 bool wake = payload?.Value<bool?>("wake") == true;
-                if (wake ? payload.Value<bool?>("facing") != true : payload?.Value<bool?>("require_name") == true)
-                {
-                    droppedTurn = !wake;  // PushToTalk waits for this turn's stt.final; WakeListener doesn't
-                    break;
-                }
+                gate = (wake ? payload.Value<bool?>("facing") != true : payload?.Value<bool?>("require_name") == true) ? Gate.Pending : Gate.None;
                 lastActivity = clock();
-                if (responseActive || audioStarted) StopSpeech("barge_in");
+                if (gate == Gate.None && (responseActive || audioStarted)) StopSpeech("barge_in");  // side talk doesn't cut him off
                 turnSeq++;
                 turnOpen = true;
-                turnCancelled = committed = finalSent = heardText = false;
+                turnCancelled = committed = finalSent = heardText = heldBack = askAgain = false;
                 fed = 0;
                 partial = "";
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
@@ -267,12 +274,6 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
                 break;
             case "stt.stop":
-                if (droppedTurn)
-                {
-                    droppedTurn = false;
-                    Emit("stt.final", new JObject { ["text"] = "", ["voice"] = true }, null);
-                    break;
-                }
                 CommitTurn();
                 break;
             case "tts.stop":
@@ -348,7 +349,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         // Grok answers every commit by itself: no response.create here (a second one is rejected or answers twice).
         Send(new JObject { ["type"] = "input_audio_buffer.commit" });
         committed = true;
-        Emit("agent.thinking", new JObject(), "thinking");
+        if (gate != Gate.Pending) Emit("agent.thinking", new JObject(), "thinking");
         guardSeq = turnSeq;
         guardAt = clock();
         replied = retried = false;
@@ -362,7 +363,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         if (guardSeq < 0) return;
         if (guardSeq != turnSeq) { guardSeq = -1; return; }  // a new turn, or a pause
         float waited = clock() - guardAt;
-        if (!retried && !replied && waited >= RetryS && (!finalSent || heardText))
+        if (!retried && !replied && waited >= RetryS && (!finalSent || heardText) && gate != Gate.Pending && gate != Gate.Rejected)
         {
             retried = true;
             Debug.Log($"[AlbieVoice] no reply {RetryS:0} s after the turn{(heardText ? " (it was heard)" : "")}: asking again.");
@@ -410,10 +411,23 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 break;
             case "conversation.item.input_audio_transcription.completed":
                 // Grok also sends one per segment while the user is still talking; only the one after commit is final.
-                if (committed) Final((string)msg["transcript"]);
+                if (committed && gate == Gate.Pending)
+                {
+                    string said = (string)msg["transcript"] ?? partial;
+                    if (NamesAlbie(said)) Accept();
+                    else Reject(said);
+                }
+                if (committed) Final(gate == Gate.Rejected ? "" : (string)msg["transcript"]);
                 else Transcript((string)msg["transcript"] ?? "");
                 break;
             case "response.created":
+                if (gate == Gate.Pending || gate == Gate.Rejected)
+                {
+                    // Grok answers every commit by itself: hold this one back until the turn turns out to name Albie.
+                    Send(new JObject { ["type"] = "response.cancel" });
+                    suppressing = heldBack = true;
+                    break;
+                }
                 replied = true;
                 if (partial.Length > 0) Final(null);  // no .completed yet: the last transcript is final
                 utterance = Guid.NewGuid().ToString("N").Substring(0, 12);
@@ -447,6 +461,12 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 if (responseActive) AnswerDone((string)msg["transcript"] ?? answer);
                 break;
             case "response.done":
+                if (suppressing)
+                {
+                    suppressing = false;
+                    if (askAgain) { askAgain = false; RequestResponse(); }  // it was named after all: answer it now
+                    break;
+                }
                 if (responseActive)
                 {
                     if (audioStarted) ForgeNet.Inject("tts.end", new JObject { ["pet_id"] = PetId, ["utterance_id"] = utterance });
@@ -462,6 +482,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 }
                 break;
             case "response.function_call_arguments.done":
+                if (suppressing) break;  // a held-back reply to a turn that may not be for Albie: no tools
                 RunTool((string)msg["name"] ?? "", (string)msg["call_id"] ?? "", (string)msg["arguments"]);
                 break;
             case "error":
@@ -524,7 +545,27 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     {
         if (finalSent || string.IsNullOrEmpty(text)) return;
         partial = text;
+        if (gate == Gate.Pending && !NamesAlbie(text)) return;  // no caption for side talk
+        if (gate == Gate.Pending) Accept();
         Emit("stt.partial", new JObject { ["text"] = text }, "listening");
+    }
+
+    // A gated turn named Albie: it counts like a facing one (he stops talking, shows he heard, and answers).
+    void Accept()
+    {
+        gate = Gate.Named;
+        Debug.Log("[AlbieVoice] not facing, but named: answering.");
+        if (responseActive || audioStarted) StopSpeech("barge_in");
+        if (committed) Emit("agent.thinking", new JObject(), "thinking");
+        if (suppressing) askAgain = true;              // Grok's own reply is being cancelled: ask again once it ends
+        else if (heldBack) RequestResponse();          // it was cancelled and has ended: ask for the answer now
+    }
+
+    // A gated turn that never named Albie: side talk. Nothing was shown; its held-back reply is cancelled.
+    void Reject(string said)
+    {
+        gate = Gate.Rejected;
+        Debug.Log($"[AlbieVoice] not facing and not named: ignored \"{said}\".");
     }
 
     // The turn's transcript; null = the last partial. Every turn Unity opened ends with exactly one (empty is fine).

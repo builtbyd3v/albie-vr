@@ -830,6 +830,20 @@ namespace Forge.OS
             if (shell != null) shell.CloseMenu();
         }
 
+        /// <summary>Saves and ends the app (Play mode stops in the Editor): Settings' Quit Albie, after a yes. Close only
+        /// shuts this menu.</summary>
+        public static void QuitApp()
+        {
+            try { Forge.Notebook.NotebookFiles.Flush(); } catch (Exception e) { Debug.LogException(e); }
+            PlayerPrefs.Save();
+            Debug.Log("[OS] Quit Albie.");
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
         void OpenSystem(string id)
         {
             if (shell == null) return;

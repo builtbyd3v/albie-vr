@@ -77,7 +77,8 @@ namespace Forge.ML
             actionRow.gameObject.SetActive(false);
             MLUI.Button(root, "Neural Net Lab", width - 160, PresetY, 160, 24, () => MLWorkspaceBridge.ShowLab(true));
             ForgeNet.StatusChanged += OnNetStatus;
-            if (ForgeNet.Status == ForgeNetStatus.Live) LoadPresets();
+            cloudReady = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNet.Status));  // hub off: Albie's cloud came up
+            if (ForgeCloud.Serves("/ml/")) LoadPresets();
 
             // One banner line: overfitting, a hub notice, or the finished run.
             banner = MLUI.Surface(root, 0, BannerY, width, 28, Color.clear, 10, 0.5f);
@@ -400,10 +401,19 @@ namespace Forge.ML
                 GetComponent<ForgePanel>().Subtitle = shownSource ?? "";
             }
         }
-        void OnNetStatus(ForgeNetStatus status) { if (status == ForgeNetStatus.Live && !presetsLoaded) LoadPresets(); }
+        System.IDisposable cloudReady;
+        void OnNetStatus(ForgeNetStatus status) { if (ForgeCloud.Serves("/ml/") && !presetsLoaded) LoadPresets(); }
+        // The hub's default presets (hub/ml/router.py DEFAULT_GITHUB_PRESETS): Albie's cloud blocks /ml/github/, so with the
+        // hub off the panel offers these itself and imports them through the cloud's ml_github tool (MLSession.ImportGitHub).
+        const string BuiltInPresets = "[{\"label\":\"CIFAR-10 example\",\"url\":\"https://github.com/Satyabratadas/forge-cifar10-demo\"},"
+                                    + "{\"label\":\"PyTorch MNIST\",\"url\":\"https://github.com/pytorch/examples/tree/main/mnist\"}]";
         void LoadPresets()
         {
-            ForgeNet.Get("/ml/github/presets", text =>
+            if (ForgeNet.Status != ForgeNetStatus.Live) { ShowPresets(BuiltInPresets); return; }
+            ForgeNet.Get("/ml/github/presets", ShowPresets, e => Debug.LogWarning("[ML] GitHub presets unavailable: " + e));
+        }
+        void ShowPresets(string text)
+        {
             {
                 Newtonsoft.Json.Linq.JArray list;
                 try { list = Newtonsoft.Json.Linq.JArray.Parse(text); }
@@ -422,11 +432,12 @@ namespace Forge.ML
                     MLUI.Pill(presetRow, label, x, 0, w, 24, () => { githubUrl.text = url; session.ImportGitHub(url); });
                     x += w + 8;
                 }
-            }, _ => { });
+            }
         }
         void OnDestroy()
         {
             ForgeNet.StatusChanged -= OnNetStatus;
+            cloudReady?.Dispose(); cloudReady = null;
             if (session == null) return;
             session.Changed -= Refresh; session.Reloaded -= OnSessionReloaded; session.Metrics -= OnMetrics;
             session.ClassAccuracyUpdated -= OnClassAccuracy; session.ProbeUpdated -= OnProbe;

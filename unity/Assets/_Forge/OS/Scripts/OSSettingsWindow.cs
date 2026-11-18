@@ -168,6 +168,7 @@ namespace Forge.OS
 
             if (page == 0)
             {
+                BuildQuit(Section(column, "Albie"));
                 BuildMenuButton(Section(column, "Menu button"));
                 BuildVoice(Section(column, "Voice"));
             }
@@ -393,6 +394,17 @@ namespace Forge.OS
 
         // ---------------------------------------------------------------- page 4: reset, about
 
+        // Quit the app completely (the menu's Close only shuts the menu), after a yes; what is open is saved first.
+        void BuildQuit(RectTransform section)
+        {
+            RectTransform row = OSUi.Row(section, OSUi.ButtonHeight, 16f);
+            row.name = "Quit Albie";
+            OSUi.Text(row, "Close Albie completely", OSUi.BodyText);
+            OSUi.Button(row, "Quit Albie", () =>
+                OSUi.Confirm(panel.transform, "Quit Albie? Everything closes. Your projects, notes and artifacts are saved.", "Quit Albie",
+                    OSMenu.QuitApp), OSButtonStyle.Destructive);
+        }
+
         void BuildReset(RectTransform section)
         {
             ResetRow(section, "Window positions", "Bring windows here",
@@ -431,7 +443,7 @@ namespace Forge.OS
         void BuildAbout(RectTransform section)
         {
             OSUi.Text(section, "Albie, version " + Application.version, OSUi.BodyText);
-            OSUi.Text(section, "Biology models in the artifacts (cell, plant cell, heart, brain, eye, DNA): Grab3D, public domain (CC0).", NoteSize, true);
+            OSUi.Text(section, "Anatomy models (heart, brain, eye, lungs, kidneys, stomach): Z-Anatomy (CC BY-SA 4.0) and BodyParts3D, (c) 2008 Life Science Integrated Database Center (CC BY-SA 2.1 JP), shared under CC BY-SA 4.0. Cell, plant cell and DNA: made for Albie (CC0).", NoteSize, true);
             OSUi.Text(section, "Albie the gator: Quirky Series, used under its asset licence. Pet font: Fredoka, SIL Open Font License.", NoteSize, true);
             OSUi.Text(section, "Menu and controls: a third-party UI kit, used under its licence.", NoteSize, true);
         }

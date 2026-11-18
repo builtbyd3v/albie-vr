@@ -51,8 +51,10 @@ public static class ForgeTheme
     // edges without ever eating the text. The plate is drawn from these (PanelSurface is a runtime copy of the .mat with them).
     // Looked at in the look set (OSLookShots): the plate's own graphic alpha (about 0.9) multiplies these, so 252 lands near 89%
     // over a light wall: enough to keep text off the room, still glass at the edges. Was #34373F / #1B1C21 at 242 (reads 85%).
-    public static readonly Color PanelTop = new Color32(48, 51, 59, 252);     // #30333B
-    public static readonly Color PanelBottom = new Color32(22, 23, 28, 252);  // #16171C
+    // Opaque since the final build: at 89% the text of a window behind read through the one in front (two windows open
+    // together on the headset), which is worse than losing the faint glass at the edges. Same colours.
+    public static readonly Color PanelTop = new Color32(48, 51, 59, 255);     // #30333B
+    public static readonly Color PanelBottom = new Color32(22, 23, 28, 255);  // #16171C
     public static readonly Color PanelText = new Color(1f, 1f, 1f, 1f);
     public static readonly Color PanelSubtext = new Color(1f, 1f, 1f, 0.72f);
     public static readonly Color Hairline = new Color(1f, 1f, 1f, 0.08f);

@@ -390,6 +390,11 @@ namespace Forge.ML
             }
             if (importPending) return;  // a second press before the hub answered the first
             importPending = true;
+            if (ForgeNet.Status != ForgeNetStatus.Live)
+            {
+                ImportOnCloud(url.Trim());
+                return;
+            }
             Notice = "Reading the public repository..."; Changed?.Invoke();
             ForgeNet.Post<MLGitHubImport>("/ml/github/import", new { url = url.Trim() }, result =>
             {
@@ -416,6 +421,28 @@ namespace Forge.ML
                 // 409: something else is running (setup, training); the import already there stays the one Train uses.
                 if (error == null || !error.StartsWith("409")) GitHubImportId = null;
                 Notice = "Import failed: " + HubDetail(error); Changed?.Invoke();
+            });
+        }
+        // Hub off: Albie's cloud blocks /ml/github/ (it clones only into this headset's own folder, with its packages), so
+        // the panel imports the way Albie does by voice: the ml_github tool finds and clones it in one call. Setup then
+        // follows on ml.project_state, and Train is the plain POST /ml/train, which the cloud serves.
+        void ImportOnCloud(string url)
+        {
+            Notice = "Cloning the repository on Albie's cloud..."; Changed?.Invoke();
+            ForgeCloud.CallTool("ml_github", new Newtonsoft.Json.Linq.JObject { ["query"] = url, ["confirm"] = true }, result =>
+            {
+                importPending = false;
+                GitHubImportId = null;
+                string error = (string)result?["error"];
+                if (!string.IsNullOrEmpty(error)) { Notice = "Import failed: " + error; Changed?.Invoke(); return; }
+                string repo = (string)result["repo"] ?? url;
+                ProjectRepository = repo; ProjectSource = $"Runs the code from {repo}";
+                string status = (string)result["status"];
+                Notice = status == "needs_approval" ? $"Cloned {repo}. Accept or Skip the setup patch, then Train."
+                    : status == "ready" ? $"Cloned {repo}. Ready to train."
+                    : status == "failed" ? $"Cloned {repo}, but setting it up failed: {(string)result["error"] ?? "see the Training panel"}"
+                    : $"Cloned {repo}. Setting it up...";
+                Changed?.Invoke();
             });
         }
         // ml.project_state {path, status, archetype?, candidates?, summary?, error?, repository?}: one line per setup step.

@@ -16,10 +16,12 @@ namespace Forge.ML
         bool mockRows;   // the editor's labeled demo rows (hub off); a player build never draws them
         const string Waiting = "Waiting for a regression run…";
         const string NoRun = "No predicted-vs-actual results yet: they appear after a run that evaluates on validation rows.";
-        const string Offline = "The hub isn't connected, so there are no regression results to show.";
+        const string Offline = "Albie's cloud isn't reachable right now, so there are no regression results to show.";
+        System.IDisposable cloudReady;
         void Start() => Initialize();
-        void OnEnable() { ForgeEvents.OnMlResultsReady += OnResultsReady; ForgeNet.StatusChanged += OnNetStatus; }
-        void OnDisable() { ForgeEvents.OnMlResultsReady -= OnResultsReady; ForgeNet.StatusChanged -= OnNetStatus; }
+        // The cloud coming up (hub off, on the headset) loads the results like the hub going live.
+        void OnEnable() { ForgeEvents.OnMlResultsReady += OnResultsReady; ForgeNet.StatusChanged += OnNetStatus; cloudReady = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNet.Status)); }
+        void OnDisable() { ForgeEvents.OnMlResultsReady -= OnResultsReady; ForgeNet.StatusChanged -= OnNetStatus; cloudReady?.Dispose(); cloudReady = null; }
         // Starts with a message and no points: points come only from the hub's /ml/results (or, in the editor with
         // the hub off, the labeled mock rows), so nothing on screen passes for a result it isn't.
         public void Initialize()
@@ -33,7 +35,8 @@ namespace Forge.ML
         void OnNetStatus(ForgeNetStatus status)
         {
             if (root == null) return;
-            if (status == ForgeNetStatus.Live) LoadFromHub(null);
+            // The hub, or Albie's cloud with the hub off (the headset trains there): both serve /ml/results.
+            if (ForgeCloud.Serves("/ml/")) LoadFromHub(null);
             else if (status == ForgeNetStatus.Mock && (samples.Length == 0 || mockRows))  // keep real rows already loaded
             {
                 if (Application.isEditor) ShowMockRows();
@@ -51,7 +54,7 @@ namespace Forge.ML
                 foreach (var run in JArray.Parse(text))
                     if (run.Value<string>("status") == "done") { FetchResults(run.Value<string>("run_id")); return; }
                 ShowMessage(NoRun);
-            }, error => ShowMessage("Couldn't load the runs from the hub: " + error));
+            }, error => ShowMessage("Couldn't load the runs: " + error));
         }
         void FetchResults(string runId)
         {
