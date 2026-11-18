@@ -184,7 +184,8 @@ public sealed class GestureLibrary
         All.Add(new GestureDef
         {
             id = PalmUp, title = "Call Albie", how = "Hold your hand out flat, palm up", builtin = true,
-            start = PalmUpPose, hold = 0.6f, action = GestureActions.AlbiePerch,
+            // A palm is offered at elbow height, lower than the other gestures count from.
+            start = PalmUpPose, hold = 0.6f, action = GestureActions.AlbiePerch, lowHand = true,
         });
         // Open and close: one hand for every window, the other for the window you're looking at (the Hands setting).
         // Closing the hand Albie sits in sends him off instead.

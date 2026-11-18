@@ -56,6 +56,7 @@ public static class GestureSelfTest
             RestingHandFiresNothing();
             TrackingLossResets();
             OnlyRaisedSteadyHandsCount();
+            PalmHeldOutLowCallsAlbie();
             TeachPeaceSign();
             TeachMove();
             TeachRestingHandRefused();
@@ -96,6 +97,8 @@ public static class GestureSelfTest
         public bool hasWindow = true;
         public bool isLeft;
         public HandSplit split = HandSplit.LeftAll;
+        /// <summary>Step the hand as the engine does: nothing from a hand that isn't held out, and only the low-hand gestures from one that isn't raised.</summary>
+        public bool gated;
         public float size = 1f;
         public float now = 10f;
         float nextTrackerFrame;
@@ -128,9 +131,9 @@ public static class GestureSelfTest
                 }
                 hand.Update(now, HeadPosition, Quaternion.identity);
                 hand.sample.isLeft = isLeft;
-                if (hand.Usable)
+                if (gated ? hand.HeldOut : hand.Usable)
                 {
-                    GestureDef def = GestureEngine.StepHand(matchers, hand, now, hasWindow, split);
+                    GestureDef def = GestureEngine.StepHand(matchers, hand, now, hasWindow, split, gated && !hand.Deliberate);
                     if (def != null) fired.Add(def.id);
                 }
                 else foreach (var m in matchers) m.Reset();
@@ -403,6 +406,30 @@ public static class GestureSelfTest
         s.Run(0.1f, _ => HandShape.Relaxed, tracked: false);
         s.Hold(0.2f, HandShape.Relaxed);
         Check(!s.hand.Deliberate, "after a tracking gap the hand waits again");
+    }
+
+    // A palm is offered at elbow height, under where the other gestures count from. Call Albie still has to work there,
+    // and nothing else may.
+    static void PalmHeldOutLowCallsAlbie()
+    {
+        var atElbow = new Vector3(0f, -0.28f, 0.1f);  // the palm about 0.46 m under the eyes
+        var s = new Sim { gated = true };
+        s.Run(1.5f, _ => HandShape.Open, _ => atElbow, palmUp: true);
+        Check(!s.hand.Deliberate && s.hand.HeldOut, "a palm at elbow height is held out, not raised");
+        Check(s.Count(GestureLibrary.PalmUp) == 1, $"a palm held out at elbow height calls Albie (fired: {string.Join(",", s.fired)})");
+
+        s = new Sim { gated = true };
+        s.Run(0.8f, _ => HandShape.Open, _ => atElbow);
+        s.Run(0.3f, k => HandShape.Lerp(HandShape.Open, HandShape.Fist, k), _ => atElbow);
+        s.Run(0.8f, _ => HandShape.Fist, _ => atElbow);
+        s.Run(0.25f, k => HandShape.Lerp(HandShape.Fist, HandShape.Open, k), _ => atElbow);
+        s.Run(0.3f, _ => HandShape.Open, _ => atElbow);
+        Check(s.fired.Count == 0, $"opening and closing the hand down there does nothing (fired: {string.Join(",", s.fired)})");
+
+        var inLap = new Vector3(0f, -0.55f, 0.1f);    // about 0.73 m under the eyes
+        s = new Sim { gated = true };
+        s.Run(1.5f, _ => HandShape.Open, _ => inLap, palmUp: true);
+        Check(!s.hand.HeldOut && s.Count(GestureLibrary.PalmUp) == 0, "a palm up in the lap doesn't call Albie");
     }
 
     // The SDK's own reference hand, through the same joint map the headset uses. Synthetic hands share our joint numbers,

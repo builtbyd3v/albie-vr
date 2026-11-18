@@ -105,13 +105,14 @@ public class GestureEngine : MonoBehaviour
             source.Read(h, hand.sample);
             hand.Update(now, head.position, head.rotation);
             UpdateAim(hand, head, now);
-            if (!hand.Deliberate)
+            if (!hand.HeldOut)
             {
                 for (int m = 0; m < matchers[h].Count; m++) matchers[h][m].Reset();
                 continue;
             }
             if (recorder != null || held) continue;
-            GestureDef fired = StepHand(matchers[h], hand, now, hand.Target != null, Library.Split);
+            // Held out but lower than a raised hand: only the gestures made for that (Call Albie) can start.
+            GestureDef fired = StepHand(matchers[h], hand, now, hand.Target != null, Library.Split, !hand.Deliberate);
             if (fired != null) Fire(fired, hand);
         }
 
@@ -129,9 +130,11 @@ public class GestureEngine : MonoBehaviour
     /// One hand's gestures for one frame; returns the one that fired, or null. At most one fires, and then the others on
     /// that hand start over and wait <see cref="QuietSeconds"/>, so the tail of one gesture can't set off another. An open
     /// or close can't start until the hand has stopped pointing for a moment, and an open's fist has to be made afresh
-    /// after that, which is what keeps curling the finger after a flick, then opening the hand, from doing anything. Shared with the self-test. No allocations.
+    /// after that, which is what keeps curling the finger after a flick, then opening the hand, from doing anything.
+    /// <paramref name="lowOnly"/>: the hand is held out low (<see cref="GestureHand.HeldOut"/> but not raised), so only a
+    /// gesture marked <see cref="GestureDef.lowHand"/> can start. Shared with the self-test. No allocations.
     /// </summary>
-    public static GestureDef StepHand(List<GestureMatcher> matchers, GestureHand hand, float now, bool hasTarget, HandSplit split)
+    public static GestureDef StepHand(List<GestureMatcher> matchers, GestureHand hand, float now, bool hasTarget, HandSplit split, bool lowOnly = false)
     {
         if (GestureLibrary.IsAiming(hand.values)) hand.PointedAt = now;
         if (now < hand.QuietUntil) return null;
@@ -140,7 +143,7 @@ public class GestureEngine : MonoBehaviour
         {
             GestureMatcher matcher = matchers[m];
             GestureDef def = matcher.def;
-            if (!def.AllowedOn(hand.sample.isLeft, split))
+            if (!def.AllowedOn(hand.sample.isLeft, split) || (lowOnly && !def.lowHand))
             {
                 matcher.Reset();
                 continue;
