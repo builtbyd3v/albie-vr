@@ -93,6 +93,284 @@ public static class ArtifactChecks
         HandGrabParts();
         VoiceButtons();
         VoiceExplore();
+        IsolateHeartAndBrain();
+        PointedAtParts();
+        AutoParts();
+    }
+
+    // ---- isolate on the heart and brain, by their real part names ----------------------------------------------
+    // The parts are cubes named as the bundled GLB's nodes are (read from the file), each with an explode marker as the
+    // real ones have, so the words in parts.json and the isolate path run on the real names without loading glTF.
+    static List<string> GlbParts(string template)
+    {
+        var names = new List<string>();
+        var p = ArtifactPackage.Load(template, out _);
+        var glb = p?.ReadAsset((string)p.Manifest["assets"][0]["path"], out _);
+        if (glb == null) return names;
+        var json = JObject.Parse(System.Text.Encoding.UTF8.GetString(glb, 20, BitConverter.ToInt32(glb, 12)));
+        foreach (JObject n in (JArray)json["nodes"]) if (n["mesh"] != null) names.Add((string)n["name"]);
+        return names;
+    }
+
+    static ArtifactExplorer StandIn(string template, GameObject root, out List<string> names)
+    {
+        names = GlbParts(template);
+        for (int i = 0; i < names.Count; i++)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            UnityEngine.Object.DestroyImmediate(go.GetComponent<Collider>());
+            go.name = names[i];
+            go.transform.SetParent(root.transform, false);
+            float a = i * Mathf.PI * 2f / names.Count;
+            go.transform.localPosition = new Vector3(Mathf.Cos(a) * 0.12f, Mathf.Sin(a) * 0.12f, 0f);
+            go.transform.localScale = Vector3.one * 0.03f;
+            var marker = new GameObject(ArtifactExplorer.ExplodeMarker).transform;
+            marker.SetParent(go.transform, false);
+            marker.localPosition = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0f) * 2f;
+        }
+        var e = root.AddComponent<ArtifactExplorer>();
+        e.Words = ArtifactExplorer.WordsFor(template);
+        e.Initialize();
+        return e;
+    }
+
+    static List<string> Chosen(ArtifactExplorer e)
+    {
+        var list = new List<string>();
+        foreach (var t in e.Chosen) list.Add(ArtifactExplorer.NameOf(t));
+        list.Sort(StringComparer.Ordinal);
+        return list;
+    }
+
+    static string Isolated(ArtifactExplorer e, string part, out JObject into, out string error)
+    {
+        into = new JObject();
+        return ArtifactVoiceTools.Act(null, e, "isolate", new JObject { ["part"] = part }, into, out error);
+    }
+
+    static void ExpectIsolated(ArtifactExplorer e, string template, string said, params string[] want)
+    {
+        e.Unfocus();
+        Isolated(e, said, out var into, out string error);
+        var w = new List<string>(want); w.Sort(StringComparer.Ordinal);
+        var got = Chosen(e);
+        Check(error == null && string.Join("|", got) == string.Join("|", w), $"{template}: \"{said}\" isolates {string.Join(", ", w)}, got [{string.Join(", ", got)}] {error}");
+    }
+
+    static void IsolateHeartAndBrain()
+    {
+        var root = new GameObject("isolate heart check");
+        try
+        {
+            var e = StandIn("heart", root, out var names);
+            Check(names.Count == 17 && e.PartCount == 17 && !e.AutoNamed, $"the heart stand-in has the GLB's 17 named parts ({names.Count})");
+            Check(e.Words != null && e.Words.About("Left ventricle") != null, "the heart's parts.json loads, with what each part does");
+            foreach (var n in names) Check(e.Words.About(n) != null, "parts.json describes the heart's " + n);
+
+            var lv = root.transform.Find("Left ventricle");
+            var aorta = root.transform.Find("Aorta").GetComponent<Renderer>();
+            var lvMat = lv.GetComponent<Renderer>().sharedMaterial;
+            var aortaMat = aorta.sharedMaterial;
+            Vector3 lvAt = lv.localPosition, lvSize = lv.localScale;
+            string did = Isolated(e, "just the left ventricle", out var into, out string error);
+            e.Finish();
+            Check(error == null && e.Focused == lv && e.Chosen.Count == 1, $"\"just the left ventricle\" isolates it in one call: {did} {error}");
+            Check(lv.GetComponent<Renderer>().sharedMaterial == lvMat && aorta.sharedMaterial != aortaMat && aorta.sharedMaterial.GetColor("_BaseColor").a < 0.1f,
+                "the rest fades to a faint silhouette while the left ventricle stays solid");
+            Check(lv.localScale.x > lvSize.x * 1.2f && (lv.localPosition - lvAt).magnitude > 1e-4f, "the left ventricle comes forward and grows");
+            Check((string)into["about"]?["Left ventricle"] != null, "Albie is told what the left ventricle does");
+            var label = root.transform.Find("labels/label Left ventricle");
+            Check(label != null && label.gameObject.activeSelf && label.GetComponent<TMPro.TMP_Text>().text.Contains("pumps"),
+                "its callout shows its name and what it does");
+            Check(root.transform.Find("labels/label Aorta") != null && !root.transform.Find("labels/label Aorta").gameObject.activeSelf, "the other parts' names stay hidden");
+            ArtifactVoiceTools.Act(null, e, "unfocus", new JObject(), out error);
+            e.Finish();
+            Check(!e.Isolating && aorta.sharedMaterial == aortaMat && (lv.localPosition - lvAt).magnitude < 1e-5f && (lv.localScale - lvSize).magnitude < 1e-6f,
+                "\"show all\" puts every part back as it was");
+
+            ExpectIsolated(e, "heart", "the valves", "Tricuspid valve", "Pulmonary valve", "Mitral valve", "Aortic valve");
+            ExpectIsolated(e, "heart", "the upper chambers", "Left atrium", "Right atrium");
+            ExpectIsolated(e, "heart", "pumping chambers", "Left ventricle", "Right ventricle");
+            ExpectIsolated(e, "heart", "the coronary arteries", "Left coronary artery", "Right coronary artery");
+            ExpectIsolated(e, "heart", "the aorta and the mitral valve", "Aorta", "Mitral valve");
+            ExpectIsolated(e, "heart", "the heart's left side", "Pulmonary veins", "Left atrium", "Mitral valve", "Left ventricle", "Aortic valve", "Aorta");
+            ExpectIsolated(e, "heart", "chordae", "Papillary muscles");
+
+            e.Unfocus();
+            Isolated(e, "the valve", out into, out error);
+            Check(error == null && !e.Isolating && into["options"] is JArray opts && opts.Count == 4 && ((string)into["say"]).Contains("Mitral valve"),
+                "\"the valve\" asks which one, listing the four, and changes nothing");
+            Isolated(e, "spleen", out into, out error);
+            Check(error != null && error.Contains("Left ventricle") && error.Contains("chambers") && !e.Isolating,
+                "a part the heart doesn't have says so and lists the real parts and groups");
+            e.ResetView();
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+
+        root = new GameObject("isolate brain check");
+        try
+        {
+            var e = StandIn("brain", root, out var names);
+            Check(names.Count == 22 && e.PartCount == 22, $"the brain stand-in has the GLB's 22 named parts ({names.Count})");
+            foreach (var n in names) Check(e.Words.About(n) != null, "parts.json describes the brain's " + n);
+            ExpectIsolated(e, "brain", "the frontal lobe", "Left frontal lobe", "Right frontal lobe");
+            ExpectIsolated(e, "brain", "left frontal lobe", "Left frontal lobe");
+            ExpectIsolated(e, "brain", "the frontal and temporal lobes", "Left frontal lobe", "Right frontal lobe", "Left temporal lobe", "Right temporal lobe");
+            ExpectIsolated(e, "brain", "back of the brain", "Left occipital lobe", "Right occipital lobe");
+            ExpectIsolated(e, "brain", "the little brain", "Cerebellum");
+            ExpectIsolated(e, "brain", "brain stem", "Brainstem");
+            ExpectIsolated(e, "brain", "the hippocampus", "Hippocampus and fornix");
+            ExpectIsolated(e, "brain", "the lobes", "Left frontal lobe", "Right frontal lobe", "Left parietal lobe", "Right parietal lobe",
+                "Left temporal lobe", "Right temporal lobe", "Left occipital lobe", "Right occipital lobe");
+            ExpectIsolated(e, "brain", "the right hemisphere", "Right frontal lobe", "Right parietal lobe", "Right temporal lobe", "Right occipital lobe",
+                "Right insula", "Right limbic lobe", "Right white matter");
+            e.Unfocus();
+            Isolated(e, "the lobe", out var into, out string error);
+            Check(error == null && !e.Isolating && into["options"] is JArray o && o.Count == 8, "\"the lobe\" on its own asks which of the eight");
+            var thalamusMat = root.transform.Find("Thalamus").GetComponent<Renderer>().sharedMaterial;
+            var highlight = new JObject();
+            ArtifactVoiceTools.Act(null, e, "isolate", new JObject { ["part"] = "cerebellum", ["mode"] = "highlight" }, highlight, out error);
+            var thalamus = root.transform.Find("Thalamus").GetComponent<Renderer>().sharedMaterial;
+            Check(error == null && e.Mode == ArtifactExplorer.Look.Highlight && thalamus.GetColor("_BaseColor").a > 0.1f && thalamus.GetColor("_BaseColor").a < 0.5f,
+                "mode highlight keeps the rest see-through (X-ray strength), not faint");
+            e.ResetView();
+            Check(!e.Isolating && root.transform.Find("Thalamus").GetComponent<Renderer>().sharedMaterial == thalamusMat, "reset clears it");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    // ---- "this": the part a ray is on --------------------------------------------------------------------------
+    static void PointedAtParts()
+    {
+        var root = new GameObject("pointing check");
+        try
+        {
+            var e = StandIn("brain", root, out _);
+            var pointer = root.AddComponent<ArtifactPartPointer>();
+            pointer.Bind(e);
+            Check(e.Pointer == pointer && e.AddPickers(), "every part gets a picking collider");
+            UnityEngine.Physics.SyncTransforms();
+            var lobe = root.transform.Find("Right temporal lobe");
+            var ray = new Ray(lobe.position + Vector3.back, Vector3.forward);
+            Check(pointer.Cast(ray) == lobe, $"a ray at the right temporal lobe is on it, got {ArtifactExplorer.NameOf(pointer.Cast(ray)) ?? "nothing"}");
+            Check(pointer.Cast(new Ray(new Vector3(5f, 5f, -1f), Vector3.forward)) == null, "a ray past the model is on nothing");
+            pointer.Cast(ray);
+            long bytes = AllocationCounter.BytesDuring(() => { for (int i = 0; i < 200; i++) pointer.Cast(ray); });
+            Check(bytes == 0, $"casting at the parts allocates nothing ({bytes} bytes over 200 casts)");
+
+            float now = Time.unscaledTime;
+            pointer.Note(lobe, ArtifactPartPointer.How.Ray, now);
+            Check(pointer.This(now + 1f, out var how) == lobe && how == ArtifactPartPointer.How.Ray, "what was pointed at is still \"this\" a second later");
+            Check(pointer.This(now + ArtifactPartPointer.HoldSeconds + 1f, out _) == null, "and no longer after the hold");
+            var looked = root.transform.Find("Cerebellum");
+            pointer.Note(looked, ArtifactPartPointer.How.Gaze, now);
+            Check(pointer.This(now, out how) == lobe && how == ArtifactPartPointer.How.Ray, "pointing wins over looking");
+
+            pointer.Note(lobe, ArtifactPartPointer.How.Ray, Time.unscaledTime);
+            string did = Isolated(e, "this lobe", out var into, out string error);
+            Check(error == null && e.Focused == lobe && e.Chosen.Count == 1 && (string)into["this"] == "Right temporal lobe",
+                $"\"show me this lobe\" isolates the lobe pointed at: {did} {error}");
+            e.Finish();
+            UnityEngine.Physics.SyncTransforms();
+            var other = root.transform.Find("Left frontal lobe");
+            Check(pointer.Cast(new Ray(other.position + Vector3.back, Vector3.forward)) == null, "a part faded out by isolate can't be pointed at");
+            e.ResetView();
+
+            var fresh = root.AddComponent<ArtifactPartPointer>();
+            fresh.Bind(e);  // nothing pointed at or looked at yet
+            Isolated(e, "this", out into, out error);
+            Check(error != null && error.StartsWith("nothing_pointed") && error.Contains("Cerebellum"), "\"this\" with nothing pointed at asks them to point, and lists the parts");
+            e.SetHover(lobe);
+            Check(lobe.GetComponent<Renderer>().HasPropertyBlock(), "the part under the pointer is lit a little");
+            e.SetHover(null);
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+    }
+
+    // ---- parts for an imported model, from its node tree ---------------------------------------------------------
+    static GameObject MeshNode(string name, Transform parent, Vector3 at, float size, PrimitiveType shape = PrimitiveType.Cube)
+    {
+        var go = GameObject.CreatePrimitive(shape);
+        UnityEngine.Object.DestroyImmediate(go.GetComponent<Collider>());
+        go.name = name;
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = at;
+        go.transform.localScale = Vector3.one * size;
+        return go;
+    }
+
+    static Transform Node(string name, Transform parent, Vector3 at = default)
+    {
+        var t = new GameObject(name).transform;
+        t.SetParent(parent, false);
+        t.localPosition = at;
+        return t;
+    }
+
+    static void AutoParts()
+    {
+        // As Sketchfab exports a model: wrappers, then named nodes each holding a mesh called Object_N, a bare mesh, and
+        // a few bolts far too small to be parts of their own.
+        var root = new GameObject("auto parts check");
+        try
+        {
+            var scene = Node("GLTF_SceneRootNode", Node("root", Node("Sketchfab_model", root.transform)));
+            MeshNode("Object_4", Node("Fan_Blades_2", scene, new Vector3(0f, 0.2f, 0f)), Vector3.zero, 0.2f);
+            MeshNode("Object_6", Node("nozzle-cone_3", scene, new Vector3(0f, -0.2f, 0f)), Vector3.zero, 0.15f, PrimitiveType.Cylinder);
+            MeshNode("Object_8", scene, new Vector3(0.25f, 0f, 0f), 0.15f);
+            MeshNode("Object_9", scene, new Vector3(-0.25f, 0f, 0f), 0.15f);
+            for (int i = 0; i < 3; i++) MeshNode("bolt_" + i, scene, new Vector3(0.02f * i, 0.31f, 0f), 0.005f);
+            var e = root.AddComponent<ArtifactExplorer>();
+            e.Initialize();
+            var names = e.PartNames();
+            Check(e.AutoNamed && e.PartCount == 4, $"an imported model's parts come from its nodes, bolts merged in: [{string.Join(", ", names)}]");
+            Check(names.Contains("Fan blades") && names.Contains("Nozzle cone"), "parts take readable names from their nodes");
+            Check(names.Exists(n => n.StartsWith("Part ") && n.Contains("right")) && names.Exists(n => n.StartsWith("Part ") && n.Contains("left")),
+                "unnamed parts are \"Part N\" with where they sit");
+            var fan = e.FindPart("fan blades");
+            Vector3 fanAt = fan != null ? fan.localPosition : Vector3.zero;
+            ArtifactVoiceTools.Act(null, e, "separate", new JObject(), out string error);
+            e.Finish();
+            Check(error == null && e.Separated && fan != null && fan.localPosition.y > fanAt.y + 1e-4f, "it separates, the fan blades moving up and out from the centre");
+            e.ResetView();
+            Isolated(e, "the nozzle", out _, out error);
+            Check(error == null && ArtifactExplorer.NameOf(e.Focused) == "Nozzle cone", "an imported part can be isolated by name: " + error);
+            e.ResetView();
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+
+        // One mesh under wrappers: one solid piece, and it says so.
+        root = new GameObject("one piece check");
+        try
+        {
+            MeshNode("ControlConsoleChair_Body_Placeable.001_0", Node("ControlConsoleChair", Node("RootNode", Node("Sketchfab_model", root.transform))), Vector3.zero, 0.3f);
+            var e = root.AddComponent<ArtifactExplorer>();
+            e.Initialize();
+            ArtifactVoiceTools.Act(null, e, "separate", new JObject(), out string error);
+            Check(e.PartCount == 1 && error != null && error.Contains("one solid piece"), "a one-mesh model is one solid piece and says it can't come apart");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
+
+        // Sixty meshes in a row: no more than MaxAutoParts parts, still every mesh in one of them.
+        root = new GameObject("many meshes check");
+        try
+        {
+            var group = Node("group1", root.transform);
+            for (int i = 0; i < 60; i++) MeshNode("mesh_" + i, group, new Vector3(i * 0.05f, 0f, 0f), 0.04f);
+            Node("empty_locator", group);
+            var e = root.AddComponent<ArtifactExplorer>();
+            e.Initialize();
+            Check(e.PartCount >= 2 && e.PartCount <= ArtifactExplorer.MaxAutoParts, $"sixty meshes become at most {ArtifactExplorer.MaxAutoParts} parts ({e.PartCount})");
+            var placed = new HashSet<string>(e.PartNames());
+            Check(placed.Count == e.PartCount, "every part has its own name");
+            e.Separate();
+            e.Finish();
+            e.Place(1f);
+            e.LayOutLabels(new Vector3(0f, 0f, -2f));
+            long bytes = AllocationCounter.BytesDuring(() => { for (int i = 0; i < 100; i++) { e.Place(1f); e.LayOutLabels(new Vector3(0f, 0f, -2f)); } });
+            Check(bytes == 0, $"placing the parts and their names allocates nothing ({bytes} bytes over 100 frames)");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 
     // ---- voice: what a spoken request presses on each biology template, and the captions Albie narrates ------------

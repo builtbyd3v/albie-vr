@@ -45,12 +45,43 @@ artifact tools.
 |---|---|
 | "Expand the heart", "take the eye apart", "explode it" | `artifact_explore` separate. With `template`, it opens the model first if it isn't open and waits for it to load. |
 | "Put it back together", "cut it open", "make it whole", "X-ray it", "turn it", "reset it" | `artifact_explore` assemble, cut open, whole, X-ray, turn (by degrees), reset |
-| "Show me the mitral valve", "show me the lens" | `artifact_explore` focus: that part stays solid and the rest goes see-through. The part is found by its spoken name, so "left ventricle" isn't the right one. An unknown part gets the list of parts back. |
+| "Show me the frontal lobe", "just the left ventricle", "only the valves", "the frontal and temporal lobes" | `artifact_explore` isolate: those parts glow a little, come toward you and grow, and show their name and what they do; the rest fade to a faint outline. `mode: highlight` keeps the rest see-through instead, `expand: false` leaves them in place. One call, any list or group. |
+| "Show me this lobe", "expand this", "just this part" | `artifact_explore` isolate with `part: "this"`: the part you're pointing at (hand, finger, ray or mouse), else the one you're looking at, in the last 2.5 s. |
+| "Show me the mitral valve" (focus) | `artifact_explore` focus: that part solid and the rest see-through, nothing moves. |
+| "Show all", "bring the rest back" | `artifact_explore` unfocus. Reset view also clears it. |
+| "What's this?" | `artifact_describe`: `pointed_at` and `looked_at` say which part and what it does. |
 | "Explain the blood flow", "how does the eye see", "tour the brain", "follow a protein" | `artifact_press`: plays the model's walkthrough. Albie gets its captions in order, with timings, and explains one step per caption as it plays. A request to explain that names no button plays the model's main walkthrough. |
 | "Show / hide the blood flow", "spin it", "stop spinning", "hide labels" | `artifact_press` on that button. A toggle's label flips as if it were tapped, and asking for what's already on says so. |
 | A question about the open model | `artifact_describe`: the title, parts, buttons, walkthrough captions, notes and state, so Albie answers from what's there. |
 
-The scene's own labels now hide whenever the parts are apart, however that was asked for (the Explorer does it).
+The scene's own labels now hide whenever the parts are apart or shown on their own, however that was asked for (the Explorer does it).
+
+### Part names people use (`parts.json`, `PartMatch`)
+
+Each anatomy and biology template has `Resources/ArtifactTemplates/<template>/parts.json`: per part a one-line `about`
+and other names (`aka`: "upper left chamber", "little brain", "white of the eye"), `groups` ("chambers", "atria",
+"valves", "arteries", "lobes", "hemispheres", "back of the brain", "the left side"), words that narrow nothing
+(`ignore`: "heart", "brain"), and `bilateral` for the brain, where "the frontal lobe" means both sides. `PartMatch`
+(plain C#) matches case, spacing, underscores, plurals, British or American spelling, lists ("the aorta and the mitral
+valve", "frontal and temporal lobes") and partial words. A singular that fits several parts ("the valve", "the lobe",
+"vena cava") isn't guessed: the result has `options` and Albie asks. Nothing matching returns the real part names and
+groups. The heart's own left side is the anatomical one (pulmonary veins to aorta), not every part named "Left".
+
+### "This" (`ArtifactPartPointer`)
+
+Each loaded model gets picking colliders (its meshes, on the Ignore Raycast layer, added two a frame) and a pointer
+that, 15 times a second, asks what is under: a hand holding or about to take a part, an index finger pointed at it
+(middle finger curled), the Interaction SDK rays, then the mouse; and separately the centre of the view. What was
+pointed at is kept 2.5 s so the voice round trip doesn't lose it, and the part under a pointer is lit a little.
+
+### Models nobody split (imported with `model_import`)
+
+A model without `explode`/`xray` markers gets parts from its node tree: down through exporter wrappers
+(Sketchfab_model, root, GLTF_SceneRootNode) to the first node with several branches; a branch that is several is opened
+while there are fewer than four; fragments under 6% of the model's size join their nearest neighbour; at most 20 parts.
+Names come from the nodes ("Fan_Blades_2" is "Fan blades"); "Object_12", "polySurface34" and hashes are dropped for
+"Part 3 (top)". Parts move straight out from the centre. A model that is one mesh is one solid piece and says so.
+Imported models get Separate and X-ray on their panel once they turn out to have parts.
 
 Two markers in the GLB, both empty child nodes of a part, drive this:
 
@@ -113,6 +144,10 @@ see-through glTF materials. glTFast's PBR shader is in Always Included Shaders, 
   - a single mesh doesn't claim parts, and the cut keeps only the back half;
   - with two parts: the move is gradual, a marker sets where a part goes, an unmarked part moves outward, names show
     only when apart, X-ray changes only the marked or big part, and reset restores everything.
+- `ArtifactChecks` (Exploration, isolate): stand-ins named from the bundled heart and brain GLBs' nodes run isolate,
+  groups, other names, "the valve" asking which, the no-match list, highlight mode and reset; a made-up ray finds the
+  lobe it's on and "this lobe" isolates it; a Sketchfab-shaped tree becomes named parts, a one-mesh model refuses, and
+  sixty meshes become at most 20 parts. Casting and laying out allocate nothing.
 - `BioTemplatesCheck`:
   - every template is valid;
   - the models are openly licensed, credited in the panel, and match their hashes;
@@ -127,7 +162,6 @@ on the panel buttons.
 
 ## Next
 
-- Pick a part with the ray to isolate it and read about it (a part contract with descriptions).
 - Bind the scene labels to parts so they travel with them when the model is separated, instead of hiding.
 - A beat that squeezes the atria, then the ventricles, rather than scaling the whole heart.
 - For patient-specific hearts, segment CT or MRI in 3D Slicer (SlicerHeart) and export OBJ or STL into the same

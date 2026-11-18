@@ -1,16 +1,54 @@
 [
   {
     "name": "artifact_explore",
-    "description": "Act on the open 3D model (heart, eye, brain, animal cell, plant cell, DNA). action: separate (also 'expand', 'explode', 'take it apart': the parts glide apart, each named), assemble (put it back together), cut_open (cut it open to see inside), whole (undo the cut), xray (see through the outer layers), xray_off, focus (show one part solid and everything else see-through; give part, e.g. 'mitral valve', 'lens', 'frontal lobe'), unfocus, turn (degrees, default 30), reset (everything back as it was). Pass template too (heart, eye, brain, cell, plant_cell, dna) when the user names a model that isn't open: it opens it first and waits for it to load. The result lists the model's parts and its state; say in a few words what changed.",
+    "description": "Act on the open 3D model (heart, eye, brain, animal cell, plant cell, DNA, or an imported model). action: separate ('expand', 'explode', 'take it apart', 'show me the parts': the parts glide apart, each named), assemble, cut_open, whole (undo the cut), xray, xray_off, isolate ('show me the frontal lobe', 'just the valves', 'show me this lobe': those parts glow and come forward, the rest fade to a faint outline), focus (that part solid, the rest see-through, nothing moves), unfocus ('show all', 'put it back': every part again), turn (degrees, default 30), reset. For isolate and focus give part as the user said it: one part, a list ('frontal and temporal lobes'), a group ('the chambers', 'the arteries', 'the left side'), or 'this' for the part they're pointing or looking at. If the result has options, ask which; if no part matched it lists the real ones. Pass template (heart, eye, brain, cell, plant_cell, dna) when they name a model that isn't open. Say in a few words what changed.",
     "parameters": {
       "type": "object",
       "properties": {
-        "action": {"type": "string", "enum": ["separate", "assemble", "cut_open", "whole", "xray", "xray_off", "focus", "unfocus", "turn", "reset"]},
-        "part": {"type": "string", "description": "For focus: the part's name as the user said it."},
-        "degrees": {"type": "number", "description": "For turn: how far, in degrees (positive turns it to the right). Default 30."},
-        "template": {"type": "string", "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."}
+        "action": {
+          "type": "string",
+          "enum": [
+            "separate",
+            "assemble",
+            "cut_open",
+            "whole",
+            "xray",
+            "xray_off",
+            "isolate",
+            "focus",
+            "unfocus",
+            "turn",
+            "reset"
+          ]
+        },
+        "part": {
+          "type": "string",
+          "description": "For isolate and focus: the part as the user said it ('left ventricle', 'the valves', 'frontal and temporal lobes'), or 'this' for what they point or look at."
+        },
+        "degrees": {
+          "type": "number",
+          "description": "For turn: how far, in degrees (positive turns it to the right). Default 30."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "isolate",
+            "highlight"
+          ],
+          "description": "For isolate: isolate (default) fades the rest to a faint outline; highlight keeps the rest see-through."
+        },
+        "expand": {
+          "type": "boolean",
+          "description": "For isolate and focus: bring the parts forward and a little bigger (default true for isolate, false for focus)."
+        },
+        "template": {
+          "type": "string",
+          "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."
+        }
       },
-      "required": ["action"]
+      "required": [
+        "action"
+      ]
     }
   },
   {
@@ -19,15 +57,26 @@
     "parameters": {
       "type": "object",
       "properties": {
-        "button": {"type": "string", "description": "The button as the user said it, or its label or id."},
-        "template": {"type": "string", "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."}
+        "button": {
+          "type": "string",
+          "description": "The button as the user said it, or its label or id."
+        },
+        "template": {
+          "type": "string",
+          "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."
+        }
       },
-      "required": ["button"]
+      "required": [
+        "button"
+      ]
     }
   },
   {
     "name": "artifact_describe",
-    "description": "What's open right now and what it can do: the artifact's title, its named parts, its buttons, its walkthrough captions and notes, and its state (apart, cut open, X-ray, which part is in focus). Call it before explaining the open model or answering a question about it, so you talk about what's actually there.",
-    "parameters": {"type": "object", "properties": {}}
+    "description": "What's open right now and what it can do: the artifact's title, its named parts and part groups, its buttons, its walkthrough captions and notes, its state (apart, cut open, X-ray, which parts are shown on their own), and pointed_at and looked_at: the part the user is pointing at or looking at, with what it does. Call it before explaining the open model or answering a question about it, and for 'what's this?' (answer from pointed_at, else looked_at).",
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    }
   }
 ]
