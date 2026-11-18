@@ -276,6 +276,13 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             case "tts.stop":
                 StopSpeech("cancel");
                 break;
+            case "workflow.describe":
+                const string brief = "The user opened Project workflow. Ask what software project they want the crew to build. " +
+                    "Discuss their reply, clarify missing details if needed, then call build_start with their brief. " +
+                    "Wait for explicit approval of the plan before implementation.";
+                OnEvent("albie.note", new JObject { ["text"] = brief });
+                OnEvent("albie.say", new JObject { ["text"] = "What would you like the crew to build?" });
+                break;
             case "messages.focus":  // "Ask Albie" on a message (the demo conversations send its text along)
                 string text = (string)payload?["text"];
                 if (string.IsNullOrEmpty(text)) break;

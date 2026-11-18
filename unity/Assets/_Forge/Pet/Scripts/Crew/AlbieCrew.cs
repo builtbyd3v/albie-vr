@@ -87,12 +87,7 @@ namespace Forge.Pet
         /// <summary>Raised after an agent hatched or left.</summary>
         public event Action Changed;
         /// <summary>Hatching from the egg / keyboard is available: the gate mode is open, or there is no gate / no Workspace.</summary>
-        public bool CrewAllowed => WorkflowWindowOpen || workflowRunning || string.IsNullOrEmpty(gateModeId) || !PetWorkspace.HasWorkspace || PetWorkspace.ActiveMode == gateModeId;
-        /// <summary>The coding workflow can show the crew without opening the Code workspace.</summary>
-        public static bool WorkflowWindowOpen { get; internal set; }
-        bool workflowRunning;
-        IDisposable workflowEvents;
-
+        public bool CrewAllowed => string.IsNullOrEmpty(gateModeId) || !PetWorkspace.HasWorkspace || PetWorkspace.ActiveMode == gateModeId;
         readonly List<AlbieCrewMember> _members = new List<AlbieCrewMember>(AlbieAgentTypes.All.Length);
         readonly List<AlbieController> _agents = new List<AlbieController>(AlbieAgentTypes.All.Length + 1);
         readonly List<AlbieTerritory> _areas = new List<AlbieTerritory>(AlbieAgentTypes.All.Length + 1);
@@ -110,7 +105,7 @@ namespace Forge.Pet
         Vector2 _leadRestSeconds, _leadShortPause;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { Instance = null; WorkflowWindowOpen = false; }
+        static void ResetStatics() { Instance = null; }
 
         void Awake()
         {
@@ -122,11 +117,6 @@ namespace Forge.Pet
         void Start()
         {
             WhistleButton.AnyPressed += OnWhistle;
-            workflowEvents = ForgeNet.On("build.updated", token =>
-            {
-                string state = (string)token["state"];
-                workflowRunning = state == "planning" || state == "awaiting_plan" || state == "building" || state == "verifying" || state == "shipping";
-            }, true);
         }
 
         void OnEnable() { hatchAction.Enable(); dismissAction.Enable(); }
@@ -134,7 +124,6 @@ namespace Forge.Pet
 
         void OnDestroy()
         {
-            workflowEvents?.Dispose();
             if (_source != null) _source.EventReceived -= OnHubEvent;
             WhistleButton.AnyPressed -= OnWhistle;
             if (Instance == this) Instance = null;

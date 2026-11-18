@@ -3,7 +3,7 @@
 One request runs end to end, in the XR workspace:
   1. Plan.   One Claude call (ml/setup/llm.py: structured output, so the plan always parses) turns the goal into up to
              MAX_STEPS steps, each owned by one crew type (builder, tester, scribe, reviewer, ...). Albie shows it on a card.
-  2. Crew.   The crew types the plan needs hatch in Unity (crew.spawn), so the user sees who is working.
+  2. Crew.   The office displays the crew assigned to the workflow's steps.
   3. Build.  The steps run in order, each as that crew member's own Claude runner turn (runner.run_turn, the same as
              assign_task) in one workspace for this build, so each step sees the last one's files. Every step that
              changed files is committed, with the crew member's name on it.
@@ -41,7 +41,7 @@ from . import events as ev
 from . import tools
 from .bus import Emitter, bus
 from .config import HUB_DIR, ProjectConfig
-from .crew import TYPES, crew
+from .crew import TYPES
 from .turn import TurnControl
 
 log = logging.getLogger(__name__)
@@ -315,7 +315,6 @@ def step_prompt(build: Build, i: int) -> str:
 
 # ------------------------------------------------------------------ the run
 Publish = Callable[[ev.Event], Awaitable[None]]
-Hatch = Callable[[str], Awaitable[dict[str, Any]]]
 
 
 class _Target:
@@ -344,16 +343,13 @@ def _runner():
 
 
 class Builds:
-    """The builds of one hub, or of one headset on Albie's cloud. The hub's default sends events over its socket bus
-    and hatches through its crew; the cloud passes `publish` (the headset's polled event log, cloud-py/app.py) and
-    `hatch` (a crew.spawn event the headset acts on), since there is no socket and no Unity roster there."""
+    """One hub or headset's projects. Build snapshots drive the crew office on the client."""
 
-    def __init__(self, publish: Publish | None = None, hatch: Hatch | None = None, *, root: Path | None = None) -> None:
+    def __init__(self, publish: Publish | None = None, *, root: Path | None = None) -> None:
         self.builds: dict[str, Build] = {}
         self.latest: str | None = None
         self.on_hub = publish is None
         self.publish: Publish = publish or bus.broadcast
-        self.hatch: Hatch = hatch or crew.spawn
         self.target = bus if publish is None else _Target(publish)
         self.root = root
         self._loaded_root: Path | None = None
@@ -471,11 +467,6 @@ class Builds:
             await asyncio.to_thread(prepare_workspace, build, self.root)
             build.state = "building"
             await self.changed(build)
-            for agent in dict.fromkeys(s.agent for s in build.steps):  # hatch who the plan needs, in plan order
-                hatched = await self.hatch(agent)
-                if "error" in hatched:
-                    log.info("build %s: %s didn't hatch (%s); working without the character", build.id[:6], agent,
-                             hatched["error"])
             project = ProjectConfig(id=f"build-{build.id[:6]}", path=build.workspace, default_mode="code",
                                     edit_in_place=True)
             for i, step in enumerate(build.steps):
@@ -672,7 +663,7 @@ builds = Builds()
 # artifact_create, which takes "any request to make or build something" that you look at in the room.
 BUILD_START_DESCRIPTION = (
     "Have the crew write a software project from scratch, as code in a repo, end to end: Albie plans it, the crew "
-    "hatches, and Builder, Tester, Scribe and Reviewer each do their part in turn, committing as they go; when it's "
+    "appears in the agent office, and Builder, Tester, Scribe and Reviewer each do their part in turn, committing as they go; when it's "
     "ready the user can have a pull request opened. Use it when the user asks for a program, app, script, tool, "
     "website, game to run on a computer, or a pull request ('build me a Python to-do app', 'write a command-line "
     "unit converter', 'have the crew make a snake game in the terminal'). Something to look at or play with in the "

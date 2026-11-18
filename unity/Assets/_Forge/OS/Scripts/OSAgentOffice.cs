@@ -152,6 +152,10 @@ namespace Forge.OS
             string key = crew != null && crew.Lead != null ? crew.Lead.GetEntityId().ToString() : "";
             if (crew != null)
                 foreach (var m in crew.Members) if (m != null && !m.Leaving) key += ":" + m.GetEntityId();
+            var roles = new HashSet<string>();
+            if (build?["steps"] is JArray steps)
+                foreach (var step in steps)
+                    if (roles.Add((string)step["type"])) key += "/" + (string)step["type"];
             if (key == rosterKey) return;
             rosterKey = key;
             foreach (var d in desks) if (d.root != null) Destroy(d.root.gameObject);
@@ -169,6 +173,8 @@ namespace Forge.OS
                 var member = crew != null ? crew.Find(type) : null;
                 if (member != null && !member.Leaving && member.Controller != null)
                     AddDesk(type.Id, type.Name, type.Color, member.Controller);
+                else if (roles.Contains(type.Id))
+                    AddDesk(type.Id, type.Name, type.Color, null);
             }
             RectTransform row = null;
             for (int i = 0; i < desks.Count; i++)
@@ -202,7 +208,7 @@ namespace Forge.OS
             Box(root, "Keyboard", new Vector3(0, .116f, .045f), new Vector3(.12f, .007f, .035f), new Color(.25f, .31f, .37f));
             var label = WorldText(root, displayName + " / idle", new Vector3(0, .024f, -.23f), .037f);
             var desk = new Desk { id = id, name = displayName, root = root, color = color, source = source,
-                bridge = source.GetComponent<AlbieAgentBridge>(), monitor = monitor.GetComponent<Renderer>(), label = label,
+                bridge = source != null ? source.GetComponent<AlbieAgentBridge>() : null, monitor = monitor.GetComponent<Renderer>(), label = label,
                 seat = new Vector3(0, .015f, -.075f) };
             desk.portrait = MakePortrait(root, source);
             if (desk.portrait.fallback) FallbackAvatar(desk.portrait.root, color, id == "albie");
@@ -213,6 +219,7 @@ namespace Forge.OS
         {
             var portrait = new Portrait { root = new GameObject("Crew visual (no agent components)").transform };
             portrait.root.SetParent(parent, false);
+            if (source == null) { portrait.fallback = true; return portrait; }
             // Copy only mesh data. Never Instantiate an agent GameObject: Awake could connect sockets or register tools.
             foreach (var renderer in source.GetComponentsInChildren<Renderer>(false))
             {
@@ -307,7 +314,7 @@ namespace Forge.OS
                 : build == null ? "No project workflow yet"
                 : ((bool?)build["demo"] == true ? "Scripted sample · " : "") + (string)build["title"] + " · " + WorkflowState.Replace('_', ' ');
             if (!string.IsNullOrEmpty(workflowError)) summary.text = "Workflow service: " + workflowError;
-            if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
+            if (desks.Exists(d => d.source != null && d.portrait.fallback)) summary.text += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
             foreach (var d in desks)
             {
                 d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";
