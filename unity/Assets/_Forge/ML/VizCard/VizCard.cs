@@ -30,18 +30,20 @@ namespace Forge.ML
         JArray cards;
         int cardIndex;
         bool sampleCards;  // showing the bundled sample cards, not a run's: the title says so
-        IDisposable vizEvents;
+        IDisposable vizEvents, cloudReady;
         Texture2D downloaded;
 
         void OnEnable()
         {
             ForgeNet.StatusChanged += OnNetStatus;
+            cloudReady = ForgeNet.On("cloud.ready", _ => OnNetStatus(ForgeNet.Status));  // hub off: Albie's cloud came up
             ForgeEvents.OnMlResultsReady += OnResultsReady;
             vizEvents = ForgeNet.On("ml.viz", OnVizEvent);
         }
         void OnDisable()
         {
             ForgeNet.StatusChanged -= OnNetStatus;
+            cloudReady?.Dispose(); cloudReady = null;
             ForgeEvents.OnMlResultsReady -= OnResultsReady;
             vizEvents?.Dispose(); vizEvents = null;
         }
@@ -56,9 +58,9 @@ namespace Forge.ML
                 Render();
             }
             else Render();
-            if (ForgeNet.Status == ForgeNetStatus.Live) FetchCards(null);
+            if (ForgeCloud.Serves("/ml/")) FetchCards(null);  // the hub, or Albie's cloud with the hub off
         }
-        void OnNetStatus(ForgeNetStatus status) { if (status == ForgeNetStatus.Live && root != null) FetchCards(null); }
+        void OnNetStatus(ForgeNetStatus status) { if (ForgeCloud.Serves("/ml/") && root != null) FetchCards(null); }
         void OnResultsReady(global::MlResultsReady ready) { if (ready != null) FetchCards(ready.runId); }
         void FetchCards(string runId)
         {

@@ -58,7 +58,7 @@ public static class VoiceCheck
             failed += Step(sb, ref skipped, "3c Pause and return while connecting: one session, only the new turn", PauseRace);
             failed += Step(sb, ref skipped, "4a Look cone is 30 degrees", LookCone);
             failed += Step(sb, ref skipped, "4b Perched on the palm counts as facing", Perched);
-            failed += Step(sb, ref skipped, "4c Speech not facing Albie opens no session", FacingGate);
+            failed += Step(sb, ref skipped, "4c Speech not facing Albie counts only if it names him", FacingGate);
             failed += Step(sb, ref skipped, "4d A gated turn that fails to open clears RequireName", GateCleared);
             failed += Step(sb, ref skipped, "5  Cold start: frames queued while connecting go out in order", ColdStart);
             failed += Step(sb, ref skipped, "6  A heard turn with no reply is asked once more after RetryS", HeardTurnRetried);
@@ -255,25 +255,62 @@ public static class VoiceCheck
         return "perched: facing wherever they look; not perched and looking away: not facing; grace and looking now: facing";
     }
 
+    // Not facing Albie (looking at an artifact, say), speech still reaches the session but counts only if it names him,
+    // as the hub's wake.py does: side talk shows and plays nothing (Grok's own reply is cancelled, its tools don't run),
+    // and "Albie, expand the heart" gets its answer even when the name is heard after Grok started replying.
     static string FacingGate()
     {
         if (Application.isPlaying) return PlaySkip;
+        Expect(AlbieVoice.NamesAlbie("Albie, expand the heart") && AlbieVoice.NamesAlbie("hey alby turn it")
+               && !AlbieVoice.NamesAlbie("all right, what's for lunch") && !AlbieVoice.NamesAlbie("albumin levels"), "the name test");
         using var r = new Rig();
+
+        // Side talk while looking away: heard, but nothing comes of it.
         r.WakeTurn(false);
         r.Frame(1);
         r.Event("stt.stop");
-        Expect(r.tokens == 0 && r.sockets.Count == 0, "a wake turn not facing Albie connected");
-        r.Event("stt.start", new JObject { ["require_name"] = true });
+        Expect(r.sockets.Count == 1, "a turn not facing Albie never reached the session");
+        var s = r.Last;
+        s.Feed(Msg("response.created"));
+        Expect(Count(s, "response.cancel") == 1, "Grok's own reply to side talk wasn't held back: " + Types(s));
+        s.Feed(new JObject { ["type"] = "conversation.item.input_audio_transcription.completed", ["transcript"] = "so what do you think" });
+        s.Feed(new JObject { ["type"] = "response.function_call_arguments.done", ["name"] = "ui_open_view", ["call_id"] = "c1", ["arguments"] = "{}" });
+        s.Feed(Msg("response.done"));
+        r.now = 20f;
+        r.Tick();
+        Expect(Count(s, "response.create") == 0 && Count(s, "conversation.item.create") == 0, "side talk got an answer or ran a tool: " + Types(s));
+
+        // "Albie, ..." while looking away, named after Grok had started its reply: asked again once the cancel ends.
+        r.now = 21f;
+        r.WakeTurn(false);
         r.Frame(2);
         r.Event("stt.stop");
-        Expect(r.tokens == 0 && r.sockets.Count == 0, "a follow-up turn that needs the name connected");
-        r.WakeTurn(true);
-        Expect(r.sockets.Count == 1, "a wake turn facing Albie opened no session");
-        r.Event("stt.cancel");
+        s.Feed(Msg("response.created"));
+        Expect(Count(s, "response.cancel") == 2, "the reply before the name was heard wasn't held back");
+        s.Feed(new JObject { ["type"] = "conversation.item.input_audio_transcription.completed", ["transcript"] = "Albie, expand the heart" });
+        Expect(Count(s, "response.create") == 0, "asked again before the held-back reply had ended");
+        s.Feed(Msg("response.done"));
+        Expect(Count(s, "response.create") == 1, "a turn naming Albie wasn't answered: " + Types(s));
+
+        // Named before Grok replies: its reply goes through untouched.
+        r.now = 40f;
+        r.Event("stt.start", new JObject { ["require_name"] = true });
+        r.Frame(3);
         r.Event("stt.stop");
-        r.Event("stt.start", new JObject());  // a button turn always counts
-        Expect(Count(r.Last, "input_audio_buffer.clear") == 4, "the button turn didn't reach the session: " + Types(r.Last));
-        return "wake not facing: no session; follow-up needing the name: no session; wake facing: session; button: sent";
+        s.Feed(new JObject { ["type"] = "conversation.item.input_audio_transcription.completed", ["transcript"] = "albie turn it" });
+        s.Feed(Msg("response.created"));
+        Expect(Count(s, "response.cancel") == 2, "a named turn's own reply was cancelled");
+        s.Feed(Msg("response.done"));
+
+        // Facing Albie: as before, no name needed.
+        r.now = 60f;
+        r.WakeTurn(true);
+        r.Frame(4);
+        r.Event("stt.stop");
+        s.Feed(Msg("response.created"));
+        Expect(Count(s, "response.cancel") == 2, "a facing turn's reply was cancelled");
+        s.Feed(Msg("response.done"));
+        return "side talk: cancelled, no tools, no answer; named late: asked again after the cancel; named early and facing: answered as is";
     }
 
     static string GateCleared()

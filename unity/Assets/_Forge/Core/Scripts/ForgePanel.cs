@@ -437,12 +437,16 @@ public class ForgePanel : MonoBehaviour
     }
 
     // The plate's corner comes from ForgeTheme.PanelCorner, not from what the prefab saved, so one constant restyles every
-    // window (the sandboxes too).
+    // window (the sandboxes too). Its graphic is opaque too: the prefab's 0.9 alpha let the text of a window behind show
+    // through this one (Hands read through Play area on the headset).
     void FitPlate()
     {
         var background = transform.Find("Background");
         var plate = background != null ? background.GetComponent<ForgeSurface>() : null;
-        if (plate != null && plate.Style == ForgeSurface.Kind.Panel) plate.Corner = ForgeTheme.PanelCorner;
+        if (plate == null || plate.Style != ForgeSurface.Kind.Panel) return;
+        plate.Corner = ForgeTheme.PanelCorner;
+        Color c = plate.color;
+        if (c.a < 1f) plate.color = new Color(c.r, c.g, c.b, 1f);
     }
 
     // The Interaction SDK only lets rays and pokes hit inside its clippers' boxes, which the prefab saved at the

@@ -179,7 +179,8 @@ namespace Forge.OS
             });
 
             // Docked (the default): the transmitter waits on a fixed spot and the fingertips work its sticks.
-            dockToggle = OSUi.Toggle(column, "Docked transmitter (fixed spot; rest your thumbs on the sticks)", RcTransmitter.Docked, on =>
+            dockToggle = OSUi.Toggle(column, "Docked transmitter (stays put; thumbs on the sticks)", RcTransmitter.Docked,  // one line: the row is one line high
+                on =>
             {
                 string where = RcTransmitter.Ensure().SetDocked(on);
                 if (actionText != null)
@@ -355,7 +356,7 @@ namespace Forge.OS
             if (hintText != null && hintText.gameObject.activeSelf == open) hintText.gameObject.SetActive(!open);
             if (aidsRow != null && aidsRow.activeSelf == flying) aidsRow.SetActive(!flying);
             if (aidsButtonLabel != null) aidsButtonLabel.text = open ? "Back to the pad" : "Driving aids";
-            if (aidsSummary != null) aidsSummary.text = DriveAids.Summary(RcTransmitter.Docked);
+            if (aidsSummary != null) aidsSummary.text = AidsLine();
             if (steadyToggle != null && steadyToggle.isOn != DriveAids.SteadyThrottle) steadyToggle.SetIsOnWithoutNotify(DriveAids.SteadyThrottle);
             if (softToggle != null && softToggle.isOn != DriveAids.SteerExpo > 0.01f) softToggle.SetIsOnWithoutNotify(DriveAids.SteerExpo > 0.01f);
             if (speedSlider != null && Mathf.Abs(speedSlider.value - DriveAids.TrainingSpeed) > 0.049f) speedSlider.SetValueWithoutNotify(DriveAids.TrainingSpeed);
@@ -375,6 +376,11 @@ namespace Forge.OS
             nextPoll = now + PollSeconds;
             Poll(false);
         }
+
+        // The aids in one short line beside their button (the row is one line high; the toggle above says docked or
+        // handheld). Albie's transmitter tool still reads the full DriveAids.Summary.
+        static string AidsLine() => DriveAids.TrainingSpeed.ToString("0.0") + " m/s · steer " + Mathf.RoundToInt(DriveAids.SteerRate * 100f) + "%"
+            + (DriveAids.SteerExpo > 0.01f ? " · soft centre" : "") + (DriveAids.SteadyThrottle ? " · steady" : "");
 
         // Reads the truck and rewrites a line only when it changes (no string is built otherwise).
         void Poll(bool force)
