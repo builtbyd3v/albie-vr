@@ -35,30 +35,81 @@ public class DeskLocator : MonoBehaviour
 
     void OnRoomLoaded()
     {
-        var room = MRUK.Instance.GetCurrentRoom();
-        if (room == null)
+        sceneLoaded = true;
+        var current = MRUK.Instance.GetCurrentRoom();
+        if (current == null)
         {
             Debug.LogWarning("[DeskLocator] Room loaded but there is no current room.");
             return;
         }
+        UseRoom(current);
+    }
 
+    // The headset can hold several scanned rooms, and the one the user is in can change mid-session (they walk into the
+    // room they scanned). Take its tables and floor, and pick the desk again from them.
+    void UseRoom(MRUKRoom next)
+    {
+        room = next;
         tables.Clear();
-        foreach (var anchor in room.Anchors)
+        foreach (var anchor in next.Anchors)
             if (anchor.HasAnyLabel(MRUKAnchor.SceneLabels.TABLE) && anchor.PlaneRect.HasValue)
                 tables.Add(anchor);
-        FloorY = room.FloorAnchor != null ? room.FloorAnchor.transform.position.y : 0f;
+        FloorY = next.FloorAnchor != null ? next.FloorAnchor.transform.position.y : 0f;
         RoomLoaded = true;
+        Desk = null;
+        warnedFar = false;
 
-        Debug.Log($"[DeskLocator] Room '{room.name}' loaded: {room.Anchors.Count} anchors, {tables.Count} table(s), floor at y={FloorY:F2}.");
+        Debug.Log($"[DeskLocator] Room '{next.name}' loaded: {next.Anchors.Count} anchors, {tables.Count} table(s), floor at y={FloorY:F2}.");
         if (tables.Count == 0)
         {
             Debug.LogWarning("[DeskLocator] No TABLE in this room. Pick a simulator room with a table, or place the desk manually.");
             return;
         }
-        Desk = NearestTable(head != null ? head.position : Vector3.zero, out float distance);
+        TryPickDesk();
+    }
+
+    // A room scan from somewhere else can load with its tables far from the user (seen: 28 m). Such a table is not the
+    // desk: wait until a table is within reach, checking once a second.
+    const float MaxDeskDistance = 3f;
+    const float RoomCheckInterval = 2f;
+    float nextPick, nextRoomCheck;
+    bool sceneLoaded;
+    MRUKRoom room;
+
+    void Update()
+    {
+        if (sceneLoaded && Time.time >= nextRoomCheck)
+        {
+            nextRoomCheck = Time.time + RoomCheckInterval;
+            var current = MRUK.Instance != null ? MRUK.Instance.GetCurrentRoom() : null;
+            if (current != null && current != room)
+            {
+                Debug.Log($"[DeskLocator] The user is now in room '{current.name}'.");
+                UseRoom(current);
+                return;
+            }
+        }
+        if (Desk != null || tables.Count == 0 || Time.time < nextPick) return;
+        TryPickDesk();
+    }
+
+    void TryPickDesk()
+    {
+        nextPick = Time.time + 1f;
+        var nearest = NearestTable(head != null ? head.position : Vector3.zero, out float distance);
+        if (nearest == null) return;
+        if (distance > MaxDeskDistance)
+        {
+            if (!warnedFar) Debug.Log($"[DeskLocator] Nearest table is {distance:F1} m away; no desk until one is within {MaxDeskDistance} m.");
+            warnedFar = true;
+            return;
+        }
+        Desk = nearest;
         Debug.Log($"[DeskLocator] Nearest desk at {DeskTop.From(Desk).center}, {distance:F2} m from head.");
         deskFound?.Invoke(Desk);
     }
+
+    bool warnedFar;
 
     /// <summary>Table whose top is horizontally closest to <paramref name="position"/>.</summary>
     public MRUKAnchor NearestTable(Vector3 position, out float distance)

@@ -15,9 +15,10 @@ certifi==2026.10.23
 pyarrow==26.0.1  # ml_new reads Hugging Face Parquet exports (hub/ml/hf_data.py)
 transformers==5.23.0  # ml_new fine-tuning a pretrained Hugging Face encoder (hub/ml/templates/pretrained)
 anthropic==2.3.0  # repo setup with the Space's own ANTHROPIC_API_KEY (else the Vercel proxy)
-claude-agent-sdk==0.2.173  # the crew's builds (cloud_builds.py -> hub/agent/runner.py); the wheel bundles the Claude CLI
-PyYAML==6.0.3  # hub/agent/config.py, which the build's crew imports
 # What most GitHub ML repos import (ml_github); anything else goes into the repo's own venv (hub/ml/repo_env.py)
 pandas==3.1.1
 scikit-learn==1.9.1
 tqdm==4.70.1
+# "Albie, build me a ..." (hub/agent/build.py): the crew's Claude runner (it bundles the Claude CLI) and its config
+claude-agent-sdk==0.2.173
+PyYAML==6.0.3

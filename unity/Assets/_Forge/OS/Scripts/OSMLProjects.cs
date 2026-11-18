@@ -223,12 +223,12 @@ namespace Forge.OS
             entries.Add(new OSEntry
             {
                 id = ImportId,
-                title = "Import from GitHub",
+                title = "Import from source control",
                 icon = "repo",
                 tab = OSTab.Projects,
                 section = Section,
                 outline = true,
-                status = () => NoticeOr(ImportId, Live ? "paste a GitHub link" : NeedsCloudShort),
+                status = () => NoticeOr(ImportId, Live ? "paste a repo link" : NeedsCloudShort),
                 open = Import,
             });
         }
@@ -237,7 +237,7 @@ namespace Forge.OS
         static string StatusLine(Card c)
         {
             if (c.training) return "training now";
-            string from = c.kind == "github" ? "from GitHub" : c.kind == "new" ? "built by Albie" : "example";
+            string from = c.kind == "github" ? "from source control" : c.kind == "new" ? "built by Albie" : "example";
             switch (c.status)
             {
                 case "scanning": case "classifying": case "adapting": case "building": return "setting up · " + from;

@@ -34,7 +34,7 @@ _CONFIRM = {"type": "boolean", "description": "true only after the user said yes
 
 TOOLS: list[dict[str, Any]] = [
     {"name": "github_list_repos",
-     "description": "The repos in the user's connected GitHub account, and which one is open in the code panel. "
+     "description": "The repos in the user's connected source control account, and which one is open in the code panel. "
                     "These are the user's own code repos. To pull a public ML repo for training, use ml_github instead.",
      "parameters": {"type": "object", "properties": {}}},
     {"name": "github_open_repo",
@@ -60,7 +60,7 @@ TOOLS: list[dict[str, Any]] = [
      "description": "Leave the pull requests and go back to the repo's files in the code panel.",
      "parameters": {"type": "object", "properties": {}}},
     {"name": "github_approve_pr",
-     "description": "Approve a pull request as the user's account. This is posted on GitHub for everyone to see. "
+     "description": "Approve a pull request as the user's account. This is posted in source control for everyone to see. "
                     "Call it first without confirm: nothing is posted, and you get the pull request to read back. "
                     "Say its number and title and ask 'approve it?'. Only after a clear yes, call again with confirm true.",
      "parameters": {"type": "object", "properties": {"number": _PR, "repo": _REPO, "confirm": _CONFIRM},

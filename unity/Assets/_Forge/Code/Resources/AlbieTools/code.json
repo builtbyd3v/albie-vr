@@ -21,13 +21,13 @@
    "parameters": {"type": "object", "properties": {
      "path": {"type": "string", "description": "file name; omit for all files"}}}},
   {"name": "code_ask",
-   "description": "Ask Claude a question about a project file: what it does, why a line is there, how to change something. Takes a few seconds: it returns status working at once; say in a few words that you're reading the file, then a system note brings the answer to say out loud (the lines it is about light up).",
+   "description": "Ask the coding agent a question about a project file: what it does, why a line is there, how to change something. Takes a few seconds: it returns status working at once; say in a few words that you're reading the file, then a system note brings the answer to say out loud (the lines it is about light up).",
    "parameters": {"type": "object", "properties": {
      "question": {"type": "string", "description": "the user's question, self-contained"},
      "path": {"type": "string", "description": "file name; omit for the open file"}},
      "required": ["question"]}},
   {"name": "code_edit",
-   "description": "Change a project file as the user asks (fix the error, rename a variable, add a function, make the fins bigger). Claude writes the change; it is saved on the headset, the changed lines light up and code_undo takes it back. Takes several seconds: it returns status working at once; say in a few words that you're on it, then a system note says what changed.",
+   "description": "Change a project file as the user asks (fix the error, rename a variable, add a function, make the fins bigger). The coding agent writes the change; it is saved on the headset, the changed lines light up and code_undo takes it back. Takes several seconds: it returns status working at once; say in a few words that you're on it, then a system note says what changed.",
    "parameters": {"type": "object", "properties": {
      "instruction": {"type": "string", "description": "what to change, self-contained"},
      "path": {"type": "string", "description": "file name; omit for the open file"}},

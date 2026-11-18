@@ -84,7 +84,7 @@ CODE_DENY = [
 # with a shell, and the SDK starts it with the hub's whole environment; its env option can override values but not
 # remove them, so each of these is passed as "". ANTHROPIC_API_KEY stays: the CLI may need it to run at all.
 HIDDEN_ENV = ("GITHUB_TOKEN", "GH_TOKEN", "XAI_API_KEY", "OPENHANDS_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_USER_TOKEN",
-              "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN")
+              "TYPESAFE_API_KEY", "HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "ALBIE_APP_KEY")
 
 
 def agent_env() -> dict[str, str]:

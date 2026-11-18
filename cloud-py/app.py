@@ -2,8 +2,7 @@
 
     PYTHONPATH=cloud-py/stubs:cloud-py:hub uvicorn app:app --port 8080      (from the repo root)
 
-hub/cad, hub/ml and the code browser are mounted, plus the crew's builds (cloud_builds.py: hub/agent/build.py per
-headset, on when the Space has a Claude key); no Slack or voice. Every request carries
+Only hub/cad and hub/ml are mounted (no Slack, agent or voice). Every request carries
   x-albie-key     == env ALBIE_APP_KEY (401 otherwise)
   x-albie-device  the headset's own id (the app makes one and keeps it); each device gets its own CAD library and
                   version history, its own ML project copy and its own event log, so nobody overwrites anyone.
@@ -14,11 +13,8 @@ Device routes beyond the hub's:
   GET  /events?after=N   what the hub would have broadcast on /ws (cad.model_updated, ml.metrics, pet.say ...)
   POST /tools/{name}     one of Albie's CAD or ML tools (hub/cad/tools.py, hub/ml/tools.py) -> {result, show}
                          `show`: the view the tool wanted open ("cad"/"ml"); the headset opens it.
-                         Albie's build_* tools too (cloud_builds.py), when builds are on.
-  /agent/builds...       the crew's builds for this headset: start, approve, review, ship, cancel (cloud_builds.py)
 Env: ALBIE_APP_KEY (required), CLOUD_DATA_DIR (/data), CAD_WORKERS (1), MAX_TRAINING (1), MAX_DEVICES (200),
 CLAUDE_PROXY_URL (the Vercel proxy for 'improve it'; empty = the free scripted change), PORT (8080).
-Builds: ANTHROPIC_API_KEY, BUILD_REPO, CLOUD_BUILDS=0 to switch them off; no limits unless set (cloud_builds.py).
 """
 from __future__ import annotations
 
@@ -51,11 +47,10 @@ from ml.setup.llm import LLMError, LLMResult
 from ml.tools import TOOLS as ML_TOOLS, MLTools
 from code_browser import tools as code_tools
 
-import cloud_builds
+import text_improve
 import research  # hub/research: parts search (needs MOUSER_API_KEY; else says not set up)
 from research import tools as research_tools
 import models  # hub/models: open-licence 3D model search and fetch for artifacts (/models/*)
-import text_improve
 
 log = logging.getLogger("albie.cloud")
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,8 +70,10 @@ CAD_TOOLS = {t["name"] for t in cad_tools.TOOLS}
 ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
 CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
 RESEARCH_TOOLS = {t["name"] for t in research_tools.TOOLS}
+# "Albie, build me a ..." (hub/agent/build.py): the crew writes a project on this machine and, after a yes, opens a
+# pull request on BUILD_REPO. Named here so the module (and the Claude CLI it drives) loads only when first used.
+BUILD_TOOLS = {"build_start", "build_approve", "build_review", "build_status", "build_ship", "build_cancel"}
 EVENT_LOG = 400
-BUILD_USAGE = cloud_builds.Usage(DATA / "builds-usage.json")  # builds started today, over every headset
 
 os.environ.setdefault("FORGE_MODELS_DIR", str(DATA / "models"))  # fetched models, cached by id
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
@@ -203,13 +200,13 @@ def copy_template(dest: Path) -> None:
 
 
 def no_llm(*_: Any, **__: Any) -> LLMResult:
-    raise LLMError("no Claude in the cloud for project setup")
+    raise LLMError("no coding agent in the cloud for project setup")
 
 
 def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float = 60.0, effort: str = "medium") -> LLMResult:
     """ml/setup/llm.complete_json through the Vercel Claude proxy (its key never reaches this machine)."""
     if not CLAUDE_PROXY_URL:
-        raise LLMError("no Claude proxy set (CLAUDE_PROXY_URL)")
+        raise LLMError("no coding agent proxy set (CLAUDE_PROXY_URL)")
     body = {"model": "claude-sonnet-5-5", "max_tokens": 4096, "system": system, "messages": messages,
             "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": schema}}}
     request = urllib.request.Request(CLAUDE_PROXY_URL, data=json.dumps(body, default=lambda o: o.model_dump()).encode(),
@@ -219,19 +216,19 @@ def proxy_llm(system: str, messages: list[dict], schema: dict, *, timeout: float
         with urllib.request.urlopen(request, timeout=timeout) as answer:
             message = json.loads(answer.read())
     except Exception as e:  # noqa: BLE001 - any failure means: use the scripted change
-        raise LLMError(f"Claude proxy: {e}") from e
+        raise LLMError(f"coding agent proxy: {e}") from e
     if message.get("stop_reason") == "max_tokens":
         # The proxy caps answers at 4096 tokens; adapting a whole repo needs far more (ml/setup/llm.py allows 64000).
-        raise LLMError("Claude's answer was cut off: setting up a GitHub repo needs the cloud's own Claude key "
+        raise LLMError("the coding agent's answer was cut off: setting up a repo needs the cloud's own model key "
                        "(the Space's ANTHROPIC_API_KEY secret, from ALBIE_ANTHROPIC_API_KEY when it deploys), "
                        "not the shared proxy")
     if message.get("stop_reason") == "refusal":
-        raise LLMError("Claude declined this request")
+        raise LLMError("the coding agent declined this request")
     text = next((b.get("text") for b in message.get("content", []) if b.get("type") == "text"), None)
     try:
         return LLMResult(data=json.loads(text or ""), content=message.get("content", []), usage=message.get("usage", {}))
     except ValueError as e:
-        raise LLMError("Claude's reply wasn't JSON") from e
+        raise LLMError("the coding agent's reply wasn't JSON") from e
 
 
 def cloud_llm():
@@ -284,20 +281,48 @@ class Device:
         # the proxy); with neither, setup fails and says so (the template and ml_new's projects need no setup).
         app.state.ml_jev, app.state.ml_backend = no_llm, "claude" if app.state.ml_llm is not no_llm else "jev"
         self.ml_tools = DeviceMLTools(app.state, root, speak=lambda pet, text: asyncio.sleep(0, False))
+        self.builds = None  # this headset's agent.build.Builds, made on its first build tool
         app.state.ml_tools = self.ml_tools  # GET /ml/projects lists this headset's projects
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
         app.include_router(code_browser.router)  # /code/*: the GitHub repos and pull requests in the code panel
         app.include_router(research.router)  # /research/parts
         app.include_router(models.router)  # /models/*: one cache for every headset (FORGE_MODELS_DIR)
-        # "Albie, build me a ...": this headset's own builds, kept in its folder, announced on its bus.
-        self.builds = cloud_builds.CloudBuilds(root / "builds", self.bus, BUILD_USAGE)
-        cloud_builds.mount(app, self.builds)
         self.add_routes(app)
         self.app = app
 
     async def start(self) -> None:
         await self.cad.start()
+
+    # ---- builds: the crew on this machine, its events in this headset's log ----------------------------------
+
+    def building(self) -> bool:
+        return self.builds is not None and any(not b.done for b in self.builds.builds.values())
+
+    async def publish_event(self, event: Any) -> None:
+        await self.bus.publish(event.type, event.payload)  # the headset polls it from /events and acts as on the hub
+
+    async def build_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        try:
+            from agent import build as agent_build
+            from agent import events as agent_events
+        except Exception:  # noqa: BLE001 - say so; CAD and ML keep working
+            log.exception("builds aren't available on this cloud")
+            return {"error": "the crew isn't installed on Albie's cloud yet"}
+        if self.builds is None:
+            async def hatch(agent_type: str) -> dict[str, Any]:
+                await self.publish_event(agent_events.crew_spawn(agent_type))  # AlbieCrew hatches it
+                return {"status": "hatched"}
+
+            self.builds = agent_build.Builds(publish=self.publish_event, hatch=hatch,
+                                            root=DATA / "devices" / self.id / "builds")
+        if name == "build_start":
+            if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAKE_AGENT") != "1":
+                return {"error": "the crew can't think yet: Albie's cloud has no model key (the Space's "
+                                 "ANTHROPIC_API_KEY secret)"}
+            if any(d.building() for d in DEVICES.values() if d is not self):
+                return {"error": "the build machine is busy with someone else's project; try again in a few minutes"}
+        return await agent_build.call_tool(name, args, of=self.builds)
 
     def add_routes(self, app: FastAPI) -> None:
         @app.get("/events")
@@ -327,8 +352,8 @@ class Device:
                 result = await research_tools.call_tool(name, args, cad=self.cad)
             elif name in CODE_TOOLS:
                 result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
-            elif name in cloud_builds.TOOL_NAMES:
-                result = await cloud_builds.tool(name, args, self.builds)
+            elif name in BUILD_TOOLS:
+                result = await self.build_tool(name, args)
             else:
                 result = {"error": f"no cloud tool {name!r}"}
             return {"result": result, "show": shown[0] if shown else None, "seq": self.bus.seq}
@@ -351,7 +376,6 @@ async def device(device_id: str) -> Device:
             while len(DEVICES) > MAX_DEVICES:  # its files stay on disk; it reloads on its next request
                 _, old = DEVICES.popitem(last=False)
                 try:
-                    await old.builds.close()  # a build still running for it is stopped; its files stay
                     await old.cad.stop()  # the shared POOL ignores it; a device's own worker would close here
                 except Exception:  # noqa: BLE001 - a failed close must not fail the new device's request
                     log.exception("closing evicted device %s failed", old.id)
@@ -390,8 +414,7 @@ async def app(scope, receive, send) -> None:
             return await JSONResponse({"error": "missing or wrong x-albie-key"}, 401)(scope, receive, send)
         if path == "/health":
             return await JSONResponse({"ok": True, "devices": len(DEVICES), "cad_workers": len(POOL.workers),
-                                       "training": training_now(), "builds": cloud_builds.unavailable() is None,
-                                       "building": cloud_builds.active()})(scope, receive, send)
+                                       "training": training_now()})(scope, receive, send)
         device_id = headers.get("x-albie-device", "")
     if not DEVICE_ID.match(device_id):
         return await JSONResponse({"error": "x-albie-device must be 8-64 letters, digits, - or _"}, 400)(scope, receive, send)

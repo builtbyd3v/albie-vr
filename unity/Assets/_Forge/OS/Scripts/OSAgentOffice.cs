@@ -12,8 +12,7 @@ namespace Forge.OS
     /// <summary>
     /// An office visualization of the existing crew, not a second agent runtime. Mesh-only portraits share the
     /// crew's identity and pose; no controller, socket, tool, voice or collider is copied. Closing the office never
-    /// cancels a task, moves a live character or changes the roster. Work states come from the hub (or, with the hub
-    /// off, Albie's cloud) and the agent bridge.
+    /// cancels a task, moves a live character or changes the roster. Work states come from the hub and agent bridge.
     /// </summary>
     public sealed class OSAgentOffice : MonoBehaviour
     {
@@ -28,7 +27,8 @@ namespace Forge.OS
         RectTransform roster;
         IDisposable updates;
         JObject build;
-        string selected = "", rosterKey = "", trouble;  // trouble: why the builds couldn't be read (the server's words)
+        string selected = "", rosterKey = "";
+        string workflowError = "";
         bool pending;
         float nextRefresh, nextPose;
         int stageResourceCount;
@@ -36,7 +36,7 @@ namespace Forge.OS
         sealed class Portrait
         {
             public Transform root;
-            public bool fallback;
+            public bool fallback, sized;
             public readonly List<Part> parts = new List<Part>();
         }
         sealed class Part
@@ -245,7 +245,6 @@ namespace Forge.OS
                 var block = new MaterialPropertyBlock(); renderer.GetPropertyBlock(block); mr.SetPropertyBlock(block);
                 portrait.parts.Add(new Part { source = renderer, target = go.transform, mesh = mesh, skinned = skin != null });
             }
-            portrait.root.localScale = source.transform.lossyScale;
             // This checkout may lack the separately supplied Albie body asset. Show an honest visual fallback,
             // retaining the existing identity/task, rather than an invisible character or a new fake agent.
             portrait.fallback = source.GetComponentInChildren<Animator>(true) == null || portrait.parts.Count == 0;
@@ -276,15 +275,22 @@ namespace Forge.OS
 
         void RefreshBuild()
         {
-            // The hub when it is live, else Albie's cloud (ForgeCloud routes /agent/ there).
-            if (pending || !OSWorkflowWindow.Served) return;
+            if (pending || !OSWorkflowTransport.Available) return;
             pending = true;
-            ForgeNet.Get(OSWorkflowWindow.BuildsPath, text =>
+            OSWorkflowTransport.List(list =>
             {
                 if (this == null) return;
-                pending = false; trouble = null;
-                var list = JArray.Parse(text); build = list.Count > 0 ? list[0] as JObject : null;
-            }, error => { if (this != null) { pending = false; trouble = OSWorkflowWindow.Reason(error); } });
+                pending = false;
+                workflowError = "";
+                nextRefresh = Time.unscaledTime + 3f;
+                build = list.Count > 0 ? list[0] as JObject : null;
+            }, error =>
+            {
+                if (this == null) return;
+                pending = false;
+                workflowError = error;
+                nextRefresh = Time.unscaledTime + 3f;
+            });
         }
 
         void Update()
@@ -296,46 +302,32 @@ namespace Forge.OS
             }
             bool pose = Time.unscaledTime >= nextPose;
             if (pose) nextPose = Time.unscaledTime + .15f;
-            bool live = OSWorkflowWindow.Served;  // the hub, or Albie's cloud with the hub off
-            // The words change a few times a second at most, so they are written on the pose tick, not every frame.
-            if (pose)
-            {
-                string line = !live ? OSWorkflowWindow.Unreachable()
-                    : trouble != null ? trouble
-                    : build == null ? "No project workflow yet"
-                    : ((bool?)build["demo"] == true ? "Scripted sample · " : "") + (string)build["title"] + " · " + WorkflowState.Replace('_', ' ');
-                if (desks.Exists(d => d.portrait.fallback)) line += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
-                if (summary.text != line) summary.text = line;
-            }
+            bool live = OSWorkflowTransport.Available && string.IsNullOrEmpty(workflowError);
+            summary.text = !live ? "Workflow connection unavailable · showing crew visuals; task status may be stale"
+                : build == null ? "No project workflow yet"
+                : ((bool?)build["demo"] == true ? "Scripted sample · " : "") + (string)build["title"] + " · " + WorkflowState.Replace('_', ' ');
+            if (!string.IsNullOrEmpty(workflowError)) summary.text = "Workflow service: " + workflowError;
+            if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
             foreach (var d in desks)
             {
-                if (pose)
-                {
-                    d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";
-                    d.task = "No workflow step assigned. Use Project workflow or Manage crew.";
-                    if (build?["steps"] is JArray steps)
-                        foreach (var step in steps)
-                            if ((string)step["type"] == d.id)
-                            {
-                                d.state = (string)step["state"] ?? "idle";
-                                d.task = (string)step[(d.state == "running") ? "progress" : "summary"];
-                                if (string.IsNullOrEmpty(d.task)) d.task = (string)step["task"] ?? "";
-                                // A later queued step for the same role must not hide a running one.
-                                if (d.state == "running") break;
-                            }
-                    if (d.id == "albie") { d.state = live ? "coordinating" : "offline"; d.task = "Albie coordinates the crew. Plan and publication approvals stay in Project workflow."; }
-                    string label = d.name + " / " + (live ? d.state : "offline");
-                    if (d.label.text != label) d.label.text = label;
-                    if (d.id == selected)
-                    {
-                        string about = d.name + " · " + (live ? d.state : "offline") + "\n" + d.task;
-                        if (detail.text != about) detail.text = about;
-                    }
-                }
+                d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";
+                d.task = "No workflow step assigned. Use Project workflow or Manage crew.";
+                if (build?["steps"] is JArray steps)
+                    foreach (var step in steps)
+                        if ((string)step["type"] == d.id)
+                        {
+                            d.state = (string)step["state"] ?? "idle";
+                            d.task = (string)step[(d.state == "running") ? "progress" : "summary"];
+                            if (string.IsNullOrEmpty(d.task)) d.task = (string)step["task"] ?? "";
+                            // A later queued step for the same role must not hide a running one.
+                            if (d.state == "running") break;
+                        }
+                if (d.id == "albie") { d.state = live ? "coordinating" : "offline"; d.task = "Albie coordinates the crew. Plan and publication approvals stay in Project workflow."; }
                 bool busy = live && (d.state == "running" || d.state == "working");
                 Color light = d.state == "failed" ? new Color(1f, .24f, .22f) : d.state == "done" ? new Color(.35f, .88f, .6f) : d.color;
                 if (!live) light = Color.gray;
                 d.monitor.sharedMaterial.color = light * (busy ? .8f + Mathf.Sin(Time.unscaledTime * 4f) * .18f : .45f);
+                d.label.text = d.name + " / " + (live ? d.state : "offline");
                 d.label.transform.rotation = officeCamera.transform.rotation;
                 // Visual-only motion: work at the desk, otherwise take a small idle walk on that station's rug.
                 Vector3 destination = d.seat + (busy ? Vector3.zero : new Vector3(Mathf.Sin(Time.unscaledTime * .45f + d.root.localPosition.x) * .08f, 0, -.04f));
@@ -347,9 +339,31 @@ namespace Forge.OS
                         var matrix = d.source.transform.worldToLocalMatrix * part.source.localToWorldMatrix;
                         part.target.localPosition = matrix.GetColumn(3); part.target.localRotation = matrix.rotation;
                         part.target.localScale = matrix.lossyScale;
-                        if (part.skinned) ((SkinnedMeshRenderer)part.source).BakeMesh(part.mesh);
+                        // useScale: the bake must not carry the renderer scale too, or matrix.lossyScale applies it twice.
+                        if (part.skinned) ((SkinnedMeshRenderer)part.source).BakeMesh(part.mesh, true);
                     }
+                if (pose && !d.portrait.fallback && !d.portrait.sized) Fit(d.portrait);
+                if (d.id == selected) detail.text = d.name + " · " + (live ? d.state : "offline") + "\n" + d.task;
             }
+        }
+
+        // One fixed office size for every crew member, whatever its room scale or model units.
+        static void Fit(Portrait portrait)
+        {
+            var bounds = new Bounds(); bool any = false;
+            foreach (var part in portrait.parts)
+            {
+                var m = part.target.localToWorldMatrix; var b = part.mesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var p = m.MultiplyPoint3x4(b.center + Vector3.Scale(b.extents, new Vector3((i & 1) * 2 - 1, (i & 2) - 1, (i & 4) / 2 - 1)));
+                    if (any) bounds.Encapsulate(p); else { bounds = new Bounds(p, Vector3.zero); any = true; }
+                }
+            }
+            float size = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+            if (size < 1e-4f) return;
+            portrait.root.localScale *= .3f / size; // longest side 0.3 office units, about the temporary croc
+            portrait.sized = true;
         }
 
         Material Material(Color color)

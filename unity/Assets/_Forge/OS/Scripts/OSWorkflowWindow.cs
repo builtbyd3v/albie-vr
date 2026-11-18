@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Forge.Pet;
 using Newtonsoft.Json.Linq;
 using TMPro;
@@ -7,76 +8,22 @@ using UnityEngine.UI;
 
 namespace Forge.OS
 {
-    /// <summary>The live coding workflow: plan, crew progress, tests, paged diff and explicit publication. The builds
-    /// come from the hub when it is live, else from Albie's cloud (<see cref="ForgeCloud"/> routes /agent/ there);
-    /// while neither answers, the window stays and says why.</summary>
+    /// <summary>The live coding workflow: plan, crew progress, tests, paged diff and explicit publication.</summary>
     public sealed class OSWorkflowWindow : MonoBehaviour
     {
         public const string WindowId = "workflow";
-        internal const string BuildsPath = "/agent/builds";
-        const string PetId = "bit";
-        const string WakingLine = CloudHealth.WakingStatus + " Builds start when it's awake.";
-        const string OfflineLine = CloudHealth.OfflineStatus + " Builds start when it's back.";
         ForgePanel panel;
+        Button createPlan;
+        readonly List<Button> actionButtons = new List<Button>();
         JObject current, review;
         IDisposable updates;
         string tab = "plan", notice = "", goal = "", repo = "";
         int page;
-        bool pending, wasServed, pollFailed;
+        bool pending, polling, publicationAsked, connectionWarning;
         float nextPoll;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        public static void Register()
-        {
-            OSShell.RegisterSystem(WindowId, () => Open());
-            AlbieCards.Register("build:", TapCard);  // hub off: the buttons on Albie's plan and "built" cards
-        }
-
-        /// <summary>The hub or Albie's cloud serves the builds right now.</summary>
-        internal static bool Served => ForgeCloud.Serves(BuildsPath);
-
-        /// <summary>Why there are no builds right now, in one line: the cloud is waking or offline, or nothing is set up.</summary>
-        internal static string Unreachable()
-        {
-            if (ForgeNet.Status == ForgeNetStatus.Connecting || !ForgeCloud.Probed) return "Looking for Albie's cloud…";
-            if (ForgeCloud.State == CloudState.Waking) return WakingLine;
-            if (ForgeCloud.State == CloudState.Offline) return OfflineLine;
-            return ForgeCloud.Configured ? "Albie's cloud isn't answering yet. Builds start when it does."
-                : "Connect the Albie hub to build a project with Claude.";
-        }
-
-        /// <summary>The reason inside a failed request ("503 ... {"detail": "..."}"), as the server worded it.</summary>
-        internal static string Reason(string error)
-        {
-            if (string.IsNullOrEmpty(error)) return "That didn't work. Try again.";
-            int brace = error.IndexOf('{');
-            if (brace >= 0)
-            {
-                try
-                {
-                    var body = JObject.Parse(error.Substring(brace));
-                    var detail = body["detail"] ?? body["error"];
-                    if (detail != null && detail.Type == JTokenType.String) return (string)detail;
-                }
-                catch (Newtonsoft.Json.JsonException) { }
-            }
-            return (ForgeNet.Status == ForgeNetStatus.Live ? "The hub" : "Albie's cloud") + " couldn't complete that action: " + error;
-        }
-
-        // build:approve:<id>, build:cancel:<id>, build:ship:<id> (the user tapped Open pull request), build:later:<id>.
-        // Hub live: the hub handles the tap itself (AlbieFixCard only asks here with the hub off).
-        static bool TapCard(string actionId)
-        {
-            if (!ForgeCloud.Routes(BuildsPath)) return false;
-            string[] parts = actionId.Split(':');
-            if (parts.Length < 3) return false;
-            string verb = parts[1];
-            if (verb == "later") return true;
-            if (verb != "approve" && verb != "cancel" && verb != "ship") return false;
-            ForgeNet.Post(BuildsPath + "/" + parts[2] + "/" + verb, new { confirm = true }, null,
-                error => ForgeNet.Inject("pet.say", new JObject { ["pet_id"] = PetId, ["text"] = Reason(error) }));
-            return true;
-        }
+        public static void Register() => OSShell.RegisterSystem(WindowId, () => Open());
 
         public static OSWindow Open()
         {
@@ -92,8 +39,6 @@ namespace Forge.OS
                     view.current = (JObject)value.DeepClone();
                     if (view.tab != "new") view.Render();
                 }, true);
-                ForgeCloud.Ask();  // a sleeping cloud is checked again now, and Albie says when it's awake
-                view.wasServed = Served;
                 view.Render();
                 view.Refresh();
             }, "WORKFLOW");
@@ -103,48 +48,51 @@ namespace Forge.OS
 
         void Update()
         {
-            if (Time.unscaledTime < nextPoll || pending) return;
-            nextPoll = Time.unscaledTime + 3f;
-            bool served = Served;
-            if (served != wasServed)
+            // An initial status request can finish after New task is opened. Keep the button in step without
+            // rebuilding the form (which would steal text focus), including when the cloud wakes or disconnects.
+            if (createPlan != null) createPlan.interactable = OSWorkflowTransport.Available && !pending;
+            foreach (var button in actionButtons)
+                if (button != null) button.interactable = OSWorkflowTransport.Available && !pending;
+            if (tab == "new" && OSWorkflowTransport.Available && connectionWarning)
             {
-                wasServed = served;
-                if (served) notice = "";
-                if (tab == "new") Render();  // the Create button follows it
+                connectionWarning = false;
+                notice = "";
+                Render();
             }
-            if (!served) ShowUnreachable();
-            else if (tab != "new") Refresh();
-        }
-
-        // Neither the hub nor the cloud has the builds: say which, once per change (the window is not rebuilt each poll).
-        void ShowUnreachable()
-        {
-            string line = Unreachable();
-            if (line == notice) return;
-            notice = line;
-            Render();
+            if (Time.unscaledTime < nextPoll || pending || polling || tab == "new") return;
+            nextPoll = Time.unscaledTime + 3f;
+            Refresh();
         }
 
         void Refresh()
         {
-            if (!Served)
+            if (polling) return;
+            if (!OSWorkflowTransport.Available)
             {
-                ShowUnreachable();
+                notice = OSWorkflowTransport.ConnectionMessage;
+                connectionWarning = true;
+                Render();
                 return;
             }
-            pending = true;
-            ForgeNet.Get(BuildsPath, text =>
+            polling = true;
+            connectionWarning = false;
+            OSWorkflowTransport.List(all =>
             {
                 if (this == null) return;
-                pending = false;
-                if (pollFailed) { pollFailed = false; notice = ""; }
-                var all = JArray.Parse(text);
+                polling = false;
+                nextPoll = Time.unscaledTime + 3f;
+                if (pending) return;
+                string previousId = (string)current?["id"];
                 current = all.Count > 0 ? all[0] as JObject : null;
+                if (previousId != (string)current?["id"]) publicationAsked = false;
+                if (current == null) notice = "";
                 if (tab != "new") Render();
             }, error =>
             {
-                pollFailed = true;  // e.g. the cloud has no Claude key: its own sentence, until a poll works again
-                Failed(error);
+                if (this == null) return;
+                polling = false;
+                nextPoll = Time.unscaledTime + 3f;
+                if (!pending && tab != "new") Failed(error);
             });
         }
 
@@ -152,22 +100,21 @@ namespace Forge.OS
         {
             if (this == null) return;
             pending = false;
-            string line = Reason(error);
-            if (line == notice) return;
-            notice = line;
+            connectionWarning = false;
+            notice = "The workflow couldn't complete that action: " + error;
             Render();
         }
 
         void Act(string action)
         {
             if (pending || current == null) return;
-            if (!Served) { ShowUnreachable(); return; }
             pending = true;
-            ForgeNet.Post(BuildsPath + "/" + (string)current["id"] + "/" + action, new { confirm = true }, _ =>
+            OSWorkflowTransport.Act((string)current["id"], action, result =>
             {
                 if (this == null) return;
                 pending = false;
-                notice = "";
+                publicationAsked = (string)result["status"] == "awaiting_confirmation";
+                notice = publicationAsked ? "Review Changes and Checks, then tap Confirm publish and open PR to publish." : "";
                 Refresh();
             }, Failed);
         }
@@ -175,13 +122,12 @@ namespace Forge.OS
         void LoadReview()
         {
             if (pending || current == null) return;
-            if (!Served) { ShowUnreachable(); return; }
             pending = true;
-            ForgeNet.Get(BuildsPath + "/" + (string)current["id"] + "/review", text =>
+            OSWorkflowTransport.Review((string)current["id"], value =>
             {
                 if (this == null) return;
                 pending = false;
-                review = JObject.Parse(text);
+                review = value;
                 tab = "changes";
                 page = 0;
                 Render();
@@ -195,32 +141,40 @@ namespace Forge.OS
             return label;
         }
 
+        void ActionButton(Transform parent, string text, Action action, OSButtonStyle style = OSButtonStyle.Secondary)
+        {
+            var button = OSUi.Button(parent, text, action, style);
+            if (button == null) return;
+            button.interactable = OSWorkflowTransport.Available && !pending;
+            actionButtons.Add(button);
+        }
+
         void Render()
         {
             if (panel == null) return;
+            actionButtons.Clear();
             var body = OSUi.Body(panel);
             OSUi.Clear(body);
             var column = OSUi.Column(body, 12f);
             var nav = OSUi.Row(column, OSUi.ButtonHeight, 19f);
             OSUi.Button(nav, "New task", () => { tab = "new"; Render(); });
             OSUi.Button(nav, "Plan", () => { tab = "plan"; Render(); });
-            OSUi.Button(nav, "Changes", LoadReview);
+            ActionButton(nav, "Changes", LoadReview);
             OSUi.Button(nav, "Checks", () => { tab = "checks"; page = 0; Render(); });
             if (tab == "new") { NewTask(column); FixLayout(body); return; }
             if (current == null)
             {
-                panel.Subtitle = "";
                 Line(column, "No project workflow yet. Tap New task, or ask Albie to build a project.");
                 Line(column, notice, true);
                 FixLayout(body);
                 return;
             }
-            string state = (string)current["state"] ?? "";
-            panel.Subtitle = state.Replace('_', ' ') + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
+            string state = (string)current["state"];
+            panel.Subtitle = (state ?? "").Replace('_', ' ') + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
             Line(column, (string)current["title"] ?? (string)current["goal"]);
             Line(column, (bool?)current["demo"] == true
-                ? "Scripted sample · runs without API keys · publishing is off"
-                : (string)current["repo"] ?? "No GitHub repository is set, so the project is kept but can't be published.", true);
+                ? "Fixed scripted sample · no API keys · publishing disabled"
+                : (string)current["repo"] ?? "No repository is set, so the project is kept but can't be published.", true);
             if (tab == "changes")
             {
                 string diff = (string)review?["diff"] ?? "No committed diff yet.";
@@ -262,9 +216,7 @@ namespace Forge.OS
             }
             else
             {
-                var steps = current["steps"] as JArray;
-                if (steps == null || steps.Count == 0) Line(column, "No steps planned yet.", true);
-                else foreach (var step in steps)
+                foreach (var step in current["steps"] as JArray ?? new JArray())
                 {
                     Line(column, (string)step["agent"] + " · " + ((string)step["state"] ?? "").Replace('_', ' '));
                     string detail = (string)step[((string)step["state"] == "running") ? "progress" : "summary"];
@@ -272,17 +224,17 @@ namespace Forge.OS
                     Line(column, detail.Length > 150 ? detail.Substring(0, 150) + "…" : detail, true);
                 }
             }
-            if (state == "awaiting_plan") OSUi.Button(column, "Approve implementation plan", () => Act("approve"), OSButtonStyle.Primary);
+            if (state == "awaiting_plan") ActionButton(column, "Approve implementation plan", () => Act("approve"), OSButtonStyle.Primary);
             if (state == "ready" && current["repo"]?.Type == JTokenType.String)
             {
-                Line(column, "Review Changes and Checks. This publishes the branch and opens a GitHub PR.", true);
-                OSUi.Button(column, "Publish branch and open PR", () => Act("ship"), OSButtonStyle.Primary);
+                Line(column, "Review Changes and Checks. This publishes the branch and opens a pull request.", true);
+                ActionButton(column, publicationAsked ? "Confirm publish and open PR" : "Publish branch and open PR", () => Act("ship"), OSButtonStyle.Primary);
             }
             if (state == "planning" || state == "awaiting_plan" || state == "building" || state == "verifying")
-                OSUi.Button(column, "Stop workflow", () => Act("cancel"), OSButtonStyle.Destructive);
+                ActionButton(column, "Stop workflow", () => Act("cancel"), OSButtonStyle.Destructive);
             string url = (string)current["pr_url"];
             if (!string.IsNullOrEmpty(url)) Line(column, url);
-            Line(column, (string)current["error"] ?? notice, true);
+            Line(column, (string)current["error"] ?? (pending ? "Contacting the workflow service…" : notice), true);
             FixLayout(body);
         }
 
@@ -306,24 +258,25 @@ namespace Forge.OS
         {
             Line(column, "What should Albie's crew build or fix?");
             Input(column, goal, "Describe the project or change", value => goal = value);
-            Line(column, "GitHub repository (optional owner/repo)", true);
+            Line(column, "Source control repository (optional owner/repo)", true);
             Input(column, repo, "Leave blank to use Albie's own repository", value => repo = value);
             var create = OSUi.Button(column, "Create implementation plan", () =>
             {
                 if (pending || string.IsNullOrWhiteSpace(goal)) return;
-                if (!Served) { ShowUnreachable(); return; }  // in mock mode a POST "succeeds" with {}
                 pending = true;
-                ForgeNet.Post(BuildsPath, new { goal, repo = string.IsNullOrWhiteSpace(repo) ? null : repo.Trim() }, text =>
+                OSWorkflowTransport.Start(goal, string.IsNullOrWhiteSpace(repo) ? null : repo.Trim(), value =>
                 {
                     if (this == null) return;
                     pending = false;
-                    current = JObject.Parse(text);
+                    current = value;
+                    publicationAsked = false;
                     notice = "";
                     tab = "plan";
                     Render();
                 }, Failed);
             }, OSButtonStyle.Primary);
-            if (create != null) create.interactable = Served && !pending;
+            createPlan = create;
+            if (create != null) create.interactable = OSWorkflowTransport.Available && !pending;
             Line(column, "Albie proposes a plan first. You approve implementation and publication separately.", true);
             Line(column, notice, true);
         }

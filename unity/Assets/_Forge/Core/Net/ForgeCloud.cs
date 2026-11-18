@@ -24,7 +24,7 @@ public class ForgeCloud : MonoBehaviour
     const string DefaultUrl = "https://builtbyd3v-albie-cloud.hf.space";  // cloud-py/deploy.sh; PlayerPrefs overrides it
     public const string UrlPref = "Albie.CloudUrl";      // e.g. http://192.168.1.20:8080 to test against a laptop
     public const string DevicePref = "Albie.DeviceId";
-    static readonly string[] Prefixes = { "/cad/", "/ml/", "/code/", "/agent/", "/models/", "/research/", "/tools/", "/events" };  // /agent/: the crew's builds
+    static readonly string[] Prefixes = { "/cad/", "/ml/", "/code/", "/models/", "/research/", "/tools/", "/events" };
     const float PollS = 1f, RetryS = 30f, WakeProbeS = 5f;
     const int ProbeTimeoutS = 5;
     const string PetId = "bit";
@@ -48,6 +48,7 @@ public class ForgeCloud : MonoBehaviour
 
     public static string BaseUrl => PlayerPrefs.GetString(UrlPref, DefaultUrl).Trim().TrimEnd('/');
     public static bool Configured => BaseUrl.Length > 0;
+    public static bool HasAppKey => !string.IsNullOrWhiteSpace(AppKey);
 
     public static string DeviceId
     {
@@ -274,6 +275,8 @@ public class ForgeCloud : MonoBehaviour
             AlbieTools.Call("ui_open_view", new JObject { ["view"] = show });
         yield return Events();  // the tool's own events (cad.model_updated ...) before Albie answers
         toolsRunning--;
+        if (name == "build_start" && answer["result"]?["build_id"] != null)
+            Forge.OS.OSWorkflowWindow.Open();
         done(answer["result"] as JObject ?? new JObject { ["ok"] = true });
     }
 

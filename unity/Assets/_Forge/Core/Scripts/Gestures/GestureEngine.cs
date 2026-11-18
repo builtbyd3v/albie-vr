@@ -102,7 +102,7 @@ public class GestureEngine : MonoBehaviour
             source.Read(h, hand.sample);
             hand.Update(now, head.position, head.rotation);
             UpdateAim(hand, head, now);
-            if (!hand.Usable)
+            if (!hand.Deliberate)
             {
                 for (int m = 0; m < matchers[h].Count; m++) matchers[h][m].Reset();
                 continue;
@@ -119,7 +119,7 @@ public class GestureEngine : MonoBehaviour
         Actions.Tick(head);
         if (recorder != null) TickRecorder(now);
 
-        if (!displayShown && showDisplayOnFirstHand && (Hands[0].Usable || Hands[1].Usable))
+        if (!displayShown && showDisplayOnFirstHand && (Hands[0].Deliberate || Hands[1].Deliberate))
         {
             displayShown = true;
             Actions.ShowDisplay(true);

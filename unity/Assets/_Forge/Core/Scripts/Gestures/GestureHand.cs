@@ -9,6 +9,11 @@ public sealed class GestureHand
     const int History = 40;
     const float VelocityWindow = 0.09f, TravelWindow = 0.22f;
     const float MinSampleGap = 0.006f;
+    // A hand only means a gesture when it is held up in front of you. Typing, resting or putting controllers down does not.
+    const float SteadySeconds = 0.5f;   // tracked with high confidence this long first
+    const float MaxBelowHead = 0.35f;   // m: a palm lower than this under the eyes is at keyboard or lap height
+    const float MinInView = 0.5f;       // cos 60 degrees: the palm is within this of where the head faces
+    const float MinHeadUpright = 0.5f;  // cos 60 degrees: a headset tipped further over (lying on a table) takes no gestures
 
     public readonly HandSample sample = new HandSample();
     public readonly float[] values = new float[HandFeatures.Count];
@@ -17,6 +22,8 @@ public sealed class GestureHand
     /// <summary>Tracked, and the tracker trusts this frame.</summary>
     public bool Usable { get; private set; }
     public float UsableSince { get; private set; }
+    /// <summary>Usable for a while and raised in front of the face: only then can a gesture fire.</summary>
+    public bool Deliberate { get; private set; }
 
     /// <summary>The window this hand has aimed at, kept a moment after the aim leaves it, so a flick still knows.</summary>
     public ForgePanel Target { get; set; }
@@ -43,6 +50,7 @@ public sealed class GestureHand
         if (!usable)
         {
             Usable = false;
+            Deliberate = false;
             newest = -1;
             count = 0;
             motion = default;
@@ -52,6 +60,8 @@ public sealed class GestureHand
         Usable = true;
 
         HandFeatures.Compute(sample, headPosition, headRotation * Vector3.forward, values);
+        Deliberate = now - UsableSince >= SteadySeconds && Palm.y >= headPosition.y - MaxBelowHead
+            && values[(int)HandFeature.InView] >= MinInView && (headRotation * Vector3.up).y >= MinHeadUpright;
 
         // The history has to span TravelWindow at any frame rate (the editor can run far above a headset).
         if (count == 0 || now - times[newest] >= MinSampleGap)

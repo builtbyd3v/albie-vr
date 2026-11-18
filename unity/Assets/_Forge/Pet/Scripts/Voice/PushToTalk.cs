@@ -117,7 +117,8 @@ namespace Forge.Pet
 
         void StopAndAwaitFinal()
         {
-            if (_stt == null || !_stt.IsListening) return;
+            if (_stt == null) return;
+            if (!_stt.IsListening) { _stt.StopListening(); return; }   // drops a pending mic retry (HubSpeechToText)
             _stt.StopListening();
             _finalDeadline = Time.time + Mathf.Max(1f, finalTimeout);
         }
@@ -167,6 +168,7 @@ namespace Forge.Pet
                 if (_stt is HubSpeechToText) SendHub("stt.cancel");   // voice mode would otherwise answer the turn
                 _stt.StopListening();
             }
+            else _stt?.StopListening();                     // drops a pending mic retry (HubSpeechToText)
             if (caption != null) caption.Clear();
             if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);
             EndHandsFree(false);

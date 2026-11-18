@@ -43,7 +43,7 @@ TOOLS: list[dict[str, Any]] = [
      "parameters": {"type": "object", "properties": {
          "project": {"type": "string", "description": "folder name or path, if the user named one (e.g. 'cifar10')"}}}},
     {"name": "ml_github",
-     "description": "Pull an ML project from GitHub and open it on the ML desk ('pull up the pytorch cifar repo'). "
+     "description": "Pull an ML project from source control and open it on the ML desk ('pull up the pytorch cifar repo'). "
                     "First call it with what the user said: it finds the repo but downloads nothing. Say its name "
                     "and owner and ask if that's the one. Only after a yes, call it again with confirm true and "
                     "query set to the full_name it returned: it downloads the repo, works out what kind of model "
@@ -51,7 +51,7 @@ TOOLS: list[dict[str, Any]] = [
                     "Any PyTorch or scikit-learn repo works, notebooks too; a folder URL (github.com/owner/repo/tree/"
                     "main/mnist) opens just that example. Once it's ready, offer to train it (ml_train).",
      "parameters": {"type": "object", "properties": {
-         "query": {"type": "string", "description": "the repo as the user said it, owner/repo, or a GitHub URL "
+         "query": {"type": "string", "description": "the repo as the user said it, owner/repo, or a repo URL "
                                                     "(a /tree/<branch>/<folder> URL for one folder of it)"},
          "confirm": {"type": "boolean", "description": "true only after the user said yes to the repo you found"}},
          "required": ["query"]}},
@@ -59,11 +59,11 @@ TOOLS: list[dict[str, Any]] = [
      "description": "Start a NEW machine-learning project from scratch, for any request to make, build, start or "
                     "train a new model or ML project ('start an RNN project', 'build a CNN on handwritten digits', "
                     "'train a transformer on movie reviews', 'fine-tune distilbert on movie reviews'). "
-                    "It picks a Hugging Face dataset, downloads a sample, writes the project's code (an RNN, LSTM, "
-                    "GRU, Transformer, CNN or MLP from scratch, or a pretrained Hugging Face encoder fine-tuned with a "
+                    "It picks a public model hub dataset, downloads a sample, writes the project's code (an RNN, LSTM, "
+                    "GRU, Transformer, CNN or MLP from scratch, or a pretrained model hub encoder fine-tuned with a "
                     "new head) and starts training: the ML desk opens by itself in about 10 to 30 seconds and the "
                     "curves go live (a pretrained model's first run also downloads its weights, so it can take a "
-                    "couple of minutes). Pass what the user said; pass base_model when they named a Hugging Face "
+                    "couple of minutes). Pass what the user said; pass base_model when they named a model hub "
                     "model to fine-tune (e.g. 'distilbert', 'roberta-base', 'google/electra-small-discriminator'). "
                     "Then say in one short sentence what you're building from the result (model, dataset, classes); "
                     "the score is spoken when it finishes. Don't call ml_open or ml_train after it.",
@@ -71,20 +71,20 @@ TOOLS: list[dict[str, Any]] = [
          "request": {"type": "string", "description": "the user's own words for the project"},
          "model": {"type": "string", "enum": ["rnn", "lstm", "gru", "transformer", "cnn", "mlp", "hf"],
                    "description": "the model the user named, if any ('hf' = fine-tune a pretrained encoder)"},
-         "base_model": {"type": "string", "description": "the Hugging Face model to fine-tune: an id "
+         "base_model": {"type": "string", "description": "the model hub model to fine-tune: an id "
                                                         "(owner/name), a family ('distilbert', 'roberta'), or a "
                                                         "model name the user said. Leave it out to train from scratch"},
-         "dataset": {"type": "string", "description": "a Hugging Face dataset id (owner/name) or what the data is "
+         "dataset": {"type": "string", "description": "a model hub dataset id (owner/name) or what the data is "
                                                       "about ('movie reviews', 'handwritten digits'), if the user said"},
          "task": {"type": "string", "enum": ["text_classification", "image_classification"],
                   "description": "only if the user was clear about text or images"},
          "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 8 from scratch, "
                                                       "3 when fine-tuning)"},
-         "publish": {"type": "boolean", "description": "true if the user also asked to put it on GitHub or open a "
+         "publish": {"type": "boolean", "description": "true if the user also asked to put it in source control or open a "
                                                        "pull request; after training Albie asks before opening it"}},
          "required": ["request"]}},
     {"name": "ml_publish",
-     "description": "Put the ML project Albie built (ml_new) on GitHub as a pull request: its code, a README with the "
+     "description": "Put the ML project Albie built (ml_new) in source control as a pull request: its code, a README with the "
                     "training results, and the data when it's small ('push it to GitHub', 'create a PR'). Call it "
                     "first without confirm: nothing is posted, and you get the repo and branch; say them and ask "
                     "'open the pull request?'. Only after a clear yes, call it again with confirm true. If you "
@@ -368,7 +368,7 @@ class MLTools:
     async def github(self, query: str, confirm: bool) -> dict[str, Any]:
         """Find the repo; only on the confirmed second call download it and open it like ml_open."""
         if not query:
-            raise ValueError("say which GitHub repo to pull up")
+            raise ValueError("say which repo to pull up")
         found = await asyncio.to_thread(github.find, query)
         if not confirm:
             return {**found, "note": "Nothing downloaded yet. Ask the user if this is the repo; "
@@ -430,7 +430,7 @@ class MLTools:
             path = await asyncio.to_thread(new_project.build, p, self.new_root(), lambda _: None, epochs)
         except Exception as e:  # noqa: BLE001 - say it instead of failing silently
             log.exception("ml_new build failed")
-            await self.say(f"I couldn't get {p['dataset']} from Hugging Face: {e}")
+            await self.say(f"I couldn't get {p['dataset']} from the dataset hub: {e}")
             return
         try:
             svc.open_project(str(path))
@@ -472,13 +472,13 @@ class MLTools:
         await self.publish_card("awaiting", plan)
         where = f"a new repo, {plan['repo']}" if plan["create_repo"] else plan["repo"]
         await self.say(f"Shall I open a pull request with the project in {where}?")
-        await agent_speech.note(self.pet_id, "You just offered to open a GitHub pull request with the ML project. A yes "
+        await agent_speech.note(self.pet_id, "You just offered to open a pull request with the ML project. A yes "
                                              "means ml_publish with confirm true; a no means say okay.")
 
     async def publish(self, confirm: bool) -> dict[str, Any]:
         svc = self.svc
         if svc.training_active():
-            raise Conflict("it's still training; I'll put it on GitHub once the results are in")
+            raise Conflict("it's still training; I'll publish it once the results are in")
         offer = self.publish_offer
         if not confirm or offer is None or offer.get("path") != str(svc.repo):
             plan = await asyncio.to_thread(github_publish.plan, svc.repo)

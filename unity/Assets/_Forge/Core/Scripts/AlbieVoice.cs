@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
@@ -40,6 +39,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     const int InputRate = 16000;
     const int MinCommitBytes = 3200;  // under 0.1 s of audio: nothing was said
     const float NoReplyS = 8f;        // committed turn with no transcript and no reply by then: an empty turn
+    const float RetryS = 3f;          // committed turn with no reply by then: ask once more (Grok sometimes skips its auto-reply)
     const float FollowUpS = 15.5f;    // AlbieFollowUp's reply window after his speech (listenSeconds 15 + startDelay)
     const float IdleCloseS = 20f;     // then close (billed per open minute); the next turn reconnects while the user still talks
     const int HistoryLines = 8;       // recent lines carried into a new session's instructions
@@ -82,7 +82,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "loud. Lead with the answer, no warm-up, no recap. Even if the user asks for everything or a long answer, give " +
         "only the key point, then offer to say more. If the user asks you to do something (make, build, create, show, open, " +
         "close, set, add, remove), call the tool for it first and never say it is done without the tool call; then confirm in one " +
-        "short sentence, under 10 words.";
+        "short sentence, under 10 words. Never say you are doing or starting something ('setting it up now', 'downloading') " +
+        "unless you call its tool in this same reply; if you still need a yes or a detail, ask for it instead.";
     const string BrevityNow =
         " If the user asked you to do something (make, build, create, show, open, close, set, add, remove), call the tool for it in this reply " +
         "first; never say it is done without the tool call, and never say you can't make something before calling artifact_create. " +
@@ -113,6 +114,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     bool away;  // Suspend..Resume: nothing goes to Grok and no session opens
     int epoch;  // bumped by Suspend: a Connect that started before it gives up instead of opening a session
     int connectingEpoch;
+    float connectBackoff, nextConnectAt;  // after a failed connect (a 401 token): no new one before nextConnectAt
 
     // Seams for Forge > Core > Check Voice (Core/Editor/VoiceCheck.cs). The app keeps these defaults; the check swaps in
     // a fake clock, token and socket, so the outbox, the idle close and a pause run with no network.
@@ -126,6 +128,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     // The turn and the reply in progress.
     int turnSeq, fed;
     bool turnOpen, turnCancelled, committed, finalSent, droppedTurn;
+    bool heardText, replied, retried;  // this turn: a non-empty final, a response.created, the one retry sent
+    int guardSeq = -1;                 // the committed turn the no-reply guard watches (turnSeq), from guardAt
+    float guardAt;
     string partial = "";
     bool responseActive, audioStarted, answerDone;
     string utterance, answer = "", petMode;
@@ -170,6 +175,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     void Update()
     {
+        NoReplyGuard();
         if (IdleCloseDue(ws != null && ws.State == WebSocketState.Open))
         {
             Debug.Log("[AlbieVoice] idle: closing the voice session (it reopens on the next turn).");
@@ -245,7 +251,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 if (responseActive || audioStarted) StopSpeech("barge_in");
                 turnSeq++;
                 turnOpen = true;
-                turnCancelled = committed = finalSent = false;
+                turnCancelled = committed = finalSent = heardText = false;
                 fed = 0;
                 partial = "";
                 Send(new JObject { ["type"] = "input_audio_buffer.clear" });
@@ -328,16 +334,28 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         Send(new JObject { ["type"] = "input_audio_buffer.commit" });
         committed = true;
         Emit("agent.thinking", new JObject(), "thinking");
-        StartCoroutine(NoReplyGuard(turnSeq));
+        guardSeq = turnSeq;
+        guardAt = clock();
+        replied = retried = false;
     }
 
     // Grok drops a turn it hears no speech in (no transcript, no reply, no error): end it, or Unity stays in Thinking.
-    IEnumerator NoReplyGuard(int seq)
+    // It also sometimes skips the reply to a turn it did transcribe (live 2026-11-17 19:22:21: heard, never answered):
+    // RetryS after the commit with no response.created, ask once more.
+    void NoReplyGuard()
     {
-        yield return new WaitForSecondsRealtime(NoReplyS / 2);
-        if (seq == turnSeq && !finalSent && !responseActive) RequestResponse();  // ask once, halfway
-        yield return new WaitForSecondsRealtime(NoReplyS / 2);
-        if (seq == turnSeq && !finalSent && !responseActive) Final("");
+        if (guardSeq < 0) return;
+        if (guardSeq != turnSeq) { guardSeq = -1; return; }  // a new turn, or a pause
+        float waited = clock() - guardAt;
+        if (!retried && !replied && waited >= RetryS && (!finalSent || heardText))
+        {
+            retried = true;
+            Debug.Log($"[AlbieVoice] no reply {RetryS:0} s after the turn{(heardText ? " (it was heard)" : "")}: asking again.");
+            RequestResponse();
+        }
+        if (waited < NoReplyS) return;
+        guardSeq = -1;
+        if (!finalSent && !responseActive) Final("");
     }
 
     void StopSpeech(string reason)
@@ -381,6 +399,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 else Transcript((string)msg["transcript"] ?? "");
                 break;
             case "response.created":
+                replied = true;
                 if (partial.Length > 0) Final(null);  // no .completed yet: the last transcript is final
                 utterance = Guid.NewGuid().ToString("N").Substring(0, 12);
                 answer = "";
@@ -499,7 +518,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         if (finalSent) return;
         finalSent = true;
         text = (text ?? partial).Trim();
-        if (text.Length > 0) Debug.Log($"[AlbieVoice] heard: {text}");
+        heardText = text.Length > 0;
+        if (heardText) Debug.Log($"[AlbieVoice] heard: {text}");
         Remember("User: ", text);
         Emit("stt.final", new JObject { ["text"] = text, ["voice"] = true }, text.Length > 0 ? "thinking" : null);
     }
@@ -564,6 +584,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     Task<bool> EnsureConnected()
     {
         if (ws != null && ws.State == WebSocketState.Open) return Task.FromResult(true);
+        // Every mic frame starts a send: without this, a 401 token fetch repeated about 10 times a second (live 18:59:28).
+        if ((connecting == null || connecting.IsCompleted) && clock() < nextConnectAt) return Task.FromResult(false);
         if (connecting == null || connecting.IsCompleted || connectingEpoch != epoch)
         {
             connectingEpoch = epoch;
@@ -597,6 +619,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             }
             ws = socket;
             lastActivity = clock();
+            connectBackoff = 0f;
             _ = Receive(socket);
             Debug.Log("[AlbieVoice] connected to the voice service from the device.");
             return true;
@@ -605,7 +628,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         {
             socket?.Dispose();
             if (life.IsCancellationRequested || started != epoch) return false;
-            Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message}");
+            connectBackoff = Mathf.Min(connectBackoff > 0f ? connectBackoff * 2f : 2f, 60f);
+            nextConnectAt = clock() + connectBackoff;
+            Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message} (next try in {connectBackoff:0} s)");
             if (turnOpen || committed) Final("");
             Emit("agent.error", new JObject { ["message"] = "I can't reach my voice service right now." }, "idle");
             return false;
