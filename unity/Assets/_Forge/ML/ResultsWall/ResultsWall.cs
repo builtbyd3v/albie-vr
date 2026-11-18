@@ -24,7 +24,7 @@ namespace Forge.ML
     {
         public enum Tab { Overview, Classes, Confusion, Confidence, Images }
         static readonly string[] TabNames = { "Overview", "Classes", "Confusion", "Confidence", "Images" };
-        const float TabMax = 96f, TabMin = 56f, TabGap = 6f, RunLabelMin = 90f;  // equal tabs, shrunk to fit the panel
+        const float TabMax = 96f, TabMin = 56f, TabGap = 6f;
 
         public MLSession session;
         public Material dotMaterialAsset;
@@ -67,26 +67,10 @@ namespace Forge.ML
         {
             session = MLSession.Resolve(session); root = GetComponent<ForgePanel>().Content;
             statusComparer = new StatusComparer(this);
-            var r = root.rect;
-
-            // Tabs, and the run they describe on the right.
-            int tabCount = TabNames.Length;
-            float tabW = Mathf.Clamp((r.width - (tabCount - 1) * TabGap) / tabCount, TabMin, TabMax);
-            float x = 0;
-            for (int i = 0; i < TabNames.Length; i++)
-            {
-                var t = (Tab)i;
-                tabPills[i] = MLUI.Pill(root, TabNames[i], x, 0, tabW, TabBar, () => ShowTab(t));
-                tabPills[i].name = "Tab " + TabNames[i];
-                x += tabW + TabGap;
-                pages[i] = MLUI.Rect(TabNames[i] + " page", root, 0, BodyTop, r.width, r.height - BodyTop);
-            }
-            float runW = Mathf.Max(0f, r.width - x - 8);
-            runLabel = MLUI.Caps(root, "", x + 8, 9, runW, 14, 9); runLabel.gameObject.SetActive(runW >= 24f); runLabel.alignment = TextAlignmentOptions.TopRight; runLabel.color = MLUI.Faint; runLabel.overflowMode = TextOverflowModes.Ellipsis;
-            images = pages[(int)Tab.Images];
-            BuildImages();
+            BuildPages();
 
             report = MLReport.Build(session); wasDone = session.Done;
+            LayoutPages(true);
             session.SamplesChanged += OnSamplesChanged; session.Changed += OnChanged; session.PairSelected += FilterPair; session.Reloaded += OnReloaded;
             Refresh();
             ShowTab(Tab.Overview);
@@ -135,13 +119,16 @@ namespace Forge.ML
 
         public void ShowTab(Tab next)
         {
+            bool changed = tab != next;
             tab = next;
             for (int i = 0; i < pages.Length; i++) { pages[i].gameObject.SetActive(i == (int)tab); tabPills[i].On = i == (int)tab; }
             if (tab != Tab.Images) DrawPage();
+            if (changed) { pageScrolls[(int)tab].verticalNormalizedPosition = 1f; pageScrolls[(int)tab].horizontalNormalizedPosition = 0f; }
         }
         void DrawPage()
         {
-            var p = pages[(int)tab];
+            ConfigureBody((int)tab);
+            var p = pageBodies[(int)tab];
             MLUI.Clear(p);
             float w = p.rect.width, h = p.rect.height;
             switch (tab)
@@ -162,7 +149,7 @@ namespace Forge.ML
             else if (tab == Tab.Overview) DrawPage();
             wasDone = session.Done;
         }
-        void OnReloaded() { if (selected >= session.Data.samples.Length) selected = -1; report = MLReport.Build(session); Refresh(); if (tab != Tab.Images) DrawPage(); }
+        void OnReloaded() { if (selected >= session.Data.samples.Length) selected = -1; report = MLReport.Build(session); LayoutPages(true); Refresh(); if (tab != Tab.Images) DrawPage(); }
         void UpdateRunLabel()
         {
             runLabel.text = $"{(string.IsNullOrEmpty(session.RunId) ? "Sample run" : session.RunId == "on-device" ? "On-device · held-out" : "Run " + session.RunId)}  ·  {report.evaluated:N0} scored  ·  {report.classes} classes".ToUpperInvariant();
@@ -605,6 +592,7 @@ namespace Forge.ML
 
         void Update()
         {
+            CheckResize();
 #if ENABLE_INPUT_SYSTEM
             bool close = Keyboard.current != null && Keyboard.current.xKey.wasPressedThisFrame;
 #else

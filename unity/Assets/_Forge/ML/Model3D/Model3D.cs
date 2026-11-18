@@ -22,7 +22,8 @@ namespace Forge.ML
 
         // mm (canvas units)
         const float GroupThickness = 12f, GroupGap = 10f, LayerThickness = 5f, LayerPitch = 19f, OpenPad = 30f;
-        const float TopBar = 46f, BottomBar = 30f, CalloutWidth = 190f, CalloutHeight = 132f, TagWidth = 170f;
+        const float TopBar = 100f, CalloutWidth = 190f, CalloutHeight = 132f, TagWidth = 170f;
+        float bottomBar = 30f;
         const float DefaultYaw = -34f, DefaultPitch = -26f;
 
         sealed class Slab
@@ -37,7 +38,7 @@ namespace Forge.ML
         {
             public int first, count; public string title, range, shapes, kinds; public long parameters; public Color color;
             public bool open; public Slab slab;
-            public RectTransform bracket; public Image line, tickTop, tickBottom; public ForgePill pill;
+            public ForgePill pill;
         }
         sealed class Tag { public RectTransform rect; public Image leader; public TMP_Text text; public CanvasGroup fade; }
 
@@ -60,6 +61,12 @@ namespace Forge.ML
         TMP_Text inputTag, outputTag, calloutTitle, calloutRange, calloutShapes, calloutMeta, calloutKinds;
         RectTransform callout; Image calloutLeader; ForgeSurface calloutDot; CanvasGroup calloutFade;
         ForgePill expandAll;
+        TMP_Text summary, instructions;
+        RectTransform hitArea, legend;
+        RectTransform labelView, labelBody;
+        ScrollRect labelScroll;
+        readonly List<RectTransform> legendKeys = new List<RectTransform>();
+        Vector2 chromeSize;
 
         public int GroupCount => groups == null ? 0 : groups.Length;
         public bool IsOpen(int group) => groups != null && group >= 0 && group < groups.Length && groups[group].open;
@@ -91,7 +98,8 @@ namespace Forge.ML
 
             // Hit surface first so everything else draws over it.
             var hit = MLUI.Rect("Model hit area", root, 0, 0, 10, 10);
-            hit.anchorMin = Vector2.zero; hit.anchorMax = Vector2.one; hit.offsetMin = new Vector2(0, BottomBar); hit.offsetMax = new Vector2(0, -TopBar);
+            hitArea = hit;
+            hit.anchorMin = Vector2.zero; hit.anchorMax = Vector2.one; hit.offsetMin = new Vector2(0, bottomBar); hit.offsetMax = new Vector2(0, -TopBar);
             hit.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0.001f);
             hit.gameObject.AddComponent<MLModelLayerInput>().owner = this;
 
@@ -173,43 +181,68 @@ namespace Forge.ML
         void BuildChrome(MLLayer[] data)
         {
             long total = 0; foreach (var layer in data) total += layer.@params;
-            MLUI.Caps(root, $"{groups.Length} blocks  ·  {data.Length} layers  ·  {MLUI.Count(total)} params", 4, 8, 330, 16, 10);
-            var hint = MLUI.Text(root, "Drag to turn  ·  scroll to zoom  ·  click a block to open it", 4, 26, 330, 14, 9.5f);
-            hint.color = MLUI.Faint; hint.textWrappingMode = TextWrappingModes.NoWrap;
-            var reset = MLUI.Pill(root, "Reset view", 0, 4, 92, 28, ResetView); RightAlign(reset.Rect, 4, 4);
-            expandAll = MLUI.Pill(root, "Open all", 0, 4, 84, 28, ToggleAll); RightAlign(expandAll.Rect, 102, 4);
+            summary = MLUI.Caps(root, $"{groups.Length} blocks  ·  {data.Length} layers  ·  {MLUI.Count(total)} params", 4, 4, 330, 22, 10);
+            summary.name = "Model summary";
+            summary.enableAutoSizing = true; summary.fontSizeMin = 8f; summary.fontSizeMax = 10f;
+            summary.overflowMode = TextOverflowModes.Ellipsis;
+            expandAll = MLUI.Pill(root, "Open all", 4, 32, 84, 28, ToggleAll);
+            expandAll.name = "Model expand all";
+            var reset = MLUI.Pill(root, "Reset view", 0, 32, 92, 28, ResetView); RightAlign(reset.Rect, 4, 32);
+            reset.name = "Model reset view";
+            instructions = MLUI.Text(root, "Drag to turn · scroll to zoom\nSelect a block to open it", 4, 66, 330, 30, 9.5f);
+            instructions.name = "Model instructions"; instructions.color = MLUI.Sub;
+            instructions.overflowMode = TextOverflowModes.Ellipsis;
 
             // Legend: one key per layer type in this model, and how to use it.
-            var legend = MLUI.Rect("Legend", root, 0, 0, 10, BottomBar);
+            legendKeys.Clear();
+            legend = MLUI.Rect("Legend", root, 0, 0, 10, bottomBar);
             legend.anchorMin = Vector2.zero; legend.anchorMax = new Vector2(1, 0); legend.pivot = Vector2.zero;
-            legend.anchoredPosition = Vector2.zero; legend.sizeDelta = new Vector2(0, BottomBar);
-            float x = 4; var seen = new List<string>();
+            legend.anchoredPosition = Vector2.zero; legend.sizeDelta = new Vector2(0, bottomBar);
+            var seen = new List<string>();
             foreach (var layer in data)
             {
                 string name = TypeName(layer.type); if (seen.Contains(name)) continue; seen.Add(name);
-                MLUI.Dot(legend, x, 12, 7, TypeColor(layer.type));
-                var label = MLUI.Text(legend, name, x + 11, 7, 80, 16, 10); label.color = MLUI.Sub; label.textWrappingMode = TextWrappingModes.NoWrap;
-                x += 19 + label.GetPreferredValues(name).x;
+                var key = MLUI.Rect("Legend " + name, legend, 0, 0, 100, 18);
+                MLUI.Dot(key, 0, 5, 7, TypeColor(layer.type));
+                var label = MLUI.Text(key, name, 11, 0, 80, 18, 10); label.color = MLUI.Sub;
+                label.textWrappingMode = TextWrappingModes.NoWrap; label.overflowMode = TextOverflowModes.Ellipsis;
+                key.sizeDelta = new Vector2(11 + label.GetPreferredValues(name).x, 18);
+                legendKeys.Add(key);
             }
+
+            // Expanded layers get readable rows independent of the projected slab spacing.
+            // A short window scrolls the details instead of squeezing labels together.
+            labelView = MLUI.Rect("Expanded layers", root, 0, TopBar, TagWidth, 100);
+            labelView.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, .001f);
+            labelView.gameObject.AddComponent<RectMask2D>();
+            labelBody = MLUI.Rect("Layer rows", labelView, 0, 0, TagWidth, 100);
+            labelScroll = labelView.gameObject.AddComponent<ScrollRect>();
+            labelScroll.viewport = labelView; labelScroll.content = labelBody;
+            labelScroll.horizontal = false; labelScroll.movementType = ScrollRect.MovementType.Clamped;
+            labelScroll.scrollSensitivity = 24;
+            var track = MLUI.Rect("Layer scroll", labelView, TagWidth - 5, 0, 5, 100);
+            var thumb = MLUI.Rect("Thumb", track, 0, 0, 5, 20);
+            thumb.anchorMin = Vector2.zero; thumb.anchorMax = Vector2.one; thumb.offsetMin = thumb.offsetMax = Vector2.zero;
+            var ink = thumb.gameObject.AddComponent<ForgeSurface>(); ink.color = new Color(1, 1, 1, .4f); ink.Pill = true;
+            var scrollbar = track.gameObject.AddComponent<Scrollbar>(); scrollbar.handleRect = thumb; scrollbar.targetGraphic = ink;
+            scrollbar.direction = Scrollbar.Direction.BottomToTop; scrollbar.navigation = new Navigation { mode = Navigation.Mode.None };
+            labelScroll.verticalScrollbar = scrollbar;
 
             // One tag per layer on the right, grouped under a header per open block (its pill closes it); the input and output ends.
             for (int g = 0; g < groups.Length; g++)
             {
                 var group = groups[g]; int index = g;
-                group.bracket = MLUI.Rect("Bracket " + group.title, root, 0, 0, 1, 1);
-                group.line = MLUI.Fill(group.bracket, 0, 0, 1.4f, 10, MLUI.Faint);
-                group.tickTop = MLUI.Fill(group.bracket, 0, 0, 5, 1.4f, MLUI.Faint);
-                group.tickBottom = MLUI.Fill(group.bracket, 0, 0, 5, 1.4f, MLUI.Faint);
-                group.pill = MLUI.Pill(group.bracket, group.title.ToUpperInvariant() + "   ×", 0, 0, 0, 20, () => SetOpen(index, false));
-                group.bracket.gameObject.SetActive(false);
+                group.pill = MLUI.Pill(labelBody, group.title.ToUpperInvariant() + "   ×", 0, 0, TagWidth - 10, 22, () => SetOpen(index, false));
+                group.pill.gameObject.SetActive(false);
             }
             tags = new Tag[data.Length];
             for (int i = 0; i < data.Length; i++)
             {
-                var tag = new Tag { rect = MLUI.Rect("Tag " + data[i].name, root, 0, 0, TagWidth, 16) };
+                var tag = new Tag { rect = MLUI.Rect("Tag " + data[i].name, labelBody, 0, 0, TagWidth - 12, 18) };
                 tag.fade = tag.rect.gameObject.AddComponent<CanvasGroup>(); tag.fade.blocksRaycasts = false;
                 tag.leader = MLUI.Fill(root, 0, 0, 1, 1, new Color(1, 1, 1, 0.22f)); tag.leader.name = "Leader " + data[i].name;
-                tag.text = MLUI.Text(tag.rect, "", 0, 0, TagWidth, 16, 11); tag.text.textWrappingMode = TextWrappingModes.NoWrap;
+                tag.text = MLUI.Text(tag.rect, "", 0, 0, TagWidth - 12, 18, 11); tag.text.textWrappingMode = TextWrappingModes.NoWrap;
+                tag.text.overflowMode = TextOverflowModes.Truncate;
                 tag.text.alignment = TextAlignmentOptions.TopLeft; tag.text.lineSpacing = -8;
                 tags[i] = tag; SetTagText(i, false);
                 tag.rect.gameObject.SetActive(false); tag.leader.gameObject.SetActive(false);
@@ -239,6 +272,33 @@ namespace Forge.ML
             MLUI.Pill(callout, "Open", 14, 102, 70, 22, () => { if (calloutGroup >= 0) SetOpen(calloutGroup, true); });
             var note = MLUI.Text(callout, "or click the block", 92, 106, 100, 14, 9.5f); note.color = MLUI.Faint;
             calloutFade.alpha = 0; callout.gameObject.SetActive(false); calloutLeader.gameObject.SetActive(false);
+            LayoutChrome();
+        }
+
+        void LayoutChrome()
+        {
+            chromeSize = root.rect.size;
+            float width = Mathf.Max(1f, chromeSize.x - 8f);
+            summary.rectTransform.sizeDelta = new Vector2(width, 22);
+            instructions.rectTransform.sizeDelta = new Vector2(width, 30);
+            float x = 4f, y = 4f;
+            foreach (var key in legendKeys)
+            {
+                var label = key.GetComponentInChildren<TMP_Text>();
+                float keyWidth = Mathf.Min(11 + label.GetPreferredValues(label.text).x, width);
+                if (x > 4f && x + keyWidth > chromeSize.x - 4f) { x = 4f; y += 22f; }
+                key.anchoredPosition = new Vector2(x, -y);
+                key.sizeDelta = new Vector2(keyWidth, 18);
+                label.rectTransform.sizeDelta = new Vector2(Mathf.Max(1, keyWidth - 11), 18);
+                x += keyWidth + 12f;
+            }
+            bottomBar = y + 22f;
+            legend.sizeDelta = new Vector2(0, bottomBar);
+            hitArea.offsetMin = new Vector2(0, bottomBar);
+            labelView.anchoredPosition = new Vector2(chromeSize.x - TagWidth, -TopBar);
+            labelView.sizeDelta = new Vector2(TagWidth, Mathf.Max(1, chromeSize.y - TopBar - bottomBar));
+            var track = (RectTransform)labelScroll.verticalScrollbar.transform;
+            track.sizeDelta = new Vector2(5, labelView.rect.height);
         }
 
         static void RightAlign(RectTransform r, float right, float top)
@@ -309,6 +369,7 @@ namespace Forge.ML
         void LateUpdate()
         {
             if (groups == null || root == null) return;
+            if (root.rect.size != chromeSize) LayoutChrome();
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.05f), now = Time.unscaledTime;
             var cam = Camera.main;
             eye = cam != null ? cam.transform.position : root.position - root.forward * 0.8f;
@@ -322,14 +383,15 @@ namespace Forge.ML
 
             // Fit the stack between the top bar and the legend (it grows as blocks open), in the left part of the panel.
             Rect r = root.rect;
-            float stageTop = r.yMax - TopBar - 30f, stageBottom = r.yMin + BottomBar + 26f;
+            float stageTop = r.yMax - TopBar - 30f, stageBottom = r.yMin + bottomBar + 26f;
             float c = Mathf.Cos(viewPitch * Mathf.Deg2Rad), s = Mathf.Abs(Mathf.Sin(viewPitch * Mathf.Deg2Rad));
             float projected = (stackHeight * c + 2f * maxHalfDiag * s) * 1.12f + 8f;
-            float target = Mathf.Clamp(Mathf.Min((stageTop - stageBottom) / projected, r.width * 0.4f / (2f * maxHalfDiag)), 0.3f, 1.25f);
+            float stageWidth = AnyOpen() ? Mathf.Max(40, r.width - TagWidth - 20) : r.width * .74f;
+            float target = Mathf.Clamp(Mathf.Min((stageTop - stageBottom) / projected, stageWidth * .8f / (2f * maxHalfDiag)), 0.08f, 1.25f);
             fit = Mathf.Lerp(fit, target, 1f - Mathf.Exp(-dt * 6f));
             float scale = fit * viewZoom;
             tower.localScale = new Vector3(scale, scale, scale);
-            stage.localPosition = new Vector3(r.xMin + r.width * 0.37f, (stageTop + stageBottom) * 0.5f, -(maxHalfDiag * scale + 16f));
+            stage.localPosition = new Vector3(r.xMin + stageWidth * .5f, (stageTop + stageBottom) * 0.5f, -(maxHalfDiag * scale + 16f));
 
             if (packet >= 0f) { packet += dt / 1.3f; if (packet > 1.2f) packet = -1f; }
 
@@ -380,50 +442,57 @@ namespace Forge.ML
             s.r.SetPropertyBlock(block);
         }
 
-        // Labels, brackets and the callout follow where the slabs appear on the panel from the viewer's eye.
+        // Leaders connect the projected slabs to their rows; the callout follows the pointed block.
         void PlaceOverlay(Rect r)
         {
-            float column = 0f, top = float.MaxValue, bottom = float.MinValue, centre = 0f; int counted = 0;
+            float top = float.MaxValue, bottom = float.MinValue, centre = 0f; int counted = 0;
             foreach (var group in groups)
             {
                 Project(group.slab, r);
                 for (int i = 0; i < group.count; i++) Project(layers[group.first + i], r);
-                if (group.open) for (int i = 0; i < group.count; i++) column = Mathf.Max(column, layers[group.first + i].maxX);
                 var first = group.open ? layers[group.first] : group.slab;
                 var last = group.open ? layers[group.first + group.count - 1] : group.slab;
                 top = Mathf.Min(top, first.top); bottom = Mathf.Max(bottom, last.bottom);
                 centre += (first.minX + first.maxX) * 0.5f; counted++;
             }
             if (counted > 0) centre /= counted;
-            column = Mathf.Min(column + 20f, r.width - TagWidth - 2f);
-
+            bool expanded = AnyOpen();
+            if (labelView.gameObject.activeSelf != expanded) labelView.gameObject.SetActive(expanded);
+            float rowY = 4f;
             for (int g = 0; g < groups.Length; g++)
             {
                 var group = groups[g];
-                float from = float.MaxValue, to = float.MinValue, fade = 0f;
+                group.pill.gameObject.SetActive(group.open);
+                if (group.open)
+                {
+                    group.pill.Rect.anchoredPosition = new Vector2(0, -rowY);
+                    rowY += 28f;
+                }
                 for (int i = group.first; i < group.first + group.count; i++)
                 {
                     var s = layers[i]; var tag = tags[i];
-                    bool show = s.vis > 0.25f && group.open;
-                    if (tag.rect.gameObject.activeSelf != show) { tag.rect.gameObject.SetActive(show); tag.leader.gameObject.SetActive(show); }
-                    if (!show) continue;
-                    float alpha = Mathf.InverseLerp(0.25f, 1f, s.vis);
-                    tag.fade.alpha = alpha;
-                    tag.rect.anchoredPosition = new Vector2(column, -(s.midY - 8f));
+                    bool show = s.vis > .25f && group.open;
+                    tag.rect.gameObject.SetActive(show);
+                    if (!show) { tag.leader.gameObject.SetActive(false); continue; }
                     bool lit = i == hoverLayer || i == selectedLayer;
-                    tag.leader.color = new Color(1, 1, 1, (lit ? 0.55f : 0.2f) * alpha);
-                    MLUI.SetLine(tag.leader.rectTransform, new Vector2(s.maxX + 3f, s.midY), new Vector2(column - 16f, s.midY), 1f);
-                    from = Mathf.Min(from, s.midY); to = Mathf.Max(to, s.midY); fade = Mathf.Max(fade, s.vis);
+                    float height = lit ? 34f : 18f;
+                    tag.rect.anchoredPosition = new Vector2(0, -rowY);
+                    tag.rect.sizeDelta = tag.text.rectTransform.sizeDelta = new Vector2(TagWidth - 12, height);
+                    float alpha = Mathf.InverseLerp(.25f, 1f, s.vis);
+                    tag.fade.alpha = alpha;
+                    float labelY = TopBar + rowY + 8f - labelBody.anchoredPosition.y;
+                    bool visible = labelY >= TopBar && labelY <= r.height - bottomBar;
+                    tag.leader.gameObject.SetActive(visible);
+                    tag.leader.color = new Color(1, 1, 1, (lit ? .55f : .2f) * alpha);
+                    MLUI.SetLine(tag.leader.rectTransform, new Vector2(s.maxX + 3f, s.midY),
+                        new Vector2(r.width - TagWidth - 4, labelY), 1f);
+                    rowY += height + 4f;
                 }
-                bool bracket = group.open && fade > 0.25f;
-                if (group.bracket.gameObject.activeSelf != bracket) group.bracket.gameObject.SetActive(bracket);
-                if (!bracket) continue;
-                float x = column - 10f;
-                from -= 6f; to += 6f;
-                group.line.rectTransform.anchoredPosition = new Vector2(x, -from); group.line.rectTransform.sizeDelta = new Vector2(1.4f, to - from);
-                group.tickTop.rectTransform.anchoredPosition = new Vector2(x, -from); group.tickBottom.rectTransform.anchoredPosition = new Vector2(x, -to + 1.4f);
-                group.pill.Rect.anchoredPosition = new Vector2(x - 2f, -(from - 25f));
+                if (group.open) rowY += 8f;
             }
+            labelBody.sizeDelta = new Vector2(TagWidth, Mathf.Max(rowY, labelView.rect.height));
+            labelScroll.vertical = rowY > labelView.rect.height;
+            labelScroll.verticalScrollbar.gameObject.SetActive(labelScroll.vertical);
 
             if (inputTag != null)
             {
@@ -441,7 +510,7 @@ namespace Forge.ML
             {
                 var s = groups[shownCallout].slab;
                 float x = Mathf.Clamp(s.maxX + 30f, 0f, r.width - CalloutWidth - 4f);
-                float y = Mathf.Clamp(s.midY - CalloutHeight * 0.5f, TopBar + 4f, r.height - BottomBar - CalloutHeight - 2f);
+                float y = Mathf.Clamp(s.midY - CalloutHeight * 0.5f, TopBar + 4f, r.height - bottomBar - CalloutHeight - 2f);
                 callout.anchoredPosition = new Vector2(x, -y);
                 calloutLeader.color = new Color(1, 1, 1, 0.4f * calloutFade.alpha);
                 MLUI.SetLine(calloutLeader.rectTransform, new Vector2(s.maxX + 3f, s.midY), new Vector2(x, Mathf.Clamp(s.midY, y + 16f, y + CalloutHeight - 16f)), 1.2f);

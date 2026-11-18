@@ -180,7 +180,7 @@ public static class MLSmokeCheck
             }
             Require(wall.Report.byF1.Length == session.Data.classes.Length && wall.Report.pairs.Count > 0, "Report ranks classes and confused pairs");
             wall.ShowTab(ResultsWall.Tab.Images);
-            var images = content.Find("Images page");
+            var images = content.Find("Images page/Viewport/Scroll content");
             Require(images.Find("Dot wall") != null && wall.VisibleDotCount == session.Data.samples.Length, "One dot per validation image renders");
             ActiveButton(images, "Show mistakes").onClick.Invoke();
             Require(wall.IsGallery && wall.GalleryItemCount > 24, "Show mistakes opens a paged gallery");
