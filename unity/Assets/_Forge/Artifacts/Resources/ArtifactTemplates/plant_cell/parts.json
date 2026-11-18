@@ -1,0 +1,24 @@
+{
+  "note": "What the plant cell's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names.",
+  "bilateral": false,
+  "ignore": ["cell", "cells", "plant"],
+  "parts": {
+    "Cell membrane": {"about": "Thin layer inside the wall that controls what goes in and out", "aka": ["plasma membrane", "membrane"]},
+    "Cell wall": {"about": "Stiff cellulose wall that holds the cell's shape", "aka": ["wall", "cellulose"]},
+    "Central vacuole": {"about": "Big water store that keeps the cell firm", "aka": ["vacuole", "water sac", "water tank"]},
+    "Chloroplasts": {"about": "Turn sunlight into sugar (photosynthesis)", "aka": ["chlorophyll", "solar panels", "green parts"]},
+    "Golgi apparatus": {"about": "Packs proteins and ships them out", "aka": ["golgi", "golgi body", "golgi complex"]},
+    "Mitochondria": {"about": "Make the cell's energy (ATP)", "aka": ["mitochondrion", "powerhouse", "power plant"]},
+    "Nuclear envelope": {"about": "The double membrane round the nucleus", "aka": ["nuclear membrane"]},
+    "Nucleolus": {"about": "Builds the ribosomes", "aka": ["nucleoli"]},
+    "Plasmodesmata": {"about": "Channels through the wall to the next cell", "aka": ["plasmodesma", "channels", "pores", "tunnels"]},
+    "Rough ER": {"about": "Covered in ribosomes; makes proteins", "aka": ["rough endoplasmic reticulum", "er", "endoplasmic reticulum", "rer"]}
+  },
+  "groups": [
+    {"words": ["nucleus", "control center"], "parts": ["Nuclear envelope", "Nucleolus"]},
+    {"words": ["outer layers", "boundary", "edges", "outside"], "parts": ["Cell wall", "Cell membrane"]},
+    {"words": ["organelles", "all the organelles"], "parts": ["Chloroplasts", "Mitochondria", "Golgi apparatus", "Rough ER", "Central vacuole", "Nuclear envelope", "Nucleolus"]},
+    {"words": ["energy parts", "power parts"], "parts": ["Chloroplasts", "Mitochondria"]},
+    {"words": ["membranes", "both membranes"], "parts": ["Cell membrane", "Nuclear envelope"]}
+  ]
+}

@@ -692,7 +692,8 @@ namespace Forge.OS
                             Vector3 candidate = eye + Quaternion.Euler(0f, yaw, 0f) * forward * distance;
                             candidate.y = Mathf.Max(eye.y + lift, floor);
                             Cover mine = CoverOf(candidate, width, height, eye, forward);
-                            float cost = Mathf.Sqrt(mine.yaw * mine.yaw + mine.pitch * mine.pitch) + penalty;
+                            float yawOffset = window.Id == OSAgentOffice.WindowId ? mine.yaw - 45f : mine.yaw;
+                            float cost = Mathf.Sqrt(yawOffset * yawOffset + mine.pitch * mine.pitch) + penalty;
                             if (cost >= best || !IsClear(mine, others)) continue;
                             if (room && !fitting && InWall(candidate, width, height)) continue;
                             best = cost;

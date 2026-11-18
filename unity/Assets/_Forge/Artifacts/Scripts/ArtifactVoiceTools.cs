@@ -10,7 +10,10 @@ namespace Forge.Artifacts
     /// <summary>
     /// Albie's voice controls for the open artifact (<c>Resources/AlbieTools/artifact_voice.json</c>):
     /// - <c>artifact_explore</c>: "expand the heart", "cut the eye open", "X-ray it", "show me the mitral valve", "turn it",
-    ///   "put it back together", "reset it". With <c>template</c>, a model that isn't open is opened first and waited for.
+    ///   "put it back together", "reset it". "Show me this lobe", "just the valves", "the frontal and temporal lobes" is
+    ///   isolate: those parts on their own and brought forward, the rest a faint outline; "this" is the part pointed or
+    ///   looked at (<see cref="ArtifactPartPointer"/>). Names match through the template's parts.json
+    ///   (<see cref="PartMatch"/>). With <c>template</c>, a model that isn't open is opened first and waited for.
     /// - <c>artifact_press</c>: the artifact's own buttons by what the user said ("show the blood flow", "follow the light").
     ///   It presses the real panel button, so a toggle's label flips just as if it were tapped, and returns the walkthrough's
     ///   captions with their times, so Albie explains each step as it plays.
@@ -88,23 +91,33 @@ namespace Forge.Artifacts
                     var panel = host.GetComponentInChildren<ForgePanel>(true);
                     if (panel != null) { explorer.Avoid = panel.transform; explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f; }
                 }
-                string did = Act(host, explorer, action, args, out string error);
-                if (error != null) { done(Error(error)); return; }
-                var result = State(host, explorer);
+                var result = new JObject();
+                string did = Act(host, explorer, action, args, result, out string error);
+                if (error != null) { result["error"] = error; done(result); return; }
+                foreach (var pair in State(host, explorer)) if (result[pair.Key] == null) result[pair.Key] = pair.Value;
                 result["did"] = did;
                 done(result);
             }, done);
         }
 
         /// <summary>Does one explore action; returns what happened in a few words, or sets <paramref name="error"/>.</summary>
-        public static string Act(ArtifactHost host, ArtifactExplorer e, string action, JObject args, out string error)
+        public static string Act(ArtifactHost host, ArtifactExplorer e, string action, JObject args, out string error) =>
+            Act(host, e, action, args, new JObject(), out error);
+
+        /// <summary>
+        /// Does one explore action; returns what happened in a few words, or sets <paramref name="error"/>. Anything
+        /// else Albie should know (what a part does, which parts to ask between) goes in <paramref name="into"/>.
+        /// </summary>
+        public static string Act(ArtifactHost host, ArtifactExplorer e, string action, JObject args, JObject into, out string error)
         {
             error = null;
             switch (action)
             {
                 case "separate": case "expand": case "explode":
-                    if (e.PartCount < 2) { error = "one_piece: this model is one piece, so it can't come apart"; return null; }
+                    if (e.PartCount < 2) { error = "one_piece: this model is one solid piece, so it can't come apart; it can still be cut open or turned"; return null; }
+                    if (e.Isolating) e.Unfocus();
                     if (!e.Separated) e.Separate();
+                    into["say"] = "Name three or four of its parts in one sentence, then offer to show one on its own.";
                     return "separated into its " + e.PartCount + " parts";
                 case "assemble":
                     if (e.Separated) e.Separate();
@@ -121,15 +134,9 @@ namespace Forge.Artifacts
                 case "xray_off":
                     if (e.XRay) e.ToggleXRay();
                     return "solid again";
-                case "focus":
-                {
-                    string asked = args.Value<string>("part");
-                    var part = e.FindPart(asked);
-                    if (part == null) { error = $"no_part: no part called '{asked}'; the parts are " + string.Join(", ", e.PartNames()); return null; }
-                    e.Focus(part);
-                    return "showing the " + ArtifactExplorer.NameOf(part);
-                }
-                case "unfocus":
+                case "isolate": case "show_part": case "focus": case "highlight":
+                    return ShowParts(e, action, args, into, out error);
+                case "unfocus": case "show_all":
                     e.Unfocus();
                     return "every part shown again";
                 case "turn":
@@ -144,8 +151,101 @@ namespace Forge.Artifacts
                     if (hands != null) hands.ResetPose();
                     return "back as it was";
             }
-            error = "bad_action: use separate, assemble, cut_open, whole, xray, xray_off, focus, unfocus, turn or reset";
+            error = "bad_action: use separate, assemble, cut_open, whole, xray, xray_off, isolate, focus, unfocus, turn or reset";
             return null;
+        }
+
+        // "Show me the frontal lobe", "just the valves", "show me this lobe": the parts asked for, on their own.
+        // isolate: the rest fade to a faint outline and the parts come forward; focus (and mode highlight): the rest go
+        // see-through and nothing moves, unless expand says so.
+        static string ShowParts(ArtifactExplorer e, string action, JObject args, JObject into, out string error)
+        {
+            error = null;
+            string asked = args.Value<string>("part");
+            if (args["parts"] is JArray list && list.Count > 0)
+            {
+                var all = new List<string>();
+                foreach (var t in list) if (t.Type == JTokenType.String) all.Add((string)t);
+                if (asked != null) all.Insert(0, asked);
+                asked = string.Join(" and ", all);
+            }
+            var names = e.PartNames();
+            if (e.PartCount < 2)
+            {
+                error = "one_piece: this model is one solid piece, so there are no parts to show on their own";
+                return null;
+            }
+            if (string.IsNullOrWhiteSpace(asked))
+            {
+                error = "no_part: say which part; the parts are " + string.Join(", ", names);
+                return null;
+            }
+            bool highlight = action == "focus" || action == "highlight" || string.Equals(args.Value<string>("mode"), "highlight", StringComparison.OrdinalIgnoreCase);
+            bool expand = args.Value<bool?>("expand") ?? !highlight;
+            var m = e.Match(asked);
+            var show = new List<Transform>();
+            foreach (int i in m.Parts) show.Add(e.PartAtIndex(i));
+            if (m.Deictic)
+            {
+                var how = ArtifactPartPointer.How.None;
+                var pointed = e.Pointer != null ? e.Pointer.This(out how) : null;
+                if (pointed == null && show.Count == 0)
+                {
+                    error = "nothing_pointed: nothing is pointed at or looked at on the model right now; ask them to point at the part (or look at it) and say it again, or name it. The parts are " + string.Join(", ", names);
+                    return null;
+                }
+                if (pointed != null)
+                {
+                    if (!show.Contains(pointed)) show.Insert(0, pointed);
+                    into["this"] = ArtifactExplorer.NameOf(pointed);
+                    into["this_was"] = "the part you're " + ArtifactPartPointer.Say(how);
+                }
+            }
+            if (m.Ambiguous)
+            {
+                var options = PartMatch.OptionNames(m, names);
+                into["options"] = new JArray(options);
+                into["say"] = "Ask which one: " + Or(options) + (m.Group != null ? ", or all the " + m.Group : "") + ".";
+                return "asked which part";
+            }
+            if (show.Count == 0)
+            {
+                var words = e.Words;
+                error = $"no_part: no part like '{asked}' on this model; never pretend. The parts are " + string.Join(", ", names)
+                        + (words != null && words.GroupNames().Count > 0 ? "; groups: " + string.Join(", ", words.GroupNames()) : "");
+                return null;
+            }
+            e.Isolate(show, highlight ? ArtifactExplorer.Look.Highlight : ArtifactExplorer.Look.Isolate, expand);
+            var shown = new List<string>();
+            var about = new JObject();
+            foreach (var t in e.Chosen)
+            {
+                string name = ArtifactExplorer.NameOf(t);
+                shown.Add(name);
+                string a = e.About(t);
+                if (a != null) about[name] = a;
+            }
+            into["shown"] = new JArray(shown);
+            if (about.Count > 0) into["about"] = about;
+            if (m.BothSides) into["note"] = "The model has one on each side; both are shown.";
+            if (m.Unmatched.Count > 0) into["not_found"] = new JArray(m.Unmatched);
+            if (highlight && !expand) return "showing the " + And(shown);
+            return (highlight ? "highlighted the " : "showing just the ") + And(shown) + (expand ? ", brought forward" : "")
+                   + (highlight ? "" : "; the rest is a faint outline. Say 'show all' to put it back");
+        }
+
+        static string And(List<string> names)
+        {
+            if (names.Count == 0) return "";
+            if (names.Count == 1) return names[0];
+            if (names.Count > 4) return names.Count + " parts: " + string.Join(", ", names.GetRange(0, 3)) + " and more";
+            return string.Join(", ", names.GetRange(0, names.Count - 1)) + " and " + names[names.Count - 1];
+        }
+
+        static string Or(List<string> names)
+        {
+            if (names.Count <= 1) return names.Count == 1 ? names[0] : "";
+            return string.Join(", ", names.GetRange(0, names.Count - 1)) + " or " + names[names.Count - 1];
         }
 
         static JObject State(ArtifactHost host, ArtifactExplorer e)
@@ -158,7 +258,16 @@ namespace Forge.Artifacts
                 ["xray"] = e != null && e.XRay,
                 ["focus"] = e != null && e.Focused != null ? ArtifactExplorer.NameOf(e.Focused) : null,
             };
-            if (e != null) state["parts"] = new JArray(e.PartNames());
+            if (e == null) return state;
+            if (e.Chosen.Count > 1)
+            {
+                var shown = new JArray();
+                foreach (var t in e.Chosen) shown.Add(ArtifactExplorer.NameOf(t));
+                state["isolated"] = shown;
+            }
+            state["parts"] = new JArray(e.PartNames());
+            if (e.Words != null && e.Words.GroupNames().Count > 0) state["groups"] = new JArray(e.Words.GroupNames());
+            if (e.PartCount < 2) state["one_piece"] = true;
             return state;
         }
 
@@ -396,7 +505,25 @@ namespace Forge.Artifacts
                     }
             result["walkthroughs"] = walkthroughs;
             if (explorer == null && HasModel(host)) result["note"] = "The model is still loading.";
+            // "What's this?": the part under the user's hand or ray, and the one in the middle of their view.
+            if (explorer != null && explorer.Pointer != null)
+            {
+                float now = Time.unscaledTime;
+                var pointed = explorer.Pointer.PointedAt(now, out var how);
+                if (pointed != null) result["pointed_at"] = Part(explorer, pointed, "you're " + ArtifactPartPointer.Say(how));
+                var looked = explorer.Pointer.LookedAt(now);
+                if (looked != null) result["looked_at"] = Part(explorer, looked, null);
+            }
             return result;
+        }
+
+        static JObject Part(ArtifactExplorer e, Transform part, string how)
+        {
+            var o = new JObject { ["name"] = ArtifactExplorer.NameOf(part) };
+            string about = e.About(part);
+            if (about != null) o["about"] = about;
+            if (how != null) o["how"] = how;
+            return o;
         }
     }
 }

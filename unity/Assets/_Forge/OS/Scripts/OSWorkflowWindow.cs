@@ -28,11 +28,10 @@ namespace Forge.OS
         public static OSWindow Open()
         {
             if (OSShell.Current == null) return null;
-            return OSShell.Current.Windows.Open(WindowId, "Project workflow", new Vector2(0.82f, 0.78f), p =>
+            var window = OSShell.Current.Windows.Open(WindowId, "Project workflow", new Vector2(0.82f, 0.78f), p =>
             {
                 var view = p.gameObject.AddComponent<OSWorkflowWindow>();
                 view.panel = p;
-                AlbieCrew.WorkflowWindowOpen = true;
                 view.updates = ForgeNet.On("build.updated", value =>
                 {
                     if (view == null) return;
@@ -42,9 +41,11 @@ namespace Forge.OS
                 view.Render();
                 view.Refresh();
             }, "WORKFLOW");
+            OSAgentOffice.Open();
+            return window;
         }
 
-        void OnDestroy() { updates?.Dispose(); AlbieCrew.WorkflowWindowOpen = false; }
+        void OnDestroy() { updates?.Dispose(); }
 
         void Update()
         {
@@ -75,6 +76,7 @@ namespace Forge.OS
                 return;
             }
             polling = true;
+            if (connectionWarning) notice = "";
             connectionWarning = false;
             OSWorkflowTransport.List(all =>
             {
@@ -85,7 +87,6 @@ namespace Forge.OS
                 string previousId = (string)current?["id"];
                 current = all.Count > 0 ? all[0] as JObject : null;
                 if (previousId != (string)current?["id"]) publicationAsked = false;
-                if (current == null) notice = "";
                 if (tab != "new") Render();
             }, error =>
             {
@@ -156,15 +157,17 @@ namespace Forge.OS
             var body = OSUi.Body(panel);
             OSUi.Clear(body);
             var column = OSUi.Column(body, 12f);
+            var entry = OSUi.Row(column, OSUi.ButtonHeight, 19f);
+            OSUi.Button(entry, "Describe your project", DescribeProject, OSButtonStyle.Primary);
+            OSUi.Button(entry, "Type instead", () => { tab = "new"; Render(); });
             var nav = OSUi.Row(column, OSUi.ButtonHeight, 19f);
-            OSUi.Button(nav, "New task", () => { tab = "new"; Render(); });
             OSUi.Button(nav, "Plan", () => { tab = "plan"; Render(); });
             ActionButton(nav, "Changes", LoadReview);
             OSUi.Button(nav, "Checks", () => { tab = "checks"; page = 0; Render(); });
             if (tab == "new") { NewTask(column); FixLayout(body); return; }
             if (current == null)
             {
-                Line(column, "No project workflow yet. Tap New task, or ask Albie to build a project.");
+                Line(column, "No project workflow yet. Tap Describe your project to talk to Albie.");
                 Line(column, notice, true);
                 FixLayout(body);
                 return;
@@ -252,6 +255,25 @@ namespace Forge.OS
                 var element = row.GetComponent<LayoutElement>();
                 if (element != null) element.flexibleHeight = 0f;
             }
+        }
+
+        void DescribeProject()
+        {
+            if (pending) return;
+            tab = "plan";
+            var lead = AlbieCrew.Instance?.Lead;
+            var speech = lead != null ? lead.GetComponentInChildren<StreamedPcmTextToSpeech>(true) : null;
+            var follow = lead != null ? lead.GetComponentInChildren<AlbieFollowUp>(true) : null;
+            if (!OSWorkflowTransport.Available) notice = OSWorkflowTransport.ConnectionMessage;
+            else if (speech == null || !speech.VoiceActive || follow == null || !follow.isActiveAndEnabled)
+                notice = "Voice is unavailable. Connect a voice-enabled hub or use Type instead.";
+            else
+            {
+                follow.ExpectProjectReply();
+                ForgeNet.Send("workflow.describe", new JObject());
+                notice = "What would you like the crew to build? Answer Albie aloud, or use Type instead.";
+            }
+            Render();
         }
 
         void NewTask(RectTransform column)

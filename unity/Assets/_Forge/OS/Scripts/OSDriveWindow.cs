@@ -385,7 +385,7 @@ namespace Forge.OS
                 stateText.text = stateLine;
                 if (!flying && brain != null && actionText != null)
                     actionText.text = brain.State == SlalomBrain.Mode.Idle
-                        ? "Pick up the transmitter to drive freely (not recorded). Record two laps to teach Albie, then Train and Autopilot."
+                        ? "Pick up the transmitter and drive it around any time (not recorded). Record two laps to teach Albie, then Train and Autopilot."
                         : "Let go of the sticks to brake. Stop ends the recording or Autopilot.";
             }
         }

@@ -251,7 +251,7 @@ def test_bad_goals_are_refused(builds_env) -> None:
 
 def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypatch) -> None:
     """The cloud's shape (cloud-py/app.py): no socket bus, no Unity roster. Every event goes to the headset's own log,
-    and the crew is hatched by a crew.spawn event in that log."""
+    and the office renders the assigned roles without hatching desk pets."""
     monkeypatch.setenv("FAKE_AGENT", "1")
     monkeypatch.setenv("BUILD_DIR", str(tmp_path / "builds"))
     monkeypatch.delenv("BUILD_REPO", raising=False)
@@ -261,12 +261,8 @@ def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypat
     async def publish(event) -> None:
         log.append(event)
 
-    async def hatch(agent_type: str) -> dict:
-        await publish(ev.crew_spawn(agent_type))
-        return {"status": "hatched"}
-
     async def run() -> dict:
-        mine = build_mod.Builds(publish=publish, hatch=hatch)
+        mine = build_mod.Builds(publish=publish)
         started = await build_mod.call_tool("build_start", {"goal": "a dice roller"}, of=mine)
         b = mine.get(started["build_id"])
         async def finish():
@@ -287,7 +283,8 @@ def test_a_build_on_its_own_sinks_like_a_cloud_headset(tmp_path: Path, monkeypat
     b = asyncio.run(run())
     assert b["state"] == "ready" and [s["state"] for s in b["steps"]] == ["done"] * 4
     types = [e.type for e in log]
-    assert [e.payload["agent_type"] for e in log if e.type == "crew.spawn"] == ["builder", "tester", "scribe", "reviewer"]
+    assert "crew.spawn" not in types
+    assert [step["type"] for step in b["steps"]] == ["builder", "tester", "scribe", "reviewer"]
     says = [e.payload for e in log if e.type == "pet.say"]
     assert says[0]["text"].startswith("Planning") and says[1]["card"]["title"].startswith("Plan:")
     assert says[-1]["card"]["title"].startswith("Built:")

@@ -305,16 +305,11 @@ class Device:
     async def build_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         try:
             from agent import build as agent_build
-            from agent import events as agent_events
         except Exception:  # noqa: BLE001 - say so; CAD and ML keep working
             log.exception("builds aren't available on this cloud")
             return {"error": "the crew isn't installed on Albie's cloud yet"}
         if self.builds is None:
-            async def hatch(agent_type: str) -> dict[str, Any]:
-                await self.publish_event(agent_events.crew_spawn(agent_type))  # AlbieCrew hatches it
-                return {"status": "hatched"}
-
-            self.builds = agent_build.Builds(publish=self.publish_event, hatch=hatch,
+            self.builds = agent_build.Builds(publish=self.publish_event,
                                             root=DATA / "devices" / self.id / "builds")
         if name == "build_start":
             if not os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("FAKE_AGENT") != "1":

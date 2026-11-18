@@ -1,0 +1,38 @@
+{
+  "note": "What the brain's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names; an entry without 'Left'/'Right' covers both sides. 'bilateral': 'the frontal lobe' means the frontal lobe on both sides. A word used alone that is the singular of a plural group word ('lobe') asks which.",
+  "bilateral": true,
+  "ignore": ["brain", "brains", "cerebral"],
+  "parts": {
+    "frontal lobe": {"about": "Planning, decisions, movement and speech", "aka": ["frontal cortex", "prefrontal cortex", "prefrontal", "motor cortex", "forehead"]},
+    "parietal lobe": {"about": "Touch, body position and sense of space", "aka": ["parietal cortex", "sensory cortex", "somatosensory cortex"]},
+    "temporal lobe": {"about": "Hearing, language and memory", "aka": ["temporal cortex", "auditory cortex"]},
+    "occipital lobe": {"about": "Vision: where what you see is processed", "aka": ["occipital cortex", "visual cortex", "vision center"]},
+    "insula": {"about": "Taste, pain and the body's inner state", "aka": ["insular cortex", "insular lobe", "island"]},
+    "limbic lobe": {"about": "Emotion, motivation and memory", "aka": ["cingulate", "cingulate gyrus", "cingulate cortex", "parahippocampal gyrus"]},
+    "white matter": {"about": "Wiring that links the cortex to the rest of the brain", "aka": ["wiring", "nerve fibres", "fibre tracts"]},
+    "Amygdala": {"about": "Fear and emotional memory", "aka": ["amygdalae", "fear center"]},
+    "Basal ganglia": {"about": "Starting and smoothing movement; habits", "aka": ["basal nuclei", "striatum", "caudate", "putamen"]},
+    "Brainstem": {"about": "Breathing and heart rate; the link to the spinal cord", "aka": ["stem", "medulla", "pons", "midbrain", "base of the brain", "brain stem"]},
+    "Cerebellum": {"about": "Balance, coordination and timing of movement", "aka": ["little brain", "small brain", "mini brain", "cerebellar"]},
+    "Corpus callosum": {"about": "The bridge of fibres between the two hemispheres", "aka": ["callosum", "bridge", "bridge between the hemispheres", "middle bridge"]},
+    "Hippocampus and fornix": {"about": "Forming new memories", "aka": ["hippocampus", "hippocampi", "fornix", "memory center", "seahorse"]},
+    "Thalamus": {"about": "Relay station for the senses on the way to the cortex", "aka": ["relay station", "thalami"]},
+    "Ventricles": {"about": "Spaces filled with cerebrospinal fluid", "aka": ["fluid spaces", "csf", "cerebrospinal fluid", "lateral ventricles"]}
+  },
+  "groups": [
+    {"words": ["lobes", "four lobes", "main lobes", "all the lobes", "all four lobes"], "parts": ["Left frontal lobe", "Right frontal lobe", "Left parietal lobe", "Right parietal lobe", "Left temporal lobe", "Right temporal lobe", "Left occipital lobe", "Right occipital lobe"]},
+    {"words": ["cortex", "cerebral cortex", "outer layer", "grey matter", "gray matter", "surface"], "parts": ["Left frontal lobe", "Right frontal lobe", "Left parietal lobe", "Right parietal lobe", "Left temporal lobe", "Right temporal lobe", "Left occipital lobe", "Right occipital lobe", "Left insula", "Right insula", "Left limbic lobe", "Right limbic lobe"]},
+    {"words": ["hemispheres", "cerebrum", "cerebral hemispheres", "both hemispheres", "both halves", "halves", "big brain"], "parts": ["Left frontal lobe", "Left parietal lobe", "Left temporal lobe", "Left occipital lobe", "Left insula", "Left limbic lobe", "Left white matter", "Right frontal lobe", "Right parietal lobe", "Right temporal lobe", "Right occipital lobe", "Right insula", "Right limbic lobe", "Right white matter"]},
+    {"words": ["left hemisphere", "left side", "left half", "left brain"], "parts": ["Left frontal lobe", "Left parietal lobe", "Left temporal lobe", "Left occipital lobe", "Left insula", "Left limbic lobe", "Left white matter"]},
+    {"words": ["right hemisphere", "right side", "right half", "right brain"], "parts": ["Right frontal lobe", "Right parietal lobe", "Right temporal lobe", "Right occipital lobe", "Right insula", "Right limbic lobe", "Right white matter"]},
+    {"words": ["front of the brain", "front", "front part"], "parts": ["Left frontal lobe", "Right frontal lobe"]},
+    {"words": ["back of the brain", "back", "back part", "rear", "back of the head"], "parts": ["Left occipital lobe", "Right occipital lobe"]},
+    {"words": ["top of the brain", "top", "crown", "top part"], "parts": ["Left parietal lobe", "Right parietal lobe"]},
+    {"words": ["sides of the brain", "sides", "side lobes", "by the ears"], "parts": ["Left temporal lobe", "Right temporal lobe"]},
+    {"words": ["limbic system", "emotion parts", "emotional brain"], "parts": ["Amygdala", "Hippocampus and fornix", "Left limbic lobe", "Right limbic lobe", "Thalamus"]},
+    {"words": ["deep structures", "deep parts", "inside", "insides", "inner parts", "middle", "core"], "parts": ["Thalamus", "Basal ganglia", "Hippocampus and fornix", "Amygdala", "Ventricles", "Corpus callosum"]},
+    {"words": ["hindbrain", "back bottom", "lower brain", "under part"], "parts": ["Cerebellum", "Brainstem"]},
+    {"words": ["memory parts", "memory"], "parts": ["Hippocampus and fornix", "Left temporal lobe", "Right temporal lobe", "Amygdala"]},
+    {"words": ["movement parts", "movement"], "parts": ["Left frontal lobe", "Right frontal lobe", "Basal ganglia", "Cerebellum"]}
+  ]
+}

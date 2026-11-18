@@ -351,7 +351,9 @@ namespace Forge.Controllers
         bool freeDriving;
         ControllerFile manualFile;
 
-        bool CanFreeDrive => target == Target.Truck && brain != null && brain.isActiveAndEnabled && !brain.Hidden
+        // SlalomBrain drives the truck freely between laps itself when its FreeDrive is on (its FreeStep stops the truck
+        // where it touches a cone or the table edge); the transmitter then only writes the sticks and stays out of it.
+        bool CanFreeDrive => target == Target.Truck && brain != null && brain.isActiveAndEnabled && !brain.Hidden && !brain.FreeDrive
                              && brain.State == SlalomBrain.Mode.Idle && brain.Thing != null && brain.Thing.Host != null;
 
         /// <summary>True while the transmitter drives the brain truck between laps (not recorded).</summary>

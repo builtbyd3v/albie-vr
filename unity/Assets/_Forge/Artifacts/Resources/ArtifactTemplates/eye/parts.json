@@ -1,0 +1,32 @@
+{
+  "note": "What the eye's parts are called when people talk (ArtifactExplorer, artifact_explore isolate). Part names are the GLB's node names.",
+  "bilateral": false,
+  "ignore": ["eye", "eyes", "eyeball", "ocular"],
+  "parts": {
+    "Aqueous humour": {"about": "Clear fluid that fills the front of the eye", "aka": ["aqueous", "front fluid", "watery fluid"]},
+    "Cornea": {"about": "The clear front window; does most of the focusing", "aka": ["front window", "clear front"]},
+    "Inferior oblique": {"about": "Rotates the eye and turns it up and out", "aka": ["inferior oblique muscle", "lower oblique"]},
+    "Inferior rectus": {"about": "Turns the eye down", "aka": ["inferior rectus muscle", "lower rectus", "bottom muscle"]},
+    "Iris": {"about": "The coloured ring that sets the size of the pupil", "aka": ["pupil", "coloured part", "colored part", "colour", "ring"]},
+    "Lateral rectus": {"about": "Turns the eye outward", "aka": ["lateral rectus muscle", "outer muscle", "outside muscle"]},
+    "Lens": {"about": "Fine-tunes the focus for near and far", "aka": ["crystalline lens"]},
+    "Medial rectus": {"about": "Turns the eye inward, toward the nose", "aka": ["medial rectus muscle", "inner muscle", "inside muscle"]},
+    "Optic nerve": {"about": "Carries what the retina sees to the brain", "aka": ["nerve", "optic", "cable to the brain"]},
+    "Retina": {"about": "The light-sensing layer at the back", "aka": ["back of the eye", "light sensor", "rods and cones", "photoreceptors"]},
+    "Sclera": {"about": "The tough white outer coat", "aka": ["white of the eye", "white", "whites", "white part", "outer coat"]},
+    "Superior oblique": {"about": "Rotates the eye and turns it down and out", "aka": ["superior oblique muscle", "upper oblique"]},
+    "Superior rectus": {"about": "Turns the eye up", "aka": ["superior rectus muscle", "upper rectus", "top muscle"]},
+    "Vitreous body": {"about": "The clear gel that fills the eyeball", "aka": ["vitreous", "vitreous humour", "jelly", "gel"]},
+    "Zonular fibres": {"about": "Threads that hold the lens in place", "aka": ["zonules", "suspensory ligaments", "lens threads"]}
+  },
+  "groups": [
+    {"words": ["muscles", "eye muscles", "extraocular muscles", "six muscles"], "parts": ["Superior rectus", "Inferior rectus", "Medial rectus", "Lateral rectus", "Superior oblique", "Inferior oblique"]},
+    {"words": ["rectus muscles", "recti", "straight muscles"], "parts": ["Superior rectus", "Inferior rectus", "Medial rectus", "Lateral rectus"]},
+    {"words": ["oblique muscles", "obliques"], "parts": ["Superior oblique", "Inferior oblique"]},
+    {"words": ["layers", "coats", "outer layers", "walls"], "parts": ["Sclera", "Cornea", "Iris", "Retina"]},
+    {"words": ["fluids", "humours", "fillings", "gels"], "parts": ["Aqueous humour", "Vitreous body"]},
+    {"words": ["optics", "focusing parts", "the parts that focus", "light path"], "parts": ["Cornea", "Aqueous humour", "Lens", "Vitreous body"]},
+    {"words": ["front", "front of the eye", "front parts"], "parts": ["Cornea", "Aqueous humour", "Iris", "Lens", "Zonular fibres"]},
+    {"words": ["inside", "insides", "inner parts"], "parts": ["Lens", "Vitreous body", "Retina", "Zonular fibres", "Aqueous humour"]}
+  ]
+}

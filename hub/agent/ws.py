@@ -166,6 +166,16 @@ async def _on_text(s: Session, raw: str) -> None:
         elif event.type == "crew.roster":
             roster = CrewRoster.model_validate(event.payload)
             crew.set_roster([m.model_dump() for m in roster.members])
+        elif event.type == "workflow.describe":
+            say = getattr(s.voice, "say", None)
+            if say is not None:
+                s.spawn(_voice_call(s, lambda: say(
+                    "What would you like the crew to build?",
+                    context="The user opened Project workflow. Discuss their software project, clarify missing "
+                            "details if needed, then call build_start with their brief. Wait for explicit plan approval.",
+                )))
+            else:
+                await s.reply_error("Project voice is unavailable. Use Type instead in Project workflow.")
         elif event.type == "workspace.mode":
             await _on_mode(s, WorkspaceMode.model_validate(event.payload))
         elif event.type == "stt.start":
