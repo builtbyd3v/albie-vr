@@ -1,30 +1,48 @@
 {
-  "me": {"user_id": "U0ME", "name": "you", "display_name": "You", "team": "Orbit Works"},
+  "me": {"user_id": "U0ME", "name": "you", "display_name": "You", "team": "Sample projects"},
   "channels": [
-    {"id": "C0GENERAL", "name": "general", "kind": "channel", "topic": "Company-wide news", "is_default": true, "messages": [
-      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Design review moved to Thursday 2 PM. Bring your latest rocket numbers.", "ago_min": 300},
-      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "The 3D printer in the lab is back up. New nozzle, prints are clean again.", "ago_min": 140},
-      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Lunch is on the team today. Pizza at noon in the big room.", "ago_min": 50}
+    {"id": "C0GENERAL", "name": "general", "kind": "channel", "topic": "Sample team · not real people · the four sample projects", "is_default": true, "messages": [
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Build review Thursday 2 PM. One update per project: truck, quadcopter, rocket, classifier.", "ago_min": 300},
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "The lab printer has a new nozzle. The longer quadcopter arms are printing now.", "ago_min": 140},
+      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Classifier is at 74% after 15 epochs. Cat vs dog is still the big mix-up.", "ago_min": 50}
     ]},
-    {"id": "C0ROCKET", "name": "rocket-team", "kind": "channel", "topic": "Launch on Saturday", "unread": 2, "mentions": 1, "messages": [
-      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Static margin came out at 1.4 calibers on the last sim. A bit low for the windy forecast.", "ago_min": 95},
-      {"user": "U0ME", "user_name": "You", "text": "I can lengthen the body tube 10% tonight and rerun it.", "ago_min": 80, "is_me": true},
-      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Perfect. Also check the fin span, the new motor is heavier.", "ago_min": 30},
-      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "@You can you send the updated STEP file before the review?", "ago_min": 12, "mentions_me": true}
+    {"id": "C0TRUCK", "name": "rc-truck", "kind": "channel", "project": "proj_truck", "topic": "Sample team · not real people · RC truck slalom", "unread": 1, "messages": [
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "v1 rolled over on the sharp turn at 2.1 m/s. Track is too narrow for that CoG height.", "ago_min": 260},
+      {"user": "U0ME", "user_name": "You", "text": "v2 has the wider track and lower centre of mass. Finished the slalom in 8.6 s.", "ago_min": 240, "is_me": true},
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "And the autopilot did it in 7.4 s with no cones hit. Nice.", "ago_min": 200},
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "At 2.2 m/s it's 5.9 s but it clips a cone. Retrain on faster laps before we push it?", "ago_min": 35}
     ]},
-    {"id": "C0HARDWARE", "name": "hardware", "kind": "channel", "topic": "Parts, suppliers, the lab", "unread": 1, "messages": [
-      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "Quadcopter props arrived. Two of them are chipped, sending them back.", "ago_min": 200},
-      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Gearbox pinion is out of stock until next week. I ordered the steel one instead.", "ago_min": 25}
+    {"id": "C0QUAD", "name": "quadcopter", "kind": "channel", "project": "proj_quadcopter", "topic": "Sample team · not real people · quadcopter frame and flights", "unread": 2, "mentions": 1, "messages": [
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "v5 with 5 in props: clear to fly, thrust 14.1x its weight, about 10.9 min of hover.", "ago_min": 220},
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Tried 7 in props on v6 and they overlap by 22 mm. Needs longer arms.", "ago_min": 150},
+      {"user": "U0SAM", "user_name": "Sam Ortiz", "text": "Two of the 7 in props arrived chipped, sending them back.", "ago_min": 90},
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "@You is v7 with the 320 mm wheelbase ready for a hover test this week?", "ago_min": 20, "mentions_me": true}
     ]},
-    {"id": "D0MAYA", "name": "Maya Chen", "kind": "dm", "unread": 1, "mentions": 1, "messages": [
-      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Nice work on the rocket demo yesterday.", "ago_min": 1500},
+    {"id": "C0ROCKET", "name": "rocket", "kind": "channel", "project": "proj_rocket", "topic": "Sample team · not real people · rocket fins and stability", "unread": 1, "messages": [
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Smaller fins (36 mm span) dropped the margin to 0.84 cal on v2. That would tumble.", "ago_min": 180},
+      {"user": "U0ME", "user_name": "You", "text": "v3 is back to 1.25 cal. Still marginal in a gust.", "ago_min": 160, "is_me": true},
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Can we keep the small fins and lengthen the body instead? Aim for 1.5 cal or more.", "ago_min": 25}
+    ]},
+    {"id": "C0CLASSIFIER", "name": "image-classifier", "kind": "channel", "project": "proj_classifier", "topic": "Sample team · not real people · image classifier accuracy", "messages": [
+      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "15-epoch run is done: 74% on the 1,000 validation images.", "ago_min": 120},
+      {"user": "U0PRIYA", "user_name": "Priya Nair", "text": "Ships are best at 87%. Cats are worst at 54%, mostly called dogs.", "ago_min": 110},
+      {"user": "U0ME", "user_name": "You", "text": "I'll try crops and flips next and see if cat vs dog improves.", "ago_min": 100, "is_me": true}
+    ]},
+    {"id": "D0MAYA", "name": "Maya Chen", "kind": "dm", "unread": 1, "messages": [
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Nice work on the truck demo yesterday.", "ago_min": 1500},
       {"user": "U0ME", "user_name": "You", "text": "Thanks! Albie did most of the talking.", "ago_min": 1490, "is_me": true},
-      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Can you walk the new interns through the workspace tomorrow at 10?", "ago_min": 8}
+      {"user": "U0MAYA", "user_name": "Maya Chen", "text": "Can you bring the rocket numbers to Thursday's review?", "ago_min": 8}
     ]},
     {"id": "D0JORDAN", "name": "Jordan Lee", "kind": "dm", "messages": [
-      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Sending you the flight log from Saturday's test.", "ago_min": 2900},
-      {"user": "U0ME", "user_name": "You", "text": "Got it, apogee looks right on target.", "ago_min": 2880, "is_me": true}
+      {"user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Sending you the hover log from the v5 test.", "ago_min": 2900},
+      {"user": "U0ME", "user_name": "You", "text": "Got it, hover throttle around 27% looks right.", "ago_min": 2880, "is_me": true}
     ]}
   ],
-  "incoming": {"channel": "D0JORDAN", "user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Wind is down to 8 mph for Saturday. Can you send me the final fin span by tonight?", "after_s": 180}
+  "incoming": [
+    {"project": "proj_truck", "channel": "C0TRUCK", "user": "U0SAM", "user_name": "Sam Ortiz", "text": "Cones are set up for another slalom run. What's the latest lap time?", "after_s": 90},
+    {"project": "proj_quadcopter", "channel": "C0QUAD", "user": "U0JORDAN", "user_name": "Jordan Lee", "text": "New props are in. Which design version should I print for the hover test?", "after_s": 90},
+    {"project": "proj_rocket", "channel": "C0ROCKET", "user": "U0MAYA", "user_name": "Maya Chen", "text": "Wind is down to 8 mph for Saturday. What's the stability margin on the latest rocket?", "after_s": 90},
+    {"project": "proj_classifier", "channel": "C0CLASSIFIER", "user": "U0PRIYA", "user_name": "Priya Nair", "text": "Did the crops and flips help? What accuracy are you seeing now?", "after_s": 90},
+    {"project": null, "channel": "D0JORDAN", "user": "U0JORDAN", "user_name": "Jordan Lee", "text": "Build review is tomorrow. Can you post one line per project in #general tonight?", "after_s": 120}
+  ]
 }

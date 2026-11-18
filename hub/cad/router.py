@@ -210,12 +210,13 @@ async def file_download(name: str, v: int | None = None, cad: CadService = Depen
 
 
 @router.get("/flight")
-async def flight(v: int | None = None, cad: CadService = Depends(service)):
+async def flight(v: int | None = None, wind: float = 0.0, cad: CadService = Depends(service)):
     """Simulated flight on a C6 motor (rocket designs): apogee, speeds, a trajectory for the room arc, and the
-    whole flight to landing as fixed-rate samples plus events (liftoff ... landing) for the Fly animation."""
+    whole flight to landing as fixed-rate samples plus events (liftoff ... landing) for the Fly animation.
+    `wind`: a steady wind in m/s along the launch heading (0 to 15); `model` says which sim made it."""
     r = record(cad, v)
     try:
-        return {"version": r.version, **await cad.flight(r.version)}
+        return {"version": r.version, **await cad.flight(r.version, wind)}
     except LookupError as e:
         raise HTTPException(409, str(e)) from None
     except RegenError as e:

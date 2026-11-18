@@ -7,7 +7,8 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The hand transmitter's pad: a two-axis square with a knob. Press it (mouse, or a poke or a ray through the same canvas
+    /// The Drive window's on-screen pad, the mouse and accessibility fallback for the handheld <see cref="RcTransmitter"/>
+    /// (which writes the same channels): a two-axis square with a knob. Press it (mouse, or a poke or a ray through the same canvas
     /// events) and the knob follows the pointer, clamped to the square; up is throttle, down is reverse, left and right
     /// steer. While it is held it writes the manual channels <c>stick.x</c> (right is positive) and <c>stick.y</c> (up is
     /// positive) every frame, the same two channels a Touch thumbstick feeds (see <c>SlalomBrain.Keys</c>), so recording and
@@ -18,6 +19,10 @@ namespace Forge.OS
     /// event data and lets go by itself once that no longer says the pad is pressed (the pointer's press was cleared or moved to
     /// another object) or once the pad's canvas is no longer shown. Built from the UI Set's rounded box and the
     /// kit's chevrons (<see cref="Create"/>). It does nothing per frame beyond a few float writes.
+    ///
+    /// A Thing with four axes (the drone) gets two pads: <see cref="SetChannels"/> points the second one at
+    /// <c>stick2.x</c> and <c>stick2.y</c>. Each pad takes one pointer, so two hands hold the two pads at once. While any pad
+    /// is held, <see cref="HandsTransmitter.PadsHeld"/> says so, and the pinch sticks stand down.
     /// </summary>
     public sealed class OSDrivePad : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler, IEndDragHandler
     {
@@ -30,6 +35,21 @@ namespace Forge.OS
         /// <summary>The throttle a full push up writes to <c>stick.y</c>. A Touch stick and the W key write this much on the brain
         /// truck (the speed a hand can weave the cones at), so laps driven here train like theirs; 1 for a truck with no such limit.</summary>
         public float ThrottleScale = 1f;
+
+        int channelX = StickX, channelY = StickY;
+
+        /// <summary>
+        /// Which two manual inputs the pad writes: sideways then up, by name (<see cref="ManualInputs.Names"/>). The default
+        /// is <c>stick.x</c>, <c>stick.y</c>. A held pad lets go first, so the old channels are left at zero.
+        /// </summary>
+        public void SetChannels(string x, string y)
+        {
+            int nx = ManualInputs.IndexOf(x), ny = ManualInputs.IndexOf(y);
+            if (nx == channelX && ny == channelY) return;
+            if (held || dirty) Release();
+            channelX = nx;
+            channelY = ny;
+        }
 
         RectTransform rect, knob;
         Image knobImage;
@@ -157,6 +177,7 @@ namespace Forge.OS
             canvas = GetComponentInParent<Canvas>();
             pressFrame = Time.frameCount;
             held = true;
+            HandsTransmitter.PadsHeld++;
             Follow(eventData);
             Write(value);
             if (knobImage != null) knobImage.color = heldColor;
@@ -208,8 +229,8 @@ namespace Forge.OS
 
         void Write(Vector2 v)
         {
-            if (StickX >= 0) ManualInputs.Values[StickX] = Mathf.Clamp(v.x, -1f, 1f);
-            if (StickY >= 0) ManualInputs.Values[StickY] = Mathf.Clamp(v.y * ThrottleScale, -1f, 1f);
+            if (channelX >= 0) ManualInputs.Values[channelX] = Mathf.Clamp(v.x, -1f, 1f);
+            if (channelY >= 0) ManualInputs.Values[channelY] = Mathf.Clamp(v.y * ThrottleScale, -1f, 1f);
             dirty = v.x != 0f || v.y != 0f;
         }
 
@@ -220,6 +241,7 @@ namespace Forge.OS
         /// </summary>
         public void Release()
         {
+            if (held && HandsTransmitter.PadsHeld > 0) HandsTransmitter.PadsHeld--;
             held = false;
             pointer = int.MinValue;
             pressing = null;

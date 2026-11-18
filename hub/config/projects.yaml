@@ -1,8 +1,8 @@
 # project_id -> repo the pet can read (qa) or edit on a pet/* branch (code).
 # Paths are expanded (~) server-side and never sent to clients.
 projects:
-  # ponytail: demo build. The headset asks for "gatorhack", so it points at Albie's sandbox too and edits in place.
-  # Point it back at this repo (qa) after the event.
+  # The headset's default project id (unity PetConfig.projectId) is still "gatorhack": keep this key until that is
+  # renamed. It points at Albie's sandbox and edits in place, the same as "sandbox" below.
   gatorhack:
     path: "~/Documents/GitHub/albie-sandbox"
     default_mode: "auto"

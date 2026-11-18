@@ -113,6 +113,15 @@ def test_flight(client):
     assert client.get("/cad/flight", params={"v": 1}).json() == f  # cached per version
 
 
+def test_flight_in_wind(client):
+    calm = client.get("/cad/flight", params={"v": 1}).json()
+    windy = client.get("/cad/flight", params={"v": 1, "wind": 5}).json()
+    assert windy["model"] == "rocketpy" and windy["wind_mps"] == 5 and calm["wind_mps"] == 0
+    assert windy["drift_m"] > calm["drift_m"] + 50 and windy["flight_time_s"] == windy["landing_time_s"]
+    assert client.get("/cad/flight", params={"v": 1}).json() == calm  # the calm flight's cache is untouched
+    assert client.get("/cad/flight", params={"v": 1, "wind": 5}).json() == windy
+
+
 def test_pet_tools(client):
     from cad.tools import TOOLS, call_tool
 
@@ -128,7 +137,10 @@ def test_pet_tools(client):
     assert "error" in call("cad_set_params", changes={"wings": 2})
     assert "error" in call("cad_view", focus_id="WING")
     assert call("cad_undo")["version"] == before
-    assert "trajectory_m" not in call("cad_simulate_flight")
+    sim = call("cad_simulate_flight")
+    assert "trajectory_m" not in sim and "samples" not in sim
+    assert {"apogee_m", "max_speed_mps", "stability_margin_cal", "static_margin_cal", "time_to_apogee_s",
+            "flight_time_s", "drift_m", "version", "model"} <= set(sim)
     assert "def build" in call("cad_get_context")["script"]
 
 

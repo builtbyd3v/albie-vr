@@ -571,7 +571,7 @@ namespace Forge.OS.Editor
                 Check(!windows.IsOpen("build") && Listing() == before, "Cancel after the failed Starts leaves the scratch root as it was");
             }
 
-            // ---- G. a new project id, then another
+            // ---- G. a drone plan fills the Quadcopter starter, and a second one revises the same project's plan
             string[][] droneAnswers = { new[] { "Drone", "Hover steadily", "Hover for one minute" } };
             for (int round = 0; round < 2; round++)
             {
@@ -585,10 +585,11 @@ namespace Forge.OS.Editor
                 step = Tap(shell, "Start");
                 while (step.MoveNext()) yield return step.Current;
                 yield return 1.2f;
-                string want = round == 0 ? "proj_my_drone" : "proj_my_drone_2";
-                Check(NotebookStore.ProjectId == want, "building a drone" + (round == 0 ? "" : " again") + " makes " + want + " (" + NotebookStore.ProjectId + ")");
+                string want = OSProjects.QuadcopterId;
+                string wantPlan = "plan_v000" + (round + 1) + ".json";
+                Check(NotebookStore.ProjectId == want, "building a drone" + (round == 0 ? "" : " again") + " fills " + want + " (" + NotebookStore.ProjectId + ")");
                 NotebookStore.Flush();
-                Check(File.Exists(Path.Combine(ProjectsFolder, want, "plans", "plan_v0001.json")), want + " has plan_v0001.json on disk");
+                Check(File.Exists(Path.Combine(ProjectsFolder, want, "plans", wantPlan)), want + " has " + wantPlan + " on disk");
                 OSProjects.Refresh();
                 yield return 0.3f;
                 OSEntry entry = OSRegistry.Find(OSTab.Projects, want);
@@ -633,7 +634,7 @@ namespace Forge.OS.Editor
             layout = win != null ? OSToolsTest.LayoutProblem(win) : "no window";
             Check(layout == null, "the plan card with the user's own words: no clipped or overlapping text" + (layout != null ? ": " + layout : ""));
             Shot("64_build_plan_free_words");
-            Check(OSBuildFlow.Choose("start") && NotebookStore.ProjectId == "proj_my_rocket", "'start' on the plan card starts it: proj_my_rocket (" + NotebookStore.ProjectId + ")");
+            Check(OSBuildFlow.Choose("start") && NotebookStore.ProjectId == OSProjects.RocketId, "'start' on the plan card fills the Rocket starter: proj_rocket (" + NotebookStore.ProjectId + ")");
             yield return 0.8f;
             windows.CloseAll();
             JObject noCard = AlbieTools.Call("os_answer", new JObject { ["answer"] = "drone" });

@@ -86,6 +86,8 @@ public class ChatPanel : MonoBehaviour
     ScrollRect msgScroll;
     RectTransform msgContent;
     ChatButton loadEarlier;
+    ChatButton headProject;   // "Open project": the open channel is a project's (MessagesShare)
+    string headProjectId;
     readonly List<ChatRow> rows = new List<ChatRow>(MaxRows);
     readonly List<DayDivider> days = new List<DayDivider>(8);
     readonly List<Item> items = new List<Item>(MaxRows + 16);
@@ -214,6 +216,8 @@ public class ChatPanel : MonoBehaviour
         headTopic = ChatUi.Text(content, "Topic", 11.5f, ChatUi.MsgMuted);
         headTopic.overflowMode = TextOverflowModes.Ellipsis;
         headLine = ChatUi.Surface(content, "HeadLine", ChatUi.MsgLine, 0f);
+        headProject = ChatButton.CreatePill(content, "Open project", ChatButton.Ghost, OpenHeadProject, 24f, 11f);
+        ChatUi.Show(headProject, false);
 
         msgScroll = ChatUi.ScrollList(content, "Messages", out msgContent);
         loadEarlier = ChatButton.CreatePill(msgContent, "Load earlier messages", ChatButton.Ghost, LoadEarlier, 26f, 11.5f);
@@ -395,7 +399,7 @@ public class ChatPanel : MonoBehaviour
         var channel = ChatStore.Find(selected);
 
         // Sidebar: the workspace, channels A-Z, then DMs in the hub's order (unread first, then most recent).
-        team.text = string.IsNullOrEmpty(ChatStore.TeamName) ? "Messages" : ChatStore.TeamName;
+        team.text = string.IsNullOrEmpty(ChatStore.TeamName) ? "Workspace" : ChatStore.TeamName;
         order.Clear();
         for (int i = 0; i < ChatStore.Channels.Count; i++)
         {
@@ -434,6 +438,8 @@ public class ChatPanel : MonoBehaviour
         bool locked = channel != null && channel.kind == "private";
         headName.text = channel != null ? ChatText.PlainName(channel) : "";
         headTopic.text = channel == null || string.IsNullOrEmpty(channel.topic) ? "" : channel.topic;
+        headProjectId = channel != null && !dm ? MessagesShare.ProjectForChannel(channel.name) : null;
+        ChatUi.Show(headProject, headProjectId != null);
         ChatUi.Show(headGlyph, channel != null && !dm && !locked);
         ChatUi.Show(headLock, locked);
         ChatUi.Show(headAvatar, dm);
@@ -446,8 +452,11 @@ public class ChatPanel : MonoBehaviour
         {
             int unread = 0;
             for (int i = 0; i < ChatStore.Channels.Count; i++) unread += ChatStore.Channels[i].unread;
-            Panel.Subtitle = channel == null ? (ChatStore.Demo ? "Demo conversations" : live ? "" : "Connecting…")
-                : ChatText.DisplayName(channel) + " · " + (unread == 0 ? "all read" : unread == 1 ? "1 unread" : unread + " unread");
+            // Hub off: the conversations are the bundled sample (the sample projects' threads, with a sample team), and the
+            // frame says so whichever one is open.
+            Panel.Subtitle = channel == null ? (ChatStore.Demo ? "Sample conversations · sample team" : live ? "" : "Connecting…")
+                : ChatText.DisplayName(channel) + " · " + (unread == 0 ? "all read" : unread == 1 ? "1 unread" : unread + " unread")
+                  + (ChatStore.Demo ? " · sample team, not real people" : "");
         }
 
         // Messages, with day dividers and the "New" line.
@@ -515,7 +524,7 @@ public class ChatPanel : MonoBehaviour
             rightEmpty.text = !live ? "Connecting…"
                 : selected == null ? "Pick a conversation"
                 : loading || list == null ? "Loading…"
-                : dm ?"This conversation is just between you and " + ChatText.PlainName(channel) + ".\n<size=85%><alpha=#AA>Say hi below."
+                : dm ? "This conversation is just between you and " + ChatText.PlainName(channel) + ".\n<size=85%><alpha=#AA>Say hi below."
                 : "This is the very beginning of " + ChatText.DisplayName(channel) + ".";
         }
     }
@@ -608,6 +617,11 @@ public class ChatPanel : MonoBehaviour
 
     void OnAskAlbie(ChatRow row) => AskAlbie(row.Message);
 
+    void OpenHeadProject()
+    {
+        if (!MessagesShare.OpenProject(headProjectId)) composer.ShowStatus("That project isn't here");
+    }
+
     void AskAlbie(NotifyMessage m)
     {
         if (!FocusAlbie(m)) composer.ShowStatus("Albie can't hear right now");
@@ -680,8 +694,14 @@ public class ChatPanel : MonoBehaviour
         float nameX = hx + iconW2 + 6f;
         float nameW = Mathf.Min(ChatUi.Width(headName, headName.text) + 2f, pw2 * 0.55f);
         ChatUi.Place(headName.rectTransform, nameX, py, nameW, HeaderH);
-        float topicX = nameX + nameW + 14f;
-        ChatUi.Place(headTopic.rectTransform, topicX, py + 2f, Mathf.Max(10f, px + pw2 - 18f - topicX), HeaderH);
+        float topicX = nameX + nameW + 14f, topicRight = 18f;
+        if (headProject.gameObject.activeSelf)
+        {
+            float bw = headProject.Rect.sizeDelta.x;
+            ChatUi.Place(headProject.Rect, px + pw2 - 14f - bw, py + (HeaderH - 24f) * 0.5f, bw, 24f);
+            topicRight += bw + 8f;
+        }
+        ChatUi.Place(headTopic.rectTransform, topicX, py + 2f, Mathf.Max(10f, px + pw2 - topicRight - topicX), HeaderH);
         ChatUi.Place(headLine.rectTransform, px, py + HeaderH, pw2, 1.2f);
 
         float composerH = composer.Height;

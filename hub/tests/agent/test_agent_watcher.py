@@ -250,3 +250,13 @@ def test_an_allowlisted_imessage_is_read_out_short() -> None:
     line = line_for("notify.message", text, None)
     assert line is not None and line.text.startswith("New text from Mom: word word") and "..." in line.text
     assert line_for("notify.message", {**text, "is_me": True}, None) is None
+
+
+def test_a_cad_line_names_the_design_that_is_open() -> None:
+    broke = line_for("cad.regen_failed", {"source": "script", "kind": "build", "error": "bad", "error_line": 7,
+                                          "kept_version": 2}, "/repo/hub/cad/parts/quadcopter.py")
+    assert broke is not None and broke.text.startswith("Line 7 broke the quadcopter.")
+    fixed = line_for("cad.built", {"source": "script", "version": 3, "part": "gearbox"}, None)
+    assert fixed is not None and fixed.text == "Fixed it. The gearbox builds again."
+    unknown = line_for("cad.regen_failed", {"source": "script", "kind": "build", "error": "bad"}, None)
+    assert unknown is not None and unknown.text.startswith("The design script broke.")

@@ -35,7 +35,7 @@ namespace Forge.Pet
             new AlbieAgentType("reviewer", "Reviewer", "reviews branches and diffs for bugs",           new Color(0.62f, 0.42f, 0.88f), 1.10f, HatStyle.Beanie),
             new AlbieAgentType("scribe",   "Scribe",   "writes docs, READMEs and comments",             new Color(0.30f, 0.52f, 0.95f), 0.87f, HatStyle.TopHat),
             new AlbieAgentType("shipper",  "Shipper",  "handles git, changelogs and pull request write-ups", new Color(0.95f, 0.95f, 0.97f), 1.14f, HatStyle.CaptainCap),
-            new AlbieAgentType("designer", "Designer", "tweaks the rocket CAD design",                  new Color(1.00f, 0.52f, 0.76f), 0.89f, HatStyle.Bow),
+            new AlbieAgentType("designer", "Designer", "tweaks the open CAD design",                    new Color(1.00f, 0.52f, 0.76f), 0.89f, HatStyle.Bow),
             new AlbieAgentType("sentinel", "Sentinel", "audits the code for security problems",         new Color(0.18f, 0.24f, 0.45f), 1.15f, HatStyle.Helmet),
         };
 

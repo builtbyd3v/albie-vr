@@ -51,7 +51,7 @@ namespace Forge.Artifacts
 
         /// <summary>A new layout record for a fit, with the next free id. Not saved: call <see cref="Save"/>.</summary>
         public static JObject Make(string artifactId, int version, string scenario, int seed, IFloorPlan room, JObject requested,
-                                   FloorSlalom.Result fit, string message, string countKey = "gates")
+                                   FloorSlalom.Result fit, string message, string countKey = "gates", Pose? anchorAt = null, float scale = 1f)
         {
             var toRoom = room.RoomToWorld.inverse;
             var originInRoom = toRoom.MultiplyPoint3x4(fit.Origin);
@@ -63,6 +63,19 @@ namespace Forge.Artifacts
                 foreach (var pose in pair.Value) list.Add(new JObject { ["pos"] = Vec(pose.position), ["rot"] = Vec(pose.rotation.eulerAngles) });
                 slots[pair.Key] = list;
             }
+            // A desk course is fitted on a plan magnified around the table (DeskPlan): its anchor goes where the course
+            // really stands, and the record keeps the scale it was made at.
+            var roomRecord = new JObject
+            {
+                ["key"] = room.Key,
+                ["anchor"] = ArtifactAnchors.Save(anchorAt ?? new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f))),
+                ["origin"] = new JObject { ["pos"] = Vec(originInRoom), ["yaw"] = R(Mathf.Atan2(forwardInRoom.x, forwardInRoom.z) * Mathf.Rad2Deg) },
+            };
+            if (Mathf.Abs(scale - 1f) > 0.0001f)
+            {
+                roomRecord["surface"] = "desk";
+                roomRecord["scale"] = R(scale);
+            }
             return new JObject
             {
                 ["schema"] = Schema,
@@ -71,12 +84,7 @@ namespace Forge.Artifacts
                 ["artifact_version"] = version,
                 ["scenario"] = scenario,
                 ["seed"] = seed,
-                ["room"] = new JObject
-                {
-                    ["key"] = room.Key,
-                    ["anchor"] = ArtifactAnchors.Save(new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f))),
-                    ["origin"] = new JObject { ["pos"] = Vec(originInRoom), ["yaw"] = R(Mathf.Atan2(forwardInRoom.x, forwardInRoom.z) * Mathf.Rad2Deg) },
-                },
+                ["room"] = roomRecord,
                 ["fit"] = new JObject
                 {
                     ["requested"] = requested.DeepClone(),

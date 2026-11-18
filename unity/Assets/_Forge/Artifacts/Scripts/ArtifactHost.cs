@@ -64,6 +64,11 @@ namespace Forge.Artifacts
         public bool AwaitingApproval { get; private set; }
         /// <summary>Where a room-space scene's origin is (world): the course start.</summary>
         public Pose SceneOrigin => courseOrigin;
+        /// <summary>
+        /// The scale a room-space scene is shown at: 1 on the floor, smaller for a course laid out on a table
+        /// (<see cref="DeskPlan"/>). Whatever puts a Thing on the course should make it this much smaller too.
+        /// </summary>
+        public float CourseScale { get; private set; } = 1f;
         public ArtifactBuild Build => build;
 
         /// <summary>
@@ -505,6 +510,7 @@ namespace Forge.Artifacts
             bool room = open.Scene.Value<string>("space") == "room";
             var slots = new Dictionary<string, List<Pose>>();
             courseOrigin = new Pose(transform.position, transform.rotation);
+            CourseScale = 1f;
             if (open.Scene["generators"] is JArray generators && generators.Count > 0)
             {
                 if (generators.Count > 1)
@@ -524,8 +530,11 @@ namespace Forge.Artifacts
                 LastLayout = placement.Layout;
                 LayoutReused = placement.Reused;
                 courseOrigin = placement.Origin;
+                CourseScale = placement.Scale;
                 slots = placement.Slots;
-                if (room && FollowsUser) CourseNote = WhereIsCourse(courseOrigin.position);
+                // Only a course linked to the truck gets one at its start (ArtifactBootstrap.EnsureBrain), so only that one says so.
+                if (room && FollowsUser)
+                    CourseNote = WhereIsCourse(courseOrigin.position, (open.Manifest["links"] as JObject)?.Value<string>("thing"));
                 CollectInputs(generators[0]["params"], generatorInputs);
                 Emit("artifact.layout", new JObject
                 {
@@ -550,7 +559,11 @@ namespace Forge.Artifacts
 
             float scale = 1f;
             if (open.Scene.Value<string>("space") == "volume") scale = ShowVolume(root);
-            else if (room) PlaceInRoom(root);
+            else if (room)
+            {
+                PlaceInRoom(root);
+                scale = CourseScale;
+            }
             else Hold(root);
 
             inputs.Changed += OnInputChanged;
@@ -582,6 +595,7 @@ namespace Forge.Artifacts
             if (Thing == null) Thing = FindFirstObjectByType<ArtifactThing>();
             run = new ArtifactRun();
             run.Bind(open.Manifest, open.Scene, LastLayout, build.Inputs, Thing, build.Metrics, build);
+            run.SpeedScale = CourseScale;
             run.ZoneChanged += OnZone;
             run.StateChanged += OnRunState;
         }
@@ -599,7 +613,7 @@ namespace Forge.Artifacts
         void PlaceThingAtStart()
         {
             if (!(Thing is ArtifactThing body)) return;
-            body.Place(courseOrigin.position + Vector3.up * 0.06f, courseOrigin.rotation);
+            body.Place(courseOrigin.position + Vector3.up * (0.06f * CourseScale), courseOrigin.rotation);
         }
 
         void OnZone(string zone, bool enter)
@@ -737,7 +751,7 @@ namespace Forge.Artifacts
 
         // "The course starts behind you, about 3 m away." From the eyes, flat on the floor: ahead within 35 degrees,
         // behind past 110, else to a side. Null with no camera.
-        static string WhereIsCourse(Vector3 start)
+        static string WhereIsCourse(Vector3 start, string thing)
         {
             var cam = Camera.main;
             if (cam == null) return null;
@@ -749,7 +763,9 @@ namespace Forge.Artifacts
             float a = Mathf.Abs(angle);
             string where = a <= 35f ? "in front of you" : a > 110f ? "behind you" : angle > 0f ? "to your right" : "to your left";
             int metres = Mathf.Max(1, Mathf.RoundToInt(to.magnitude));
-            return $"The course starts {where}, about {metres} m away. The truck waits in the green box.";
+            return $"The course starts {where}, about {metres} m away." 
+                   + (thing == "truck" ? " The truck waits in the green box."
+                      : thing == "drone" ? " The drone waits landed at the start: tap Take off in the Drive window." : "");
         }
 
         // A course's scoreboard stands beside the start at chest height, on whichever side is free floor (never in a
@@ -757,8 +773,11 @@ namespace Forge.Artifacts
         void PlaceBesideCourse(Transform panel)
         {
             var room = Room ?? MrukFloorPlan.Current();
-            var spot = new Vector3(0f, 1.1f, -0.7f);
-            foreach (var side in new[] { new Vector3(-1.1f, 1.1f, 0.4f), new Vector3(1.1f, 1.1f, 0.4f) })
+            // A desk course is small and already at hand height: its board stands close beside it, not a stride away.
+            bool small = CourseScale < 0.99f;
+            float reach = small ? 0.45f : 1.1f, up = small ? 0.3f : 1.1f;
+            var spot = new Vector3(0f, up, small ? -0.3f : -0.7f);
+            foreach (var side in new[] { new Vector3(-reach, up, small ? 0.15f : 0.4f), new Vector3(reach, up, small ? 0.15f : 0.4f) })
                 if (room != null && room.HasFloor && room.IsFree(courseOrigin.position + courseOrigin.rotation * side, 0.05f))
                 {
                     spot = side;

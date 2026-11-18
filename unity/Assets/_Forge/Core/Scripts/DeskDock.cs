@@ -120,16 +120,30 @@ public class DeskDock : MonoBehaviour
     void OnEnable()
     {
         ForgeNet.StatusChanged += ShowStatus;
+        ForgeCloud.StateChanged += CloudChanged;
         ShowStatus(ForgeNet.Status);
     }
 
-    void OnDisable() => ForgeNet.StatusChanged -= ShowStatus;
+    void OnDisable()
+    {
+        ForgeNet.StatusChanged -= ShowStatus;
+        ForgeCloud.StateChanged -= CloudChanged;
+    }
+
+    void CloudChanged(CloudState state) => ShowStatus(ForgeNet.Status);
 
     void ShowStatus(ForgeNetStatus status)
     {
-        hubColor = status == ForgeNetStatus.Live ? ForgeTheme.HubLive : status == ForgeNetStatus.Mock ? ForgeTheme.HubMock : ForgeTheme.HubConnecting;
-        hubGlow = status == ForgeNetStatus.Live ? ForgeTheme.HubLiveGlow : status == ForgeNetStatus.Mock ? ForgeTheme.HubMockGlow : ForgeTheme.HubConnectingGlow;
-        hubText = status == ForgeNetStatus.Live ? "Hub live" : status == ForgeNetStatus.Mock ? "Mock data" : "Connecting…";
+        bool connected = status == ForgeNetStatus.Live || (status == ForgeNetStatus.Mock && ForgeCloud.State == CloudState.Online);
+        hubColor = connected ? ForgeTheme.HubLive : status == ForgeNetStatus.Mock ? ForgeTheme.HubMock : ForgeTheme.HubConnecting;
+        hubGlow = connected ? ForgeTheme.HubLiveGlow : status == ForgeNetStatus.Mock ? ForgeTheme.HubMockGlow : ForgeTheme.HubConnectingGlow;
+        // Hub off is the normal state on the headset: say what Albie's cloud is doing, not "mock".
+        hubText = status == ForgeNetStatus.Live ? "Connected"
+                : status != ForgeNetStatus.Mock ? "Connecting…"
+                : ForgeCloud.State == CloudState.Online ? "Cloud connected"
+                : ForgeCloud.State == CloudState.Waking ? "Cloud waking up…"
+                : !ForgeCloud.Probed ? "Connecting…"
+                : "Offline: sample data";
         if (hubLabel != null) hubLabel.text = hubText;
         hubAttentionUntil = Time.time + HubAttention;
         frameDirty = true;

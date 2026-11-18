@@ -35,6 +35,10 @@ namespace Forge.OS
         {
             { "slalom", "Slalom" },
             { "hoop_course", "Hoop course" },
+            { "dash", "Dash" },
+            { "park", "Parking" },
+            { "hover", "Hover" },
+            { "landing", "Landing" },
             { "repo_activity", "What shipped?" },
             { "cell", "Cell" },
             { "heart", "Heart" },
@@ -48,7 +52,16 @@ namespace Forge.OS
         };
 
         // Room artifacts stand on the real floor where the room code puts them; the rest open as windows.
-        static readonly HashSet<string> RoomTemplates = new HashSet<string> { "slalom", "hoop_course" };
+        static readonly HashSet<string> RoomTemplates = new HashSet<string> { "slalom", "hoop_course", "dash", "park", "hover", "landing" };
+
+        /// <summary>The tile that leads to a course or artifact of the user's own: Albie asks for the idea and makes it.</summary>
+        public const string OwnId = "new_own";
+        /// <summary>What Albie is told when the tile is tapped (the voice model says it in its own words, then listens).</summary>
+        public const string OwnPrompt =
+            "The user tapped Make your own in the Artifacts tab. Ask them in one short sentence what they want made. "
+            + "For a course, find out what it is for (the truck or the drone), where (the floor or their table) and what is on it "
+            + "(a straight, cones to weave, gates, hoops, a spot to park or land on, a box to hover in). "
+            + "Then make it with artifact_create: a course goes in 'course' as a list of elements, never as a scene.";
 
         static readonly List<OSEntry> cached = new List<OSEntry>();
         static readonly Dictionary<string, string> projectNames = new Dictionary<string, string>();  // one rebuild's answers (OSRegistry.Find allocates)
@@ -322,23 +335,24 @@ namespace Forge.OS
         {
             foreach (string template in ArtifactLibrary.Templates)
             {
-                // Hidden for the submission (Satyabrata, Nov 16): hoops are for a drone, and the app has none to fly.
-                if (template == "hoop_course") continue;
-                string name = template;
-                string key = "new_" + name;
-                bool room = RoomTemplates.Contains(name);
-                cached.Add(new OSEntry
-                {
-                    id = key,
-                    title = FriendlyTitle(name),
-                    icon = IconFor(name),
-                    tab = OSTab.Artifacts,
-                    section = Section,
-                    outline = true,
-                    status = () => NoticeOr(key, room ? "on your floor" : "opens as a window"),
-                    open = () => Create(name),
-                });
+                AddNewTile(template);
+                // The other courses sit with the slalom and the hoops: the truck's dash and parking, the drone's hover and landing.
+                if (template == "hoop_course")
+                    foreach (string course in ArtifactCourses.Templates) AddNewTile(course);
             }
+
+            // The user's own idea: Albie asks what they want and makes it (a course from a description, or anything else).
+            cached.Add(new OSEntry
+            {
+                id = OwnId,
+                title = "Make your own",
+                icon = "plus",
+                tab = OSTab.Artifacts,
+                section = Section,
+                outline = true,
+                status = () => NoticeOr(OwnId, "tell Albie your idea"),
+                open = () => MakeYourOwn(),
+            });
 
             // Three-body is a bundled simulation, not a template: it can't be created, only opened. Listed only if it opens here.
             if (!hasThreeBody && ThreeBodyWorks())
@@ -356,6 +370,43 @@ namespace Forge.OS
                     open = () => Toggle(ThreeBodyId),
                 });
             }
+        }
+
+        static void AddNewTile(string name)
+        {
+            string key = "new_" + name;
+            bool room = RoomTemplates.Contains(name);
+            cached.Add(new OSEntry
+            {
+                id = key,
+                title = FriendlyTitle(name),
+                icon = IconFor(name),
+                tab = OSTab.Artifacts,
+                section = Section,
+                outline = true,
+                status = () => NoticeOr(key, room ? "on your floor" : "opens as a window"),
+                open = () => Create(name),
+            });
+        }
+
+        /// <summary>
+        /// The Make your own tile: Albie asks the user for their idea out loud and listens (the same albie.say Build
+        /// something uses for its questions), then makes it with artifact_create. There is no keyboard: with the voice
+        /// off the tile says so. Null when Albie was asked, else why not.
+        /// </summary>
+        public static string MakeYourOwn()
+        {
+            notices.Clear();
+            if (!OSBuildFlow.VoiceLive)
+            {
+                notices[OwnId] = "needs Albie's voice on";
+                Refresh();
+                return "Albie's voice is off, so he can't hear your idea. Turn it on in Settings.";
+            }
+            if (Application.isPlaying) ForgeNet.Send("albie.say", new JObject { ["text"] = OwnPrompt });
+            notices[OwnId] = "Albie is listening";
+            Refresh();
+            return null;
         }
 
         static bool ThreeBodyWorks()
@@ -385,8 +436,18 @@ namespace Forge.OS
         {
             switch (key)
             {
-                case "slalom": return "slalom";
-                case "hoop_course": return "hoops";
+                case "slalom":
+                case "dash":
+                case "park":
+                case "dash_desk":
+                case "park_desk":
+                case "slalom_desk": return "slalom";
+                case "hoop_course":
+                case "hover":
+                case "landing":
+                case "hover_desk":
+                case "landing_desk":
+                case "hoop_course_desk": return "hoops";
                 case "repo_activity": return "repo";
                 case "cell":
                 case "heart":
@@ -501,7 +562,7 @@ namespace Forge.OS
         {
             notices.Clear();
             string tile = "new_" + template;
-            EnsureProjectOpen();
+            EnsureProjectOpen(template);
 
             // Created without opening, so an error here means nothing was written. (artifact_create with open:true loses the id
             // when the open is refused after the write.) Opening is the same artifact_open the voice path ends with.
@@ -526,14 +587,13 @@ namespace Forge.OS
             return null;
         }
 
-        // A project is always open: with none, the new artifact would be standalone and the slalom would lose its truck.
-        static void EnsureProjectOpen()
+        // The new artifact links to the project the person has open, or to the starter its course belongs to (a drone
+        // course to the Quadcopter, the slalom to the RC truck), or to none: never by default to the truck (OSProjects.PrepareForArtifact).
+        static void EnsureProjectOpen(string template)
         {
-            if (NotebookStore.IsOpen) return;
             try
             {
-                NotebookStore.Open(NotebookStore.DefaultProject);
-                Debug.Log("[OS] No project was open, so '" + NotebookStore.DefaultProject + "' was opened before making the artifact.");
+                OSProjects.PrepareForArtifact(template);
             }
             catch (System.Exception e)
             {
@@ -545,7 +605,11 @@ namespace Forge.OS
         {
             if (result == null) return "Albie's tools aren't ready yet.";
             string error = (string)result["error"];
-            return error == null ? null : Reason(error);
+            if (error != null) return Reason(error);
+            // A course that didn't compile comes back as data (status invalid, nothing saved), not as an error string.
+            if ((string)result["status"] == "invalid")
+                return result["errors"] is JArray errors && errors.Count > 0 ? (string)errors[0]["message"] ?? "it wasn't valid." : "it wasn't valid.";
+            return null;
         }
 
         // "no_floor: there is no free floor" becomes "there is no free floor".

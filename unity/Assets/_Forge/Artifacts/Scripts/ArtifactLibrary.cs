@@ -16,7 +16,7 @@ namespace Forge.Artifacts
     public static class ArtifactLibrary
     {
         /// <summary>The built-in templates.</summary>
-        public static readonly string[] Templates = { "slalom", "hoop_course", "repo_activity", "cell", "heart", "brain", "plant_cell", "eye", "dna", "double_pendulum", "solar_system" };
+        public static readonly string[] Templates = { "slalom", "hoop_course", "repo_activity", "cell", "heart", "brain", "plant_cell", "eye", "dna", "double_pendulum", "solar_system", "rocket_launch" };
 
         /// <summary>Checks point this at a scratch folder.</summary>
         public static string RootOverride;
@@ -124,6 +124,7 @@ namespace Forge.Artifacts
             manifest = (JObject)manifest.DeepClone();
             scene = (JObject)scene.DeepClone();
             manifest["scene"] = "scene.json";  // the only file Write saves, so the manifest has to name it
+            ModelImport.KeepCredits(manifest, SavedManifest(manifest.Value<string>("id")));  // an imported model keeps its attribution
             if (NotebookStore.IsOpen && manifest.Value<string>("kind") != "standalone")
             {
                 if (!(manifest["links"] is JObject)) manifest["links"] = new JObject();
@@ -134,8 +135,84 @@ namespace Forge.Artifacts
         }
 
         /// <summary>
+        /// Saves a model the person picked with <c>model_import</c> as an artifact that carries it: <paramref name="glb"/>
+        /// becomes the artifact's own device copy at <paramref name="assetPath"/>, which the manifest must list with its
+        /// sha256, licence and credit. This is the one way a .glb that isn't bundled gets onto the device; it then loads
+        /// like any other asset, by path and matching hash (<see cref="ArtifactAssets"/>), and everything else is still
+        /// refused. The scene is the host's own (<see cref="ModelImport.Save"/>), so, like a template, it gets the
+        /// validator and the dry open but not the physical checks. On a refusal nothing new is left on the device.
+        /// </summary>
+        public static Created FromModel(JObject manifest, JObject scene, string assetPath, byte[] glb, out List<ArtifactError> errors)
+        {
+            errors = ArtifactValidator.Validate(manifest, scene);
+            string id = manifest?["id"]?.Type == JTokenType.String ? (string)manifest["id"] : null;
+            if (id != null && Array.IndexOf(Templates, id) >= 0)
+                errors.Add(new ArtifactError("bad_value", "id", $"\"{id}\" is a template's id"));
+            if (assetPath == null || !ArtifactPackage.SafeAsset.IsMatch(assetPath))
+                errors.Add(new ArtifactError("bad_value", "assets", $"\"{assetPath}\" has to be assets/<name>.glb"));
+            if (glb == null || glb.Length == 0) errors.Add(new ArtifactError("asset_missing", "assets", "there is no file to save"));
+            if (errors.Count > 0) return null;
+            var missing = ArtifactNodes.Missing(scene);
+            if (missing.Count > 0)
+            {
+                errors.Add(new ArtifactError("cant_build", "scene", "valid, but this version can't build: " + string.Join(", ", missing)));
+                return null;
+            }
+            string folder = Folder(id), file = Path.Combine(folder, assetPath);
+            bool newFolder = !Directory.Exists(folder);
+            byte[] before = File.Exists(file) ? File.ReadAllBytes(file) : null;
+            try
+            {
+                WriteBytes(file, glb);
+                // The dry open reads the file back from the device and checks it as an open would: listed, hash, size, weight.
+                errors.AddRange(DryOpen(manifest, scene));
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                errors.Add(new ArtifactError("cant_save", "assets", "the file couldn't be written: " + e.Message));
+            }
+            if (errors.Count > 0)
+            {
+                try
+                {
+                    if (before != null) WriteBytes(file, before);
+                    else if (File.Exists(file)) File.Delete(file);
+                    if (newFolder && Directory.Exists(folder)) Directory.Delete(folder, true);
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+                {
+                    Debug.LogWarning($"[Artifacts] couldn't clean up {file}: {e.Message}");
+                }
+                return null;
+            }
+            manifest = (JObject)manifest.DeepClone();
+            scene = (JObject)scene.DeepClone();
+            manifest["scene"] = "scene.json";
+            return Write(manifest, scene);
+        }
+
+        static void WriteBytes(string path, byte[] bytes)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            string temp = path + ".tmp";
+            File.WriteAllBytes(temp, bytes);
+            if (File.Exists(path)) File.Replace(temp, path, null);
+            else File.Move(temp, path);
+        }
+
+        // The manifest saved on this device under an id, or null.
+        static JObject SavedManifest(string id)
+        {
+            if (id == null) return null;
+            string path = Path.Combine(Folder(id), "manifest.json");
+            if (!File.Exists(path)) return null;
+            try { return NotebookFiles.Parse(File.ReadAllText(path)) as JObject; }
+            catch (Exception e) when (e is JsonException || e is IOException) { return null; }
+        }
+
+        /// <summary>
         /// What opening it would refuse, found before it's saved (nothing broken is ever written): every data table must
-        /// load, every gltf asset must be bundled and match its hash, every table array must name real columns, and the
+        /// load, every gltf asset must be bundled or imported and match its hash, every table array must name real columns, and the
         /// scene must stay within <see cref="ArtifactSchema.MaxSceneCopies"/> copies. Where a room course is placed is
         /// left to the open, because it depends on the room. Runs only on a valid scene that this host can build.
         /// </summary>
@@ -150,7 +227,7 @@ namespace Forge.Artifacts
             if (ArtifactAssets.Resolve(package, out var assetError) == null)
             {
                 if (assetError.hint == null && (assetError.code == "asset_missing" || assetError.code == "asset_not_listed"))
-                    assetError.hint = "only models bundled on this headset load, and a written artifact can't bring a .glb: build the shape from primitives";
+                    assetError.hint = "a model loads only if it's bundled on this headset or was brought in with model_import (call model_search, let the person pick, then model_import); a written artifact can't bring a .glb of its own, so otherwise build the shape from primitives";
                 errors.Add(assetError);
             }
             if (!(scene["nodes"] is JArray nodes)) return errors;

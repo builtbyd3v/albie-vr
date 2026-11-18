@@ -581,7 +581,7 @@ class Builds:
             bullets.append("Scripted local demo complete. No provider calls; GitHub publication is disabled.")
             return ev.Card(title=f"Demo complete: {build.title}", bullets=bullets)
         if not build.repo:
-            bullets.append("Saved on the hub (no BUILD_REPO set, so there's nowhere to open a pull request).")
+            bullets.append("Saved here: no repo is connected, so there's nowhere to open a pull request.")
             return ev.Card(title=f"Built: {build.title}", bullets=bullets)
         return ev.Card(title=f"Built: {build.title}", bullets=bullets, actions=[
             ev.CardAction(label="Open pull request", action_id=f"build:ship:{build.id}"),
@@ -694,7 +694,7 @@ TOOLS: list[dict[str, Any]] = [
      "description": "Where a build is: its plan, each crew member's step and result, and the pull request if opened.",
      "parameters": {"type": "object", "properties": {"build_id": _ID}}},
     {"name": "build_ship",
-     "description": "Push a finished build's branch and open a pull request on the demo GitHub account. Call it first "
+     "description": "Push a finished build's branch and open a pull request on the connected GitHub account. Call it first "
                     "without confirm: nothing is pushed, and you get what would be sent. Say the project name and "
                     "the repo, and ask 'open the pull request?'. Only after a clear yes, call again with confirm true.",
      "parameters": {"type": "object", "properties": {"build_id": _ID, "confirm": {"type": "boolean"}}}},
@@ -716,7 +716,7 @@ async def call_tool(name: str, args: dict[str, Any], of: Builds | None = None) -
                 "say": "Say you'll plan it and the crew will build it; you'll hear when it's ready."}
     build = b.get(args.get("build_id"))
     if build is None:
-        return {"error": "no build yet (builds are kept in memory)"}
+        return {"error": "no build yet"}
     if name == "build_status":
         return build.public()
     if name == "build_approve":
@@ -733,10 +733,11 @@ async def call_tool(name: str, args: dict[str, Any], of: Builds | None = None) -
             if build.state != "ready":
                 return {"error": f"the build is {build.state}, not ready to ship"}
             build.ship_asked = True
+            say = (f"Ask: open a pull request for {build.title} on {build.repo}? Only after a clear yes, "
+                   "call build_ship again with confirm true.") if build.repo else (
+                   "No repo is connected, so this build stays where it was built: say so, and don't offer a pull request.")
             return {"status": "awaiting_confirmation", "title": build.title, "repo": build.repo,
-                    "branch": build.branch, "folder": build.folder,
-                    "say": f"Ask: open a pull request for {build.title} on {build.repo}? Only after a clear yes, "
-                           "call build_ship again with confirm true."}
+                    "branch": build.branch, "folder": build.folder, "say": say}
         return await b.ship(build)
     return {"error": f"unknown tool {name!r}"}
 

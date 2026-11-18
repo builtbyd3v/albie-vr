@@ -51,6 +51,42 @@
         "room",
         "things"
       ]
+    },
+    {
+      "id": "dash",
+      "title": "Dash",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
+    },
+    {
+      "id": "park",
+      "title": "Parking",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
+    },
+    {
+      "id": "hover",
+      "title": "Hover",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
+    },
+    {
+      "id": "landing",
+      "title": "Landing",
+      "category": "sim",
+      "needs": [
+        "room",
+        "things"
+      ]
     }
   ]
 }

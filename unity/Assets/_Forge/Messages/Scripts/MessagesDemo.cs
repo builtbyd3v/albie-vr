@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Globalization;
 using Newtonsoft.Json;
+using Forge.Notebook;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -13,7 +14,9 @@ using UnityEngine;
 /// It also stands in for the hub's draft endpoints (hub/messaging): one open draft at a time, shown through the same
 /// notify.draft / notify.sent / notify.draft_cancelled events, and a confirmed send lands in the local conversation as
 /// the user's own message. Nothing leaves the device. <see cref="MessagesTools"/> (Albie) and the panels both use it.
-/// The demo's <c>incoming</c> message arrives once, <c>after_s</c> seconds after the hub-off start, as a notify.message.
+/// The demo's <c>incoming</c> list holds one scripted message per project (and one general one). At most one arrives,
+/// as a notify.message, and only once it makes sense: <c>after_s</c> seconds after the user opened Messages or switched
+/// to a project, picking the message about the project open then (the general one when none matches).
 /// </summary>
 public static class MessagesDemo
 {
@@ -41,7 +44,7 @@ public static class MessagesDemo
         IncomingDelayOverride = null;
     }
 
-    // The scripted incoming message runs whether or not the messenger was ever opened.
+    // The scripted incoming message waits until Messages is opened or a project is switched to (see Watch).
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Hook()
     {
@@ -55,10 +58,10 @@ public static class MessagesDemo
     {
         if (status != ForgeNetStatus.Mock || incomingStarted) return;
         Install();
-        if (demo?["incoming"] is JObject incoming)
+        if (demo?["incoming"] is JArray list && list.Count > 0)
         {
             incomingStarted = true;
-            ForgeNet.Instance.StartCoroutine(Deliver(incoming));
+            ForgeNet.Instance.StartCoroutine(Watch(list));
         }
     }
 
@@ -307,13 +310,46 @@ public static class MessagesDemo
 
     // ---------------------------------------------------------------- the scripted incoming message
 
-    static IEnumerator Deliver(JObject incoming)
+    static readonly WaitForSecondsRealtime PollWait = new WaitForSecondsRealtime(1f);
+
+    // Waits (polling once a second, not per frame) until the user opens Messages or switches to a project, then after_s
+    // more, then delivers the message about the project open at that moment.
+    static IEnumerator Watch(JArray list)
     {
-        float after = (float)(incoming["after_s"] ?? 180), start = Time.realtimeSinceStartup;
+        string startProject = NotebookStore.ProjectId;
+        while (ChatPanel.ActiveCount == 0)
+        {
+            if (ForgeNet.Status != ForgeNetStatus.Mock) yield break;  // the hub came up: it has the real messages
+            string now = NotebookStore.ProjectId;
+            if (startProject == null) startProject = now;  // the project the app opened at start is not a switch
+            else if (now != null && now != startProject) break;
+            yield return PollWait;
+        }
+        var incoming = Pick(list, NotebookStore.ProjectId);
+        if (incoming == null) yield break;
+        float after = (float)(incoming["after_s"] ?? 90), start = Time.realtimeSinceStartup;
         while (Time.realtimeSinceStartup - start < (IncomingDelayOverride ?? after)) yield return null;
-        if (ForgeNet.Status != ForgeNetStatus.Mock) yield break;  // the hub came up: it has the real messages
+        if (ForgeNet.Status != ForgeNetStatus.Mock) yield break;
+        Deliver(Pick(list, NotebookStore.ProjectId) ?? incoming);  // the project may have changed while waiting
+    }
+
+    /// <summary>The scripted message about <paramref name="projectId"/>, else the one about no project.</summary>
+    static JObject Pick(JArray list, string projectId)
+    {
+        JObject general = null;
+        foreach (JObject m in list)
+        {
+            string p = (string)m["project"];
+            if (!string.IsNullOrEmpty(p) && p == projectId) return m;
+            if (string.IsNullOrEmpty(p) && general == null) general = m;
+        }
+        return general;
+    }
+
+    static void Deliver(JObject incoming)
+    {
         var c = ById((string)incoming["channel"]);
-        if (c == null) yield break;
+        if (c == null) return;
         var m = new JObject
         {
             ["user"] = incoming["user"], ["user_name"] = incoming["user_name"], ["text"] = incoming["text"], ["ts"] = NewTs(),

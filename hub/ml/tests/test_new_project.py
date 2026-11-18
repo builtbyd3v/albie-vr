@@ -314,7 +314,10 @@ def test_the_headset_lists_the_cloud_ml_tools_exactly_as_the_hub_defines_them():
     from ml.service import ROOT
     from ml.tools import TOOLS
 
-    cloud = json.loads((ROOT / "unity" / "Assets" / "_Forge" / "Core" / "Resources" / "AlbieTools" / "cloud.json").read_text())
+    forge = ROOT / "unity" / "Assets" / "_Forge"
+    cloud = json.loads((forge / "Core" / "Resources" / "AlbieTools" / "cloud.json").read_text())
+    # the research tools are listed by the ML module itself (ML/Research/MLResearchTools.cs registers them)
+    cloud += json.loads((forge / "ML" / "Resources" / "AlbieTools" / "ml_research.json").read_text())
     listed = {t["name"]: t for t in cloud if t["name"].startswith("ml_")}
     hub = {t["name"]: t for t in TOOLS}
     assert listed == hub

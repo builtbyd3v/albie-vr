@@ -83,7 +83,7 @@
       "id": "start",
       "kind": "zone",
       "at": "course.start",
-      "pos": [0, 0.6, 0],
+      "pos": [0, 0.9, 0],
       "size": [0.9, 1.2, 0.4]
     },
     {

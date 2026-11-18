@@ -1,0 +1,257 @@
+{
+ "sample": true,
+ "captured": "2026-11-18T00:45:10Z",
+ "label": "SAMPLE RESULTS: captured from huggingface.co/api/models by hub/ml/research.py; not live",
+ "kind": "models",
+ "query": "distilbert",
+ "task": "text-classification",
+ "cards": [
+  {
+   "kind": "model",
+   "id": "distilbert/distilbert-base-uncased",
+   "url": "https://huggingface.co/distilbert/distilbert-base-uncased",
+   "task": "fill-mask",
+   "model_type": "distilbert",
+   "library": "transformers",
+   "params": 66985530,
+   "params_source": "safetensors metadata",
+   "weights_mb": 268.0,
+   "license": "apache-2.0",
+   "downloads": 5415565,
+   "likes": 1149,
+   "last_modified": "2024-05-06T13:44:53.000Z",
+   "gated": false,
+   "status": "trainable",
+   "trainable": true,
+   "est_epoch_s": 102.3,
+   "on_device_latency": null,
+   "checks": [
+    {
+     "name": "task",
+     "level": "good",
+     "text": "A distilbert encoder (fill-mask): gets a new classification head"
+    },
+    {
+     "name": "trainer",
+     "level": "good",
+     "text": "ml_new can fine-tune it today"
+    },
+    {
+     "name": "size",
+     "level": "good",
+     "text": "67M parameters: about 5 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)"
+    },
+    {
+     "name": "licence",
+     "level": "good",
+     "text": "apache-2.0: open licence"
+    },
+    {
+     "name": "download",
+     "level": "good",
+     "text": "268 MB of weights to download (from its files)"
+    }
+   ],
+   "details": "done"
+  },
+  {
+   "kind": "model",
+   "id": "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+   "url": "https://huggingface.co/distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+   "task": "text-classification",
+   "model_type": "distilbert",
+   "library": "transformers",
+   "params": 66955010,
+   "params_source": "safetensors metadata",
+   "weights_mb": 267.8,
+   "license": "apache-2.0",
+   "downloads": 3057974,
+   "likes": 1013,
+   "last_modified": "2023-12-19T16:29:37.000Z",
+   "gated": false,
+   "status": "trainable",
+   "trainable": true,
+   "est_epoch_s": 102.3,
+   "on_device_latency": null,
+   "checks": [
+    {
+     "name": "task",
+     "level": "good",
+     "text": "Built for text-classification"
+    },
+    {
+     "name": "trainer",
+     "level": "good",
+     "text": "ml_new can fine-tune it today"
+    },
+    {
+     "name": "size",
+     "level": "good",
+     "text": "67M parameters: about 5 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)"
+    },
+    {
+     "name": "licence",
+     "level": "good",
+     "text": "apache-2.0: open licence"
+    },
+    {
+     "name": "download",
+     "level": "good",
+     "text": "268 MB of weights to download (from its files)"
+    }
+   ],
+   "details": "done"
+  },
+  {
+   "kind": "model",
+   "id": "distilbert/distilgpt2",
+   "url": "https://huggingface.co/distilbert/distilgpt2",
+   "task": "text-generation",
+   "model_type": "gpt2",
+   "library": "transformers",
+   "params": 88204032,
+   "params_source": "safetensors metadata",
+   "weights_mb": null,
+   "license": "apache-2.0",
+   "downloads": 1426551,
+   "likes": 667,
+   "last_modified": "2024-02-19T11:09:53.000Z",
+   "gated": false,
+   "status": "browse_only",
+   "trainable": false,
+   "est_epoch_s": 134.7,
+   "on_device_latency": null,
+   "checks": [
+    {
+     "name": "task",
+     "level": "bad",
+     "text": "Its task is text-generation, not text-classification"
+    },
+    {
+     "name": "trainer",
+     "level": "bad",
+     "text": "Browse only: it's a text-generation model; ml_new fine-tunes text encoders as classifiers"
+    },
+    {
+     "name": "size",
+     "level": "good",
+     "text": "88M parameters: about 7 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)"
+    },
+    {
+     "name": "licence",
+     "level": "good",
+     "text": "apache-2.0: open licence"
+    }
+   ],
+   "details": "skipped"
+  },
+  {
+   "kind": "model",
+   "id": "distilbert/distilroberta-base",
+   "url": "https://huggingface.co/distilbert/distilroberta-base",
+   "task": "fill-mask",
+   "model_type": "roberta",
+   "library": "transformers",
+   "params": 82760793,
+   "params_source": "safetensors metadata",
+   "weights_mb": 331.1,
+   "license": "apache-2.0",
+   "downloads": 1372615,
+   "likes": 194,
+   "last_modified": "2024-02-19T11:09:58.000Z",
+   "gated": false,
+   "status": "trainable",
+   "trainable": true,
+   "est_epoch_s": 126.4,
+   "on_device_latency": null,
+   "checks": [
+    {
+     "name": "task",
+     "level": "good",
+     "text": "A roberta encoder (fill-mask): gets a new classification head"
+    },
+    {
+     "name": "trainer",
+     "level": "good",
+     "text": "ml_new can fine-tune it today"
+    },
+    {
+     "name": "size",
+     "level": "good",
+     "text": "83M parameters: about 6 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)"
+    },
+    {
+     "name": "licence",
+     "level": "good",
+     "text": "apache-2.0: open licence"
+    },
+    {
+     "name": "download",
+     "level": "good",
+     "text": "331 MB of weights to download (from its files)"
+    }
+   ],
+   "details": "done"
+  },
+  {
+   "kind": "model",
+   "id": "lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+   "url": "https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student",
+   "task": "text-classification",
+   "model_type": "distilbert",
+   "library": "transformers",
+   "params": 135326979,
+   "params_source": "safetensors metadata",
+   "weights_mb": 541.3,
+   "license": "apache-2.0",
+   "downloads": 984887,
+   "likes": 317,
+   "last_modified": "2025-03-03T02:06:53.000Z",
+   "gated": false,
+   "status": "trainable",
+   "trainable": true,
+   "est_epoch_s": 206.7,
+   "on_device_latency": null,
+   "checks": [
+    {
+     "name": "task",
+     "level": "good",
+     "text": "Built for text-classification"
+    },
+    {
+     "name": "trainer",
+     "level": "good",
+     "text": "ml_new can fine-tune it today"
+    },
+    {
+     "name": "size",
+     "level": "warn",
+     "text": "135M parameters: slow, about 10 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)"
+    },
+    {
+     "name": "licence",
+     "level": "good",
+     "text": "apache-2.0: open licence"
+    },
+    {
+     "name": "download",
+     "level": "good",
+     "text": "541 MB of weights to download (from its files)"
+    }
+   ],
+   "details": "done"
+  }
+ ],
+ "recommended": {
+  "id": "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+  "reasons": [
+   "Built for text-classification",
+   "ml_new can fine-tune it today",
+   "67M parameters: about 5 min for 3 epochs on 2,000 rows (estimate scaled from one measured CPU run; the cloud CPU may be slower)",
+   "apache-2.0: open licence",
+   "268 MB of weights to download (from its files)"
+  ]
+ },
+ "recommended_why": "no red checks, fewest unknowns and amber checks, then the smallest, then the most downloaded",
+ "source": "huggingface.co/api/models"
+}

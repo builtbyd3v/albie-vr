@@ -48,6 +48,9 @@ from ml.tools import TOOLS as ML_TOOLS, MLTools
 from code_browser import tools as code_tools
 
 import text_improve
+import research  # hub/research: parts search (needs MOUSER_API_KEY; else says not set up)
+from research import tools as research_tools
+import models  # hub/models: open-licence 3D model search and fetch for artifacts (/models/*)
 
 log = logging.getLogger("albie.cloud")
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,11 +69,13 @@ BLOCKED = ("/ml/project/rescan", "/ml/project/type", "/ml/github/", "/ml/project
 CAD_TOOLS = {t["name"] for t in cad_tools.TOOLS}
 ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
 CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
+RESEARCH_TOOLS = {t["name"] for t in research_tools.TOOLS}
 # "Albie, build me a ..." (hub/agent/build.py): the crew writes a project on this machine and, after a yes, opens a
 # pull request on BUILD_REPO. Named here so the module (and the Claude CLI it drives) loads only when first used.
 BUILD_TOOLS = {"build_start", "build_approve", "build_review", "build_status", "build_ship", "build_cancel"}
 EVENT_LOG = 400
 
+os.environ.setdefault("FORGE_MODELS_DIR", str(DATA / "models"))  # fetched models, cached by id
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
 
 
@@ -281,6 +286,8 @@ class Device:
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
         app.include_router(code_browser.router)  # /code/*: the GitHub repos and pull requests in the code panel
+        app.include_router(research.router)  # /research/parts
+        app.include_router(models.router)  # /models/*: one cache for every headset (FORGE_MODELS_DIR)
         self.add_routes(app)
         self.app = app
 
@@ -341,6 +348,8 @@ class Device:
                     shown.append("ml")
                 elif name == "ml_publish" and result.get("status") == "opened":
                     shown.append("code")  # the new pull request, in the code panel
+            elif name in RESEARCH_TOOLS:
+                result = await research_tools.call_tool(name, args, cad=self.cad)
             elif name in CODE_TOOLS:
                 result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
             elif name in BUILD_TOOLS:

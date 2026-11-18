@@ -67,7 +67,12 @@ namespace Forge.Artifacts
             // Resolve at press time: glTF loads asynchronously, after the panel has been built.
             if (build.Assets.Count > 0)
             {
-                y += Note(panel.Content, y, "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
+                // A model brought in with model_import isn't authored in named parts: it gets the plain turn and reset,
+                // and the credit its licence asks for (CC BY), from the manifest.
+                string credit = ModelImport.Credits(build.Host.OpenManifest);
+                y += Note(panel.Content, y, credit != null
+                    ? "With your hands: pinch the model to pick it up and turn it, and pinch with both hands to resize it."
+                    : "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
                 // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
                 var hiddenLabels = new List<GameObject>();
                 Action<bool> sceneLabels = apart =>
@@ -87,6 +92,9 @@ namespace Forge.Artifacts
                         hiddenLabels.Clear();
                     }
                 };
+                // Each view pill says what a press does next, like the scene's own toggles (Hide labels / Show labels);
+                // X-ray lights up while it's on. Reset view puts all three back.
+                ForgePill cutPill = null, xrayPill = null, apartPill = null;
                 Action<Action<ArtifactExplorer>> inspect = action =>
                 {
                     foreach (var node in build.Nodes.Values)
@@ -97,21 +105,41 @@ namespace Forge.Artifacts
                             model.Explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f;
                             action(model.Explorer);
                             sceneLabels(model.Explorer.Separated);
+                            SetLabel(cutPill, model.Explorer.Sectioned ? "Make whole" : "Cut open");
+                            SetLabel(apartPill, model.Explorer.Separated ? "Assemble" : "Separate");
+                            if (xrayPill != null) xrayPill.On = model.Explorer.XRay;
                         }
                 };
                 float x = 0f;
                 x += Pill(panel.Content, y, x, "Turn 30°", () => inspect(e => e.Turn())) + 10f;
-                x += Pill(panel.Content, y, x, "Cut open / Whole", () => inspect(e => e.Section())) + 10f;
-                Pill(panel.Content, y, x, "X-ray", () => inspect(e => e.ToggleXRay()));
-                y += PillRow + Gap;
-                x = Pill(panel.Content, y, 0f, "Separate / Assemble", () => inspect(e => e.Separate())) + 10f;
-                Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                if (credit != null)
                 {
-                    e.ResetView();
-                    var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
-                    if (hands != null) hands.ResetPose();
-                }));
-                y += PillRow + Gap;
+                    Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                    {
+                        e.ResetView();
+                        var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
+                        if (hands != null) hands.ResetPose();
+                    }));
+                    y += PillRow + Gap;
+                    y += Note(panel.Content, y, credit) + Gap;
+                }
+                else
+                {
+                    cutPill = PillControl(panel.Content, y, x, "Make whole", () => inspect(e => e.Section()));  // made as wide as its longer label
+                    SetLabel(cutPill, "Cut open");
+                    x += cutPill.Rect.sizeDelta.x + 10f;
+                    xrayPill = PillControl(panel.Content, y, x, "X-ray", () => inspect(e => e.ToggleXRay()));
+                    y += PillRow + Gap;
+                    apartPill = PillControl(panel.Content, y, 0f, "Separate", () => inspect(e => e.Separate()));
+                    x = apartPill.Rect.sizeDelta.x + 10f;
+                    Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                    {
+                        e.ResetView();
+                        var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
+                        if (hands != null) hands.ResetPose();
+                    }));
+                    y += PillRow + Gap;
+                }
             }
             panel.SizeMeters = new Vector2(PanelWidth, Chrome + Mathf.Max(y - Gap, 60f)) * ForgePanel.MetersPerUnit;
             if (hintText != null && build.Host.RunsRow != null) build.Host.RunsRow.SetHint(hintText, hintText.text, hintAfter);
@@ -164,6 +192,13 @@ namespace Forge.Artifacts
         }
 
         public static float PanelHeight(float contentHeight) => Chrome + contentHeight;
+
+        // The pill keeps the width it was made with, as a toggle button does.
+        static void SetLabel(ForgePill pill, string label)
+        {
+            var shown = pill != null ? pill.GetComponentInChildren<TMP_Text>() : null;
+            if (shown != null) shown.text = label;
+        }
 
         static float Stat(RectTransform parent, float y, JToken widget, ArtifactBuild build)
         {
@@ -290,7 +325,9 @@ namespace Forge.Artifacts
             slider.maxValue = (float)inputs.Max(input);
             slider.SetValueWithoutNotify((float)inputs.Value(input));
 
-            void Show() => value.text = inputs.Value(input).ToString(inputs.Whole(input) ? "0" : "0.00", CultureInfo.InvariantCulture);
+            // An input named like spacing_m is in metres (as the runs row reads _s as seconds), so its value says so.
+            string unit = input != null && input.EndsWith("_m", StringComparison.Ordinal) ? " m" : "";
+            void Show() => value.text = inputs.Value(input).ToString(inputs.Whole(input) ? "0" : "0.00", CultureInfo.InvariantCulture) + unit;
             Show();
             slider.onValueChanged.AddListener(v =>
             {
@@ -403,7 +440,7 @@ namespace Forge.Artifacts
                 var run = runs[i];
                 string outcome = (string)run["outcome"];
                 parts.Append(Summary(run));
-                if (outcome == "failed") parts.Append(' ').Append((string)run["reason"] ?? "fail");
+                if (outcome == "failed") parts.Append(' ').Append(((string)run["reason"] ?? "failed").Replace('_', ' '));
                 else if (outcome == "aborted") parts.Append(" stop");
             }
             text.text = parts.Length > 0 ? parts.ToString() : "None on this course";

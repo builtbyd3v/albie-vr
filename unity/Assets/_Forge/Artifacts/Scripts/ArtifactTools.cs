@@ -10,6 +10,11 @@ namespace Forge.Artifacts
     /// <c>artifact_create {template: "slalom"}</c>, which makes it and opens it in the room: the course appears in free
     /// floor, and the result carries the line Albie says when the course had to shrink. <c>artifact_run</c> arms a scored
     /// lap; <c>artifact_compare</c> puts run metrics side by side. Refusals come back as <c>{"error": "code: message"}</c>.
+    ///
+    /// Host 7: <c>artifact_create {course: {...}}</c> makes a course from a description (<see cref="ArtifactCourses"/>):
+    /// the agent names the Thing, the surface and the elements, and the headset lays them out. The templates
+    /// <c>dash</c>, <c>park</c>, <c>hover</c> and <c>landing</c> are made the same way, and <c>surface: "desk"</c> beside
+    /// any room template puts it on the table.
     /// </summary>
     public static class ArtifactTools
     {
@@ -33,6 +38,11 @@ namespace Forge.Artifacts
             foreach (string name in ArtifactLibrary.Templates)
                 if (ArtifactLibrary.TryTemplate(name, out var manifest, out _))
                     templates.Add(new JObject { ["template"] = name, ["title"] = manifest["title"], ["inputs"] = manifest["inputs"] });
+            foreach (string name in ArtifactCourses.Templates)
+            {
+                ArtifactCourses.Preset(name, null, out var sliders);
+                templates.Add(new JObject { ["template"] = name, ["title"] = ArtifactCourses.Title(name), ["inputs"] = sliders, ["thing"] = ArtifactCourses.ThingOf(name) });
+            }
             var host = ArtifactHost.Current;
             return new JObject
             {
@@ -73,6 +83,25 @@ namespace Forge.Artifacts
             List<string> filled = null;
             List<ArtifactError> warnings = null;
             string facts = null;
+            string surface = args["surface"]?.Type == JTokenType.String ? (string)args["surface"] : null;
+            if (args["surface"] != null && args["surface"].Type != JTokenType.Null && Array.IndexOf(ArtifactSchema.Surfaces, surface) < 0)
+                throw new ArgumentException("bad_value: surface is \"floor\" or \"desk\"");
+            if (args["course"] != null && args["course"].Type != JTokenType.Null)
+            {
+                if (template != null || args["manifest"] != null || args["scene"] != null)
+                    throw new ArgumentException("bad_value: give a course, or a template, or a manifest and scene: only one of them");
+                var parseErrors = new List<ArtifactError>();
+                var spec = Written(args["course"], "course", parseErrors);
+                if (parseErrors.Count > 0) return RefusedCourse(parseErrors);
+                if (surface != null && spec["surface"] == null) spec["surface"] = surface;
+                return Course(spec, null, null, args);
+            }
+            if (ArtifactCourses.IsTemplate(template))
+            {
+                var spec = ArtifactCourses.Preset(template, surface, out var sliders);
+                return Course(spec, sliders, args["inputs"] as JObject, args);
+            }
+            if (surface == "desk" && template != null) return TemplateOnDesk(template, args);
             if (args["manifest"] != null || args["scene"] != null)
             {
                 if (template != null) throw new ArgumentException("bad_value: give a template or a manifest and scene, not both");
@@ -97,7 +126,8 @@ namespace Forge.Artifacts
             }
             else
             {
-                if (string.IsNullOrEmpty(template)) throw new ArgumentException("bad_value: say which template (" + string.Join(", ", ArtifactLibrary.Templates) + "), or give a manifest and scene");
+                if (string.IsNullOrEmpty(template))
+                    throw new ArgumentException("bad_value: say which template (" + string.Join(", ", ArtifactLibrary.Templates) + ", " + string.Join(", ", ArtifactCourses.Templates) + "), or give a course, or a manifest and scene");
                 made = ArtifactLibrary.FromTemplate(template, args["inputs"] as JObject);
             }
             ResetAttempts();
@@ -119,6 +149,81 @@ namespace Forge.Artifacts
             }
             if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
             return result;
+        }
+
+        // ---------- courses: from a description, the built-in ones, and a room template on the desk ----------
+
+        /// <summary>
+        /// Makes a course from a spec (<see cref="ArtifactCourses.Compile"/>) and opens it. A spec that isn't sound comes
+        /// back as data, like a refused written artifact, so the agent can fix it. <paramref name="sliders"/> and
+        /// <paramref name="values"/> are a built-in course's inputs and the values asked for (out of range is refused).
+        /// </summary>
+        static JObject Course(JObject spec, JArray sliders, JObject values, JObject args)
+        {
+            if (sliders != null) SetInputs(sliders, values, (string)spec["id"]);
+            else if (values != null && values.Count > 0) throw new ArgumentException("unknown_input: a course has no inputs: put the numbers in its elements");
+            if (!ArtifactCourses.Compile(spec, sliders, out var manifest, out var scene, out var errors)) return RefusedCourse(errors);
+            var made = ArtifactLibrary.FromScene(manifest, scene, out errors);
+            if (made == null) return RefusedCourse(errors);
+            ResetAttempts();
+            var result = new JObject
+            {
+                ["id"] = made.Id, ["version"] = made.Version, ["change"] = made.Change,
+                ["course"] = ArtifactCourses.Describe(spec),
+            };
+            if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
+            return result;
+        }
+
+        static JObject RefusedCourse(List<ArtifactError> errors)
+        {
+            var refused = Refused(errors, null);
+            if (attempts < MaxAttempts)
+                refused["next"] = "Nothing was saved. Fix these and call artifact_create again with the whole course. A course is only thing, surface, "
+                                  + "title and an ordered list of elements (" + string.Join(", ", RoomCourse.ElementTypes) + "): the headset places them.";
+            return refused;
+        }
+
+        // A room template (slalom, hoop_course) laid out on the table instead: its own artifact, <template>_desk.
+        static JObject TemplateOnDesk(string template, JObject args)
+        {
+            if (!ArtifactLibrary.TryTemplate(template, out var manifest, out var scene))
+                throw new ArgumentException($"unknown_template: no template \"{template}\": use one of {string.Join(", ", ArtifactLibrary.Templates)}, {string.Join(", ", ArtifactCourses.Templates)}");
+            if (scene.Value<string>("space") != "room" || !(scene["generators"] is JArray generators) || generators.Count == 0 || !(generators[0] is JObject generator))
+                throw new ArgumentException($"bad_value: {template} isn't a course, so it has no surface. It opens on the table in front of the person anyway.");
+            if (!(generator["params"] is JObject)) generator["params"] = new JObject();
+            generator["params"]["surface"] = "desk";
+            manifest["id"] = template + "_desk";
+            manifest["title"] = (string)manifest["title"] + " (desk)";
+            manifest["runtime"]["min_runtime"] = Math.Max(manifest["runtime"].Value<int?>("min_runtime") ?? 1, MinRuntime(scene));
+            if (scene["nodes"] is JArray nodes)
+                foreach (var n in nodes)
+                    if (n is JObject panel && S(panel, "kind") == "panel") panel["title"] = manifest["title"];
+            if (manifest["inputs"] is JArray sliders) SetInputs(sliders, args["inputs"] as JObject, template);
+            var made = ArtifactLibrary.FromScene(manifest, scene, out var errors);
+            if (made == null) return Refused(errors, null);
+            ResetAttempts();
+            var result = new JObject { ["id"] = made.Id, ["version"] = made.Version, ["change"] = made.Change };
+            if (args.Value<bool?>("open") != false) result["opened"] = Opened(Host(), made.Id, h => h.Open(made.Id));
+            return result;
+        }
+
+        // The same rules as ArtifactLibrary.FromTemplate: a value becomes the input's default; out of range is refused, not clamped.
+        static void SetInputs(JArray sliders, JObject values, string name)
+        {
+            if (values == null) return;
+            foreach (var pair in values)
+            {
+                JObject input = null;
+                foreach (var i in sliders) if (i is JObject o && o.Value<string>("name") == pair.Key) input = o;
+                if (input == null) throw new ArgumentException($"unknown_input: {name} has no input \"{pair.Key}\"");
+                if (pair.Value.Type != JTokenType.Integer && pair.Value.Type != JTokenType.Float)
+                    throw new ArgumentException($"bad_value: {pair.Key} must be a number");
+                double v = (double)pair.Value, min = input.Value<double>("min"), max = input.Value<double>("max");
+                if (v < min || v > max) throw new ArgumentException($"bad_value: {pair.Key} {v} is outside {min} to {max}");
+                if (input.Value<string>("type") == "integer" && Math.Abs(v - Math.Round(v)) > 1e-9) throw new ArgumentException($"bad_value: {pair.Key} must be a whole number");
+                input["default"] = pair.Value.DeepClone();
+            }
         }
 
         /// <summary>
@@ -223,17 +328,27 @@ namespace Forge.Artifacts
         /// <summary>
         /// The lowest host that builds what this scene uses, from the history in <see cref="ArtifactSchema.HostRuntime"/>:
         /// 2 room_hoops; 3 arrays from tables; 4 gltf, timeline, animate; 5 the versions widget; 6 the pendulum solver and
-        /// lines through nodes.
+        /// lines through nodes; 7 room_course, a generator on the desk, a held finish and the metric ops that came with it; 8 the rocket solver.
         /// </summary>
         public static int MinRuntime(JObject scene)
         {
             int need = 1;
             if (scene["generators"] is JArray generators)
                 foreach (var g in generators)
-                    if (g is JObject o && S(o, "type") == "room_hoops") need = Math.Max(need, 2);
+                {
+                    if (!(g is JObject o)) continue;
+                    if (S(o, "type") == "room_hoops") need = Math.Max(need, 2);
+                    if (S(o, "type") == RoomCourse.Type || (o["params"] is JObject gp && S(gp, "surface") == "desk")) need = Math.Max(need, 7);
+                }
             if (scene["rules"] is JArray rules)
                 foreach (var r in rules)
-                    if (r is JObject o && S(o, "type") == "animate") need = Math.Max(need, 4);
+                {
+                    if (!(r is JObject o)) continue;
+                    if (S(o, "type") == "animate") need = Math.Max(need, 4);
+                    string op = S(o, "type") == "metric" ? S(o, "op") : null;
+                    if (op == "zone_drift" || op == "zone_offset" || op == "hold" || op == "streak") need = Math.Max(need, 7);
+                }
+            if (scene["run"] is JObject scored && scored["finish"] is JObject ends && (ends["hold_s"] != null || ends["max_speed_ms"] != null)) need = Math.Max(need, 7);
             if (scene["nodes"] is JArray nodes)
                 foreach (var n in nodes)
                 {
@@ -242,7 +357,10 @@ namespace Forge.Artifacts
                     {
                         case "array": if (node["source"] is JObject) need = Math.Max(need, 3); break;
                         case "gltf": case "timeline": need = Math.Max(need, 4); break;
-                        case "sim": if (S(node, "solver") == "pendulum") need = Math.Max(need, 6); break;
+                        case "sim":
+                            if (S(node, "solver") == "pendulum") need = Math.Max(need, 6);
+                            if (S(node, "solver") == RocketLaunchSolver.Name) need = Math.Max(need, 8);
+                            break;
                         case "line": if (node["through"] != null) need = Math.Max(need, 6); break;
                         case "panel":
                             if (node["widgets"] is JArray widgets)

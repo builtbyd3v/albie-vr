@@ -42,8 +42,16 @@ def air_density(z_m: float) -> float:
     return 1.225 * max(1.0 - 2.25577e-5 * z_m, 0.0) ** 4.25588
 
 
-def simulate(result: BuildResult, masses: dict[str, tuple[float, tuple[float, float, float]]]) -> dict[str, Any]:
-    from rocketpy import Environment, Flight, GenericMotor, Rocket
+def simulate(result: BuildResult, masses: dict[str, tuple[float, tuple[float, float, float]]],
+             wind_mps: float = 0.0) -> dict[str, Any]:
+    """The flight. `wind_mps`: a steady wind at every height, blowing along the launch heading (north), so the rocket
+    weathercocks into it on the way up and the parachute drifts with it on the way down. Without RocketPy installed
+    this falls back to the simplified point-mass model (cad/flight_simple.py), and says so in `model`."""
+    try:
+        from rocketpy import Environment, Flight, GenericMotor, Rocket
+    except ImportError:
+        from cad.flight_simple import simulate_spec
+        return simulate_spec(result, masses, wind_mps=wind_mps)
 
     spec, mm = result.rocket, 1e-3
     if spec is None:
@@ -68,6 +76,8 @@ def simulate(result: BuildResult, masses: dict[str, tuple[float, tuple[float, fl
     rocket.add_trapezoidal_fins(n=f.count, root_chord=f.root_chord * mm, tip_chord=f.tip_chord * mm,
                                 span=f.span * mm, sweep_length=f.sweep * mm, position=f.root_le_z * mm)
     env = Environment()
+    if wind_mps:
+        env.set_atmospheric_model(type="custom_atmosphere", wind_u=0.0, wind_v=float(wind_mps))
     flight = Flight(rocket=rocket, environment=env, rail_length=RAIL_M, inclination=INCLINATION_DEG, heading=0,
                     terminate_on_apogee=True, max_time=120)
 
@@ -85,23 +95,28 @@ def simulate(result: BuildResult, masses: dict[str, tuple[float, tuple[float, fl
         "rail_exit_margin_cal": round(rail_margin, 2),
         "liftoff_mass_g": round(dry_kg * 1000 + float(motor.total_mass(0)) * 1000, 1),
         "motor": spec.motor,
+        "model": "rocketpy",
+        "wind_mps": float(wind_mps),
+        "stability_margin_cal": round(float(rocket.static_margin(0)), 2),   # Barrowman (RocketPy), loaded motor
         # [east, up, north] metres from the pad: Y-up like glTF, so Unity only needs to scale it to the room.
         "trajectory_m": [[round(float(flight.x(t)), 2), round(float(flight.z(t)) - ground, 2),
                           round(float(flight.y(t)), 2)] for t in times],
-        "assumptions": list(ASSUMPTIONS),
+        "assumptions": list(ASSUMPTIONS) if not wind_mps else
+        [a.replace("no wind, ", f"a steady {wind_mps:g} m/s wind along the launch heading, ") for a in ASSUMPTIONS],
     }
     way_down, warning, note = recovery(flight, ground, spec, dry_kg + float(motor.total_mass(motor.burn_out_time)),
-                                       float(motor.burn_out_time))
+                                       float(motor.burn_out_time), wind_mps)
     if warning:
         out["warning"] = " ".join(w for w in (out["warning"], warning) if w)
     if note:
         out["assumptions"].append(note)
-    return {**out, **way_down}
+    return {**out, **way_down, "flight_time_s": way_down["landing_time_s"]}
 
 
 def recovery(flight, ground: float, spec: RocketSpec, mass_kg: float,
-             t_burnout: float) -> tuple[dict[str, Any], str | None, str | None]:
-    """The way down from RocketPy's apogee, the events and the samples. `mass_kg`: after burnout.
+             t_burnout: float, wind_mps: float = 0.0) -> tuple[dict[str, Any], str | None, str | None]:
+    """The way down from RocketPy's apogee, the events and the samples. `mass_kg`: after burnout. `wind_mps`: along
+    the heading (north), so downrange is signed: an upwind landing is negative.
     Returns (fields for the flight result, a warning or None, a note for the assumptions or None)."""
     t_apogee = float(flight.apogee_time)
     t_eject = t_burnout + spec.ejection_delay_s
@@ -112,6 +127,8 @@ def recovery(flight, ground: float, spec: RocketSpec, mass_kg: float,
     def climb(t: float) -> tuple[float, float, float, float]:
         """RocketPy's state at t <= t_apogee: (downrange, altitude, downrange speed, vertical speed)."""
         x, y, vx, vy = (float(fn(t)) for fn in (flight.x, flight.y, flight.vx, flight.vy))
+        if wind_mps:   # along the heading, signed (it can weathercock upwind of the pad)
+            return y, float(flight.z(t)) - ground, vy, float(flight.vz(t))
         s = math.hypot(x, y)
         vs = (x * vx + y * vy) / s if s > 1e-6 else math.hypot(vx, vy)
         return s, float(flight.z(t)) - ground, vs, float(flight.vz(t))
@@ -119,8 +136,9 @@ def recovery(flight, ground: float, spec: RocketSpec, mass_kg: float,
     def rates(t: float, state: tuple[float, ...]) -> tuple[float, ...]:
         _, z, vs, vz = state
         cda = body_cda + chute_cda * min(1.0, max(0.0, (t - t_open) / CHUTE_OPEN_S))
-        k = 0.5 * air_density(z + ground) * cda * math.hypot(vs, vz) / mass_kg
-        return vs, vz, -k * vs, -k * vz - G
+        ws = vs - wind_mps                     # air-relative: the wind carries it downrange
+        k = 0.5 * air_density(z + ground) * cda * math.hypot(ws, vz) / mass_kg
+        return vs, vz, -k * ws, -k * vz - G
 
     def nudge(state, slope, h):
         return tuple(a + h * b for a, b in zip(state, slope))
@@ -188,7 +206,8 @@ def recovery(flight, ground: float, spec: RocketSpec, mass_kg: float,
         "deploy_time_s": round(t_open, 2) if deployed else None,
         "descent_rate_mps": round(abs(land[3]), 1),
         "landing_time_s": round(t_land, 2),
-        "drift_m": round(land[0], 1),
+        "drift_m": round(abs(land[0]), 1),
+        "landing_downrange_m": round(land[0], 1),
         "sample_dt_s": round(dt, 3),
         "events": events,
         "samples": samples,

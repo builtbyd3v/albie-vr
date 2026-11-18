@@ -74,7 +74,7 @@ public sealed class CadParamsTab : CadPanelTab
     {
         mockNote = Note(Root, "Offline", true, out mockText);
         lockNote = Note(Root, "Paused", false, out var lockText);
-        lockText.text = "Editing pauses while the demo runs.";
+        lockText.text = "Editing pauses while it runs.";
         lockable = CadUi.Rect(Root, "Rows");
         CadUi.Stretch(lockable, 0f, 0f, 0f, 0f);
         lockGroup = CadUi.Group(lockable.gameObject);

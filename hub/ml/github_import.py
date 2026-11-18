@@ -75,7 +75,7 @@ def _get_json(path: str, *, ref: str | None = None) -> object:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "Forge-ML-Hackathon-Importer",
+        "User-Agent": "albie-hub-ml-import/1",
     }
     token = os.environ.get("GITHUB_TOKEN")
     if token:

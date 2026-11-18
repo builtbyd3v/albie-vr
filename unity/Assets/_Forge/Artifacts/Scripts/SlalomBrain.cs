@@ -23,7 +23,7 @@ namespace Forge.Artifacts
     /// A run that touches a cone or a wall is aborted (the artifact only counts hits; the demo shouldn't keep a crash).
     /// </summary>
     [DefaultExecutionOrder(-100)]  // the scripted driver's FixedUpdate writes the stick before ControllerThing reads it
-    public sealed class SlalomBrain : MonoBehaviour, IBrainLoop
+    public sealed class SlalomBrain : MonoBehaviour, ICourseBrain
     {
         public const int Candidates = 3;
         public const double BudgetMs = 4.0;
@@ -166,6 +166,7 @@ namespace Forge.Artifacts
             if (!truckCourse) { OnHostClosed(h); return; }
             h.Thing = Scored;
             Hide(false);
+            BrainLoops.Register(this);  // back in front of a drone loop that was the active one
             if (State == Mode.Idle) PlaceAtStart();
         }
 
@@ -181,6 +182,67 @@ namespace Forge.Artifacts
             if (shell != null) foreach (var r in shell) r.enabled = !hidden;
             if (hidden) Park();
         }
+
+        // ---- Rounds and the panel (ICourseBrain) ------------------------------------------------------------------
+
+        /// <summary>One training: its candidates and how they rehearsed. Kept so the panel can pick an earlier one.</summary>
+        sealed class Round
+        {
+            public ControllerFile[] Files;
+            public int[] Order, Finished;
+            public int Laps;
+            public float Loss;
+            public string Course;
+            public bool Slalom;
+        }
+        readonly System.Collections.Generic.List<Round> rounds = new System.Collections.Generic.List<Round>();
+        readonly System.Collections.Generic.List<float> loss = new System.Collections.Generic.List<float>(512);
+        int selected, lastEpoch;
+
+        /// <summary>The open course is a slalom: the one the mock rehearsal and the pretrained fallback are made for.</summary>
+        bool IsSlalom => host != null && host.OpenManifest != null
+                         && ((string)host.OpenManifest["template"] == "slalom" || (string)host.OpenManifest["id"] == "slalom");
+
+        public string ThingName => "truck";
+        public string CourseId => !Hidden && host != null && host.Run != null ? host.OpenId : null;
+        public string ModeName => State.ToString().ToLowerInvariant();
+        public string StatusLine => Status;
+        public int LapsCompleted => CompletedLaps;
+        public float TrainProgress
+        {
+            get
+            {
+                if (State != Mode.Training || cloners == null) return -1f;
+                float epochs = 0f, total = 0f;
+                foreach (var c in cloners) { epochs += c.Epoch; total += c.Settings.Epochs; }
+                return total > 0f ? (rehearsal != null ? 0.9f : 1f) * epochs / total : 0f;
+            }
+        }
+        public System.Collections.Generic.IReadOnlyList<float> LossHistory => loss;
+        public int VersionCount => rounds.Count;
+        public int SelectedVersion => selected;
+
+        public string SelectVersion(int version)
+        {
+            if (version < 1 || version > rounds.Count) return Status = $"no training {version} yet ({rounds.Count} so far)";
+            if (State == Mode.Autopilot) return Status = "busy: autopilot";
+            selected = version;
+            Status = $"training {version} selected for the Autopilot";
+            return null;
+        }
+
+        public string DescribeVersion(int version)
+        {
+            if (version < 1 || version > rounds.Count) return null;
+            var r = rounds[version - 1];
+            string rehearsed = r.Finished != null && r.Order != null ? $"rehearsal {r.Finished[r.Order[0]]}/{Rehearsal.Starts}" : "no rehearsal";
+            return $"v{version} · {r.Laps} laps · loss {r.Loss:0.0000} · {rehearsed}";
+        }
+
+        public string[] InputNames => Thing != null && Thing.Host != null ? Thing.Host.IO.SensorNames : null;
+        public float[] InputValues => Thing != null && Thing.Host != null ? Thing.Host.IO.Sensors : null;
+        public string[] OutputNames => Thing != null && Thing.Host != null ? Thing.Host.IO.ActuatorNames : null;
+        public float[] OutputValues => Thing != null && Thing.Host != null ? Thing.Host.IO.Actuators : null;
 
         // ---- Laps -----------------------------------------------------------------------------------------------
 
@@ -280,8 +342,9 @@ namespace Forge.Artifacts
             if (CompletedLaps < 2) return Status = $"drive 2 completed laps first ({CompletedLaps} so far)";
             cloners = new BehaviourCloner[Candidates];
             for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(Thing.Recorder.Set, new BehaviourCloner.Options { Seed = i + 1 });
-            training = 0; trainFrames = 0;
+            training = 0; trainFrames = 0; lastEpoch = 0;
             rehearsal = null; trainedFiles = null; order = null;
+            loss.Clear();
             State = Mode.Training;
             Status = $"training {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows)";
             return null;
@@ -292,7 +355,10 @@ namespace Forge.Artifacts
             trainFrames++;
             if (training < cloners.Length)
             {
-                if (cloners[training].Step(BudgetMs)) training++;
+                var c = cloners[training];
+                bool done = c.Step(BudgetMs);
+                if (c.Epoch != lastEpoch) { lastEpoch = c.Epoch; if (!float.IsNaN(c.TrainLoss)) loss.Add(c.TrainLoss); }
+                if (done) { training++; lastEpoch = 0; }
                 if (training < cloners.Length) return;
                 string error = BeginRehearsal();
                 if (error != null) { State = Mode.Idle; Status = error; chainAutopilot = false; return; }
@@ -311,7 +377,9 @@ namespace Forge.Artifacts
                 trainedFiles[i] = ControllerFile.Parse(cloners[i].ToControllerJson("truck_autopilot", i + 1, 1.5f), out string error);
                 if (trainedFiles[i] == null) return error;
             }
-            rehearsal = host != null && host.Build != null ? new Rehearsal(trainedFiles, CourseFromSlots()) : null;
+            // The rehearsal's mock course and the pretrained fallback are the slalom's: other truck courses (dash, park, a
+            // room course) fly their candidates in training order with no fallback.
+            rehearsal = host != null && host.Build != null && IsSlalom ? new Rehearsal(trainedFiles, CourseFromSlots()) : null;
             if (rehearsal != null) Status = $"rehearsing {Candidates} candidates on the course";
             return null;
         }
@@ -330,6 +398,12 @@ namespace Forge.Artifacts
             var list = new JArray();
             foreach (var c in cloners) list.Add(c.TrainingBlock());
             block["candidates"] = list;
+            block["thing"] = "truck";
+            block["course"] = host != null ? host.OpenId : null;
+            block["round"] = rounds.Count + 1;
+            rounds.Add(new Round { Files = trainedFiles, Order = order, Finished = rehearsal != null ? (int[])rehearsal.Finished.Clone() : null,
+                                   Laps = CompletedLaps, Loss = cloners[0].TrainLoss, Course = host != null ? host.OpenId : null, Slalom = IsSlalom });
+            selected = rounds.Count;
             TrainingLog.Report("truck_autopilot", 1, block);
             Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + RehearsalLine() + Hint(". P: Autopilot");
             if (!chainAutopilot) return;
@@ -364,10 +438,18 @@ namespace Forge.Artifacts
             if (cloners == null) return Status = "train first" + Hint(" (T)");
             if (trainedFiles == null) return Status = "train first" + Hint(" (T)");
             // Best rehearsal first (training order if there was no rehearsal).
+            // The chosen round (the newest unless the panel or a tool picked another), best rehearsal first.
+            var round = selected > 0 && selected <= rounds.Count ? rounds[selected - 1] : null;
+            var useFiles = round != null ? round.Files : trainedFiles;
+            var useOrder = round != null ? round.Order : order;
             var files = new System.Collections.Generic.List<ControllerFile>();
-            for (int i = 0; i < trainedFiles.Length; i++) files.Add(trainedFiles[order != null ? order[i] : i]);
-            var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
-            var fallback = fallbackAsset != null ? ControllerFile.Parse(fallbackAsset.text, out _) : null;
+            for (int i = 0; i < useFiles.Length; i++) files.Add(useFiles[useOrder != null ? useOrder[i] : i]);
+            ControllerFile fallback = null;
+            if (IsSlalom)
+            {
+                var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
+                fallback = fallbackAsset != null ? ControllerFile.Parse(fallbackAsset.text, out _) : null;
+            }
             autopilot = new Autopilot(files, fallback);
             string engage = autopilot.Engage(Thing.Host);
             if (engage != null) return Status = engage;
@@ -418,7 +500,17 @@ namespace Forge.Artifacts
                 ["autopilot"] = State == Mode.Autopilot ? autopilot.Describe() : null,
                 ["drove"] = Drove,
                 ["attempts"] = attempts,
+                ["course"] = CourseId,
+                ["selected_version"] = selected,
+                ["versions"] = Versions(),
             };
+        }
+
+        JArray Versions()
+        {
+            var list = new JArray();
+            for (int i = 1; i <= rounds.Count; i++) list.Add(DescribeVersion(i));
+            return list;
         }
 
         string BeginAttempt()
@@ -444,7 +536,7 @@ namespace Forge.Artifacts
 
         string Arm()
         {
-            if (host == null || host.Run == null) return "open the slalom first" + Hint(" (2)");
+            if (host == null || host.Run == null) return "open the slalom (or another truck course) first" + Hint(" (2)");
             host.Thing = Scored;
             var file = Thing.Host.File;
             if (file != null) { Scored.ControllerName = file.Name; Scored.ControllerKind = file.Kind; Scored.ControllerVersion = file.Version; }

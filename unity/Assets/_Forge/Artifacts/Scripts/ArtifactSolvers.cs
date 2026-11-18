@@ -46,6 +46,7 @@ namespace Forge.Artifacts
         {
             { "n_body", () => new NBodySolver() },
             { "pendulum", () => new PendulumSolver() },
+            { RocketLaunchSolver.Name, () => new RocketLaunchSolver() },
         };
 
         public static void Register(string name, Func<IArtifactSolver> create) => solvers[name] = create;

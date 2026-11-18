@@ -3,7 +3,7 @@
 The ML endpoints: PROJECT_CONTEXT section 7 plus ML_PLAN 7.4. Serves one project repo (`FORGE_ML_REPO`, default `ml-examples/cifar10`) from its `.forge/project/` and `.forge/runs/<id>/`. The hub never imports torch: missing graph/dataset files are computed by `python -m forge.run` in the repo's own Python, and `POST /ml/train` runs the repo's `train_cmd`.
 
 ```bash
-# from hub/, in an env that has the repo's packages (for CIFAR: conda activate gatorhack-dubz)
+# from hub/, in an env that has the repo's packages (for CIFAR: the env with torch and torchvision)
 uvicorn main:app --host 0.0.0.0 --port 8000
 uvicorn main:app --host 0.0.0.0 --port 8000           # the one hub: /ml is mounted in main.py
 uvicorn ml.dev_server:app --port 8000                  # ML only (/ml + /ws), no CAD/pet/Slack
@@ -27,8 +27,8 @@ pytest ml/tests
 | `POST /ml/ingest {run_id, events}` | forge SDK → `/ws`, `ml.*` only |
 | `POST /ml/replay {run_id, speed}` | stream a recorded run onto `/ws` |
 
-The Training panel accepts a public GitHub repository URL or a folder URL, or one press on a preset ("Forge CIFAR
-demo", "PyTorch MNIST" = `https://github.com/pytorch/examples/tree/main/mnist`; `FORGE_ML_GITHUB_PRESETS` overrides).
+The Training panel accepts a public GitHub repository URL or a folder URL, or one press on a preset ("CIFAR-10
+example", "PyTorch MNIST" = `https://github.com/pytorch/examples/tree/main/mnist`; `FORGE_ML_GITHUB_PRESETS` overrides).
 - **Preset fast path:** `github_import.inspect_repository` reads `train.py`, `model.py`, `data.py` and
   `requirements.txt` through the Contents API and statically checks for the `SmallCNN` + CIFAR-10 layout. A match
   trains the reviewed local `ml-examples/cifar10` copy; it never runs the GitHub files, and the panel says so
@@ -152,6 +152,20 @@ movie reviews"* (or *"fine-tune a model on movie reviews"*). The desk unfolds wh
 the first run downloads the model, then the curves stream. Ask *"what can I do better?"* and *"yes"* for the normal
 improve/retrain loop, or *"push it to GitHub"* for the PR. No APK rebuild is needed: these tools live on the hub
 (and the cloud), and the request sentence is enough even with the older tool schema on the headset.
+
+## Research: models and datasets on the Hub (`ml_search_models`, `ml_search_datasets`)
+
+"Albie, find me a small sentiment model": `research.py` asks the Hub's public list API (`/api/models` and
+`/api/datasets` with `expand[]=safetensors,cardData,config,...`; anonymous limit 500 requests per 5 minutes) and
+then each trainable model's file list (`?blobs=true`) for its real weight size, tokenizer and weights. Every card
+carries the Hub's facts and checks (green / amber / red / unknown): task match, whether `ml_new` can fine-tune it
+(text encoders only; image, generative and speech models are **browse only**), a size estimate scaled from the
+measured run above (labelled as an estimate), licence openness, access. One pick: no red check, fewest unknown then
+amber checks, smallest, most downloaded, with its reasons and caveats. On-device latency isn't published, so it's
+"not measured". Cards stream as `ml.research` events onto the ML desk's Research panel
+(`unity/Assets/_Forge/ML/Research/`); its "Use this model" is POST `/ml/research/use`, the real `ml_new`.
+`ml_publish` also sends `ml.publish_offer`, so the desk shows a Confirm / Cancel card (POST `/ml/publish`,
+`/ml/publish/cancel`); only Confirm posts. Parts (cameras, motors) are `hub/research/` and need `MOUSER_API_KEY`.
 
 ## Albie improves the model (demo)
 

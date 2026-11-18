@@ -359,7 +359,7 @@ namespace Forge.Pet
             if (message != "cancelled")
             {
                 Debug.LogWarning("[PushToTalk] STT error: " + message);
-                if (caption != null) caption.SetText("(" + message + ")", false);
+                if (caption != null) caption.SetText(message, false);
             }
             else if (caption != null) caption.Clear();
             if (controller != null && controller.State == AlbieState.Listening) controller.SetState(AlbieState.Wandering);

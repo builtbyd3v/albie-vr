@@ -876,9 +876,7 @@ public class Workspace : MonoBehaviour
             case "cad-timeline": return "Every version of the design, newest first.";
             case "cad-drawing": return "The design's engineering drawing: views, dimensions, parts list.";
             case "messages": return "Messages land here, with replies Albie drafts for you.";
-            case "screen-left":
-            case "screen-right": return "Share a window from Screen Bridge to see it here.";
-            default: return "Shows up here once its module is plugged in.";
+            default: return "Nothing to show here yet.";
         }
     }
 
