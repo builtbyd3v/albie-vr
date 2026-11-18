@@ -1468,3 +1468,48 @@ Compile: 0 errors, no warning from a file under OS/. One flaky run, plainly: the
 
 ### Changes outside OS/
 None.
+
+---
+
+## Stopped: where the OS work stands (2026-11-16 evening)
+
+Hudson tested the build on his Quest 3S and stopped the improvement round. This section is the hand-over: what is finished, what is broken, what is unfinished and where the unfinished work lives. The plan that followed is on the nodeterm canvas (notes "Albie: where things stand and the plan" and "Albie: the full vision").
+
+### Finished and pushed (last OS commit `70b63c0`, draft PR 73)
+- The whole spec: shell, menu, window manager, Tools, Projects and Artifacts tabs, Drive pad, Build something, Agents, Settings, corner button, watch turn.
+- Review fixes, the look pass (six rounds), the merge of `origin/main` including the hands transmitter, larger text (body 9.8 mm cap height), and the first nine audit fixes.
+- Every existing check passed at `c3e15f7`. They were not all re-run after the later commits.
+
+### Broken or wrong, known today
+- **On the headset (Hudson's test, not reproduced in the editor):** a closed fist opens the gesture controls panel next to the face; flick is read as a fist; windows open too close and scattered; pinch-and-pull moving is poor; two menus show; Slalom, Hoop course and What shipped do not open; Train shows no truck; Notebook is empty; the bell on open hand is unwanted. None of these is fixed.
+- **Play test at `70b63c0`: 140 passed, 1 failed.** Step "3d menu over an open mode, away from a desk": 3 of 7 menu tiles are covered by Train's 3D content. It passed before the menu grew for the larger text (`f3cde4e`) and the placement search was capped (`f1b01cf`); which of the two broke it was not checked.
+- **Flaky tests, cause not found:** OSDriveTest once timed out ("pad only") and OSPlannerTest then failed 2 checks in the same full pass; both passed when re-run alone. OSAgentsTest failed once on a pet-movement wait and passed on re-run.
+- **Look pass did not reach its bar** (two clean rounds in a row). The menu covers the lower part of the Training window behind it.
+- **Never run on a headset by the run itself:** poke, ray, the left controller menu button, frame rate, voice. The APK was installed on Hudson's Quest once (the 14:23 build); a later build (18:20, from `70b63c0`) is in `unity/Builds/` and was not installed.
+- **Package id** is still the Unity template's (`com.UnityTechnologies.com.unity.template.urpblank`).
+- **Tests deleted the editor preference `Albie.ClaudeUrl`** in early runs (fixed since; re-enter it if one was set). An early screenshot tool wrote sample notes into the real `notes.json` (removed; the tool now restores the file).
+
+### Unfinished
+- **Audit fixes, batch 2 of 5: half done and unverified.** It is NOT on this branch. It is saved as one commit on the local branch `wip/os-audit-fixes-batch-2` (parent `70b63c0`, 20 files under `OS/`, 259 lines added, 80 removed) and also as `stash@{0}`. It was never compiled or tested after the agent was stopped mid-task. Before using it: check it out, compile, run OSCheck and the OS tests, and read the diff; some of its edits may be incomplete.
+- **Audit findings confirmed and not fixed** (a second reader checked each against the code; all are in `OS/`; most are low severity). Batch 2 was working on the first nine:
+  - Send hint says "Not available offline" but Send is always disabled (OSProjectWindow)
+  - The Gestures tile, the "Hands" window and the "Gesture display" setting name one thing three ways (OSToolsCatalog)
+  - A tile's status line shows a long notice cut mid-sentence (OSArtifacts)
+  - Projects status shows raw run and attempt words the rest of the OS renames (OSProjects)
+  - Adjacent buttons are 10.4 mm apart, under the 12 mm minimum (OSUi)
+  - The menu's clearing check counts 20 mm around a window but a window's hit area reaches 56 mm (OSMenu)
+  - The Notebook window throws on a plan whose milestones are not objects (OSNotebookWindow)
+  - Toggle-style actions have no debounce: a bounced poke can start then stop the Autopilot, or answer two Build questions (OSProjectWindow)
+  - With no arrival greeting in the scene the shell runs a scene search every 0.5 s while a window is open (OSShell)
+  - The menu placement search can run hundreds of ray probes in the opening frame when no clear spot exists (OSMenu)
+  - A second shell destroys itself after its keys and corner button have already changed shared statics (OSShell)
+  - Hiding content in front of the menu runs a 28-ray test per renderer and walks the lists three times per open (OSMenu)
+  - The OS icon atlas is imported readable and uncompressed, about 8 MB in memory (OSPrefabBuilder)
+  - The Drive pad knob and the Agents poll cause per-frame canvas work while in use (OSDrivePad, OSAgentsWindow)
+  - The Stop button's result sentence is never shown (OSDriveWindow); Train's fallback reports failure after a successful open (OSProjectWindow)
+  - About twenty wording points: "sheet" and "card" for the same prompt; the "Height" slider measures degrees down; the About page tells a headset user to open a repo file; pager wording differs between windows; the empty Artifacts tab says Build something makes artifacts; two different empty-plan sentences; milestone checkboxes written two ways; "cut" and "verdict" shown to users; "out" used in two senses in Agents; subtitle capitalisation; missing badges on Notebook and Hands; two status separators; exception text and internal ids reaching the user; "Something else" placed differently on the first card; unexplained Settings toggles; Quadcopter and Drone, Image classifier and Image model naming.
+- **For module owners (found, not changed):** the truck's obstacle mask is every layer, so the pet on the course fails an Autopilot run (Artifacts and Controllers); `PanelManipulator.Grabbing` is global, with no per-panel accessor (Core); ForgePanel's subtitle text is 8.45 mm (Core); a task assigned in the frame an agent hatches is missed (Pet); voice `dismiss_agent` has no confirm tap (Code); GesturePlayTest still saves and forces the user's editor prefs the old way (Core).
+- **PR 73's description** predates the stop: it does not mention the failing play-test step, the larger text, the hands-transmitter merge or the headset findings.
+
+### Not part of the OS run
+Commits after `70b63c0` on this branch (the Demo module, `9e89aa1` onwards) were made by another session and are not covered here.

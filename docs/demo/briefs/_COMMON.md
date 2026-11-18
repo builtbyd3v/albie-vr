@@ -1,0 +1,19 @@
+# Common rules for every demo station (read this first)
+
+You are one of five parallel stations building the scripted video demo for Albie (a Quest 3S mixed-reality agent app, Unity 6000.6.7f1, URP, Meta XR SDK 207). Tonight's deadline: G1 at 10:00 PM ET (everything plays in the editor), then a headset build. It is now about 7:45 PM ET, 2026-11-16.
+
+Read, in this order, before writing code:
+1. `docs/demo/VIDEO_SCRIPT.md`: the story. Your piece must look great in that story, on camera, in passthrough.
+2. `docs/demo/TONIGHT_PLAN.md`: sections 1, 4 and 5 (your folders, the shared-editor rules, the action names).
+3. `unity/Assets/_Forge/Demo/Scripts/Core/DemoActions.cs`: the contract. Register your actions in `OnEnable`, unregister in `OnDisable`, raise the listed signals, handle `demo.reset`. Don't change this file; if you need a change, say so in your final report.
+4. `CLAUDE.md` (repo root): project rules. Quest performance rules apply: no allocations or LINQ in `Update`, textures 2048 max.
+
+Hard rules:
+- **Only touch your own folders** (named in your brief). Everything compiles into Assembly-CSharp, so a compile error anywhere breaks everyone: after every save, check `unity/Logs/Editor.log` (or `unity command` compile) and fix your own errors at once. Never edit another station's files; if their error blocks you, wait a few minutes, then note it in your report.
+- **One shared Unity editor.** It is already open on `unity/`. Drive it with the `unity` CLI (skill `.claude/skills/unity-cli`, run from inside `unity/`). Before entering Play mode, building a scene, or taking a screenshot: if `unity/Temp/demo-editor.lock` exists and is under 10 minutes old, wait and retry; otherwise write your station name into it, do your run, delete it. Keep each hold under 5 minutes.
+- **Your test scene.** Don't edit `Main.unity`. Make your own sandbox with an editor `[MenuItem("Forge/Demo/<Your piece>/Build Sandbox")]` that builds `unity/Assets/_Forge/Demo/Sandboxes/<Piece>Sandbox.unity` in code (camera at seated head height 1.15 m, a dark floor, a directional light, your piece) and a `[MenuItem(".../Play Test")]` that plays it, fires your actions in order through `DemoActions.Fire`, waits, and saves screenshots to `unity/Logs/demo/<piece>_*.png`. Look at your screenshots and judge them against the look rules below. The `demo-director` station builds the combined sandbox and Main integration.
+- **Look.** It must look like Meta made it (Horizon OS style): dark translucent rounded panels, generous padding, one accent colour, clean sans type (TextMesh Pro, the font the OS module already uses), smooth eased motion (0.2 to 0.4 s), small soft sounds optional. Reuse the existing look where it helps: `unity/Assets/_Forge/OS/Scripts/OSUi.cs`, `OSKit.cs`, `Core/Scripts/ForgeTheme.cs`, `ForgeTween.cs`. No purple gradients, no emoji, no uppercase tracked labels. Text at 0.6 m must be readable on a Quest 3S: body text at least 14 mm tall in world space.
+- **Hands only.** Anything Hudson presses is a poke target (Interaction SDK poke, plus mouse on the desktop rig, the way the OS module does it: see `OSKit.cs` / `OSInput.cs`). At least 4 cm across.
+- **No brand names in the UI** (contest rule): say "model hub", "private repo"; made-up product names.
+- **Git.** Branch `feat/albie-os`, main checkout. Commit only your own paths (`git add <your folders>`), small commits with clear messages, each ending with the line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Never `git add -A` (`Pet/Models/` holds paid assets). Don't push.
+- **Bounded.** Stop at your brief's "Done when". Don't start polishing rounds. Then run `sh "C:\Users\marrh\AppData\Roaming\node-terminal\canvas-control\nodeterm.sh" report-outcome --outcome succeeded --note "<one line>"` (or `--outcome failed --note "<why>"`), and end with a short report: what you built, the files, the MenuItems, the screenshots, what's fake, what's not done.

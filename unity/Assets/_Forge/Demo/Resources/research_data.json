@@ -1,0 +1,111 @@
+{
+  "constraints": [
+    "5 V rail (from 4S battery BEC)",
+    "under 30 g",
+    "20 x 20 mm mount",
+    "under $40"
+  ],
+  "queries": [
+    { "text": "small camera module 5V 60fps wide FOV", "results": 14 },
+    { "text": "low latency camera for drones under 30 g", "results": 9 },
+    { "text": "camera board 1080p face detection range", "results": 11 },
+    { "text": "fast shipping camera module", "results": 7 }
+  ],
+  "cameras": [
+    {
+      "id": "cam_a",
+      "name": "Tern C2 Mini",
+      "image": "cam_a",
+      "source": "partsbay.example",
+      "specs": { "resolution": "1080p", "fps": 60, "fov": 120, "voltage": "5 V", "weight_g": 9, "price_usd": 24, "ships_days": 3 },
+      "checks": {
+        "power":  { "pass": true, "label": "5 V",     "reason": "Runs off the 5 V rail" },
+        "weight": { "pass": true, "label": "9 g",     "reason": "9 g, well inside the 30 g budget" },
+        "mount":  { "pass": true, "label": "20 x 20", "reason": "20 x 20 mm board fits the nose mount" },
+        "price":  { "pass": true, "label": "$24",     "reason": "$24, under the $40 limit" }
+      }
+    },
+    {
+      "id": "cam_b",
+      "name": "Plover V3 Lite",
+      "image": "cam_b",
+      "source": "dronehub.example",
+      "specs": { "resolution": "720p", "fps": 60, "fov": 90, "voltage": "5 V", "weight_g": 14, "price_usd": 19, "ships_days": 5 },
+      "checks": {
+        "power":  { "pass": true,  "label": "5 V",     "reason": "Runs off the 5 V rail" },
+        "weight": { "pass": true,  "label": "14 g",    "reason": "14 g, inside the 30 g budget" },
+        "mount":  { "pass": false, "label": "28 x 28", "reason": "28 x 28 mm board does not fit the nose mount" },
+        "price":  { "pass": true,  "label": "$19",     "reason": "$19, under the $40 limit" }
+      }
+    },
+    {
+      "id": "cam_c",
+      "name": "Finch Pro 4K",
+      "image": "cam_c",
+      "source": "optiparts.example",
+      "specs": { "resolution": "4K", "fps": 30, "fov": 110, "voltage": "12 V", "weight_g": 48, "price_usd": 58, "ships_days": 9 },
+      "checks": {
+        "power":  { "pass": false, "label": "12 V",    "reason": "12 V only, the drone has a 5 V rail" },
+        "weight": { "pass": false, "label": "48 g",    "reason": "48 g, over the 30 g budget" },
+        "mount":  { "pass": true,  "label": "20 x 20", "reason": "20 x 20 mm board fits the nose mount" },
+        "price":  { "pass": false, "label": "$58",     "reason": "$58, over the $40 limit" }
+      }
+    },
+    {
+      "id": "cam_d",
+      "name": "Pipit Nano",
+      "image": "cam_d",
+      "source": "microlens.example",
+      "specs": { "resolution": "1080p", "fps": 30, "fov": 100, "voltage": "5 V", "weight_g": 6, "price_usd": 89, "ships_days": 4 },
+      "checks": {
+        "power":  { "pass": true,  "label": "5 V",     "reason": "Runs off the 5 V rail" },
+        "weight": { "pass": true,  "label": "6 g",     "reason": "6 g, well inside the 30 g budget" },
+        "mount":  { "pass": true,  "label": "20 x 20", "reason": "20 x 20 mm board fits the nose mount" },
+        "price":  { "pass": false, "label": "$89",     "reason": "$89, over the $40 limit" }
+      }
+    },
+    {
+      "id": "cam_e",
+      "name": "Wren HD Board",
+      "image": "cam_b",
+      "source": "gearloft.example",
+      "specs": { "resolution": "1080p", "fps": 60, "fov": 85, "voltage": "5 V", "weight_g": 12, "price_usd": 31, "ships_days": 14 },
+      "checks": {
+        "power":  { "pass": true,  "label": "5 V",     "reason": "Runs off the 5 V rail" },
+        "weight": { "pass": true,  "label": "12 g",    "reason": "12 g, inside the 30 g budget" },
+        "mount":  { "pass": false, "label": "25 x 25", "reason": "25 x 25 mm board does not fit the nose mount" },
+        "price":  { "pass": true,  "label": "$31",     "reason": "$31, under the $40 limit" }
+      }
+    },
+    {
+      "id": "cam_f",
+      "name": "Lark F2 Wide",
+      "image": "cam_c",
+      "source": "partsbay.example",
+      "specs": { "resolution": "1080p", "fps": 60, "fov": 140, "voltage": "12 V", "weight_g": 11, "price_usd": 27, "ships_days": 6 },
+      "checks": {
+        "power":  { "pass": false, "label": "12 V",    "reason": "12 V only, the drone has a 5 V rail" },
+        "weight": { "pass": true,  "label": "11 g",    "reason": "11 g, inside the 30 g budget" },
+        "mount":  { "pass": true,  "label": "20 x 20", "reason": "20 x 20 mm board fits the nose mount" },
+        "price":  { "pass": true,  "label": "$27",     "reason": "$27, under the $40 limit" }
+      }
+    }
+  ],
+  "models_query": "small face and person tracker for a flight board",
+  "models": [
+    { "id": "model_a", "name": "face-track-nano",  "image": "model_a", "task": "Face tracking",    "params": "3.2 M", "license": "Apache-2.0",   "latency_ms": 6,  "downloads": "48k",  "pick": true },
+    { "id": "model_b", "name": "person-detect-s",  "image": "model_b", "task": "Person detection", "params": "7.9 M", "license": "MIT",          "latency_ms": 11, "downloads": "212k" },
+    { "id": "model_c", "name": "pose-lite",        "image": "model_a", "task": "Pose estimation",  "params": "5.4 M", "license": "Apache-2.0",   "latency_ms": 14, "downloads": "96k" },
+    { "id": "model_d", "name": "object-track-tiny","image": "model_b", "task": "Object tracking",  "params": "11 M",  "license": "CC-BY-NC-4.0", "latency_ms": 19, "downloads": "31k" },
+    { "id": "model_e", "name": "face-embed-base",  "image": "model_a", "task": "Face recognition", "params": "24 M",  "license": "OpenRAIL",     "latency_ms": 38, "downloads": "64k" }
+  ],
+  "verdict": {
+    "winner": "cam_a",
+    "lines": [
+      { "key": "power",      "text": "Runs off your 5 V rail" },
+      { "key": "resolution", "text": "Locks onto a face at 10 m" },
+      { "key": "price",      "text": "$24, under your $40 limit" },
+      { "key": "shipping",   "text": "Here in 3 days" }
+    ]
+  }
+}

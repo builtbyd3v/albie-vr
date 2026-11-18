@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "autoStartSeconds": 0,
+  "voicePitch": 1.2,
+  "muteLiveAgent": true,
+  "secondsPerChar": 0.06,
+  "lineGapSeconds": 0.35,
+  "minSpeechWords": 2,
+  "palmTimeoutSeconds": 0,
+  "keepMicOpen": false,
+  "stepButton": true,
+  "handStep": false,
+  "cueOnly": true
+}
