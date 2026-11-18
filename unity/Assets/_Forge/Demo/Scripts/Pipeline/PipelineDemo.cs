@@ -43,11 +43,22 @@ namespace Forge.Demo
         public PipelineView View => view;
         public bool IsOpen => shown;
         public bool WaitingForConfirm => waitingForConfirm;
+        /// <summary>The station in the scene (the Director's A button pokes Confirm through it).</summary>
+        public static PipelineDemo Instance { get; private set; }
+
+        /// <summary>Pokes Confirm the way a finger would. False while the confirm card isn't up yet.</summary>
+        public bool PokeConfirm()
+        {
+            if (!waitingForConfirm || view == null || view.ConfirmButton == null) return false;
+            view.ConfirmButton.onClick.Invoke();
+            return true;
+        }
 
         // ---------------------------------------------------------------- registration
 
         void OnEnable()
         {
+            Instance = this;
             DemoActions.Register(Open, OnOpen);
             DemoActions.Register(Close, OnClose);
             DemoActions.Register(Pull, OnPull);
@@ -58,6 +69,7 @@ namespace Forge.Demo
 
         void OnDisable()
         {
+            if (Instance == this) Instance = null;
             DemoActions.Unregister(Open, OnOpen);
             DemoActions.Unregister(Close, OnClose);
             DemoActions.Unregister(Pull, OnPull);

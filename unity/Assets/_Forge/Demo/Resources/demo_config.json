@@ -7,5 +7,6 @@
   "lineGapSeconds": 0.35,
   "minSpeechWords": 2,
   "palmTimeoutSeconds": 0,
-  "keepMicOpen": true
+  "keepMicOpen": false,
+  "stepButton": true
 }

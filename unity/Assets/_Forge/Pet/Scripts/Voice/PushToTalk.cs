@@ -131,7 +131,9 @@ namespace Forge.Pet
         /// <summary>Same, giving up after <paramref name="noSpeechSeconds"/> without speech (e.g. 15 s follow-up after an answer).</summary>
         public bool BeginHandsFree(float noSpeechSeconds)
         {
-            if (SessionActive) return false;
+            // Switched off (the scripted video demo turns the live voice off): nobody may open the mic through it, since a
+            // disabled component never runs the Update that would end the session.
+            if (SessionActive || !isActiveAndEnabled) return false;
             _sessionNoSpeech = noSpeechSeconds > 0f ? noSpeechSeconds : noSpeechTimeout;
             _speechTime = 0f;
             var stt = ResolveProvider();

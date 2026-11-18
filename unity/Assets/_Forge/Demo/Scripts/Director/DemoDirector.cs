@@ -13,7 +13,8 @@ namespace Forge.Demo
     /// <see cref="DemoActions"/>. A beat moves on when its advance condition comes true: Hudson finishes a sentence (any
     /// final speech-to-text result), a piece raises a signal, a timer runs out, or the laptop remote says so
     /// (ForgeNet demo.next / demo.back / demo.reset / demo.goto; keys ] [ \ on the desktop). It also does the B1 palm
-    /// summon, keeps the microphone open between lines, and cancels the live agent's own reply to Hudson's speech
+    /// summon, the A/B buttons on the right controller (DemoDirector.Controller.cs, DemoConfig.stepButton), keeps the
+    /// microphone open between lines when A is off, and cancels the live agent's own reply to Hudson's speech
     /// (see DemoDirector.Live.cs). Cues that never ran when a beat ends are fired at once, in order, so Next never leaves the
     /// scene half-built. Off unless Resources/demo_config.json says so (DemoInstaller) or a scene holds the prefab.
     /// </summary>
@@ -100,6 +101,7 @@ namespace Forge.Demo
             UnregisterActions();
             for (int i = 0; i < subs.Count; i++) subs[i]?.Dispose();
             subs.Clear();
+            RestoreLiveVoice();
             ReleaseAlbie();
         }
 
@@ -107,7 +109,9 @@ namespace Forge.Demo
         {
             if (script == null) return;
             PollKeys();
+            PollController();
             ResolveAlbie();
+            SilenceLiveVoice();
             UpdatePalm();
             UpdateMute();
 
@@ -120,6 +124,7 @@ namespace Forge.Demo
             DrainCatchUp();
             if (!beatRunning) return;
             RunTimeline();
+            TryPoke();
             UpdateMic();
             CheckAdvance();
         }
@@ -212,6 +217,7 @@ namespace Forge.Demo
             lineNow = -1;
             speechPending = false;
             forceDone = false;
+            ClearStep();
             catchUp.Clear();
             cues.Clear();
             lines.Clear();
@@ -239,7 +245,9 @@ namespace Forge.Demo
             speechPending = false;
             forceDone = false;
             forceDoneAt = -1f;
+            ClearStep();
             if (index == 0) DemoLayout.Capture();
+            DismissArrival();   // the first-arrival card can come up mid-take (Hudson sits down after B0)
 
             cues.Clear();
             for (int i = 0; i < beat.cues.Count; i++) cues.Add(new CueRun { def = beat.cues[i] });
@@ -361,6 +369,8 @@ namespace Forge.Demo
                 if ((forceDoneAt > 0f && now - forceDoneAt >= forceAdvanceSeconds) || now - beatStart > 45f) AdvanceFrom("forced");
                 return;
             }
+            // A (Hudson's line): once Albie has said his lines, whatever the beat's own condition or minimum.
+            if (stepQueued && linesDone && (voice == null || now >= voice.EndedAt + 0.3f)) { AdvanceFrom("A"); return; }
             if (!linesDone || now - beatStart < script.beats[BeatIndex].min) return;
             for (int i = 0; i < alts.Count; i++)
             {
@@ -473,6 +483,7 @@ namespace Forge.Demo
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             if (config != null && config.muteLiveAgent) muteUntil = Time.time + MuteSeconds;   // always, even for chatter and his own echo
+            if (StepButton) return;   // A is the only trigger: his voice and a press must not both move a beat on
             if (!beatRunning || !advanceHasSpeech || !linesDone) return;
             float now = Time.time;
             if (voice != null && (voice.Speaking || now < voice.EndedAt + EchoGuardSeconds)) return;

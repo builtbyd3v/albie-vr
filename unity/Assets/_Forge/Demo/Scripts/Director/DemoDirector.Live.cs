@@ -15,12 +15,13 @@ namespace Forge.Demo
         const float EngineGraceSeconds = 1.7f;     // the gesture engine's own "Albie to my hand" gets this long to act first
         const float PalmLift = 0.012f;             // m above the palm (GesturePerch's)
         const float FollowRate = 16f;
-        const float LostSeconds = 1.2f, TurnedSeconds = 0.5f, ForcedHoldSeconds = 7f;
+        const float LostSeconds = 1.2f, TurnedSeconds = 0.5f, ForcedHoldSeconds = 90f;
         const float NearEnough = 0.9f;             // m: Albie jumps to the palm from this close, no further
 
         Summon summon;
         Transform anchor;
-        bool forced, ownsPerch, palmKey, approachStarted;
+        bool forced, ownsPerch, palmKey, approachStarted, onController;
+        int forcedBeat = -1;
         float summonStart, palmHeldSince = -1f, graceStart = -1f, approachStart, perchStart, landedAt, handLostAt = -1f, turnedAt = -1f;
         float palmUpSince = -1f, lastPalmSignal = -10f;
         Vector3 forcedPos;
@@ -45,7 +46,10 @@ namespace Forge.Demo
             Transform head = PetUser.Head;
             forced = true;
             forcedPos = head != null ? head.TransformPoint(new Vector3(-0.1f, -0.2f, 0.45f)) : albie.transform.position;   // a palm held out, inside the view
-            Debug.Log("[Demo] no palm: Albie lands in front of Hudson anyway.");
+            onController = LeftControllerPoint(out Vector3 pad);
+            if (onController) forcedPos = pad;
+            forcedBeat = BeatIndex;
+            Debug.Log(onController ? "[Demo] no tracked palm: Albie lands on the left controller." : "[Demo] no palm: Albie lands in front of Hudson anyway.");
             BeginApproach();
         }
 
@@ -55,7 +59,8 @@ namespace Forge.Demo
             else if (albie != null && albie.State != AlbieState.Wandering) albie.SetState(AlbieState.Wandering);
             if (anchor != null) { Destroy(anchor.gameObject); anchor = null; }
             summon = Summon.Idle;
-            forced = ownsPerch = approachStarted = false;
+            forced = ownsPerch = approachStarted = onController = false;
+            forcedBeat = -1;
             palmHeldSince = graceStart = handLostAt = turnedAt = -1f;
         }
 
@@ -84,9 +89,12 @@ namespace Forge.Demo
         static bool PalmHeldUp(GestureHand h) =>
             h != null && h.Usable && h.values[(int)HandFeature.PalmUp] > 0.5f && h.values[(int)HandFeature.InView] > 0.2f;
 
-        Vector3 PalmTarget(GestureHand h) => h != null && h.Usable && !forced
-            ? h.Palm + HandFeatures.PalmNormal(h.sample) * PalmLift
-            : forcedPos;
+        Vector3 PalmTarget(GestureHand h)
+        {
+            if (h != null && h.Usable && !forced) return h.Palm + HandFeatures.PalmNormal(h.sample) * PalmLift;
+            if (onController && LeftControllerPoint(out Vector3 pad)) forcedPos = pad;   // he rides the controller as it moves
+            return forcedPos;
+        }
 
         void UpdatePalm()
         {
@@ -151,6 +159,7 @@ namespace Forge.Demo
             float now = Time.time;
             Vector3 target = PalmTarget(hand);
             float distance = Vector3.Distance(albie.transform.position, target);
+            if (albie.Stationed) albie.ReleaseStation();   // the arrival greeting's spot: PerchOn refuses while he holds it
             if (!approachStarted && distance > NearEnough && !albie.Perched)
             {
                 approachStarted = true;
@@ -166,6 +175,7 @@ namespace Forge.Demo
                 anchor.position = target;
             }
             if (albie.Perched) { ownsPerch = false; summon = Summon.Perching; perchStart = now; return; }
+            anchor.position = target;
             if (albie.PerchOn(anchor))
             {
                 ownsPerch = true;
@@ -190,7 +200,8 @@ namespace Forge.Demo
         void CheckLeave(GestureHand hand, float now)
         {
             bool leave = false;
-            if (forced) leave = now - landedAt > ForcedHoldSeconds;
+            // No real palm to read: he stays through his hello and Hudson's first line, and hops down once the drone opens.
+            if (forced) leave = (BeatIndex > forcedBeat && BeatSeconds > 2.5f) || now - landedAt > ForcedHoldSeconds;
             else if (hand == null || !hand.Usable)
             {
                 if (handLostAt < 0f) handLostAt = now; else leave = now - handLostAt > LostSeconds;
@@ -215,7 +226,7 @@ namespace Forge.Demo
         // While a beat waits for Hudson's speech and Albie is done talking, a hands-free session is always open.
         void UpdateMic()
         {
-            if (!config.keepMicOpen || talk == null || !advanceHasSpeech || !linesDone) return;
+            if (!config.keepMicOpen || config.stepButton || talk == null || !advanceHasSpeech || !linesDone) return;
             float now = Time.time;
             if (voice != null && (voice.Speaking || now < voice.EndedAt + 0.5f)) return;
             if (talk.SessionActive || now < nextMicTry) return;

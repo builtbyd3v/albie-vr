@@ -106,6 +106,10 @@ namespace Forge.Demo
         public float palmTimeoutSeconds = 0f;
         /// <summary>Keep the microphone open hands-free while a beat waits for Hudson's speech.</summary>
         public bool keepMicOpen = true;
+        /// <summary>A on the right controller plays Hudson's next move (start, palm, each of his lines, Add, Confirm, palm again),
+        /// B goes back a beat. While on, his speech never moves a beat on (A is the only trigger, so the two can't double up) and
+        /// the live voice is switched off, because A is push-to-talk outside the demo.</summary>
+        public bool stepButton = true;
 
         public const string Resource = "demo_config";
 

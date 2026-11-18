@@ -38,6 +38,24 @@
 5. "While that trains, I want to test it. Build me a flight test so it can follow me around the room."
 6. (hold out your palm)
 
+### The A button (whoever runs the take)
+
+With `"stepButton": true` in `Demo/Resources/demo_config.json` (the default now), **A on the right controller plays Hudson's next move** and nothing else moves a beat on: his voice doesn't, so a line and a press can't both advance. **B** goes back one beat. The laptop remote still works.
+
+| Press | When | What happens |
+|---|---|---|
+| A | headset on, ready | B0 starts (A again skips the quiet 5 s) |
+| A | B1 | the palm: Albie runs over, hops onto the left hand (or the left controller if hands aren't tracked), says hello |
+| A | Hudson finishes line 1 | B2: the quad builds, flies, Albie's two lines |
+| A | Hudson finishes line 2 | B3 research runs by itself, then B4's verdict card |
+| A | verdict card up | pokes "Add to parts list": the camera flies onto the nose, then B5 pull and train run by themselves |
+| A | Confirm card up | pokes Confirm: the push runs, "Done. Version one is in your repo." |
+| A | Hudson finishes line 5 | B6: flight test, drone follows |
+| A | Hudson holds his palm out | B7: the drone comes home |
+| A | end of the take | finished; A once more resets for the next take |
+
+A press never cuts Albie off: if he's still talking, the move happens when his line ends. A press during B3, B5 or B4 after the poke does nothing (those run themselves). In demo mode the live voice is off (A is push-to-talk outside the demo), and the first-arrival greeting card is dismissed. Note that holding a controller turns Quest hand tracking off, so the B1 and B7 palm moments use the left controller's position.
+
 If a beat fires early or late, keep going: we cut in the edit. Back and Reset are on the laptop remote (`TONIGHT_PLAN.md`, section 6).
 
 ## Clips (2:05 to 2:50), under voiceover

@@ -210,11 +210,23 @@ namespace Forge.Demo
                 p = e.Hands[0].Palm;
                 return true;
             }
+            // Controllers in hand (the A-button demo): hand tracking is off, so the left controller stands in for the palm.
+            if (OVRInput.GetControllerPositionTracked(OVRInput.Controller.LTouch))
+            {
+                if (s_rig == null) s_rig = FindAnyObjectByType<OVRCameraRig>();
+                if (s_rig != null && s_rig.leftControllerAnchor != null)
+                {
+                    p = s_rig.leftControllerAnchor.position;
+                    return true;
+                }
+            }
             p = default;
             return false;
         }
 
-        /// <summary>Where the drone comes home to: over the left palm if tracked, else a spot in front of the head.</summary>
+        static OVRCameraRig s_rig;
+
+        /// <summary>Where the drone comes home to: over the left palm (or left controller) if tracked, else a spot in front of the head.</summary>
         Vector3 HomePoint()
         {
             if (TryPalm(out var p)) return p + Vector3.up * 0.2f;

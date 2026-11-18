@@ -14,7 +14,7 @@ namespace Forge.Demo.Editor
     /// Forge > Demo > Play Whole Script: DemoSandbox in Play mode on the desktop rig with the voice off. The Director plays B0 to
     /// B7 on its own (every beat moves on 4 s after its lines and cues are done; the palm is "held out" with the ` key), a
     /// screenshot of each beat goes to unity/Logs/demo/director_B*.png, then the laptop remote is tried through
-    /// ForgeNet.Inject (reset, next, goto, back) and a spoken line through stt.final. The verdict is in
+    /// ForgeNet.Inject (reset, next, goto, back) and, with DemoConfig.stepButton, the whole script again on A presses alone (else a spoken line through stt.final). The verdict is in
     /// unity/Logs/demo/director_result.txt and the console ("[DemoPlayTest] ..."). Takes Temp/demo-editor.lock while it runs.
     /// Poll with <see cref="Running"/> / <see cref="LastResult"/>.
     /// </summary>
@@ -243,26 +243,86 @@ namespace Forge.Demo.Editor
             yield return 1.5f;
             Check(d.BeatId == "B3" && d.BeatRunning, "demo.next from B2 goes to B3 (" + d.BeatId + ")");
 
-            // ---- Hudson's voice moves a beat on (B1 waits for the palm, then Albie's line, then Hudson's sentence)
-            ForgeNet.Inject("demo.goto", new JObject { ["beat"] = "B1" });
-            yield return 2.5f;
-            d.PressPalm();
-            double wait = EditorApplication.timeSinceStartup + 20;
-            while (EditorApplication.timeSinceStartup < wait && !(d.BeatId == "B1" && d.LinesDone)) yield return 0.2f;
-            Check(d.BeatId == "B1" && d.LinesDone, "B1: Albie landed on the hand and said his line (albie.on_hand)");
-            Shot("director_B1_landed");
-            yield return 1.3f;   // past the echo guard
-            ForgeNet.Inject("stt.final", new JObject { ["text"] = "Let's open up the drone we built yesterday.", ["voice"] = true });
-            yield return 2.5f;
-            Check(d.BeatId == "B2" && d.BeatRunning, "a final transcript after Albie's line moves B1 on to B2 (" + d.BeatId + ")");
-            ForgeNet.Inject("stt.final", new JObject { ["text"] = "um", ["voice"] = true });
-            yield return 0.5f;
-            Check(d.BeatId == "B2", "a one-word transcript does not advance (" + d.BeatId + ")");
-            Shot("director_B2_after_speech");
+            if (d.Config.stepButton)
+            {
+                // ---- the A button: one press per thing Hudson does, and every beat plays in order
+                ForgeNet.Inject("demo.reset", new JObject());
+                yield return 0.6f;
+                var seen = new List<string>();
+                Action<int> onStep = i => seen.Add(d.Script.beats[i].id);
+                d.BeatStarted += onStep;
+                bool landed = false, added = false, confirmed = false;
+                Action<string> onSignal = sig => { if (sig == "research.added") added = true; if (sig == "pipeline.pushed") confirmed = true; };
+                DemoActions.Signal += onSignal;
+                string[] presses = { "start", "palm", "line1", "line2", "add", "confirm", "line5", "palm2", "end" };
+                for (int p = 0; p < presses.Length; p++)
+                {
+                    string press = presses[p];
+                    double until = EditorApplication.timeSinceStartup + 120;
+                    while (EditorApplication.timeSinceStartup < until && !ReadyFor(d, press)) yield return 0.2f;
+                    Check(ReadyFor(d, press), "A: ready for '" + press + "' (" + d.BeatId + ")");
+                    d.Step();
+                    yield return 0.5f;
+                    if (press == "palm")
+                    {
+                        double land = EditorApplication.timeSinceStartup + 20;
+                        while (EditorApplication.timeSinceStartup < land && !(d.BeatId == "B1" && d.LinesDone)) yield return 0.2f;
+                        landed = d.BeatId == "B1" && d.LinesDone;
+                        Shot("director_A_B1_landed");
+                    }
+                }
+                d.BeatStarted -= onStep;
+                DemoActions.Signal -= onSignal;
+                Check(landed, "A: Albie came to the hand and said his hello");
+                Check(added, "A: Add to parts list was poked (research.added)");
+                Check(confirmed, "A: Confirm was poked and the push ran (pipeline.pushed)");
+                Check(d.Finished, "A: the script ran to the end on presses alone");
+                Check(string.Join(" ", seen) == "B0 B1 B2 B3 B4 B5 B5b B6 B7", "A: every beat in order: " + string.Join(" ", seen));
+                d.Step();
+                yield return 0.6f;
+                Check(d.Armed, "A after the end: reset for the next take");
+            }
+            else
+            {
+                // ---- Hudson's voice moves a beat on (B1 waits for the palm, then Albie's line, then Hudson's sentence)
+                ForgeNet.Inject("demo.goto", new JObject { ["beat"] = "B1" });
+                yield return 2.5f;
+                d.PressPalm();
+                double wait = EditorApplication.timeSinceStartup + 20;
+                while (EditorApplication.timeSinceStartup < wait && !(d.BeatId == "B1" && d.LinesDone)) yield return 0.2f;
+                Check(d.BeatId == "B1" && d.LinesDone, "B1: Albie landed on the hand and said his line (albie.on_hand)");
+                Shot("director_B1_landed");
+                yield return 1.3f;   // past the echo guard
+                ForgeNet.Inject("stt.final", new JObject { ["text"] = "Let's open up the drone we built yesterday.", ["voice"] = true });
+                yield return 2.5f;
+                Check(d.BeatId == "B2" && d.BeatRunning, "a final transcript after Albie's line moves B1 on to B2 (" + d.BeatId + ")");
+                ForgeNet.Inject("stt.final", new JObject { ["text"] = "um", ["voice"] = true });
+                yield return 0.5f;
+                Check(d.BeatId == "B2", "a one-word transcript does not advance (" + d.BeatId + ")");
+                Shot("director_B2_after_speech");
+            }
 
             ForgeNet.Inject("demo.reset", new JObject());
             yield return 0.6f;
             Check(d.Armed && !d.Voice.Speaking, "final reset: armed, Albie silent");
+        }
+
+        // When the operator would press A for this move: Hudson's turn has come.
+        static bool ReadyFor(DemoDirector d, string press)
+        {
+            switch (press)
+            {
+                case "start": return d.Armed;
+                case "palm": return d.BeatId == "B1" && d.BeatRunning;
+                case "line1": return d.BeatId == "B1" && d.LinesDone;
+                case "line2": return d.BeatId == "B2" && d.LinesDone;
+                case "add": return d.BeatId == "B4" && ResearchStation.Instance != null && ResearchStation.Instance.VerdictCardUp;
+                case "confirm": return d.BeatId == "B5b" && PipelineDemo.Instance != null && PipelineDemo.Instance.WaitingForConfirm;
+                case "line5": return d.BeatId == "B5b" && d.LinesDone;
+                case "palm2": return d.BeatId == "B6" && d.LinesDone;
+                case "end": return d.BeatId == "B7" && d.LinesDone;
+            }
+            return false;
         }
 
         static void Shot(string name)
