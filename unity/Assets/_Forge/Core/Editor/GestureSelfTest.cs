@@ -51,6 +51,7 @@ public static class GestureSelfTest
             PalmUpOutOfViewDoesNothing();
             RestingHandFiresNothing();
             TrackingLossResets();
+            OnlyRaisedSteadyHandsCount();
             TeachPeaceSign();
             TeachMove();
             TeachRestingHandRefused();
@@ -324,6 +325,24 @@ public static class GestureSelfTest
         s.Run(0.3f, _ => HandShape.Point, tracked: false);
         s.Run(0.05f, _ => HandShape.Point, _ => new Vector3(0f, 0f, -0.14f));  // the hand reappears somewhere else
         Check(s.Count(GestureLibrary.FlickIn) == 0, "a hand jumping after a tracking gap isn't a flick");
+    }
+
+    // The engine matches only Deliberate hands: tracked a while, up in front of the face. Not typing, resting or just appeared.
+    static void OnlyRaisedSteadyHandsCount()
+    {
+        var s = new Sim();
+        s.Hold(0.3f, HandShape.Relaxed);
+        Check(!s.hand.Deliberate, "a hand that just appeared can't gesture yet");
+        s.Hold(0.4f, HandShape.Relaxed);
+        Check(s.hand.Deliberate, "a hand held up in front for a moment can gesture");
+        s.Run(0.8f, _ => HandShape.Relaxed, _ => new Vector3(0f, -0.35f, 0.05f));
+        Check(!s.hand.Deliberate, "a hand down at keyboard height can't gesture");
+        s.Run(0.8f, _ => HandShape.Relaxed, outOfView: true);
+        Check(!s.hand.Deliberate, "a hand out of view can't gesture");
+        s.Hold(0.8f, HandShape.Relaxed);
+        s.Run(0.1f, _ => HandShape.Relaxed, tracked: false);
+        s.Hold(0.2f, HandShape.Relaxed);
+        Check(!s.hand.Deliberate, "after a tracking gap the hand waits again");
     }
 
     // The SDK's own reference hand, through the same joint map the headset uses. Synthetic hands share our joint numbers,

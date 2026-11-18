@@ -14,6 +14,8 @@ using UnityEngine;
 /// Back: game time runs again, the voice is ready to reconnect on the next turn, the listeners come back (the mic is
 /// opened again by whoever needs it next), Albie walks back if he ended up far away, the open panels are laid out
 /// again if the tracking origin moved while world lock was off, and <see cref="Resumed"/> fires once.
+/// Input focus lost (a system dialog, e.g. the boundary, over the app): only the listeners stop (push-to-talk turn,
+/// follow-up, wake), so a bystander isn't answered while the user can't see Albie; they come back with focus.
 /// Installs itself. Editor: Forge > Lifecycle > Simulate Headset Off / On.
 /// </summary>
 public class AppLifecycle : MonoBehaviour
@@ -33,7 +35,7 @@ public class AppLifecycle : MonoBehaviour
     // Seam for Forge > Core > Check Lifecycle (a fake clock, so seconds away can be checked); the app keeps the default.
     internal static Func<float> clock = RealTime;
     static float RealTime() => Time.realtimeSinceStartup;
-    bool paused, unmounted, simulated, originMoved;
+    bool paused, unmounted, simulated, originMoved, unfocused;
     float awayAt, savedTimeScale = 1f, replaceAt = -1f;
     readonly List<Behaviour> held = new List<Behaviour>();
 
@@ -76,6 +78,16 @@ public class AppLifecycle : MonoBehaviour
         Sync(pause ? "app paused" : "app resumed");
     }
 
+    // Live 2026-11-17 19:16:06: focus went to the boundary dialog, and 5 s later Albie answered a bystander.
+    void OnApplicationFocus(bool focus)
+    {
+        if (Application.isEditor || unfocused == !focus) return;  // the Editor loses focus to any other window
+        unfocused = !focus;
+        if (IsAway) return;  // GoAway holds the listeners already; ComeBack leaves them held while unfocused
+        if (unfocused) HoldListeners(); else ReleaseListeners();
+        Debug.Log($"[AppLifecycle] input focus {(unfocused ? "lost: voice listening stopped" : "back: voice listening resumed")}.");
+    }
+
     void OnUnmounted() { unmounted = true; Sync("headset off"); }
     void OnMounted() { unmounted = false; Sync("headset on"); }
 
@@ -116,14 +128,7 @@ public class AppLifecycle : MonoBehaviour
         replaceAt = -1f;
 
         // The open turn first (its stt.cancel / stt.stop still reach AlbieVoice), then the listeners, then the session.
-        var talk = FindAnyObjectByType<PushToTalk>();
-        if (talk != null)
-        {
-            talk.CancelSession();
-            if (talk.Provider is HubSpeechToText stt) stt.StopMonitoring();
-        }
-        Hold<AlbieFollowUp>();
-        Hold<WakeListener>();
+        HoldListeners();
         if (ForgeNet.LocalPeer is AlbieVoice voice) voice.Suspend();
         if (Microphone.IsRecording(null)) Microphone.End(null);  // anything still holding the mic lets go
 
@@ -141,17 +146,35 @@ public class AppLifecycle : MonoBehaviour
         float secondsAway = clock() - awayAt;
         ResumedAt = clock();
         if (ForgeNet.LocalPeer is AlbieVoice voice) voice.Resume();
-        foreach (var b in held)
-        {
-            if (b == null) continue;
-            if (b is AlbieFollowUp followUp) followUp.Halt();  // a window it scheduled while away must not open now
-            b.enabled = true;
-        }
-        held.Clear();
+        if (!unfocused) ReleaseListeners();
         replaceAt = clock() + SettleS;
         Debug.Log($"[AppLifecycle] back ({why}) after {secondsAway:F0} s.");
         try { Resumed?.Invoke(secondsAway); }
         catch (Exception e) { Debug.LogException(e); }
+    }
+
+    // Cancel the open turn, stop the mic monitor, and hold the follow-up and wake listeners.
+    void HoldListeners()
+    {
+        var talk = FindAnyObjectByType<PushToTalk>();
+        if (talk != null)
+        {
+            talk.CancelSession();
+            if (talk.Provider is HubSpeechToText stt) stt.StopMonitoring();
+        }
+        Hold<AlbieFollowUp>();
+        Hold<WakeListener>();
+    }
+
+    void ReleaseListeners()
+    {
+        foreach (var b in held)
+        {
+            if (b == null) continue;
+            if (b is AlbieFollowUp followUp) followUp.Halt();  // a window it scheduled while held must not open now
+            b.enabled = true;
+        }
+        held.Clear();
     }
 
     // Stop every enabled T and remember it, so only these come back (one disabled on purpose stays off).

@@ -1,7 +1,7 @@
 # Hand gestures: how to build them for Albie
 
 > Written 2026-11-03 for Hudson. Deadline: 2026-11-18, 12:00 PT. Research only: no code, packages or contracts were changed.
-> Takes over from section 3 of [`CONVERSATION_HANDS_3D_RESEARCH.md`](CONVERSATION_HANDS_3D_RESEARCH.md) where they disagree.
+> Takes over from section 3 of an earlier hands and 3D research note (not in this repo) where they disagree.
 > **Decisions from Hudson:** voice is gated Grok. Hands-free by default. Hand motion must be immaculate. Users make their own gestures by talking to the agent and showing it. Tapping the desk is the main way to trigger things on it.
 
 | Label | Meaning |

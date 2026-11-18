@@ -6,6 +6,20 @@
 - Testers side-load with `adb install`. Judges get it from the "Competition" release channel.
 - `com.albie.vr` installs as a **new app**. Uninstall the old `com.UnityTechnologies.com.unity.template.urpblank` one; its saved data does not carry over.
 
+## Build machine requirements
+- The release build is `QuestBuild.Release` (`unity/Assets/_Forge/Core/Editor/QuestBuild.cs`): `Main.unity` only, IL2CPP ARM64, not a development build, LZ4-compressed (`BuildOptions.CompressWithLz4`). It refuses to build without IL2CPP and ARM64.
+- Two git-ignored files must exist on the build machine, or the APK builds but ships broken:
+  - `unity/Assets/_Forge/Core/Resources/AlbieAppKey.txt`: the cloud app key (the value of `ALBIE_APP_KEY` in Vercel and the Space). `AlbieVoiceToken.cs`, `ForgeCloud.cs` and `ClaudeClient.cs` read it. A missing or placeholder key makes voice and cloud calls return 401.
+  - The gator model: `unity/Assets/_Forge/Pet/Models/Gator_Model.fbx` plus `unity/Assets/_Forge/Pet/ThirdParty/Quirky Series/` (paid Asset Store pack, [SETUP.md](SETUP.md) step 9). Without them Albie has no body.
+- Signing: the keystore path comes from `ALBIE_KEYSTORE_PATH` (convention: `~/.albie/albie-release.keystore`), plus `ALBIE_KEY_ALIAS` and the two password env vars. A path to a missing file stops the build; any unset var gives a debug-signed APK.
+
+### Pre-upload checklist
+1. Both git-ignored files above are present; the gator shows in the Editor.
+2. The version code is 1 higher than the last upload.
+3. The build log says `signing: release key (albie)`, and `apksigner` shows the release certificate.
+4. On a headset, with no controller and no laptop: Albie appears, the voice opens and answers, and a CAD or ML tool reaches the cloud.
+5. The APK goes to the channel named exactly **Competition**.
+
 ## 1. Make the release key (owner, once)
 ```sh
 /Applications/Unity/Hub/Editor/6000.6.7f1/PlaybackEngines/AndroidPlayer/OpenJDK/bin/keytool -genkeypair -v \

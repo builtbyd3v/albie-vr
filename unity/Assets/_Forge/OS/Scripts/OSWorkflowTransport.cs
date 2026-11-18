@@ -8,8 +8,8 @@ namespace Forge.OS
     {
         public static bool Available => ForgeCloud.Serves("/tools/");
         public static string ConnectionMessage => !ForgeCloud.HasAppKey
-            ? "This build isn't configured to connect to Albie's cloud. Ask the app owner for an updated build, or connect a laptop hub."
-            : ForgeCloud.Ask() ?? "Connect to Albie's cloud or a laptop hub to start a workflow.";
+            ? "This build isn't configured to connect to Albie's cloud. Project workflows are optional; the rest of Albie works without them."
+            : ForgeCloud.Ask() ?? "Albie's cloud isn't reachable right now. Project workflows are optional; the rest of Albie works without them.";
 
         static void Cloud(string name, JObject args, Action<JObject> ok, Action<string> fail)
         {

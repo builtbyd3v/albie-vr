@@ -222,7 +222,7 @@ def profile(project: dict[str, Any], epochs: int) -> dict[str, Any]:
     base = project.get("base_model")
     name = project.get("model_name") or MODEL_NAMES[project["model"]]
     summary = (f"{name} {'text' if text else 'image'} classifier, {len(project['classes'])} classes, on "
-               f"{project['dataset']} from Hugging Face.")
+               f"{project['dataset']} from the dataset hub.")
     if base:
         summary += f" Fine-tuned from {base}."
     return {"schema": 1, "archetype": project["task"], "confidence": 1.0, "framework": "pytorch", "python": "python",

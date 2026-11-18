@@ -54,6 +54,8 @@ namespace Forge.Pet
         byte[][] _preRoll;                         // monitoring: last few chunks, oldest at _preNext once full
         int _preNext, _preCount;
         bool _subscribed;
+        float _retryAt = -1f;                      // Microphone.Start failed: try once more at this time (unscaled)
+        bool _retryListen, _retrying;
 
         void Start() => ResolveClient();
 
@@ -69,7 +71,7 @@ namespace Forge.Pet
             if (IsListening) return;
             ResolveClient();
             if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now"); return; }  // the caption shows this
-            if (!IsMonitoring && !StartMic()) return;
+            if (!IsMonitoring && !StartMic(true)) return;
 
             var start = new JObject { ["pet_id"] = petId, ["sample_rate"] = TargetRate, ["encoding"] = "pcm16" };
             if (RequireName) start["require_name"] = true;
@@ -90,13 +92,14 @@ namespace Forge.Pet
         {
             if (IsListening || IsMonitoring || !MicPermission.HasPermission) return;
             ResolveClient();
-            if (client == null || !client.IsConnected || !StartMic()) return;
+            if (client == null || !client.IsConnected || !StartMic(false)) return;
             _preNext = _preCount = 0;
             IsMonitoring = true;
         }
 
         public void StopMonitoring()
         {
+            _retryAt = -1f;                            // a pending mic retry is dropped too
             if (!IsMonitoring) return;
             IsMonitoring = false;
             Microphone.End(null);
@@ -104,7 +107,7 @@ namespace Forge.Pet
             Level = 0f;
         }
 
-        bool StartMic()
+        bool StartMic(bool listen)
         {
             if (Microphone.devices == null || Microphone.devices.Length == 0) { Error?.Invoke("no microphone"); return false; }
             MicNeeded?.Invoke();                       // an always-on WakeListener lets go of the mic first
@@ -113,7 +116,21 @@ namespace Forge.Pet
             Microphone.GetDeviceCaps(null, out int minF, out int maxF);
             int rate = (minF == 0 && maxF == 0) ? TargetRate : Mathf.Clamp(TargetRate, minF, maxF);
             _clip = Microphone.Start(null, true, Mathf.Max(1, ringSeconds), rate);
-            if (_clip == null) { Error?.Invoke("microphone failed to start"); return false; }
+            if (_clip == null)
+            {
+                // Live 2026-11-17 (error 80): Microphone.Start in the frame the WakeListener let go fails. One retry
+                // 0.3 s later (as AlbieFollowUp does) before the caption says the mic failed.
+                if (!_retrying)
+                {
+                    _retryAt = Time.unscaledTime + 0.3f;
+                    _retryListen = listen;
+                    Debug.LogWarning("[HubSpeechToText] microphone failed to start; retrying in 0.3 s.");
+                    return false;
+                }
+                Error?.Invoke("microphone failed to start");
+                return false;
+            }
+            _retryAt = -1f;
 
             _clipSamples = _clip.samples;
             _chunkIn = Mathf.Max(1, Mathf.RoundToInt(_clip.frequency * sendInterval));
@@ -134,6 +151,7 @@ namespace Forge.Pet
 
         public void StopListening()
         {
+            _retryAt = -1f;                            // a pending retry is dropped too
             if (!IsListening) return;
             IsListening = false;
             PumpAudio();                 // flush whole chunks still in the ring buffer
@@ -146,6 +164,13 @@ namespace Forge.Pet
 
         void Update()
         {
+            if (_retryAt >= 0f && Time.unscaledTime >= _retryAt)
+            {
+                _retryAt = -1f;
+                _retrying = true;
+                try { if (_retryListen) StartListening(); else StartMonitoring(); }
+                finally { _retrying = false; }
+            }
             if (!IsListening && !IsMonitoring) return;
             _timer += Time.unscaledDeltaTime;
             if (_timer < sendInterval) return;
