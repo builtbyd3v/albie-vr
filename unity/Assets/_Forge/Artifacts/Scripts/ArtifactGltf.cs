@@ -24,12 +24,14 @@ namespace Forge.Artifacts
         public Task<bool> Loading { get; private set; }
 
         GltfImport import;
+        IReadOnlyDictionary<string, GameObject> sceneNodes;  // the artifact's nodes, for the explorer's label hiding
         readonly CancellationTokenSource cancel = new CancellationTokenSource();
 
         public static GameObject Build(JObject n, ArtifactBuild build)
         {
             var go = new GameObject(n.Value<string>("id"));
             var model = go.AddComponent<ArtifactGltf>();
+            model.sceneNodes = build.Nodes;
             string asset = n.Value<string>("asset");
             if (asset != null && build.Assets.TryGetValue(asset, out var bytes)) model.Loading = model.Load(bytes, build.Host);
             else model.Problem = $"\"{asset}\" wasn't read";
@@ -61,6 +63,7 @@ namespace Forge.Artifacts
                     Debug.LogWarning($"[Artifacts] {name}: a {texture.width}x{texture.height} texture is over {ArtifactSchema.MaxTextureSize} px");
             }
             Explorer = holder.AddComponent<ArtifactExplorer>();
+            Explorer.SceneNodes = sceneNodes;
             Explorer.Initialize();
             Loaded = true;
             if (host != null) host.ModelLoaded();

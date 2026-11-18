@@ -49,6 +49,14 @@ namespace Forge.Artifacts
         public bool Separated { get; private set; }
         public bool Sectioned { get; private set; }
         public bool XRay { get; private set; }
+        /// <summary>The one part shown solid while the rest are see-through (<see cref="Focus"/>), or null.</summary>
+        public Transform Focused { get; private set; }
+        /// <summary>
+        /// The artifact's scene nodes by id. Its "label_" and "leader_" nodes point at where parts sit when assembled, so
+        /// they hide while the parts are apart (set by <see cref="ArtifactGltf"/>; null in checks, which have none).
+        /// </summary>
+        public IReadOnlyDictionary<string, GameObject> SceneNodes;
+        readonly List<GameObject> hiddenScene = new List<GameObject>();
         /// <summary>0 assembled to 1 fully separated; moves over <see cref="MoveSeconds"/>.</summary>
         public float Apart => apart;
 
@@ -87,7 +95,10 @@ namespace Forge.Artifacts
             }
         }
 
-        public void Turn() => transform.RotateAround(transform.TransformPoint(centre), transform.up, 30f);
+        public void Turn() => Turn(30f);
+
+        /// <summary>Turns the model about its own centre by <paramref name="degrees"/> (positive: to the right, seen from above).</summary>
+        public void Turn(float degrees) => transform.RotateAround(transform.TransformPoint(centre), transform.up, degrees);
 
         /// <summary>Separates the parts, or puts them back. Only models made of more than one mesh can separate.</summary>
         public void Separate()
@@ -97,6 +108,98 @@ namespace Forge.Artifacts
             apartTarget = Separated ? 1f : 0f;
             if (Separated) MakeLabels();
             else StartHome();
+            HideSceneLabels(Separated);
+        }
+
+        void HideSceneLabels(bool hide)
+        {
+            if (hide && SceneNodes != null)
+            {
+                foreach (var pair in SceneNodes)
+                    if (pair.Value != null && pair.Value.activeSelf && (pair.Key.StartsWith("label_") || pair.Key.StartsWith("leader_")))
+                    {
+                        pair.Value.SetActive(false);
+                        hiddenScene.Add(pair.Value);
+                    }
+            }
+            else if (!hide)
+            {
+                foreach (var go in hiddenScene) if (go != null) go.SetActive(true);
+                hiddenScene.Clear();
+            }
+        }
+
+        /// <summary>Every part's name, in model order.</summary>
+        public List<string> PartNames()
+        {
+            var names = new List<string>(parts.Count);
+            foreach (var part in parts) names.Add(DisplayName(part.transform.name));
+            return names;
+        }
+
+        /// <summary>
+        /// The part a spoken name means: "mitral valve" is the Mitral valve, "the lens" the Lens, "frontal lobe" the first
+        /// frontal lobe. Exact name first, then a name that contains every word asked for, then one that contains the most.
+        /// </summary>
+        public Transform FindPart(string spoken)
+        {
+            if (string.IsNullOrWhiteSpace(spoken)) return null;
+            string asked = Clean(spoken);
+            var words = asked.Split(' ');
+            Transform best = null;
+            int bestScore = 0;
+            foreach (var part in parts)
+            {
+                string name = Clean(DisplayName(part.transform.name));
+                if (name == asked) return part.transform;
+                int hits = 0;
+                foreach (var w in words) if (w.Length > 2 && (" " + name + " ").Contains(" " + w)) hits++;
+                int score = hits == CountLong(words) && hits > 0 ? 100 + hits : hits;
+                if (score > bestScore) { bestScore = score; best = part.transform; }
+            }
+            return best;
+        }
+
+        static int CountLong(string[] words)
+        {
+            int n = 0;
+            foreach (var w in words) if (w.Length > 2) n++;
+            return n;
+        }
+
+        static string Clean(string text)
+        {
+            var sb = new System.Text.StringBuilder(text.Length);
+            foreach (char c in text.ToLowerInvariant()) sb.Append(char.IsLetterOrDigit(c) ? c : ' ');
+            string t = " " + sb.ToString() + " ";
+            foreach (var filler in new[] { " the ", " a ", " an ", " its ", " of " }) t = t.Replace(filler, " ");
+            while (t.Contains("  ")) t = t.Replace("  ", " ");
+            return t.Trim();
+        }
+
+        /// <summary>Shows <paramref name="part"/> solid and every other part see-through, so it stands out. Null shows them all again.</summary>
+        public void Focus(Transform part)
+        {
+            if (part == null) { Unfocus(); return; }
+            Focused = part;
+            foreach (var p in parts)
+            {
+                if (p.renderer == null || p.materials == null) continue;
+                if (p.transform == part) { p.renderer.sharedMaterials = p.materials; continue; }
+                if (p.ghosts == null) p.ghosts = Ghosts(p.materials);
+                if (p.ghosts != null) p.renderer.sharedMaterials = p.ghosts;
+            }
+        }
+
+        public void Unfocus()
+        {
+            if (Focused == null) return;
+            Focused = null;
+            foreach (var p in parts)
+            {
+                if (p.renderer == null || p.materials == null) continue;
+                p.renderer.sharedMaterials = XRay && p.large && p.ghosts != null ? p.ghosts : p.materials;
+            }
         }
 
         // Parts moved by hand glide home from wherever they were put, instead of jumping to their spot in the layout.
@@ -195,6 +298,7 @@ namespace Forge.Artifacts
         /// <summary>Large outer parts go see-through so what's inside shows; small inner parts stay solid.</summary>
         public void ToggleXRay()
         {
+            Unfocus();
             XRay = !XRay;
             foreach (var part in parts)
             {
@@ -218,8 +322,10 @@ namespace Forge.Artifacts
         public void ResetView()
         {
             if (Sectioned) Section();
+            Unfocus();
             if (XRay) ToggleXRay();
             if (Separated) StartHome();
+            HideSceneLabels(false);
             Separated = false;
             apartTarget = 0f;
             Place(0f);

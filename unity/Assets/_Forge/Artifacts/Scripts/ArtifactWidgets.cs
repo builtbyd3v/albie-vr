@@ -68,25 +68,6 @@ namespace Forge.Artifacts
             if (build.Assets.Count > 0)
             {
                 y += Note(panel.Content, y, "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
-                // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
-                var hiddenLabels = new List<GameObject>();
-                Action<bool> sceneLabels = apart =>
-                {
-                    if (apart)
-                    {
-                        foreach (var pair in build.Nodes)
-                            if (pair.Value != null && pair.Value.activeSelf && (pair.Key.StartsWith("label_") || pair.Key.StartsWith("leader_")))
-                            {
-                                pair.Value.SetActive(false);
-                                hiddenLabels.Add(pair.Value);
-                            }
-                    }
-                    else
-                    {
-                        foreach (var go in hiddenLabels) if (go != null) go.SetActive(true);
-                        hiddenLabels.Clear();
-                    }
-                };
                 Action<Action<ArtifactExplorer>> inspect = action =>
                 {
                     foreach (var node in build.Nodes.Values)
@@ -95,8 +76,7 @@ namespace Forge.Artifacts
                             // The part names lay themselves out round this panel rather than under it.
                             model.Explorer.Avoid = panel.transform;
                             model.Explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f;
-                            action(model.Explorer);
-                            sceneLabels(model.Explorer.Separated);
+                            action(model.Explorer);  // the explorer hides the scene's labels while its parts are apart
                         }
                 };
                 float x = 0f;
