@@ -154,7 +154,8 @@ class MLService:
     def run_runner(self, job: str) -> None:
         env = foreign_env(PYTHONPATH=os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")])))
         proc = subprocess.run([self.python(), "-m", "forge.run", job, "--repo", str(self.repo)], cwd=self.repo,
-                              env=env, capture_output=True, text=True, timeout=RUNNER_TIMEOUT_S)
+                              env=env, capture_output=True, text=True, timeout=RUNNER_TIMEOUT_S,
+                              stdin=subprocess.DEVNULL)
         if proc.returncode != 0:
             raise RuntimeError(f"forge.run {job} failed:\n{proc.stderr[-2000:]}")
 
@@ -429,7 +430,9 @@ class MLService:
                    PYTHONPATH=os.pathsep.join(filter(None, [str(FORGE_SDK), os.environ.get("PYTHONPATH")])))
         self.forge_dir.mkdir(parents=True, exist_ok=True)
         log = open(self.forge_dir / f"train-{run_id}.log", "w")  # noqa: SIM115 - the child process owns it
-        self.train_proc = subprocess.Popen(argv, cwd=self.repo, env=env, stdout=log, stderr=subprocess.STDOUT)
+        # No stdin: a script that asks input() ("Enter the area:") stops with EOFError instead of waiting forever.
+        self.train_proc = subprocess.Popen(argv, cwd=self.repo, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                           stdin=subprocess.DEVNULL)
         self.train_run_id = run_id
         return run_id
 
@@ -491,7 +494,8 @@ class MLService:
         log = open(self.forge_dir / f"train-{run_id}.log", "w")  # noqa: SIM115 - the child process owns it
         worker = ROOT / "hub" / "ml" / "training_worker.py"
         argv = [self.python(), str(worker), "--dataset", "cifar10", "--model", "smallcnn", "--epochs", str(epochs)]
-        self.train_proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+        self.train_proc = subprocess.Popen(argv, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                           stdin=subprocess.DEVNULL)
         self.train_run_id = run_id
         return run_id
 

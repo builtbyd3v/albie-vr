@@ -141,7 +141,7 @@ def run_check(repo: Path, python: str) -> dict:
     check_file.unlink(missing_ok=True)
     try:
         proc = subprocess.run([python, "-m", "forge.check", str(repo)], cwd=repo, env=env, capture_output=True,
-                              text=True, timeout=CHECK_TIMEOUT_S)
+                              text=True, timeout=CHECK_TIMEOUT_S, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         return {"ok": False, "checks": [{"name": "time", "ok": False, "detail": f"check ran over {CHECK_TIMEOUT_S}s"}]}
     if check_file.exists():

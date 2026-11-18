@@ -4,8 +4,8 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 # ponytail: GL/glib/Xrender are what OCP wheels usually want on slim images; drop them if the build proves otherwise.
-# git: ml_github clones the ML repos Albie pulls up.
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxrender1 git \
+# git: ml_github clones the ML repos Albie pulls up. libgomp1: OpenMP, which XGBoost and LightGBM load.
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libxrender1 git libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY cloud-py/requirements.txt cloud-py/requirements.txt

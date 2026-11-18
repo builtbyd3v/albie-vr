@@ -18,6 +18,8 @@ anthropic==2.3.0  # repo setup with the Space's own ANTHROPIC_API_KEY (else the 
 # What most GitHub ML repos import (ml_github); anything else goes into the repo's own venv (hub/ml/repo_env.py)
 pandas==3.1.1
 scikit-learn==1.9.1
+xgboost-cpu==3.4.1  # `import xgboost`: the CPU-only wheel (6 MB, not the 58 MB CUDA one)
+lightgbm==4.7.0
 tqdm==4.70.1
 # "Albie, build me a ..." (hub/agent/build.py): the crew's Claude runner (it bundles the Claude CLI) and its config
 claude-agent-sdk==0.2.173
