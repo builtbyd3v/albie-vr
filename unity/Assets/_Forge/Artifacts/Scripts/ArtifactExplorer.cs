@@ -56,6 +56,8 @@ namespace Forge.Artifacts
         /// they hide while the parts are apart (set by <see cref="ArtifactGltf"/>; null in checks, which have none).
         /// </summary>
         public IReadOnlyDictionary<string, GameObject> SceneNodes;
+        /// <summary>Apart, cut, X-ray or focus changed, by a button, a hand or Albie's voice (the panel's pills follow it).</summary>
+        public event System.Action Changed;
         readonly List<GameObject> hiddenScene = new List<GameObject>();
         /// <summary>0 assembled to 1 fully separated; moves over <see cref="MoveSeconds"/>.</summary>
         public float Apart => apart;
@@ -80,6 +82,14 @@ namespace Forge.Artifacts
                 if (first) { bounds = b; first = false; }
                 else bounds.Encapsulate(b);
             }
+            // No readable mesh (a skinned or unreadable model): it still turns about its own middle.
+            if (first)
+                foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+                {
+                    var b = Local(renderer.bounds);
+                    if (first) { bounds = b; first = false; }
+                    else bounds.Encapsulate(b);
+                }
             centre = bounds.center;
             radius = Mathf.Max(bounds.extents.magnitude, 1e-4f);
             float volume = Mathf.Max(Volume(bounds), 1e-12f);
@@ -109,6 +119,7 @@ namespace Forge.Artifacts
             if (Separated) MakeLabels();
             else StartHome();
             HideSceneLabels(Separated);
+            Changed?.Invoke();
         }
 
         void HideSceneLabels(bool hide)
@@ -189,6 +200,7 @@ namespace Forge.Artifacts
                 if (p.ghosts == null) p.ghosts = Ghosts(p.materials);
                 if (p.ghosts != null) p.renderer.sharedMaterials = p.ghosts;
             }
+            Changed?.Invoke();
         }
 
         public void Unfocus()
@@ -200,6 +212,7 @@ namespace Forge.Artifacts
                 if (p.renderer == null || p.materials == null) continue;
                 p.renderer.sharedMaterials = XRay && p.large && p.ghosts != null ? p.ghosts : p.materials;
             }
+            Changed?.Invoke();
         }
 
         // Parts moved by hand glide home from wherever they were put, instead of jumping to their spot in the layout.
@@ -293,6 +306,7 @@ namespace Forge.Artifacts
                 if (Sectioned && part.section == null) part.section = Cut(part);
                 part.filter.sharedMesh = Sectioned ? part.section : part.original;
             }
+            Changed?.Invoke();
         }
 
         /// <summary>Large outer parts go see-through so what's inside shows; small inner parts stay solid.</summary>
@@ -306,6 +320,7 @@ namespace Forge.Artifacts
                 if (XRay && part.ghosts == null) part.ghosts = Ghosts(part.materials);
                 if (part.ghosts != null) part.renderer.sharedMaterials = XRay ? part.ghosts : part.materials;
             }
+            Changed?.Invoke();
         }
 
         /// <summary>How many parts X-ray turns see-through.</summary>
@@ -332,6 +347,7 @@ namespace Forge.Artifacts
             transform.localRotation = rotation;
             transform.localScale = scale;
             transform.localPosition = position;
+            Changed?.Invoke();
         }
 
         Mesh Cut(Part part)

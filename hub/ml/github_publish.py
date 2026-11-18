@@ -126,7 +126,8 @@ def plan(project: Path) -> dict[str, Any]:
     found, with_data = files(project)
     return {"repo": repo, "create_repo": not exists, "branch": f"albie/{project.name}",
             "folder": f"projects/{project.name}", "title": f"Add {meta['title']}", "files": len(found),
-            "with_data": with_data, "project": project.name}
+            "with_data": with_data, "project": project.name,
+            "paths": [path for path, _ in found if not path.startswith("data/")][:16]}  # the confirm card lists them
 
 
 def publish(project: Path, expected: dict[str, Any]) -> dict[str, Any]:

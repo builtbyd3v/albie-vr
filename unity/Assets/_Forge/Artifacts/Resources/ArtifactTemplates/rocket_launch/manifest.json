@@ -1,0 +1,158 @@
+{
+  "schema": "albie.artifact/1",
+  "id": "rocket_launch",
+  "title": "Rocket launch",
+  "version": 1,
+  "kind": "standalone",
+  "category": "sim",
+  "template": "rocket_launch",
+  "links": {
+    "project": null,
+    "project_version": null,
+    "repo": null,
+    "thing": null
+  },
+  "runtime": {
+    "type": "scene",
+    "min_runtime": 8
+  },
+  "scene": "scene.json",
+  "script": null,
+  "inputs": [
+    {
+      "name": "fin_count",
+      "type": "integer",
+      "min": 3,
+      "max": 6,
+      "default": 3,
+      "label": "Fin count"
+    },
+    {
+      "name": "fin_span",
+      "type": "number",
+      "min": 15,
+      "max": 100,
+      "default": 60,
+      "label": "Fin span (mm)"
+    },
+    {
+      "name": "fin_root",
+      "type": "number",
+      "min": 25,
+      "max": 120,
+      "default": 70,
+      "label": "Fin root chord (mm)"
+    },
+    {
+      "name": "fin_tip",
+      "type": "number",
+      "min": 5,
+      "max": 100,
+      "default": 35,
+      "label": "Fin tip chord (mm)"
+    },
+    {
+      "name": "fin_sweep",
+      "type": "number",
+      "min": 0,
+      "max": 100,
+      "default": 35,
+      "label": "Fin sweep (mm)"
+    },
+    {
+      "name": "body_length",
+      "type": "number",
+      "min": 150,
+      "max": 600,
+      "default": 300,
+      "label": "Body length (mm)"
+    },
+    {
+      "name": "body_diameter",
+      "type": "number",
+      "min": 28,
+      "max": 60,
+      "default": 40,
+      "label": "Body diameter (mm)"
+    },
+    {
+      "name": "nose_length",
+      "type": "number",
+      "min": 40,
+      "max": 200,
+      "default": 90,
+      "label": "Nose length (mm)"
+    },
+    {
+      "name": "nose_cone",
+      "type": "integer",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "label": "Nose: 0 ogive, 1 cone"
+    },
+    {
+      "name": "wind_mps",
+      "type": "number",
+      "min": 0,
+      "max": 10,
+      "default": 0,
+      "label": "Wind (m/s)"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "default",
+      "seed": 1,
+      "params": {}
+    }
+  ],
+  "data": [],
+  "assets": [],
+  "permissions": {
+    "network": [],
+    "connectors": [],
+    "storage": "artifact-local",
+    "write_project": "none",
+    "room": "none",
+    "things": "none"
+  },
+  "outputs": [
+    {
+      "name": "apogee_m",
+      "type": "number",
+      "unit": "m",
+      "label": "Apogee"
+    },
+    {
+      "name": "max_speed_mps",
+      "type": "number",
+      "unit": "m/s",
+      "label": "Top speed"
+    },
+    {
+      "name": "stability_cal",
+      "type": "number",
+      "unit": "cal",
+      "label": "Static stability margin"
+    },
+    {
+      "name": "time_to_apogee_s",
+      "type": "number",
+      "unit": "s",
+      "label": "Time to apogee"
+    },
+    {
+      "name": "flight_time_s",
+      "type": "number",
+      "unit": "s",
+      "label": "Flight time"
+    },
+    {
+      "name": "drift_m",
+      "type": "number",
+      "unit": "m",
+      "label": "Landing distance from the pad"
+    }
+  ]
+}

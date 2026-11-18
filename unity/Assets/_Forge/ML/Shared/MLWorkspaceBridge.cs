@@ -39,10 +39,85 @@ namespace Forge.ML
             Configure(null);
             if (FitToComputer()) Reopen();
             subscription = ForgeNet.On("ml.layout", ApplyLayout, true);
+            researchEvents = ForgeNet.On("ml.research", OnResearch);  // a search (Albie's or the panel's) opens the Research panel
+            publishEvents = ForgeNet.On("ml.publish_offer", OnPublishOffer);  // Albie described a pull request: the confirm card
+            MLPublishCard.Dismissed += ClosePublish;
             ForgeNet.StatusChanged += OnNetStatus;
             if (ForgeNet.Status == ForgeNetStatus.Live) OnNetStatus(ForgeNetStatus.Live);
         }
-        void OnDestroy() { subscription?.Dispose(); ForgeNet.StatusChanged -= OnNetStatus; }
+        void OnDestroy()
+        {
+            subscription?.Dispose(); researchEvents?.Dispose(); publishEvents?.Dispose();
+            MLPublishCard.Dismissed -= ClosePublish;
+            ForgeNet.StatusChanged -= OnNetStatus;
+            if (templates != null) Destroy(templates);
+        }
+
+        // ---- Research panel and the publish confirm card (built in code: no prefab to rebuild) ----
+        // Both are ForgePanels made from the workspace's own panel prefab with the module's component added, kept as
+        // templates under an inactive holder, and shown as workspace extras beside / above the ML desk's panels.
+        IDisposable researchEvents, publishEvents;
+        GameObject templates, researchTemplate, publishTemplate;
+
+        GameObject Template<T>(ref GameObject slot, string id, string title, Vector2 size) where T : Component
+        {
+            if (slot != null) return slot;
+            if (workspace.panelPrefab == null) { Debug.LogWarning("[ML] The workspace has no panel prefab for " + id); return null; }
+            if (templates == null)
+            {
+                templates = new GameObject("ML panel templates");
+                templates.SetActive(false);
+                templates.transform.SetParent(transform, false);
+            }
+            var panel = Instantiate(workspace.panelPrefab, templates.transform, false);
+            panel.name = title;
+            panel.panelId = id;
+            panel.Title = title;
+            panel.SizeMeters = size;
+            panel.gameObject.AddComponent<T>();
+            slot = panel.gameObject;
+            return slot;
+        }
+
+        WorkspaceExtras Extras => workspace.GetComponent<WorkspaceExtras>();
+
+        /// <summary>Open or close the Research panel (Albie's search, the panel's own close).</summary>
+        public static bool ShowResearch(bool on)
+        {
+            var bridge = FindAnyObjectByType<MLWorkspaceBridge>();
+            return bridge != null && bridge.SetExtra(MLResearchPanel.PanelId, on, ExtraAnchor.Beside,
+                bridge.Template<MLResearchPanel>(ref bridge.researchTemplate, MLResearchPanel.PanelId, "Research", MLResearchPanel.PanelSize));
+        }
+
+        bool SetExtra(string id, bool on, ExtraAnchor anchor, GameObject template)
+        {
+            var extras = Extras;
+            if (extras == null || template == null)
+            {
+                if (on) Debug.LogWarning("[ML] No WorkspaceExtras on the workspace: " + id + " can't open here");
+                return false;
+            }
+            extras.Set(id, on ? ExtraState.Open : ExtraState.Closed, template, anchor);
+            return true;
+        }
+
+        void OnResearch(JToken payload)
+        {
+            if (payload?.Value<string>("phase") != "start") return;
+            if (Extras != null && Extras.State(MLResearchPanel.PanelId) == ExtraState.Open) return;
+            ShowResearch(true);
+        }
+
+        void OnPublishOffer(JToken payload)
+        {
+            if (payload?.Value<string>("state") != "awaiting") return;
+            var template = Template<MLPublishCard>(ref publishTemplate, MLPublishCard.PanelId, "Pull request", MLPublishCard.PanelSize);
+            if (!SetExtra(MLPublishCard.PanelId, true, ExtraAnchor.Top, template)) return;
+            var card = Extras.Panel(MLPublishCard.PanelId);
+            if (card != null && payload is JObject offer) card.GetComponent<MLPublishCard>()?.Show(offer);
+        }
+
+        void ClosePublish() => SetExtra(MLPublishCard.PanelId, false, ExtraAnchor.Top, publishTemplate);
 
         // ml.layout is sent once, when setup finishes: a headset that connects later (app started after the hub
         // opened the repo, a reconnect) asks for the open project's layout instead.

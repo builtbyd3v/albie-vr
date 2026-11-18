@@ -16,10 +16,13 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// The first-run flow, so a person who has never seen Albie knows what to do with hands only.
 /// First launch: the arrival greeting card (<see cref="ArrivalGreeting"/>) gets Albie's hello and START; once START is
-/// pressed and the dock has come in, the welcome card opens: how to talk to Albie and three things to try. Each try
-/// button runs the same Albie tool the voice model calls (<see cref="AlbieTools"/>), and Albie says how it went
-/// (voice on: albie.say, voice off: pet.say, the caption; the AlbieTips path). Once a slalom truck is out, the card adds
-/// the hands driving hint (<see cref="HandsTransmitter"/>) and Albie says it once.
+/// pressed and the dock has come in, the welcome card opens. It is a short onboarding of four pages (<see cref="Pages"/>),
+/// with big Next, Back and Skip buttons (poke, ray and mouse): 1 how to talk to Albie and three things to try; 2 the four
+/// sample projects, what each shows, a button to open each; 3 how a project works (the loop, the truck as the example,
+/// a button to open it); 4 start your own (Build something, or say "Albie, build me a ..."). Each button runs the same
+/// Albie tool the voice model calls (<see cref="AlbieTools"/>), and Albie says how it went
+/// (voice on: albie.say, voice off: pet.say, the caption; the AlbieTips path). Once a slalom truck is out, page 1 adds
+/// the driving hint (<see cref="DriveHint"/>) and Albie says it once.
 /// The card is shown once (PlayerPrefs <see cref="ShownPref"/>). Closed, it shrinks into a "?" dot
 /// (<see cref="PanelOrb"/>, the desk extras' minimize pattern): tap it, or say "help" (tool help_show), and it comes back.
 /// No arrival in the scene (no desk found within <see cref="ArrivalWaitS"/>): Albie says hello and the card opens anyway.
@@ -44,21 +47,45 @@ public class FirstRunGuide : MonoBehaviour
     public const string CardLine = "Face me and talk, or tap one of these to try it.";
     public const string TalkLine = "Face Albie and just talk. Or hold your palm up and he hops on.";
     public const string TryLine = "Try one. Tap it, or say it:";
-    public const string DriveHint = "Pinch your right hand to drive, tilt it to steer. Pinch your left hand to reverse.";
+    public const string DriveHint = "Grab the transmitter with both hands. Left thumb is the throttle, right thumb steers. Let go and it stops.";
     public const string NeedSlalom = "Make a slalom first. Then drive it twice and I'll learn it.";
     public const string FirstHint = "Tap the question mark any time for ideas.";
     const string FirstTimeHint = "(This is the person's first time. Say it in one short, warm sentence.)";
     const string TapHint = "(The person tapped this on the welcome card and it ran. Say it in your own words.)";
     const string ResumeHint = "(The person just came back to the app. Say it briefly in your own words.)";
+    const string PageHint = "(The person turned a page of the welcome card. Say it in one short, warm sentence.)";
+
+    // ---- The onboarding pages (no brand names; each line fits the card) ----
+    /// <summary>The four pages' titles, shown under the card's title as "2 of 4 · Sample projects".</summary>
+    public static readonly string[] Pages = { "Talk to Albie", "Sample projects", "How a project works", "Start your own" };
+    /// <summary>What Albie says when a page comes up with Next or Back (page 1 has <see cref="CardLine"/>).</summary>
+    public static readonly string[] PageSays =
+    {
+        CardLine,
+        "These are sample projects. Tap one and I'll show you around.",
+        "Every project is a loop: design, test, drive, train, share.",
+        "When you're ready, tell me what to build.",
+    };
+    public const string SamplesLine = "These are sample projects. Each is part built, so you can see how a project works.";
+    public const string SamplesTapLine = "Tap one to look inside. Yours go right beside them.";
+    public const string LoopLine = "Every project is a loop. Here's the truck's:";
+    public static readonly string[] LoopSteps = { "1  Design it", "2  Test it in your room", "3  Drive it", "4  Train an autopilot", "5  Share what you made" };
+    public const string LoopNote = "I keep notes and versions as you go.";
+    public const string OwnLine = "Ready for your own? Tap Build something, or just say:";
+    public const string OwnSay = "\"Albie, build me a ...\"";
+    public const string OwnNote = "Or open a sample and tap Make a copy.";
 
     /// <summary>A try button: its label (also what to say), the tool it runs, the tool's arguments, and Albie's line when it worked.</summary>
     public sealed class Try
     {
         public readonly string label, tool, argsJson, done;
         public readonly bool needsTruck;
-        public Try(string label, string tool, string argsJson, string done, bool needsTruck = false)
+        /// <summary>What to say instead, when the tool isn't here (default: the label).</summary>
+        public readonly string phrase;
+        public Try(string label, string tool, string argsJson, string done, bool needsTruck = false, string phrase = null)
         {
             this.label = label; this.tool = tool; this.argsJson = argsJson; this.done = done; this.needsTruck = needsTruck;
+            this.phrase = phrase ?? label;
         }
     }
 
@@ -70,9 +97,35 @@ public class FirstRunGuide : MonoBehaviour
                 "Drive two laps and I'll learn from you. " + DriveHint, needsTruck: true),
     };
 
+    /// <summary>Page 2: one button per sample project ("RC truck · Design, drive, train"), each opens it (project_open).</summary>
+    public static readonly Try[] Samples = BuildSamples();
+
+    /// <summary>Page 3: open the truck's Project window, the example loop.</summary>
+    public static readonly Try LoopTry = new Try("Open the RC truck", "project_open", "{\"name\":\"proj_truck\"}",
+        "Here's the truck. Its steps are along the bottom.", phrase: "Open the truck project");
+
+    /// <summary>Page 4: the Build something card.</summary>
+    public static readonly Try OwnTry = new Try("Build something", "os_open", "{\"kind\":\"system\",\"id\":\"build\"}",
+        "Let's plan it together.", phrase: "Albie, build me a truck");
+
+    static Try[] BuildSamples()
+    {
+        var ids = new List<string>();
+        Forge.OS.OSProjects.SampleIds(ids);
+        var list = new Try[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
+        {
+            string title = Forge.OS.OSProjects.TitleFor(ids[i]);
+            list[i] = new Try(title + " · " + Forge.OS.OSProjects.SampleTileLine(ids[i]), "project_open", "{\"name\":\"" + ids[i] + "\"}",
+                "Here's the " + title + " sample. " + Forge.OS.OSProjects.SampleShows(ids[i]) + ".", phrase: "Open the " + title + " project");
+        }
+        return list;
+    }
+
     // ---- Layout (canvas units = mm) ----
-    const float CardW = 380f, CardH = 380f;
+    const float CardW = 380f, CardH = 400f;
     const float PillH = 34f, PillText = 16f, PillGap = 8f;
+    const float NavH = 36f, NavText = 16f;  // Next, Back, Skip: big enough to poke
     const float OrbSize = 0.1f;   // m, the frameless panel the dot lives on
     const float Reach = 0.5f;     // m from the eyes: inside a seated arm's reach, for poke
     const float AngleMargin = 3f; // degrees kept between the card and another panel
@@ -94,6 +147,9 @@ public class FirstRunGuide : MonoBehaviour
     PanelOrb orb;
     Transform head, deskFrame;
     TMP_Text driveLine;
+    RectTransform[] pages;
+    ForgePill nextPill, backPill, skipPill, donePill;
+    int page;
     bool truckOut, driveHintSaid;
     string lastHint = FirstHint;
     float nextTruckPoll;
@@ -103,6 +159,8 @@ public class FirstRunGuide : MonoBehaviour
     public bool CardShown => card != null && card.gameObject.activeSelf;
     public bool OrbShown => orb != null && orb.gameObject.activeSelf;
     public string LastHint => lastHint;
+    /// <summary>The page the card shows (0 to 3), see <see cref="Pages"/>.</summary>
+    public int Page => page;
     Transform Head => head != null ? head : head = PetUser.Head;
 
     // ---------------------------------------------------------------- install
@@ -210,6 +268,7 @@ public class FirstRunGuide : MonoBehaviour
         if (card == null) card = BuildCard();
         if (orb != null) orb.gameObject.SetActive(false);
         driveLine.gameObject.SetActive(truckOut);
+        ShowPage(0);
         card.gameObject.SetActive(true);
         Place(card.transform, card.SizeMeters, CardYaws, CardDrops);
         PlayerPrefs.SetInt(ShownPref, 1);
@@ -242,9 +301,10 @@ public class FirstRunGuide : MonoBehaviour
         Place(orb.transform, Vector2.one * OrbSize, OrbYaws, OrbDrops);
     }
 
-    void Tap(int index)
+    void Tap(int index) => Tap(Tries[index]);
+
+    void Tap(Try t)
     {
-        var t = Tries[index];
         if (t.needsTruck && !truckOut)
         {
             Say(NeedSlalom);
@@ -254,12 +314,42 @@ public class FirstRunGuide : MonoBehaviour
         Run(t);
     }
 
+    /// <summary>Next: the following page (Albie says it); on the last page it closes the card.</summary>
+    public void NextPage()
+    {
+        if (page >= Pages.Length - 1) { CloseCard(); return; }
+        ShowPage(page + 1);
+        Say(PageSays[page], PageHint);
+    }
+
+    /// <summary>Back: the page before (nothing before the first).</summary>
+    public void BackPage()
+    {
+        if (page <= 0) return;
+        ShowPage(page - 1);
+        Say(PageSays[page], PageHint);
+    }
+
+    /// <summary>Shows one page (0 to 3) and the buttons it has: Skip and Next until the last page, Back after the first, Got it on the last.</summary>
+    public void ShowPage(int index)
+    {
+        if (pages == null) return;
+        page = Mathf.Clamp(index, 0, pages.Length - 1);
+        for (int i = 0; i < pages.Length; i++) pages[i].gameObject.SetActive(i == page);
+        bool last = page == pages.Length - 1;
+        nextPill.gameObject.SetActive(!last);
+        donePill.gameObject.SetActive(last);
+        skipPill.gameObject.SetActive(!last);
+        backPill.gameObject.SetActive(page > 0);
+        card.Subtitle = (page + 1) + " of " + pages.Length + " · " + Pages[page];
+    }
+
     /// <summary>Run a try button's tool, as the voice model would; Albie says how it went. False: no such tool here, so Albie says the phrase to use.</summary>
     public static bool Run(Try t)
     {
         if (!AlbieTools.Has(t.tool))
         {
-            Say("Say \"" + t.label + "\" and I'll do it.");
+            Say("Say \"" + t.phrase + "\" and I'll do it.");
             return false;
         }
         AlbieTools.CallAsync(t.tool, JObject.Parse(t.argsJson), r => Report(t, r));
@@ -343,9 +433,12 @@ public class FirstRunGuide : MonoBehaviour
         var host = ArtifactHost.Current;
         if (host != null && host.OpenId != null) return "looking at the " + host.OpenTitle.ToLowerInvariant();
         var ws = Workspace.Current;
-        if (ws != null && !string.IsNullOrEmpty(ws.ActiveMode)) return "in the " + ws.ActiveMode + " view";
+        if (ws != null && !string.IsNullOrEmpty(ws.ActiveMode)) return "in the " + ViewName(ws.ActiveMode) + " view";
         return null;
     }
+
+    // "ml" and "cad" are ids; the caption shows the name.
+    static string ViewName(string mode) => mode == "ml" ? "ML" : mode == "cad" ? "CAD" : mode;
 
     // ---------------------------------------------------------------- voice tool
 
@@ -357,6 +450,15 @@ public class FirstRunGuide : MonoBehaviour
         var tries = new JArray();
         foreach (var t in Tries) tries.Add(t.label);
         var result = new JObject { ["status"] = "shown", ["how_to_talk"] = TalkLine, ["try"] = tries };
+        var pageList = new JArray();
+        foreach (string p in Pages) pageList.Add(p);
+        result["pages"] = pageList;
+        var samples = new JArray();
+        foreach (var t in Samples) samples.Add(t.label);
+        result["sample_projects"] = samples;
+        result["about_samples"] = SamplesLine + " The user can explore one, keep going, or copy it (project_copy).";
+        result["project_loop"] = "Design, test in the room, drive or fly, train, share. " + LoopNote;
+        result["start_own"] = "Build something, or say: Albie, build me a ...";
         if (Instance.truckOut) result["driving"] = DriveHint;
         return result;
     }
@@ -456,31 +558,67 @@ public class FirstRunGuide : MonoBehaviour
         var panel = NewPanel("FirstRunCard", "first-run");
         panel.SizeMeters = new Vector2(CardW, CardH) * ForgePanel.MetersPerUnit;
         panel.Title = "Welcome";
-        panel.Subtitle = "How to work with Albie";
+        panel.Subtitle = "1 of " + Pages.Length + " · " + Pages[0];
         panel.SetBadge("HELP", ForgeTheme.Code);
+        card = panel;
 
         RectTransform content = panel.Content;
+        pages = new RectTransform[Pages.Length];
+        for (int i = 0; i < pages.Length; i++) pages[i] = NewPage(content, i);
+
+        // 1 Talk to Albie: how to talk, and three things to try.
         float y = 8f;
-        Line(content, TalkLine, 16f, ForgeTheme.PanelText, ref y, 44f);
+        Line(pages[0], TalkLine, 16f, ForgeTheme.PanelText, ref y, 44f);
         y += 8f;
-        Line(content, TryLine, 13f, ForgeTheme.PanelSubtext, ref y, 18f);
+        Line(pages[0], TryLine, 13f, ForgeTheme.PanelSubtext, ref y, 18f);
         y += 6f;
         for (int i = 0; i < Tries.Length; i++)
         {
             int index = i;
-            var pill = ForgePill.Create(content, Tries[i].label, () => Tap(index), PillH, PillText);
-            var rt = pill.Rect;
-            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
-            rt.anchoredPosition = new Vector2(4f, -y);
-            y += PillH + PillGap;
+            Pill(pages[0], Tries[i].label, () => Tap(index), ref y);
         }
         y += 4f;
-        driveLine = Line(content, DriveHint, 14f, ForgeTheme.PanelSubtext, ref y, 36f);
+        driveLine = Line(pages[0], DriveHint, 14f, ForgeTheme.PanelSubtext, ref y, 36f);
         driveLine.gameObject.SetActive(truckOut);
 
-        var done = ForgePill.Create(content, "Got it", CloseCard, 32f, 15f);
-        done.Rect.anchorMin = done.Rect.anchorMax = done.Rect.pivot = new Vector2(1f, 0f);
-        done.Rect.anchoredPosition = new Vector2(-4f, 4f);
+        // 2 Sample projects: what they are, and one button per sample.
+        y = 8f;
+        Line(pages[1], SamplesLine, 16f, ForgeTheme.PanelText, ref y, 44f);
+        y += 8f;
+        Line(pages[1], SamplesTapLine, 13f, ForgeTheme.PanelSubtext, ref y, 18f);
+        y += 6f;
+        for (int i = 0; i < Samples.Length; i++)
+        {
+            Try t = Samples[i];
+            Pill(pages[1], t.label, () => Tap(t), ref y, 15f);  // "Image classifier · Find, train, publish" fits the card at 15
+        }
+
+        // 3 How a project works: the loop, with the truck as the example.
+        y = 8f;
+        Line(pages[2], LoopLine, 16f, ForgeTheme.PanelText, ref y, 40f);
+        y += 6f;
+        for (int i = 0; i < LoopSteps.Length; i++) Line(pages[2], LoopSteps[i], 15f, ForgeTheme.PanelText, ref y, 24f);
+        y += 6f;
+        Line(pages[2], LoopNote, 13f, ForgeTheme.PanelSubtext, ref y, 20f);
+        y += 6f;
+        Pill(pages[2], LoopTry.label, () => Tap(LoopTry), ref y);
+
+        // 4 Start your own: Build something, or say it.
+        y = 8f;
+        Line(pages[3], OwnLine, 16f, ForgeTheme.PanelText, ref y, 44f);
+        y += 4f;
+        Line(pages[3], OwnSay, 18f, ForgeTheme.PanelText, ref y, 28f);
+        y += 8f;
+        Pill(pages[3], OwnTry.label, () => Tap(OwnTry), ref y);
+        y += 6f;
+        Line(pages[3], OwnNote, 13f, ForgeTheme.PanelSubtext, ref y, 20f);
+
+        // The buttons along the bottom: Back on the left; Skip, then Next (or Got it on the last page) on the right.
+        nextPill = Nav(content, "Next", NextPage, 1f, -4f);
+        donePill = Nav(content, "Got it", CloseCard, 1f, -4f);
+        skipPill = Nav(content, "Skip", CloseCard, 1f, -4f - nextPill.Rect.sizeDelta.x - PillGap);
+        backPill = Nav(content, "Back", BackPage, 0f, 4f);
+        ShowPage(0);
 
         if (Application.isPlaying && Head != null)
         {
@@ -489,6 +627,34 @@ public class FirstRunGuide : MonoBehaviour
             handles.AddMinimize(CloseCard);
         }
         return panel;
+    }
+
+    // A page: a layer that fills the card's content (only one is active at a time).
+    static RectTransform NewPage(RectTransform content, int index)
+    {
+        var rt = (RectTransform)new GameObject("Page" + (index + 1), typeof(RectTransform)).transform;
+        rt.SetParent(content, false);
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = rt.offsetMax = Vector2.zero;
+        return rt;
+    }
+
+    static void Pill(RectTransform parent, string label, UnityEngine.Events.UnityAction onClick, ref float y, float textSize = PillText)
+    {
+        var rt = ForgePill.Create(parent, label, onClick, PillH, textSize).Rect;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0f, 1f);
+        rt.anchoredPosition = new Vector2(4f, -y);
+        y += PillH + PillGap;
+    }
+
+    // A bottom button, anchored to the bottom left (side 0) or bottom right (side 1) corner.
+    static ForgePill Nav(RectTransform parent, string label, UnityEngine.Events.UnityAction onClick, float side, float x)
+    {
+        var pill = ForgePill.Create(parent, label, onClick, NavH, NavText);
+        pill.Rect.anchorMin = pill.Rect.anchorMax = pill.Rect.pivot = new Vector2(side, 0f);
+        pill.Rect.anchoredPosition = new Vector2(x, 4f);
+        return pill;
     }
 
     // The "?" dot: a frameless panel with a PanelOrb, as the desk extras minimize into (DeskOrb).

@@ -33,10 +33,8 @@ def discover_checks(root: Path, docker: bool = False) -> list[list[str]]:
 
 
 async def run_check(build, argv: list[str], index: int) -> dict:
-    from .build import build_dir
-
     root = build.workspace / build.folder
-    logs = build_dir() / ".logs"
+    logs = build.workspace.parent / ".logs"  # beside the workspace: BUILD_DIR on the hub, the headset's folder in the cloud
     logs.mkdir(parents=True, exist_ok=True)
     path = logs / f"{build.id}-{index}.log"
     process = None

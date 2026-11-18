@@ -20,7 +20,7 @@
     .row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: baseline; }
     .pill { display: inline-block; border-radius: 999px; padding: .1rem .65rem; font-weight: 700; font-size: .85rem; text-transform: capitalize; background: #2a3a4f; }
     .s-ready, .s-shipped, .s-done { background: var(--ok); color: #0a211b; }
-    .s-planning, .s-building, .s-running, .s-shipping { background: var(--run); color: #2b2100; }
+    .s-planning, .s-awaiting_plan, .s-building, .s-verifying, .s-running, .s-shipping { background: var(--run); color: #2b2100; }
     .s-failed { background: var(--bad); color: #3a0d07; } .s-cancelled { background: #8194a8; color: #0e1824; }
     .meta { color: var(--muted); font-size: .9rem; } code { background: #0e1824; border-radius: 4px; padding: .05rem .35rem; }
     .steps { counter-reset: n; }
@@ -80,6 +80,8 @@
     let current = null, timer = null, busy = false;
 
     function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    const LABELS = { awaiting_plan: 'waiting for approval', verifying: 'checking' };
+    function label(state) { return LABELS[state] || String(state).replace(/_/g, ' '); }
     function seconds(from, to) { if (!from) return ''; const s = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000)); return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; }
     async function request(url, options) {
       const r = await fetch(url, options); const data = await r.json().catch(() => ({}));
@@ -90,7 +92,7 @@
     function stepCard(s, i) {
       const card = el('article', 'step ' + s.state);
       const avatar = el('div', 'avatar', s.agent[0]); avatar.style.background = COLORS[s.type] || '#d7e4f0'; avatar.setAttribute('aria-hidden', 'true');
-      const head = el('div', 'row'); head.append(el('h3', null, (i + 1) + '. ' + s.agent), el('span', 'pill s-' + s.state, s.state));
+      const head = el('div', 'row'); head.append(el('h3', null, (i + 1) + '. ' + s.agent), el('span', 'pill s-' + s.state, label(s.state)));
       if (s.started_at) head.append(el('span', 'meta', seconds(s.started_at, s.finished_at)));
       if (s.commit) { const c = el('code', null, s.commit); c.title = 'commit'; head.append(c); }
       card.append(avatar, head, el('div', 'task', s.task));
@@ -103,7 +105,7 @@
     function show(b) {
       current = b.id; $('board').hidden = false;
       $('title').textContent = b.title || 'Planning…';
-      $('state').textContent = b.state + (b.simulated ? ' · simulated' : ''); $('state').className = 'pill s-' + b.state;
+      $('state').textContent = label(b.state) + (b.simulated ? ' · simulated' : ''); $('state').className = 'pill s-' + b.state;
       $('clock').textContent = seconds(b.created_at, b.finished_at);
       $('goalline').textContent = 'Asked for: ' + b.goal;
       $('summary').textContent = b.summary && b.summary !== b.goal ? b.summary : '';
@@ -118,7 +120,7 @@
         const p = el('p', 'callout', 'Pull request #' + b.pr_number + ' is open: '); const a = el('a', null, b.pr_url); a.href = b.pr_url; a.target = '_blank'; a.rel = 'noopener'; p.append(a); end.append(p);
       }
       if (b.error) end.append(el('p', 'error', b.error));
-      (b.verification || []).forEach(c => end.append(el('p', c.state === 'passed' ? 'callout' : 'error', c.state + ': ' + c.command.join(' ') + '\n' + c.output)));
+      (b.verification || []).forEach(c => end.append(el('p', (c.state === 'passed' ? 'callout' : 'error') + ' summary', label(c.state) + ': ' + c.command.join(' ') + '\n' + c.output)));
       $('approve').hidden = b.state !== 'awaiting_plan';
       $('cancel').hidden = DONE.includes(b.state);
     }
@@ -129,7 +131,7 @@
         const all = await request('/agent/builds');
         const list = $('history'); list.replaceChildren();
         if (!all.length) list.append(el('p', null, 'None yet. Build history is saved on the hub.'));
-        all.forEach(b => { const btn = el('button', null, `${b.title || b.goal} · ${b.state} · ${new Date(b.created_at).toLocaleTimeString()}`); btn.type = 'button'; btn.onclick = () => { current = b.id; refresh(); }; list.append(btn); });
+        all.forEach(b => { const btn = el('button', null, `${b.title || b.goal} · ${label(b.state)} · ${new Date(b.created_at).toLocaleTimeString()}`); btn.type = 'button'; btn.onclick = () => { current = b.id; refresh(); }; list.append(btn); });
         const b = all.find(x => x.id === current) || all[0];
         if (b) show(b);
         const active = all.some(x => !DONE.includes(x.state));

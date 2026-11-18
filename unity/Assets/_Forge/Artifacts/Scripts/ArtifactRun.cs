@@ -12,10 +12,16 @@ namespace Forge.Artifacts
     /// Scores a scene's <c>run</c> block (C-12 section 5). States: idle → armed (Thing bound, metrics zeroed) →
     /// running (entered start) → finished. Ticked from FixedUpdate with no allocations; the host writes the record
     /// off that step via <see cref="PendingRecord"/>.
+    ///
+    /// Host 7: a finish with <c>hold_s</c> ends the run only once the Thing has stayed inside the finish zone that long
+    /// without a break (a hover box), and with <c>max_speed_ms</c> only while it is also that slow (parked in a bay,
+    /// landed on a pad). A finish with neither ends on entering the zone, as before. Metric ops <c>zone_drift</c> (the
+    /// furthest the Thing got from a zone's centre while inside it), <c>zone_offset</c> (how far from the centre it is
+    /// now), <c>hold</c> (seconds held so far) and <c>streak</c> (completed runs in a row since the scene was built).
     /// </summary>
     public sealed class ArtifactRun
     {
-        const int OpElapsed = 0, OpZoneCount = 1, OpHitCount = 2, OpMax = 3, OpMin = 4, OpMean = 5, OpLast = 6;
+        const int OpElapsed = 0, OpZoneCount = 1, OpHitCount = 2, OpMax = 3, OpMin = 4, OpMean = 5, OpLast = 6, OpDrift = 7, OpOffset = 8, OpHold = 9, OpStreak = 10;
         const int ProbeSpeed = 0, ProbeUpright = 1, ProbeHeight = 2;
 
         struct ZoneWatch
@@ -100,6 +106,15 @@ namespace Forge.Artifacts
         ArtifactMetrics board;
         IArtifactThing thing;
         float elapsed;
+        float holdS, maxSpeed = float.NaN, held;
+        int streak;
+
+        /// <summary>The scale the course is shown at (1 on the floor, smaller on a desk): a "stopped" speed limit shrinks with it.</summary>
+        public float SpeedScale = 1f;
+        /// <summary>Seconds the Thing has stayed inside the finish zone, for a finish with <c>hold_s</c>.</summary>
+        public float HeldS => held;
+        /// <summary>Completed runs in a row since this scene was built. A failed run sets it back to 0; an aborted one leaves it.</summary>
+        public int Streak => streak;
 
         public ArtifactRunState State { get; private set; } = ArtifactRunState.Idle;
         public string Outcome { get; private set; }
@@ -173,6 +188,10 @@ namespace Forge.Artifacts
             startId = scene["run"]?["start"]?.Value<string>("zone");
             finishId = scene["run"]?["finish"]?.Value<string>("zone");
             elseReason = scene["run"]?["finish"]?.Value<string>("else_reason") ?? "missed_gate";
+            holdS = Mathf.Max(0f, Limit(scene["run"]?["finish"]?["hold_s"], liveInputs, 0f));
+            maxSpeed = Limit(scene["run"]?["finish"]?["max_speed_ms"], liveInputs, float.NaN);
+            held = 0f;
+            streak = 0;
             zones = new ZoneWatch[64];
             hits = new HitWatch[64];
             metrics = new Metric[64];
@@ -197,10 +216,11 @@ namespace Forge.Artifacts
                         Watch = -1,
                         Probe = ProbeOf(rule.Value<string>("probe")),
                         Slot = board.Slot(rule.Value<string>("name")),
-                        Integer = op == "zone_count" || op == "hit_count",
+                        Integer = op == "zone_count" || op == "hit_count" || op == "streak",
                         Acc = double.NaN,
                     };
                     if (op == "zone_count") m.Watch = EnsureZone(rule.Value<string>("zones"), rule.Value<bool?>("ordered") == true);
+                    if (op == "zone_drift" || op == "zone_offset") m.Watch = EnsureZone(rule.Value<string>("zones"), false);
                     if (op == "hit_count" && rule["nodes"] is JArray targets)
                     {
                         m.Watches = new int[targets.Count];
@@ -246,6 +266,15 @@ namespace Forge.Artifacts
         }
 
         string[] pendingSlotNeeds;
+
+        // A number in the run block, or a $input (the hover's hold time follows its slider).
+        static float Limit(JToken token, ArtifactInputs liveInputs, float fallback)
+        {
+            if (token == null || token.Type == JTokenType.Null) return fallback;
+            if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float) return (float)token;
+            if (token.Type == JTokenType.String && liveInputs != null) return liveInputs.Number(token, fallback);
+            return fallback;
+        }
 
         void SlotCounts(Dictionary<string, List<Pose>> slots)
         {
@@ -370,6 +399,7 @@ namespace Forge.Artifacts
             RunId = ArtifactRuns.NextId(artifactId);
             Outcome = Reason = StartedAt = null;
             elapsed = 0f;
+            held = 0f;
             for (int i = 0; i < zoneN; i++)
             {
                 zones[i].Count = 0;
@@ -462,6 +492,27 @@ namespace Forge.Artifacts
             elapsed += dt;
             UpdateMetrics();
             CheckFail(dt);
+            if (holdS > 0f) TickHold(dt);
+        }
+
+        // A finish that has to be held: inside the finish zone, slow enough if it says so, for hold_s without a break.
+        void TickHold(float dt)
+        {
+            if (State != ArtifactRunState.Running) return;
+            bool inside = false;
+            for (int z = 0; z < zoneN; z++)
+            {
+                if (!zones[z].IsFinish) continue;
+                var list = zones[z].Inside;
+                if (list == null) continue;
+                for (int k = 0; k < list.Length; k++) inside |= list[k];
+            }
+            if (inside && (float.IsNaN(maxSpeed) || thing.SpeedMs <= maxSpeed * SpeedScale))
+            {
+                held += dt;
+                if (held >= holdS) CheckFinish();
+            }
+            else held = 0f;
         }
 
         void EnterZone(int z, int index)
@@ -488,7 +539,7 @@ namespace Forge.Artifacts
             }
             else zones[z].Count++;
             ZoneChanged?.Invoke(zones[z].Id, true);
-            if (zones[z].IsFinish) CheckFinish();
+            if (zones[z].IsFinish && holdS <= 0f) CheckFinish();
         }
 
         void CheckFinish()
@@ -547,6 +598,8 @@ namespace Forge.Artifacts
                 case OpElapsed: return elapsed;
                 case OpZoneCount: return metrics[i].Watch >= 0 ? zones[metrics[i].Watch].Count : 0;
                 case OpHitCount: return HitCount(i);
+                case OpHold: return held;
+                case OpStreak: return streak;
                 default: return metrics[i].Acc;
             }
         }
@@ -558,6 +611,15 @@ namespace Forge.Artifacts
                 case OpElapsed: return elapsed;
                 case OpZoneCount: return metrics[i].Watch >= 0 ? zones[metrics[i].Watch].Count : 0;
                 case OpHitCount: return HitCount(i);
+                case OpHold: return held;
+                case OpStreak: return streak;
+                case OpDrift:
+                case OpOffset:
+                    int w = metrics[i].Watch;
+                    if (State != ArtifactRunState.Running || w < 0 || zones[w].Copies == 0 || zones[w].Inside == null || !zones[w].Inside[0]) return metrics[i].Acc;
+                    double away = (thing.Position - ZoneCentre(w, 0)).magnitude;
+                    if (metrics[i].Op == OpOffset) return away;
+                    return double.IsNaN(metrics[i].Acc) ? away : Math.Max(metrics[i].Acc, away);
                 case OpLast:
                 case OpMax:
                 case OpMin:
@@ -601,6 +663,14 @@ namespace Forge.Artifacts
             State = ArtifactRunState.Finished;
             Outcome = outcome;
             Reason = reason;
+            if (outcome == "completed") streak++;
+            else if (outcome == "failed") streak = 0;
+            for (int i = 0; i < metricN; i++)
+                if (metrics[i].Op == OpStreak || metrics[i].Op == OpHold)
+                {
+                    metrics[i].Acc = metrics[i].Op == OpStreak ? streak : held;
+                    board.Set(metrics[i].Slot, metrics[i].Acc);
+                }
             PendingRecord = Record();
             PublishTarget();
             StateChanged?.Invoke();
@@ -673,6 +743,10 @@ namespace Forge.Artifacts
                 case "min": return OpMin;
                 case "mean": return OpMean;
                 case "last": return OpLast;
+                case "zone_drift": return OpDrift;
+                case "zone_offset": return OpOffset;
+                case "hold": return OpHold;
+                case "streak": return OpStreak;
                 default: return -1;
             }
         }

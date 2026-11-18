@@ -38,6 +38,8 @@ namespace Forge.OS
             /// <summary>The test, if this answer sets it; the last one on a path wins.</summary>
             public string test;
             public string[] parts, milestones;
+            /// <summary>The course this test is run on (an artifact_create template: "slalom", "dash", "hover"...); null for none.</summary>
+            public string course;
             /// <summary>Only on the first question's answers.</summary>
             public Kind? kind;
         }
@@ -65,10 +67,13 @@ namespace Forge.OS
             public List<string> answers = new List<string>();
             /// <summary>One sentence for the notebook: what was planned and what the user chose.</summary>
             public string reason;
-            /// <summary>The part of a new project id after "proj_" ("my_drone"); the truck uses proj_truck instead.</summary>
+            /// <summary>The part of the project id after "proj_": a starter's ("truck", "quadcopter", "rocket", "classifier"), or "my_project" for a new one.</summary>
             public string projectBase;
             /// <summary>The sentence that offers the first step once the project window is open.</summary>
             public string firstStep;
+            /// <summary>The artifact_create template of the course the test is run on ("slalom", "dash", "park", "hover",
+            /// "hoop_course", "landing"), or null when the test needs none. The project window's Course step makes it.</summary>
+            public string course;
             public bool IsTruck => kind == Kind.Truck;
         }
 
@@ -175,6 +180,7 @@ namespace Forge.OS
                     goal.Append(c.goal.Trim());
                 }
                 if (!string.IsNullOrWhiteSpace(c.test)) test = c.test.Trim();
+                if (!string.IsNullOrEmpty(c.course)) plan.course = c.course;
                 AddDistinct(plan.parts, c.parts);
                 AddDistinct(plan.milestones, c.milestones);
             }
@@ -195,20 +201,26 @@ namespace Forge.OS
                     plan.projectBase = "truck";
                     plan.firstStep = "Next step: tap Course to make the course for the truck.";
                     break;
+                // The drone, the rocket and the model fill their starter projects (proj_quadcopter, proj_rocket,
+                // proj_classifier: OSProjects.StarterFor), so projectBase names that starter.
                 case Kind.Drone:
-                    plan.kindTitle = "Drone";
-                    plan.projectBase = "my_drone";
-                    plan.firstStep = "Next step: tap CAD to start designing the frame.";
+                    plan.kindTitle = "Quadcopter";
+                    plan.projectBase = "quadcopter";
+                    plan.firstStep = plan.course != null
+                        ? "Next step: tap Design to open the quadcopter, or Course to set up the test."
+                        : "Next step: tap Design to open the quadcopter in CAD.";
                     break;
                 case Kind.Rocket:
                     plan.kindTitle = "Rocket";
-                    plan.projectBase = "my_rocket";
-                    plan.firstStep = "Next step: tap CAD to start designing the rocket.";
+                    plan.projectBase = "rocket";
+                    plan.firstStep = plan.course != null
+                        ? "Next step: tap Design to open the rocket in CAD, or Course to launch it in the room."
+                        : "Next step: tap Design to open the rocket in CAD.";
                     break;
                 case Kind.Classifier:
-                    plan.kindTitle = "Image model";
-                    plan.projectBase = "my_model";
-                    plan.firstStep = "Next step: tap Train to start collecting examples.";
+                    plan.kindTitle = "Image classifier";
+                    plan.projectBase = "classifier";
+                    plan.firstStep = "Next step: tap Data to look at the examples, then Train.";
                     break;
                 default:
                     plan.kindTitle = "Your own idea";
@@ -499,7 +511,7 @@ namespace Forge.OS
         // ---------------------------------------------------------------- the tree
 
         static Choice C(string id, string text, string words, string next = null, string goal = null, string test = null,
-            string parts = null, string milestones = null, Kind? kind = null)
+            string parts = null, string milestones = null, Kind? kind = null, string course = null)
         {
             return new Choice
             {
@@ -512,6 +524,7 @@ namespace Forge.OS
                 parts = Split(parts, '|'),
                 milestones = Split(milestones, '|'),
                 kind = kind,
+                course = course,
             };
         }
 
@@ -567,13 +580,13 @@ namespace Forge.OS
             Q(t, "truck_test", "How do we test it?", 0,
                 C("slalom", "Slalom around my couch", "slalom,couch,sofa,cones,weave",
                     test: "Drive the slalom around my couch on its own without hitting a cone.",
-                    milestones: "Train the controller on those runs|The autopilot passes the slalom around my couch"),
+                    milestones: "Train the controller on those runs|The autopilot passes the slalom around my couch", course: "slalom"),
                 C("dash", "Dash across the room", "dash,straight,across,race,sprint",
                     test: "Cross the room in a straight line on its own in under ten seconds.",
-                    milestones: "Train the controller on those runs|The autopilot makes the dash across the room"),
+                    milestones: "Train the controller on those runs|The autopilot makes the dash across the room", course: "dash"),
                 C("park", "Park on a marked spot", "park,parking,spot,mark,marked",
                     test: "Drive to a marked spot on the floor and stop inside it, three times out of three.",
-                    milestones: "Train the controller on those runs|The autopilot parks on the marked spot three times"));
+                    milestones: "Train the controller on those runs|The autopilot parks on the marked spot three times", course: "park"));
 
             // ---- drone
             Q(t, "drone_job", "What should the drone do first?", 0,
@@ -586,13 +599,13 @@ namespace Forge.OS
             Q(t, "drone_test", "How do we test it?", 0,
                 C("minute", "Hover for one minute", "minute,stay,drifting",
                     test: "Hover in one spot for one minute without drifting more than a hand's width.",
-                    milestones: "Simulate the flight and tune it|Hover for one minute"),
+                    milestones: "Simulate the flight and tune it|Hover for one minute", course: "hover"),
                 C("hoops", "Fly a hoop course", "hoop,hoops,course,ring,rings,through",
                     test: "Fly through every hoop of a hoop course without touching one.",
-                    milestones: "Simulate the flight and tune it|Fly the hoop course"),
+                    milestones: "Simulate the flight and tune it|Fly the hoop course", course: "hoop_course"),
                 C("landing", "Land on a marked spot", "land,landing,mark,marked,spot,pad",
                     test: "Take off and land on a marked spot, three times out of three.",
-                    milestones: "Simulate the flight and tune it|Land on the marked spot three times"));
+                    milestones: "Simulate the flight and tune it|Land on the marked spot three times", course: "landing"));
 
             // ---- rocket
             Q(t, "rocket_aim", "What matters most for the rocket?", 0,
@@ -604,14 +617,14 @@ namespace Forge.OS
                     goal: "that carries a small payload", parts: "Payload bay"));
             Q(t, "rocket_test", "How do we test it?", 0,
                 C("simulate", "Simulate the flight", "simulate,simulation,flight,fly,sim",
-                    test: "Simulate the flight in CAD and check it stays stable from launch to the top.",
-                    milestones: "Run the flight simulation|Tune the fins until it passes"),
+                    test: "Launch it in the room: it stays stable (a stability margin of at least 1.0) and lands on its parachute.",
+                    milestones: "Launch the CAD design in the room|Tune the fins until a launch passes", course: "rocket_launch"),
                 C("balance", "Check the balance", "balance,balanced,centre,center,mass,pressure",
-                    test: "In the CAD analysis the centre of mass sits ahead of the centre of pressure.",
-                    milestones: "Check the balance in the CAD analysis|Move parts until it passes"),
+                    test: "The centre of mass sits at least one body width ahead of the centre of pressure (a stability margin of 1.0 or more) on a launch.",
+                    milestones: "Check the balance in the CAD analysis|Move parts until a launch passes", course: "rocket_launch"),
                 C("fins", "Compare two fin designs", "compare,fins,fin,designs,design",
-                    test: "Simulate two fin designs and keep the one that flies higher and straighter.",
-                    milestones: "Design a second set of fins|Simulate both and keep the better one"));
+                    test: "Launch two fin designs and keep the one that flies higher while staying stable (margin 1.0 or more).",
+                    milestones: "Design a second set of fins|Launch both and keep the better one", course: "rocket_launch"));
 
             // ---- model that recognises things
             Q(t, "model_what", "What should it recognise?", 0,

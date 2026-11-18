@@ -18,7 +18,7 @@ namespace Forge.ML
         {
             ["brain_record"] = Record,
             ["brain_train"] = Train,
-            ["autopilot_on"] = _ => Autopilot(true),
+            ["autopilot_on"] = AutopilotOn,
             ["autopilot_off"] = _ => Autopilot(false),
             ["brain_status"] = _ => BrainLoops.Active != null ? BrainLoops.Active.ToolState() : View().ToolState(),
         });
@@ -60,6 +60,30 @@ namespace Forge.ML
             var view = View();
             if (!view.TrainPreview()) throw new ArgumentException("The brain is already training, or no lap samples are available.");
             var result = view.ToolState(); result["training_started"] = true; return result;
+        }
+
+        // autopilot_on's optional arguments (additive): version picks a trained version first; follow_line flies the
+        // drone's non-learned course-line follower, only when asked for by name, and says so.
+        static JObject AutopilotOn(JObject args)
+        {
+            var loop = BrainLoops.Active;
+            if (loop != null && args != null)
+            {
+                if (args["version"] != null && args["version"].Type == JTokenType.Integer && loop is ICourseBrain course)
+                {
+                    string error = course.SelectVersion((int)args["version"]);
+                    if (error != null) throw new ArgumentException(error);
+                }
+                if (args["follow_line"] != null && args["follow_line"].Type == JTokenType.Boolean && (bool)args["follow_line"])
+                {
+                    if (!(loop is Forge.Artifacts.DroneBrain drone)) throw new ArgumentException("follow_line is the drone's course-line follower; the running brain is the truck's.");
+                    var result = Real(loop, drone.StartFollowLine());
+                    result["learned"] = false;
+                    result["said"] = "Following the course line. This is not the trained model, just a straight line from target to target.";
+                    return result;
+                }
+            }
+            return Autopilot(true);
         }
 
         static JObject Autopilot(bool on)

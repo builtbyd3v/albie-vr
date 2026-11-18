@@ -233,7 +233,8 @@ namespace Forge.ML
             bool finished = status == "done" && !Done;
             TotalEpochs = totalEpochs > 0 ? totalEpochs : Data.metrics.Length; RunStatus = status; Done = status == "done"; Changed?.Invoke();
             var last = EpochIndex >= 0 && EpochIndex < Data.metrics.Length ? Data.metrics[EpochIndex] : null;
-            if (finished) AlbieTips.RunFinished(last != null && !float.IsNaN(last.val_acc) ? $"Validation accuracy is {last.val_acc:0%} after {TotalEpochs} epochs." : "");
+            // Not for the bundled sample run playing back (hub off, nothing trained): Albie would announce a run nobody started.
+            if (finished && !(replay && !HubData)) AlbieTips.RunFinished(last != null && !float.IsNaN(last.val_acc) ? $"Validation accuracy is {last.val_acc:0%} after {TotalEpochs} epochs." : "");
         }
         // Live hub: replay the run on /ws (ML_PLAN 7.4 /ml/replay); the curves restart from its ml.run_state.
         public void Restart()
@@ -373,7 +374,7 @@ namespace Forge.ML
         {
             if (!IsLive)
             {
-                Notice = "Repository import needs the hub: start it on the laptop and set ForgeNet's Hub Url.";
+                Notice = CloudNotice("Repository import") ?? "Repository import needs the hub or Albie's cloud, and neither is connected.";
                 Changed?.Invoke(); return;
             }
             if (string.IsNullOrWhiteSpace(url)) { Notice = "Paste a public repository link first."; Changed?.Invoke(); return; }
@@ -400,8 +401,8 @@ namespace Forge.ML
                 }
                 else
                 {
-                    ProjectRepository = result.repository; ProjectSource = "Runs the checked-in CIFAR-10 copy";
-                    Notice = $"{result.repository} has the preset CIFAR-10 layout: Train runs our checked-in copy of it.";
+                    ProjectRepository = result.repository; ProjectSource = "Runs the built-in CIFAR-10 copy";
+                    Notice = $"{result.repository} has the preset CIFAR-10 layout: Train runs the built-in copy of it.";
                     LoadFromHub(null);
                 }
                 Changed?.Invoke();
@@ -427,8 +428,8 @@ namespace Forge.ML
                 case "scanning": Notice = $"Setting up {name}: reading the code..."; break;
                 case "classifying": Notice = $"Setting up {name}: working out what kind of project it is..."; break;
                 case "confirm_type": Notice = $"Not sure what kind of project {name} is: pick its type."; break;
-                case "adapting": Notice = $"Setting up {name}: writing the glue code..."; break;
-                case "checking": Notice = $"Setting up {name}: fixing the glue code (try {p.Value<int?>("round") ?? 2})..."; break;
+                case "adapting": Notice = $"Setting up {name}: connecting its training script..."; break;
+                case "checking": Notice = $"Setting up {name}: checking the connection (try {p.Value<int?>("round") ?? 2})..."; break;
                 case "needs_approval": Notice = $"{name} needs a small patch so training streams live: look at it, then Accept or Skip."; break;
                 case "ready": Notice = $"{name} is ready to train."; LoadFromHub(null); break;
                 case "failed": Notice = $"Setting up {name} failed: {p.Value<string>("error")}"; break;
@@ -444,7 +445,7 @@ namespace Forge.ML
                 int files = 0;
                 try { var o = Newtonsoft.Json.Linq.JObject.Parse(text); files = (o["files"] as Newtonsoft.Json.Linq.JArray)?.Count ?? 0; }
                 catch (Exception) { }
-                Notice = $"The patch adds forge calls to {files} file(s).";
+                Notice = $"The patch adds live-progress reporting to {files} file(s).";
                 Changed?.Invoke();
             }, e => { Notice = "Couldn't open the patch: " + HubDetail(e); Changed?.Invoke(); });
         // The user's confirmation step (PROJECT_CONTEXT 12): only Accept writes the patch into the repo.
@@ -639,7 +640,7 @@ namespace Forge.ML
                 // Connected to a hub without the ML router (or an empty repo): play the demo run so the panels
                 // aren't blank, and say why on the Training panel.
                 Debug.LogWarning("[ML] Hub data unavailable, keeping the current data: " + (error ?? "empty dataset"));
-                Notice = (error != null ? "No ML data from the hub." : "The hub's dataset is empty.") + " Showing the demo run.";  // raw error: logged above
+                Notice = (error != null ? "No ML data from the hub." : "The hub's dataset is empty.") + " Showing the sample run.";  // raw error: logged above
                 if (!HubData) { replay = true; RestartMock(); }
                 else Changed?.Invoke();
             }

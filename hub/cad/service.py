@@ -263,14 +263,18 @@ class CadService:
             await self._derive(record, "stl", self.timeout_s * 2)
         return path
 
-    async def flight(self, version: int | None) -> dict[str, Any]:
-        """Launch-to-apogee sim for designs that have one (the rocket), cached per version."""
+    async def flight(self, version: int | None, wind_mps: float = 0.0) -> dict[str, Any]:
+        """Launch-to-landing sim for designs that have one (the rocket), cached per version (and per wind: a steady
+        wind in m/s along the launch heading, 0 to 15, rounded to 0.5)."""
         record = self.get(version)
         if "flight" not in record.features:
             raise LookupError(f"{record.title or record.part} has no flight simulation")
-        path = self.path(record.version, "flight.json")
+        wind = round(min(max(float(wind_mps or 0.0), 0.0), 15.0) * 2) / 2
+        name = "flight.json" if not wind else f"flight_wind{wind:g}.json"
+        path = self.path(record.version, name)
         if not path.exists():
-            await self._derive(record, "flight", self.timeout_s * 6)
+            extra = {"wind_mps": wind, "out_name": name} if wind else {}
+            await self._derive(record, "flight", self.timeout_s * 6, done=path, **extra)
         return json.loads(path.read_text(encoding="utf-8"))
 
     async def motion(self, version: int | None) -> dict[str, Any]:

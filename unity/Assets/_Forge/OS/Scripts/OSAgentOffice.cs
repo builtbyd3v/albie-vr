@@ -69,7 +69,7 @@ namespace Forge.OS
         public static OSWindow Open()
         {
             if (OSShell.Current == null) return null;
-            return OSShell.Current.Windows.Open(WindowId, "Albie agent office", new Vector2(1.05f, 0.94f), panel =>
+            return OSShell.Current.Windows.Open(WindowId, "Agent office", new Vector2(1.05f, 0.94f), panel =>
             {
                 panel.gameObject.AddComponent<OSAgentOffice>().Init(panel);
             }, "OFFICE");
@@ -82,7 +82,7 @@ namespace Forge.OS
             actions.GetComponent<LayoutElement>().flexibleHeight = 0;
             OSUi.Button(actions, "Project workflow", () => OSWorkflowWindow.Open(), OSButtonStyle.Primary);
             OSUi.Button(actions, "Manage crew", () => OSAgentsWindow.Open());
-            summary = OSUi.Text(column, "Connecting to the existing crew…", OSUi.BodyText);
+            summary = OSUi.Text(column, "Looking for the crew…", OSUi.BodyText);
             summary.richText = false;
             var viewport = new GameObject("Live office viewport", typeof(RectTransform), typeof(RawImage), typeof(LayoutElement));
             viewport.transform.SetParent(column, false);
@@ -181,7 +181,7 @@ namespace Forge.OS
                 string id = desks[i].id;
                 OSUi.Button(row, desks[i].name, () => selected = id);
             }
-            if (desks.Count == 0) OSUi.Text(roster, "Open Main and use Manage crew to hatch your existing agent types.", OSUi.SmallText, true);
+            if (desks.Count == 0) OSUi.Text(roster, "No agents here yet. Tap Manage crew to hatch one.", OSUi.SmallText, true);
         }
 
         void AddDesk(string id, string displayName, Color color, AlbieController source)
@@ -304,10 +304,10 @@ namespace Forge.OS
             if (pose) nextPose = Time.unscaledTime + .15f;
             bool live = OSWorkflowTransport.Available && string.IsNullOrEmpty(workflowError);
             summary.text = !live ? "Workflow connection unavailable · showing crew visuals; task status may be stale"
-                : build == null ? "Existing crew · no project workflow yet"
-                : ((bool?)build["demo"] == true ? "SCRIPTED DEMO · " : "") + (string)build["title"] + " · " + WorkflowState;
+                : build == null ? "No project workflow yet"
+                : ((bool?)build["demo"] == true ? "Scripted sample · " : "") + (string)build["title"] + " · " + WorkflowState.Replace('_', ' ');
             if (!string.IsNullOrEmpty(workflowError)) summary.text = "Workflow service: " + workflowError;
-            if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nTemporary avatars · original Albie body asset is missing";
+            if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nShowing stand-in avatars: the crew's models couldn't be drawn here";
             foreach (var d in desks)
             {
                 d.state = d.bridge != null && d.bridge.Busy ? "working" : "idle";

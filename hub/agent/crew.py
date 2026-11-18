@@ -77,8 +77,8 @@ TYPES: dict[str, AgentType] = {t.id: t for t in (
               "You get work ready to ship: inspect branches (including the crew's pet/* branches), write commit "
               "messages, changelogs and pull request descriptions, and tidy release notes. You never push.",
               "code", "auto"),
-    AgentType("designer", "Designer", "tweaks the rocket CAD design",
-              "You work on the CAD model: read and change the rocket design with your CAD tools, and explain the "
+    AgentType("designer", "Designer", "tweaks the open CAD design",
+              "You work on the CAD model: read and change the open design with your CAD tools, and explain the "
               "effect of each parameter change in plain words.", "cad", "qa"),
     AgentType("sentinel", "Sentinel", "audits the code for security problems",
               "You audit security: look for injection, unsafe file or shell use, leaked secrets, missing auth and "

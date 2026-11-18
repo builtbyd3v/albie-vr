@@ -170,11 +170,11 @@ namespace Forge.OS
                 return;
             }
             string state = (string)current["state"];
-            panel.Subtitle = state + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
+            panel.Subtitle = (state ?? "").Replace('_', ' ') + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
             Line(column, (string)current["title"] ?? (string)current["goal"]);
             Line(column, (bool?)current["demo"] == true
                 ? "Fixed scripted sample · no API keys · publishing disabled"
-                : (string)current["repo"] ?? "Local project; configure BUILD_REPO to publish it.", true);
+                : (string)current["repo"] ?? "No repository is set, so the project is kept but can't be published.", true);
             if (tab == "changes")
             {
                 string diff = (string)review?["diff"] ?? "No committed diff yet.";
@@ -186,7 +186,7 @@ namespace Forge.OS
                 for (int i = page * 12; i < Mathf.Min(lines.Length, page * 12 + 12); i++)
                     chunk.AppendLine(lines[i].Length > 100 ? lines[i].Substring(0, 100) + "…" : lines[i]);
                 Line(column, diff.Length > 0 ? chunk.ToString() : "No changes yet.");
-                Line(column, "Long lines are shortened here. The full diff is available on the hub's build page.", true);
+                Line(column, "Long lines are shortened here.", true);
                 var pager = OSUi.Row(column, OSUi.ButtonHeight);
                 OSUi.Button(pager, "Previous", () => { page--; Render(); });
                 Line(pager, (page + 1) + " / " + pages, true);
@@ -216,11 +216,11 @@ namespace Forge.OS
             }
             else
             {
-                foreach (var step in (JArray)current["steps"])
+                foreach (var step in current["steps"] as JArray ?? new JArray())
                 {
-                    Line(column, (string)step["agent"] + " · " + (string)step["state"]);
+                    Line(column, (string)step["agent"] + " · " + ((string)step["state"] ?? "").Replace('_', ' '));
                     string detail = (string)step[((string)step["state"] == "running") ? "progress" : "summary"];
-                    if (string.IsNullOrEmpty(detail)) detail = (string)step["task"];
+                    if (string.IsNullOrEmpty(detail)) detail = (string)step["task"] ?? "";
                     Line(column, detail.Length > 150 ? detail.Substring(0, 150) + "…" : detail, true);
                 }
             }
@@ -259,7 +259,7 @@ namespace Forge.OS
             Line(column, "What should Albie's crew build or fix?");
             Input(column, goal, "Describe the project or change", value => goal = value);
             Line(column, "Source control repository (optional owner/repo)", true);
-            Input(column, repo, "Leave blank to use the hub's configured destination", value => repo = value);
+            Input(column, repo, "Leave blank to use Albie's own repository", value => repo = value);
             var create = OSUi.Button(column, "Create implementation plan", () =>
             {
                 if (pending || string.IsNullOrWhiteSpace(goal)) return;

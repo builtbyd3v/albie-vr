@@ -103,7 +103,7 @@ namespace Forge.Pet
             if (egg != null) { _eggT = egg.transform; _eggRest = _eggT.localPosition; _eggScale = _eggT.localScale; }
             _mpb = new MaterialPropertyBlock();
             Tint(egg, EggWhite);
-            _title = Label(transform, "SpawnLabel", "Spawn Crew Agent", 0.2f, new Vector2(0.4f, 0.06f), Color.white);
+            _title = Label(transform, "SpawnLabel", "Hatch a crew agent", 0.2f, new Vector2(0.4f, 0.06f), Color.white);
             _title.transform.localPosition = Vector3.up * labelHeight;
             BuildPicker();
             if (picker != null) picker.gameObject.SetActive(false);

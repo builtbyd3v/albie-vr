@@ -111,6 +111,7 @@ public class CodePanel : MonoBehaviour
         UpdateScrollCues();
         if (code == null) return;
         GitHubView.SyncProject();
+        CodeProject.SyncProject();
         if ((GitHubView.Reachable && GitHubView.CurrentSource != null) != connected) dirty = true;  // the cloud came or went
         if (notice != null && Time.unscaledTime > noticeUntil)
         {
@@ -365,7 +366,7 @@ public class CodePanel : MonoBehaviour
         }
 
         bool entered = view != shownView;
-        if (view == View.Sample) RefreshSample(entered);
+        if (view == View.Sample) RefreshSample(entered | CodeProject.TakeSwitched());
         else if (entered || repoMoved) RefreshRepo();
         shownView = view;
         shownVersion = GitHubView.Version;

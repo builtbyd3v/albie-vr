@@ -208,15 +208,43 @@ namespace Forge.Notebook
 
         public static int CurrentVersion() => CurrentVersion(ProjectId);
 
+        /// <summary>What may cut a version: a Thing spec change, a commit, a new version of the project's CAD design, or a
+        /// finished training run. <c>cad</c> and <c>training</c> are additions to C-17 section 4.1 (proposed, see the
+        /// Notebook README); a slider drag or a tunable change still never cuts one.</summary>
+        public static readonly string[] CutBy = { "thing", "commit", "cad", "training" };
+
         /// <summary>
-        /// Cuts a project version: a Thing spec change (<c>thing</c>) or a commit (<c>commit</c>), nothing else (4.1).
+        /// Cuts a project version: a Thing spec change (<c>thing</c>), a commit (<c>commit</c>), a new CAD design version
+        /// (<c>cad</c>) or a finished training run (<c>training</c>), nothing else.
         /// The manifest pins what it's given and carries everything else over from the version before. Opens a new
         /// <c>attempt</c> with <paramref name="summary"/> as its change. Returns the new version number.
         /// </summary>
         public static int CutVersion(string cutBy, string summary, JObject pins = null, string rationale = null, string rationaleBy = null)
         {
+            int version = WriteVersion(cutBy, summary, pins);
+            Log("attempt", summary, rationale, rationaleBy, null, null);
+            return version;
+        }
+
+        /// <summary>
+        /// A training run finished: cuts a <c>training</c> version and moves the run's own <c>training</c> entry
+        /// (<paramref name="entryId"/>, already logged) onto it, so the version's attempt is that run and the next
+        /// artifact run is added to it. No extra attempt is opened. Returns the new version number.
+        /// </summary>
+        public static int CutTrainingVersion(string summary, JObject pins, string entryId)
+        {
+            var entry = Entry(entryId);
+            if (entry == null) throw new ArgumentException($"unknown_entry: no entry {entryId} in this project");
+            int version = WriteVersion("training", summary, pins);
+            entry["project_version"] = version;
+            Touch(entry);
+            return version;
+        }
+
+        static int WriteVersion(string cutBy, string summary, JObject pins)
+        {
             Require();
-            if (cutBy != "thing" && cutBy != "commit") throw new ArgumentException($"bad_value: cut_by \"{cutBy}\": use thing or commit");
+            if (Array.IndexOf(CutBy, cutBy) < 0) throw new ArgumentException($"bad_value: cut_by \"{cutBy}\": use thing, commit, cad or training");
             if (string.IsNullOrWhiteSpace(summary)) throw new ArgumentException("bad_value: a version needs a summary");
             var previous = versions.Count == 0 ? null : versions[versions.Count - 1];
             int version = previous == null ? 1 : (int)previous["version"] + 1;
@@ -240,7 +268,6 @@ namespace Forge.Notebook
             NotebookFiles.Write(Path.Combine(VersionsFolder, $"v{version:0000}.json"), manifest.ToString(Formatting.Indented));
             VersionCut?.Invoke(manifest);
             Emit("project.version", new JObject { ["project_id"] = ProjectId, ["version"] = version, ["cut_by"] = cutBy, ["summary"] = manifest["summary"] });
-            Log("attempt", summary, rationale, rationaleBy, null, null);
             return version;
         }
 
@@ -455,6 +482,23 @@ namespace Forge.Notebook
             }
             string id = Log("training", change, rationale, "albie", expected, new[] { "ml", "control" });
             var entry = Entry(id);
+            entry["observed"]["training"] = block;
+            entry["observed"]["note"] = TrainingNote(block);
+            Touch(entry);
+            return id;
+        }
+
+        /// <summary>
+        /// A training run that isn't a controller's (the ML desk's image classifier, a cloud run): a <c>training</c> entry
+        /// on the current version with <paramref name="training"/> copied into <c>observed.training</c> and the note made
+        /// from its numbers only. Returns the entry id, or null when no project is open.
+        /// </summary>
+        public static string LogTrainingRun(string change, string rationale, string expected, JObject training)
+        {
+            if (!IsOpen) return null;
+            string id = Log("training", change, rationale, "albie", expected, new[] { "ml" });
+            var entry = Entry(id);
+            var block = training == null ? new JObject() : (JObject)training.DeepClone();
             entry["observed"]["training"] = block;
             entry["observed"]["note"] = TrainingNote(block);
             Touch(entry);

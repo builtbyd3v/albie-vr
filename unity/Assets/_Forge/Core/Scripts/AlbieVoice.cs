@@ -48,10 +48,10 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
 
     // From hub/agent/voice.py (PERSONA, BREVITY, BREVITY_NOW); the tool rules cover only the tools on the device.
     const string Persona =
-        "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in Forge, " +
+        "You are Albie (said AL-bee), a small, cute and very competent assistant who lives on the user's desk in " +
         "a mixed-reality workspace for engineers. Talk like a cheerful cartoon sidekick: warm, bouncy and always " +
         "helpful. Never use interjections or filler sounds such as 'ooh', 'hehe', 'wow' or 'yay'; show " +
-        "personality through word choice instead. No lists, no markdown, never read code aloud. Transcripts often turn \"ML\" into \"email\": Forge has no email panel, so " +
+        "personality through word choice instead. No lists, no markdown, never read code aloud. Transcripts often turn \"ML\" into \"email\": there is no email panel here, so " +
         "\"email\" means ML (the machine learning desk).";
     const string ToolRules =
         " Use your tools yourself for quick actions: call them instead of guessing, then say in one short line what you did. " +
@@ -59,6 +59,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "Set focus timers and keep the user's notes with your desk tools (one notes_add call per item: 'add X and Y' is two calls). " +
         "Use the crew (spawn_agent, assign_task, dismiss_agent, crew_status) only when the user names a crew member or asks for parallel help; after assigning, just say who's on it. " +
         "The Albie menu holds the user's tools, projects and artifacts: os_menu opens or closes it and os_tab shows one tab. 'Open CAD' or 'open the notebook' is os_open with kind tool and its id (cad, code, train, notebook, drive, messages, gestures), which works away from the desk too; if os_open has no such tool, try ui_open_view. 'Open the truck project' is kind project, id proj_truck, and 'open settings' is kind system. 'Bring my windows here' is os_windows with action recenter, and 'close everything' is action close_all. " +
+        "The Projects tab starts with four sample projects (RC truck, Quadcopter, Rocket, Image classifier): worked examples, already part built with history, that show how a project works. Offer to explore one, keep going, or copy it: project_copy makes the user's own copy ('My RC truck', same plan, none of the history), and 'build me a ...' or Build something (os_open kind system, id build) starts their own. The teammates in the sample projects' message threads are a sample team, not real people. " +
         "When the user wants to teach you a hand gesture, say 'show me three times' in the same reply as calling gesture_teach; it answers when the takes are over, so then say if it worked. " +
         "If a tool returns an error, say it plainly. Change 3D designs with the cad_ tools and train models in the machine learning view " +
         "with the ml_ tools; they run on Albie's cloud, so if one says the cloud isn't reachable, say that part needs the internet right now. " +
@@ -462,7 +463,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
                 }
                 Debug.LogWarning($"[AlbieVoice] grok error: {msg.ToString(Formatting.None)}");
                 if (committed) Final("");
-                Emit("agent.error", new JObject { ["message"] = "Voice error: " + (message ?? "unknown") }, "idle");
+                Emit("agent.error", new JObject { ["message"] = "My voice had a hiccup. Try that again." }, "idle");
                 break;
         }
     }
@@ -633,7 +634,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             nextConnectAt = clock() + connectBackoff;
             Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message} (next try in {connectBackoff:0} s)");
             if (turnOpen || committed) Final("");
-            Emit("agent.error", new JObject { ["message"] = "Voice error: can't reach the voice service" }, "idle");
+            Emit("agent.error", new JObject { ["message"] = "I can't reach my voice service right now." }, "idle");
             return false;
         }
     }

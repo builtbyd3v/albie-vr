@@ -966,7 +966,7 @@ public class CadSession : MonoBehaviour
             return;
         }
         SetStatus("Mock mode: no stored design is closer; showing the current one.");
-        Notice?.Invoke($"This mock has {MockVersions.Count} stored versions: v{MockEnvelope(mockIndex).version} is still the nearest.");
+        Notice?.Invoke($"Offline: of the {MockVersions.Count} stored versions, v{MockEnvelope(mockIndex).version} is still the nearest.");
         ParamsChanged?.Invoke();  // snap the sliders back
     }
 

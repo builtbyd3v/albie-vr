@@ -74,6 +74,18 @@ namespace Forge.Controllers
             return null;
         }
 
+        /// <summary>
+        /// Attaches a code-built controller that a file describes (a learned net run on features its Thing's body doesn't
+        /// sense itself, as the drone's course autopilot): <see cref="File"/> is that file, so a run records its name and
+        /// version. Returns null, or the Bind reason (the old one keeps running).
+        /// </summary>
+        public string Attach(IThingController controller, ControllerFile describedBy, float speedLimit)
+        {
+            string error = Attach(controller, speedLimit);
+            if (error == null) File = describedBy;
+            return error;
+        }
+
         /// <summary>Changes a tunable on the attached file and re-binds so it takes effect. PID state is kept.</summary>
         public string SetTunable(string key, float value)
         {

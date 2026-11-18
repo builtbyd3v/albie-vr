@@ -70,7 +70,7 @@ namespace Forge.Pet
         {
             if (IsListening) return;
             ResolveClient();
-            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now"); return; }  // the caption shows this
+            if (client == null || !client.IsConnected) { StopMonitoring(); Error?.Invoke("I can't hear you right now."); return; }  // the caption shows this
             if (!IsMonitoring && !StartMic(true)) return;
 
             var start = new JObject { ["pet_id"] = petId, ["sample_rate"] = TargetRate, ["encoding"] = "pcm16" };
@@ -109,7 +109,7 @@ namespace Forge.Pet
 
         bool StartMic(bool listen)
         {
-            if (Microphone.devices == null || Microphone.devices.Length == 0) { Error?.Invoke("no microphone"); return false; }
+            if (Microphone.devices == null || Microphone.devices.Length == 0) { Error?.Invoke("I can't find a microphone."); return false; }
             MicNeeded?.Invoke();                       // an always-on WakeListener lets go of the mic first
 
             // Ask for 16 kHz; some devices only offer other rates, so we resample on the fly.
@@ -127,7 +127,7 @@ namespace Forge.Pet
                     Debug.LogWarning("[HubSpeechToText] microphone failed to start; retrying in 0.3 s.");
                     return false;
                 }
-                Error?.Invoke("microphone failed to start");
+                Error?.Invoke("My microphone didn't start.");
                 return false;
             }
             _retryAt = -1f;

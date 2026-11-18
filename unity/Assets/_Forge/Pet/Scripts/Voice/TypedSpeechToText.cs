@@ -44,7 +44,7 @@ namespace Forge.Pet
         public void StartListening()
         {
             EnsureUI();
-            if (_field == null) { Error?.Invoke("typed input UI unavailable"); return; }
+            if (_field == null) { Error?.Invoke("I can't open the typing box here."); return; }
             IsListening = true;
             _field.SetTextWithoutNotify(string.Empty);
             _canvas.gameObject.SetActive(true);

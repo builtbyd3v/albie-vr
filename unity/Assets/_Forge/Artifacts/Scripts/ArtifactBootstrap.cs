@@ -41,6 +41,8 @@ namespace Forge.Artifacts
             host.name = prefab.name;
             host.FollowsUser = true;
             host.Shown += h => EnsureBrain(h);
+            host.Shown += h => EnsureDrone(h);
+            host.Shown += h => DroneBrain.Ensure(h);  // the drone's learning loop (CourseBrainDrone.cs), after the drone
             host.ComeToUser();
             Debug.Log("[Artifacts] Artifact host added to " + host.gameObject.scene.name);
             return host;
@@ -62,6 +64,22 @@ namespace Forge.Artifacts
             if (!truckCourse) return null;
             var brain = Object.FindFirstObjectByType<SlalomBrain>();
             return brain != null ? brain : SlalomBrain.Spawn(host, keyHints: false);
+        }
+
+        /// <summary>
+        /// In the app, a course for the drone (<c>links.thing</c> is <c>"drone"</c>, as the hoop course) gets the drone
+        /// (<see cref="ArtifactDrone"/>) standing at its start, bound as the host's Thing, flown from the Drive window or
+        /// by the <c>drone_*</c> tools. Called each time the host builds a scene. Once spawned, the drone follows the host
+        /// itself (<see cref="ArtifactDrone.Spawn"/>): it hides when the host shows anything else and is back at the
+        /// start, landed, when a drone course is built. A drone course needs no run block to get its drone: an unscored
+        /// one can still be flown.
+        /// </summary>
+        public static ArtifactDrone EnsureDrone(ArtifactHost host)
+        {
+            if (host == null || !host.FollowsUser) return null;
+            if (!ArtifactDrone.IsDroneCourse(host)) return null;
+            var drone = Object.FindFirstObjectByType<ArtifactDrone>();
+            return drone != null ? drone : ArtifactDrone.Spawn(host);
         }
     }
 }

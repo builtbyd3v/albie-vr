@@ -197,7 +197,8 @@ namespace Forge.OS
 
         /// <summary>
         /// Opens what a tile would. kind: "tool", "project", "artifact" (the entry's open action) or "system" ("agents",
-        /// "settings", "build"). False with the reason in <paramref name="error"/> when it can't. Leaves the menu as it is.
+        /// "settings", "build"). A project can also be named by an alias or its title ("drone", "the rocket"):
+        /// <see cref="OSProjects.Resolve"/>. False with the reason in <paramref name="error"/> when it can't. Leaves the menu as it is.
         /// </summary>
         public bool OpenItem(string kind, string id, out string error)
         {
@@ -222,9 +223,17 @@ namespace Forge.OS
                     return false;
             }
             OSEntry entry = OSRegistry.Find(tab, id);
+            if (entry == null && tab == OSTab.Projects)
+            {
+                // "drone", "the quadcopter", "my rover": a project by its alias or title, not only its exact id.
+                string resolved = OSProjects.Resolve(id);
+                if (resolved != null) entry = OSRegistry.Find(tab, resolved);
+            }
             if (entry == null)
             {
-                error = "There is no " + kind + " called '" + id + "' in the menu.";
+                error = tab == OSTab.Projects
+                    ? "There is no project called '" + id + "'. The starters are RC truck, Quadcopter, Rocket and Image classifier."
+                    : "There is no " + kind + " called '" + id + "' in the menu.";
                 return false;
             }
             if (entry.open == null)
@@ -270,7 +279,7 @@ namespace Forge.OS
             }
             error = Array.IndexOf(SystemIds, id) >= 0
                 ? "The '" + id + "' page isn't available yet."
-                : "There is no system page called '" + id + "'. They are agents, settings and build.";
+                : "There is no system page called '" + id + "'. They are agents, settings, build, workflow and agent-office.";
             return false;
         }
     }

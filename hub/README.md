@@ -1,7 +1,6 @@
 # Forge hub
 
 FastAPI on the laptop: REST + one `/ws` event bus. Unity is a view; the hub owns the state.
-Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)) and **ML** (see [hub/ml](ml/README.md)).
 Modules: **CAD** (see `../docs/archive/CAD_PLAN.md`), the **agent** (pet; see [Agent module (pet)](#agent-module-pet)), **messaging** (Slack; see [Messaging (Slack)](#messaging-slack)), the **desk** extras (timers, notes; see [Desk](#desk-timers-notes)) and **ML** (`ml/`, mounted in `main.py`; see `ml/README.md`).
 
 ## Setup (Python 3.11)
@@ -110,12 +109,12 @@ Copy that folder to `unity/Assets/_Forge/Mocks/cad/` (see the CAD README there).
 
 ## Agent module (pet)
 
-Adrian's module: Albie pet answers questions about a repo and runs coding tasks through the
+The Albie pet answers questions about a repo and runs coding tasks through the
 **Claude Agent SDK** (`claude-agent-sdk`). Protocol: [`docs/archive/PET_AGENT_CONTRACT.md`](../docs/archive/PET_AGENT_CONTRACT.md).
 
 - REST: `GET /agent/projects`. There is no typed REST fallback: a typed question is `agent.ask` on the socket.
 - WebSocket: **`/ws`**, the hub's one socket (Unity's ForgeNet). `main.py` accepts it, attaches the `EventBus`
-  (CAD, Slack, screen events) and runs the agent session on it; the agent handler ignores message types it
+  (CAD, Slack, desk events) and runs the agent session on it; the agent handler ignores message types it
   doesn't own, and other modules register theirs in `agent.ws.client_handlers` (`messages.focus`).
 - `/health` adds `fake_agent`, `stt` and `agent_sockets`.
 - `agent/` imports no CAD code; `tests/agent/` builds a tiny agent-only app (conftest) so it tests without build123d/rocketpy.

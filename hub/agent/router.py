@@ -90,7 +90,7 @@ async def list_builds() -> list[dict]:
 async def build_status(build_id: str) -> dict:
     build = builds.get(build_id)
     if build is None:
-        raise HTTPException(status_code=404, detail="Build not found (builds are kept in memory).")
+        raise HTTPException(status_code=404, detail="Build not found.")
     return build.public()
 
 

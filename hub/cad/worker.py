@@ -111,8 +111,10 @@ def run_job(job: dict[str, Any]) -> dict[str, Any]:
             simulate = getattr(module, "simulate_flight", None)
             if simulate is None:
                 raise LookupError(f"{script.stem} has no flight simulation")
-            flight = simulate(result, masses)
-            (out_dir / "flight.json").write_text(json.dumps(flight, indent=2), encoding="utf-8")
+            wind = float(job.get("wind_mps") or 0.0)
+            flight = simulate(result, masses, wind_mps=wind) if wind else simulate(result, masses)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / job.get("out_name", "flight.json")).write_text(json.dumps(flight, indent=2), encoding="utf-8")
             return {"ok": True, "flight": flight}
         if job["op"] == "motion":
             from cad.export import walk

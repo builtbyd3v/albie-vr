@@ -11,7 +11,7 @@ namespace Forge.Artifacts
         public const string Manifest = "albie.artifact/1";
         public const string Scene = "albie.scene/1";
         public const string Run = "albie.run/1";
-        public const int HostRuntime = 6;  // 2: room_hoops. 3: arrays from data tables. 4: gltf, timeline, animate. 5: versions widget. 6: pendulum solver, line through
+        public const int HostRuntime = 8;  // 2: room_hoops. 3: arrays from data tables. 4: gltf, timeline, animate. 5: versions widget. 6: pendulum solver, line through. 7: room_course, surface desk, finish hold, zone_drift/zone_offset/hold/streak. 8: rocket solver
 
         public const int MaxNodes = 512, MaxZones = 64, MaxRules = 64, MaxSceneChars = 256 * 1024;
         public const int MaxBodies = 16, MaxTrailPoints = 2048;
@@ -39,7 +39,7 @@ namespace Forge.Artifacts
         public static readonly HashSet<string> Widgets = new HashSet<string> { "stat", "runs", "versions", "button", "slider", "note" };
         public static readonly HashSet<string> Rules = new HashSet<string> { "metric", "on_input", "on_zone", "animate" };
         public static readonly HashSet<string> MetricOps = new HashSet<string>
-            { "elapsed", "zone_count", "hit_count", "max", "min", "mean", "last", "sim" };
+            { "elapsed", "zone_count", "hit_count", "max", "min", "mean", "last", "sim", "zone_drift", "zone_offset", "hold", "streak" };
         public static readonly HashSet<string> Probes = new HashSet<string> { "speed_ms", "upright", "height_m" };
         public static readonly HashSet<string> Spaces = new HashSet<string> { "room", "volume", "panel" };
         public static readonly HashSet<string> Kinds = new HashSet<string> { "project", "code", "standalone" };
@@ -53,6 +53,7 @@ namespace Forge.Artifacts
         {
             { "n_body", new[] { "time", "energy_drift_pct", "closest_approach", "escaped" } },
             { "pendulum", new[] { "time", "energy_drift_pct", "flips", "angle_1", "angle_2" } },
+            { RocketLaunchSolver.Name, RocketLaunchSolver.Values },
         };
 
         /// <summary>Generator types and the slots each one fills, as <c>&lt;id&gt;.&lt;slot&gt;</c>.</summary>
@@ -60,7 +61,12 @@ namespace Forge.Artifacts
         {
             { "floor_slalom", new[] { "cones", "gates", "start", "finish" } },
             { "room_hoops", new[] { "hoops", "start", "finish" } },
+            // One generator for any straight-line course (RoomCourse): the slots an element doesn't use are empty lists.
+            { "room_course", new[] { "cones", "gates", "posts", "hoops", "path", "start", "finish" } },
         };
+
+        /// <summary>Where a generator lays its course out: the floor (the default) or the top of a table, at a smaller scale.</summary>
+        public static readonly string[] Surfaces = { "floor", "desk" };
 
         /// <summary>Slots that hold one pose, so a node can stand on them with <c>at</c>. The others are lists, for arrays.</summary>
         public static readonly HashSet<string> SingletonSlots = new HashSet<string> { "start", "finish" };
@@ -91,7 +97,9 @@ namespace Forge.Artifacts
             public static readonly string[] Input = { "name", "type", "min", "max", "default", "label", "options" };
             public static readonly string[] Scenario = { "id", "seed", "params" };
             public static readonly string[] Data = { "name", "source", "snapshot" };
-            public static readonly string[] Asset = { "path", "sha256", "license" };
+            /// <summary>path, sha256 and license are required. The rest is the credit of a model brought in with
+            /// model_import (<see cref="ModelImport"/>): its name, who made it, which catalogue and page it came from.</summary>
+            public static readonly string[] Asset = { "path", "sha256", "license", "name", "author", "source", "source_url", "license_url" };
             public static readonly string[] Output = { "name", "type", "unit", "label" };
 
             public static readonly string[] Scene = { "schema", "space", "generators", "nodes", "rules", "run", "view" };
@@ -99,8 +107,9 @@ namespace Forge.Artifacts
             public static readonly string[] Generator = { "id", "type", "params" };
             public static readonly Dictionary<string, string[]> GeneratorParams = new Dictionary<string, string[]>
             {
-                { "floor_slalom", new[] { "gates", "spacing_m", "min_spacing_m", "min_gates", "lane_width_m", "clearance_m", "around", "narrow_lane_width_m", "tight_spacing_m" } },
-                { "room_hoops", new[] { "hoops", "spacing_m", "min_spacing_m", "min_hoops", "diameter_m", "clearance_m", "height_m", "tight_spacing_m" } },
+                { "floor_slalom", new[] { "gates", "spacing_m", "min_spacing_m", "min_gates", "lane_width_m", "clearance_m", "around", "narrow_lane_width_m", "tight_spacing_m", "surface" } },
+                { "room_hoops", new[] { "hoops", "spacing_m", "min_spacing_m", "min_hoops", "diameter_m", "clearance_m", "height_m", "tight_spacing_m", "surface" } },
+                { "room_course", new[] { "thing", "surface", "around", "clearance_m", "elements" } },
             };
 
             /// <summary>Every node kind but panel and timeline takes these, then its own.</summary>
@@ -136,11 +145,13 @@ namespace Forge.Artifacts
             {
                 { "n_body", new[] { "node", "mass", "pos", "vel" } },
                 { "pendulum", new[] { "node", "mass", "length", "angle", "omega" } },
+                { RocketLaunchSolver.Name, RocketLaunchSolver.BodyKeys },
             };
             public static readonly Dictionary<string, string[]> SimParams = new Dictionary<string, string[]>
             {
                 { "n_body", new[] { "g", "step", "softening", "velocity_scale", "bound_radius" } },
                 { "pendulum", new[] { "g", "step", "damping", "angle_offset" } },
+                { RocketLaunchSolver.Name, RocketLaunchSolver.ParamKeys },
             };
 
             public static readonly Dictionary<string, string[]> Widget = new Dictionary<string, string[]>
@@ -166,13 +177,14 @@ namespace Forge.Artifacts
                 { "elapsed", new string[0] }, { "zone_count", new[] { "zones", "ordered" } }, { "hit_count", new[] { "nodes" } },
                 { "max", new[] { "probe" } }, { "min", new[] { "probe" } }, { "mean", new[] { "probe" } }, { "last", new[] { "probe" } },
                 { "sim", new[] { "sim", "value" } },
+                { "zone_drift", new[] { "zones" } }, { "zone_offset", new[] { "zones" } }, { "hold", new string[0] }, { "streak", new string[0] },
             };
             /// <summary>An action holds exactly one verb (set, run, timeline or sim) and what that verb needs.</summary>
             public static readonly string[] Action = { "set", "value", "run", "timeline", "sim", "action" };
 
             public static readonly string[] Run = { "start", "finish", "fail" };
             public static readonly string[] RunStart = { "zone" };
-            public static readonly string[] RunFinish = { "zone", "needs", "else_reason" };
+            public static readonly string[] RunFinish = { "zone", "needs", "else_reason", "hold_s", "max_speed_ms" };
             public static readonly string[] Need = { "metric", "min" };
             public static readonly string[] Fail = { "reason", "probe", "below", "for_s", "timeout_s" };
         }

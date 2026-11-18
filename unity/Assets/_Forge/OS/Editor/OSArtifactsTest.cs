@@ -389,8 +389,8 @@ namespace Forge.OS.Editor
             string ids = "";
             foreach (var e in list) ids += e.id + ";";
             Measure("fresh: " + ids);
-            int templates = ArtifactLibrary.Templates.Length;
-            Check(list.Count == templates + 1, "fresh install: " + templates + " New tiles for the templates plus Three-body (" + list.Count + ")");
+            int templates = ArtifactLibrary.Templates.Length + ArtifactCourses.Templates.Length;
+            Check(list.Count == templates + 2, "fresh install: " + templates + " New tiles for the templates and courses, plus Make your own and Three-body (" + list.Count + ")");
             bool allNew = true, allGood = true;
             string badTile = "";
             foreach (var e in list)
@@ -405,7 +405,7 @@ namespace Forge.OS.Editor
             }
             Check(allNew, "with nothing made yet, every tile is in the New section in the outline style");
             Check(allGood, "every tile has a title, a kit icon, a status line, an action and no brand name " + badTile);
-            foreach (string t in new[] { "new_slalom", "new_hoop_course", "new_repo_activity", "new_heart", "new_solar_system", "new_double_pendulum", "three_body" })
+            foreach (string t in new[] { "new_slalom", "new_hoop_course", "new_dash", "new_park", "new_hover", "new_landing", OSArtifacts.OwnId, "new_repo_activity", "new_heart", "new_solar_system", "new_double_pendulum", "three_body" })
                 Check(OSRegistry.Find(OSTab.Artifacts, t) != null, "the New section has " + t);
             Check(Status("new_slalom") == "on your floor" && Status("new_heart") == "opens as a window", "a New tile says where it will go (slalom '" + Status("new_slalom") + "', heart '" + Status("new_heart") + "')");
 
@@ -539,7 +539,13 @@ namespace Forge.OS.Editor
             Check(pressOk && OpenId() == null, "tapping the repo activity tile closes it");
 
             // ---- the slalom for the truck: a New slalom with the truck project open
-            Check(NotebookStore.ProjectId == NotebookStore.DefaultProject, "the truck project is open (" + NotebookStore.ProjectId + ")");
+            // No project was chosen, so repo activity was made standalone (never linked to the truck by default), and the
+            // slalom then goes to the starter its course belongs to: the RC truck.
+            JObject repoManifest = null;
+            try { repoManifest = NotebookFiles.Parse(File.ReadAllText(Path.Combine(ArtifactLibrary.Root, "repo_activity", "manifest.json"))) as JObject; }
+            catch (System.Exception) { }
+            Check(repoManifest != null && repoManifest["links"]?["project"]?.Type != JTokenType.String,
+                "repo activity, made with no project chosen, links to no project (" + (string)repoManifest?["links"]?["project"] + ")");
             Check(BrainLoops.Active == null, "no brain truck before the slalom");
             step = PressTile(shell, menu, "new_slalom", null);
             while (step.MoveNext()) yield return step.Current;

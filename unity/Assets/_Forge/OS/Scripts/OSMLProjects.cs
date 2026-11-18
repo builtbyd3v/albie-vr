@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Forge.Notebook;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -8,8 +9,11 @@ namespace Forge.OS
     /// <summary>
     /// The "Machine learning" section of the Projects tab. It lists every ML project the hub or Albie's cloud has for
     /// this headset (<c>GET /ml/projects</c>): the ones Albie built from a Hugging Face dataset (<c>ml_new</c>), the
-    /// repos he cloned from GitHub (<c>ml_github</c>) and the example, each with its status and last score. Tapping
-    /// one opens it on the ML desk (<c>ml_open</c>). Under them are one-tap starters that build a new project with
+    /// repos he cloned from GitHub (<c>ml_github</c>) and the example, each with its status and last score. Each one is a
+    /// project like the others: tapping it opens its Project window (<see cref="OSProjects.OpenMlProject"/>), whose Data
+    /// step opens it on the ML desk (<c>ml_open</c>). The section follows the Image classifier starter and the ML
+    /// projects saved on the headset (OSProjects lists those), so the tab has one ML list. An <c>ml_new</c> project made
+    /// while another project is open is linked to it (<see cref="ProjectMeta.LinkMl"/>). Under them are one-tap starters that build a new project with
     /// no typing (<c>ml_new</c>), and Import from GitHub, which opens the ML desk's repository field and presets.
     /// The list is fetched only when the hub or the cloud serves <c>/ml/</c>, never from mocks, and at most every
     /// <see cref="RefreshSeconds"/>; each tap's outcome shows on its tile for a while.
@@ -17,6 +21,8 @@ namespace Forge.OS
     public static class OSMLProjects
     {
         public const string Section = "Machine learning";
+        /// <summary>The tile line when neither the hub nor Albie's cloud serves ML. Short, because a tile's caption holds about twenty characters.</summary>
+        public const string NeedsCloudShort = "needs Albie's cloud";
         const float RefreshSeconds = 10f;
         const float NoticeSeconds = 12f;
 
@@ -29,12 +35,12 @@ namespace Forge.OS
         // What a voice request would send for these, so a tap and "Albie, fine-tune DistilBERT on movie reviews" match.
         static readonly Starter[] starters =
         {
-            new Starter { id = "ml_new_distilbert", title = "Fine-tune DistilBERT", line = "on movie reviews, from a public model hub",
+            new Starter { id = "ml_new_distilbert", title = "Tune DistilBERT", line = "on movie reviews",
                 args = new JObject { ["request"] = "fine-tune distilbert on movie reviews", ["model"] = "hf",
                     ["base_model"] = "distilbert-base-uncased", ["task"] = "text_classification" } },
-            new Starter { id = "ml_new_rnn", title = "RNN on movie reviews", line = "an LSTM trained from scratch on IMDb",
+            new Starter { id = "ml_new_rnn", title = "Movie review RNN", line = "LSTM from scratch",
                 args = new JObject { ["request"] = "train an RNN on movie reviews", ["model"] = "lstm", ["task"] = "text_classification" } },
-            new Starter { id = "ml_new_cnn", title = "CNN on handwritten digits", line = "MNIST, trained from scratch",
+            new Starter { id = "ml_new_cnn", title = "Digit CNN", line = "MNIST from scratch",
                 args = new JObject { ["request"] = "build a CNN on handwritten digits", ["model"] = "cnn", ["task"] = "image_classification" } },
         };
 
@@ -63,8 +69,45 @@ namespace Forge.OS
             notices.Clear();
             noticeAt.Clear();
             lastFetch = -1000f;
-            fetching = built = false;
+            fetching = built = parsedOnce = false;
         }
+
+        static bool parsedOnce;
+        static readonly List<string> scratchIds = new List<string>();
+
+        /// <summary>True when the last <c>GET /ml/projects</c> listed an ML project with this name.</summary>
+        public static bool HasCard(string name)
+        {
+            for (int i = 0; i < cards.Count; i++)
+                if (cards[i].name == name) return true;
+            return false;
+        }
+
+        // A project Albie built (ml_new) that wasn't in the last list belongs to the project the person has open, or to the
+        // one a tile linked it to by its title before its name was known.
+        static void LinkNew(List<Card> next)
+        {
+            bool first = !parsedOnce;
+            parsedOnce = true;
+            for (int i = 0; i < next.Count; i++)
+            {
+                Card c = next[i];
+                if (c.kind != "new") continue;
+                OSProjects.AllIds(scratchIds);
+                if (ProjectMeta.ParentOfMl(scratchIds, c.name, null) != null) continue;  // linked already, by its name
+                string parent = ProjectMeta.ParentOfMl(scratchIds, null, c.title);
+                if (parent == null && !first && !HasCard(c.name)) parent = OpenParent();
+                if (parent == null) continue;
+                ProjectMeta.LinkMl(parent, c.name, c.title);
+                string own = OSProjects.MlProjectId(c.name);
+                if (own != null && ProjectMeta.Get(own, "parent") == null && ProjectMeta.Read(own) != null)
+                    ProjectMeta.Update(own, meta => meta["parent"] = parent);
+            }
+        }
+
+        // The open project an ML project made now is linked to: one the person opened, and not itself an ML project.
+        static string OpenParent() =>
+            OSProjects.ChosenOpen && OSProjects.KindOf(NotebookStore.ProjectId) != OSProjectKind.Ml ? NotebookStore.ProjectId : null;
 
         /// <summary>Adds the section to the Projects tab, after the projects saved on the headset.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -127,6 +170,7 @@ namespace Forge.OS
                     runs = o.Value<int?>("runs") ?? 0,
                 });
             }
+            LinkNew(next);
             bool same = next.Count == cards.Count;
             for (int i = 0; same && i < next.Count; i++)
             {
@@ -157,8 +201,8 @@ namespace Forge.OS
                     tab = OSTab.Projects,
                     section = Section,
                     status = () => NoticeOr(id, c.line),
-                    isOpen = () => c.open,
-                    open = () => OpenProject(id, c.name),
+                    isOpen = () => c.open || OSProjects.IsOpen(OSProjects.MlProjectId(c.name)),
+                    open = () => OpenProject(id, c.name, c.title, c.kind),
                 });
             }
             foreach (var starter in starters)
@@ -172,7 +216,7 @@ namespace Forge.OS
                     tab = OSTab.Projects,
                     section = Section,
                     outline = true,
-                    status = () => NoticeOr(s.id, Live ? s.line : OSProjects.NeedsCloud),
+                    status = () => NoticeOr(s.id, Live ? s.line : NeedsCloudShort),
                     open = () => New(s),
                 });
             }
@@ -184,7 +228,7 @@ namespace Forge.OS
                 tab = OSTab.Projects,
                 section = Section,
                 outline = true,
-                status = () => NoticeOr(ImportId, Live ? "or say \"Albie, pull the pytorch cifar repo\"" : OSProjects.NeedsCloud),
+                status = () => NoticeOr(ImportId, Live ? "paste a repo link" : NeedsCloudShort),
                 open = Import,
             });
         }
@@ -204,40 +248,39 @@ namespace Forge.OS
             return c.runs > 0 ? from : "not trained yet · " + from;
         }
 
-        static void OpenProject(string id, string name)
+        // The ML project is a project: its window opens, and its first step (Data) asks the hub or cloud to open it on
+        // the ML desk (ml_open) and says how that went in the window.
+        static void OpenProject(string id, string name, string title, string kind)
         {
-            if (!Live) { Notice(id, OSProjects.NeedsCloud); return; }
-            Notice(id, "opening on the ML desk...");
-            AlbieTools.CallAsync("ml_open", new JObject { ["project"] = name }, result =>
-            {
-                string error = result != null ? (string)result["error"] : "no answer";
-                Notice(id, error != null ? OSProjects.Plain(error) : "open on the ML desk");
-                Refresh();
-            });
+            OSProjects.OpenMlProject(name, title, kind);
+            Notice(id, Live ? "opening in Train..." : NeedsCloudShort);
+            Refresh();
         }
 
         static void New(Starter s)
         {
-            if (!Live) { Notice(s.id, OSProjects.NeedsCloud); return; }
-            Notice(s.id, "asking Albie to build it...");
+            if (!Live) { Notice(s.id, NeedsCloudShort); return; }
+            Notice(s.id, "asking Albie...");
+            string parent = OpenParent();  // the project open when it was asked for, not when the answer comes
             AlbieTools.CallAsync("ml_new", (JObject)s.args.DeepClone(), result =>
             {
                 string error = result != null ? (string)result["error"] : "no answer";
                 string building = result != null ? (string)result["building"] : null;
+                if (error == null && parent != null && !string.IsNullOrEmpty(building)) ProjectMeta.LinkMl(parent, null, building);
                 Notice(s.id, error != null ? OSProjects.Plain(error)
-                    : building != null ? "building " + building + "; the ML desk opens by itself" : "building it now");
+                    : building != null ? "building " + building : "building it now");
                 Refresh();
             });
         }
 
         static void Import()
         {
-            if (!Live) { Notice(ImportId, OSProjects.NeedsCloud); return; }
+            if (!Live) { Notice(ImportId, NeedsCloudShort); return; }
             // The ML desk has the repository field and one-tap GitHub presets (TrainingDash); open it there.
             OSEntry tool = OSProjects.FindTool("train", "ml");
             string error = null;
             bool opened = tool != null && OSProjects.OpenTool(tool, out error);
-            Notice(ImportId, opened ? "paste a link or pick a preset on the ML desk" : error ?? "the ML desk couldn't open");
+            Notice(ImportId, opened ? "pick a repo in Train" : error ?? "Train couldn't open");
         }
 
         static void Notice(string id, string line)

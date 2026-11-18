@@ -182,7 +182,7 @@ public class DraftCard : MonoBehaviour
         if (Closing) return;
         busy = false;
         Debug.LogWarning($"[DraftCard] {error}");
-        status.text = "Hub didn't answer, try again";
+        status.text = "Failed, try again";
         SetButtons(true);
     }
 
@@ -191,7 +191,8 @@ public class DraftCard : MonoBehaviour
         if (Draft == null || Closing) return;
         if (!string.IsNullOrEmpty(s.draftId) && s.draftId != Draft.draftId) return;  // no draft_id = the open draft
         status.color = SentColor;
-        Close(recipient != null ? $"Sent to {recipient}" : "Sent", SentLingerSeconds);
+        string sent = recipient != null ? $"Sent to {recipient}" : "Sent";
+        Close(ChatStore.Demo ? "Sent (sample chat)" : sent, SentLingerSeconds);  // hub off: it stays on the device
     }
 
     void OnCancelled(NotifyDraftCancelled c)

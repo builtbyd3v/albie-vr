@@ -29,6 +29,7 @@ namespace Forge.ML
         RectTransform root;
         JArray cards;
         int cardIndex;
+        bool sampleCards;  // showing the bundled sample cards, not a run's: the title says so
         IDisposable vizEvents;
         Texture2D downloaded;
 
@@ -50,7 +51,7 @@ namespace Forge.ML
             var fixtures = Resources.Load<TextAsset>("MLVizCardMocks");
             if (fixtures != null)
             {
-                cards = JArray.Parse(fixtures.text);
+                cards = JArray.Parse(fixtures.text); sampleCards = true;
                 if (cards.Count > 0) LoadJson(cards[0].ToString(Formatting.None));
                 Render();
             }
@@ -65,13 +66,13 @@ namespace Forge.ML
             {
                 var hub = JArray.Parse(text);
                 if (hub.Count == 0) return;  // nothing computed yet: keep what is shown
-                cards = hub; Show(0);
+                cards = hub; sampleCards = false; Show(0);
             }, e => Debug.LogWarning("[ML] Chart cards unavailable: " + e));
         }
         void OnVizEvent(JToken card)
         {
             if (!(card is JObject obj) || root == null) return;
-            if (cards == null) cards = new JArray();
+            if (cards == null || sampleCards) { cards = new JArray(); sampleCards = false; }  // a real card replaces the samples
             string id = Text(obj["viz_id"], null);
             int index = -1;
             for (int i = 0; i < cards.Count; i++) if (id != null && Text(cards[i]["viz_id"], null) == id) { index = i; break; }
@@ -155,7 +156,7 @@ namespace Forge.ML
         {
             if (root == null) root = GetComponent<ForgePanel>().Content;
             MLUI.Clear(root);
-            MLUI.Text(root, title + " · " + kind, 8, 4, 510, 27, 16);
+            MLUI.Text(root, sampleCards ? title + "  ·  sample" : title, 8, 4, 510, 27, 16);
             MLUI.Button(root, "Prev", 626, 4, 58, 28, () => Cycle(-1));
             MLUI.Button(root, "Next", 688, 4, 58, 28, () => Cycle(1));
             if (!string.IsNullOrEmpty(subtitle)) MLUI.Text(root, subtitle, 16, 30, 700, 20, 11);

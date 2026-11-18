@@ -23,7 +23,7 @@ async def main() -> None:
     ap.add_argument("--mode", default="auto", choices=["qa", "code", "auto"])
     ap.add_argument("--url", default="ws://127.0.0.1:8000/ws")
     ap.add_argument("--pet", default="bit")
-    ap.add_argument("--project", default="gatorhack")
+    ap.add_argument("--project", default=None, help="a project id from config/projects.yaml (default: the hub's)")
     a = ap.parse_args()
 
     async with websockets.connect(a.url) as ws:

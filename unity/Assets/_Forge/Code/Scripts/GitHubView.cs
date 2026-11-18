@@ -178,7 +178,8 @@ public static class GitHubView
             appliedProject = ProjectRepos.CurrentProject;
             string linked = ProjectRepos.RepoFor(appliedProject);
             Source pick = (linked == null ? null : FindSource(linked)) ?? (sources.Count > 0 ? sources[0] : null);
-            if (pick != null) SelectSource(pick);
+            string missing = linked != null && pick != null && FindSource(linked) == null ? MissingRepo(linked, pick) : null;
+            if (pick != null) SelectSource(pick, missing == null ? (Action<string>)null : e => { if (e == null) { StatusText = missing; Fire(false); } });
             else CurrentSource = null;
         }, done);
     }
@@ -192,7 +193,11 @@ public static class GitHubView
         string linked = ProjectRepos.RepoFor(project);
         Source source = linked == null ? null : FindSource(linked);
         if (source != null && source != CurrentSource) SelectSource(source);
+        else if (linked != null && source == null && CurrentSource != null) { StatusText = MissingRepo(linked, CurrentSource); Fire(false); }
     }
+
+    // The open project's linked repo isn't on the connected account: say so instead of quietly showing another one.
+    static string MissingRepo(string linked, Source shown) => $"This project's repo {linked} isn't on the connected account. Showing {shown.name}.";
 
     /// <summary>A repo by "owner/name" or just its name; null if the account doesn't have it.</summary>
     public static Source FindSource(string repo)

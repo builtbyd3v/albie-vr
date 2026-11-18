@@ -35,15 +35,28 @@ public static class MessagesTools
     {
         var c = MessagesDemo.Find((string)args["channel"]);
         int n = Mathf.Clamp(args.Value<int?>("n") ?? 10, 1, 50);
-        return new JObject { ["channel"] = c["id"], ["channel_name"] = c["name"], ["kind"] = c["kind"], ["messages"] = MessagesDemo.Read(c, n) };
+        return WithProject(c, new JObject { ["channel"] = c["id"], ["channel_name"] = c["name"], ["kind"] = c["kind"], ["messages"] = MessagesDemo.Read(c, n) });
     });
+
+    // A project channel says which project it is about, and how to open it (os_open), so Albie can offer that.
+    static JObject WithProject(JObject channel, JObject result)
+    {
+        string project = (string)channel["project"] ?? MessagesShare.ProjectForChannel((string)channel["name"]);
+        if (string.IsNullOrEmpty(project)) return result;
+        result["project"] = new JObject
+        {
+            ["id"] = project, ["title"] = Forge.OS.OSProjects.TitleFor(project),
+            ["open_with"] = new JObject { ["tool"] = "os_open", ["kind"] = "project", ["id"] = project },
+        };
+        return result;
+    }
 
     static JObject Open(JObject args) => Guard(() =>
     {
         var c = MessagesDemo.Find((string)args["channel"]);
         string reason = ChatRemote.Show((string)c["id"], (string)c["name"], (string)c["kind"]);
         if (reason != null) throw new ArgumentException(reason == "not_at_desk" ? "the user has to sit down at the desk first" : "there's no workspace to show it in");
-        return new JObject { ["opened"] = c["name"], ["kind"] = c["kind"] };
+        return WithProject(c, new JObject { ["opened"] = c["name"], ["kind"] = c["kind"] });
     });
 
     static JObject Send(JObject args) => Guard(() =>
@@ -98,7 +111,11 @@ public static class MessagesTools
         {
             string channelName = (string)open["channel_name"], text = (string)open["text"];
             string ts = MessagesDemo.SendDraft(id);
-            return new JObject { ["status"] = "sent", ["channel_name"] = channelName, ["text"] = text, ["ts"] = ts };
+            return new JObject
+            {
+                ["status"] = "sent", ["channel_name"] = channelName, ["text"] = text, ["ts"] = ts,
+                ["note"] = "This is the sample conversation on the headset: the message stayed on the device.",
+            };
         }
         string draftId = (string)open["draft_id"];
         MessagesDemo.CancelDraft(id);

@@ -171,3 +171,19 @@ def test_without_a_token_albie_says_what_is_missing(tmp_path, monkeypatch, fake_
 def test_a_project_albie_didnt_build_isnt_published(tmp_path, github):
     tools, _ = _tools(MLService(tmp_path), tmp_path)
     assert "isn't one Albie built" in asyncio.run(tools.call("ml_publish", {}))["error"]
+
+
+def test_the_ml_desk_card_sees_the_offer_and_cancel_forgets_it(tmp_path, fake_hf, github):
+    p = new_project.plan(model="mlp", request="an mlp on movie reviews")
+    repo = new_project.build(p, tmp_path / "new", epochs=1)
+    tools, events = _tools(MLService(repo), tmp_path)
+    asked = asyncio.run(tools.call("ml_publish", {}))
+    offer = [e for t, e in events if t == "ml.publish_offer"]
+    assert offer[-1]["state"] == "awaiting" and offer[-1]["repo"] == asked["repo"] == "albie-demo/albie-ml-projects"
+    assert "train.py" in offer[-1]["paths"] and offer[-1]["branch"] == asked["branch"]
+    out = asyncio.run(tools.cancel_publish())
+    assert out["status"] == "cancelled" and tools.publish_offer is None
+    assert [e for t, e in events if t == "ml.publish_offer"][-1]["state"] == "cancelled"
+    # a confirm after Cancel asks again instead of posting
+    assert asyncio.run(tools.call("ml_publish", {"confirm": True}))["status"] == "awaiting_confirmation"
+    assert github.writes() == []

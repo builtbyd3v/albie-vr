@@ -57,7 +57,7 @@ namespace Forge.OS
                 Debug.Log("[OS] The notebook needs the Albie menu, and this scene has none.");
                 return null;
             }
-            OSWindow window = shell.Windows.Open(WindowId, "Notebook", WindowSize, Build);
+            OSWindow window = shell.Windows.Open(WindowId, "Notebook", WindowSize, Build, "NOTEBOOK");
             if (window != null)
             {
                 OSNotebookWindow view = window.GetComponent<OSNotebookWindow>();
@@ -67,7 +67,7 @@ namespace Forge.OS
         }
 
         /// <summary>
-        /// The words for a project: "RC truck" for the demo project, else its id made readable ("proj_quadcopter" becomes
+        /// The words for a project: "RC truck" for the default project, else its id made readable ("proj_quadcopter" becomes
         /// "Quadcopter"). The Projects list can use the same names.
         /// </summary>
         public static string ProjectName(string id)
@@ -157,10 +157,11 @@ namespace Forge.OS
             if (!NotebookStore.IsOpen)
             {
                 panel.Subtitle = "";
-                Line(column, "No project is open. Pick one on the Projects tab.", BodySize, true);
+                Line(column, "No project is open. Pick a sample project or one of yours on the Projects tab.", BodySize, true);
                 return;
             }
-            panel.Subtitle = ProjectName(NotebookStore.ProjectId);
+            panel.Subtitle = ProjectName(NotebookStore.ProjectId)
+                             + (OSProjects.IsSample(NotebookStore.ProjectId) ? " · " + OSProjects.SampleTag.ToLowerInvariant() : "");
 
             if (!string.IsNullOrEmpty(notice)) Line(column, notice, SmallSize, true);
             BuildPlan();
@@ -205,7 +206,9 @@ namespace Forge.OS
             IReadOnlyList<JObject> entries = NotebookStore.Entries;
             if (entries.Count == 0)
             {
-                Line(section, "No attempts yet. Drive the truck or run a test and it shows up here.", BodySize, true);
+                Line(section, OSProjects.KindOf(NotebookStore.ProjectId) == OSProjectKind.Truck
+                    ? "No attempts yet. Drive the truck or run a test and it shows up here."
+                    : "No attempts yet. Run a test and it shows up here.", BodySize, true);
                 return;
             }
 
@@ -241,7 +244,7 @@ namespace Forge.OS
             IReadOnlyList<JObject> versions = NotebookStore.Versions;
             if (versions.Count == 0)
             {
-                Line(section, "No versions yet. One is cut when the project's design or code changes.", BodySize, true);
+                Line(section, "No versions yet. " + OSProjectWindow.VersionRule(OSProjectWindow.LoopOf(NotebookStore.ProjectId)), BodySize, true);
                 return;
             }
             int shown = Mathf.Min(VersionCaps[level], versions.Count);

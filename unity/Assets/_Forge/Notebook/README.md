@@ -64,6 +64,13 @@ NotebookStore.RevisePlan("Chasing speed kept costing cones.", test: "Finish the 
 NotebookStore.EntryCreated += entry => ...;
 ```
 
+## Projects as the spine (2026-11-17)
+
+- `Scripts/ProjectSpine.cs` cuts versions from events other modules already raise, for a project the person opened (or the app's own truck project): a new version of the open project's CAD design (`CadSession.ModelChanged`, settled 2 s, not on open) is `cut_by: cad` pinning `cad.<part>`; a finished controller run (`TrainingLog.Finished`) or ML desk run (`MLSession.Changed`, not the bundled replay) is `cut_by: training`, and the run's own `training` entry moves onto that version (`NotebookStore.CutTrainingVersion`).
+- **Contract proposal (C-17 4.1):** `cad` and `training` are new `cut_by` values; the contract today says only `thing` and `commit` cut a version. Needs Person 5 and the Core owner to accept.
+- `Scripts/ProjectMeta.cs`: `projects/<id>/project.json` (`albie.project_meta/1`) joins a project to a cloud ML project (`ml_project`, `ml_kind`, `parent`, `ml_links`).
+- `Scripts/ProjectTools.cs` + `Resources/AlbieTools/project.json`: `project_open {name}` (aliases and titles; a sample project's answer says `sample: true` and what it shows), `project_step {step}` and `project_copy {name}` (the user's own copy of a sample project: same plan and design link, none of the history).
+
 ML A doesn't call the notebook directly. `Forge.Controllers.TrainingLog.Report` is connected to `NotebookStore.LogTraining` at Play start, so every finished training run becomes a `training` entry. The controller's `training` block is copied into it unchanged.
 
 ## Outcome rules (C-17 section 2)
