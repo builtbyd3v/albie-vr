@@ -211,3 +211,103 @@ def test_train_without_forge_streams_curves_from_its_own_logs(tmp_path, monkeypa
     assert [m["epoch"] for m in metrics] == [1, 2, 3] and all(m["run_id"] == run_id for m in metrics)
     assert metrics[-1]["val_acc"] == pytest.approx(0.6)
     assert seen[-1]["payload"] == {"run_id": run_id, "status": "done", "epoch": 3, "total_epochs": 3}
+
+
+# --- printed output: GitHub scripts that only print() their progress ------------------------------------------
+def test_printed_progress_in_the_usual_formats_becomes_epochs(tmp_path):
+    log = tmp_path / "train.log"
+    log.write_text(textwrap.dedent("""\
+        Loading MNIST...
+        Train Epoch: 1 [0/60000 (0%)]\tLoss: 2.301
+        Train Epoch: 1 [59520/60000 (99%)]\tLoss: 0.210
+        Test set: Average loss: 0.0510, Accuracy: 9837/10000 (98%)
+        Train Epoch: 2 [0/60000 (0%)]\tLoss: 0.150
+        Test set: Average loss: 0.0400, Accuracy: 9871/10000 (99%)
+        """))
+    live = logtail.read_stdout(log)
+    assert [t["epoch"] for t in live] == [1]  # epoch 2 is still running
+    assert live[0]["train_loss"] == pytest.approx(0.21) and live[0]["val_loss"] == pytest.approx(0.051)
+    assert live[0]["val_acc"] == pytest.approx(0.9837)
+    final = logtail.read_stdout(log, final=True)
+    assert [t["epoch"] for t in final] == [1, 2] and final[1]["val_acc"] == pytest.approx(0.9871)
+
+    keras = tmp_path / "keras.log"
+    keras.write_text("Epoch 1/2\n1875/1875 - 3s - loss: 0.25 - accuracy: 0.92 - val_loss: 0.12 - val_accuracy: 0.96\n"
+                     "Epoch 2/2\n1875/1875 - 3s - loss: 0.10 - accuracy: 0.97 - val_loss: 0.09 - val_accuracy: 0.97\n")
+    ticks = logtail.read_stdout(keras, final=True)
+    assert [t["epoch"] for t in ticks] == [1, 2]
+    assert ticks[0]["train_acc"] == pytest.approx(0.92) and ticks[0]["val_acc"] == pytest.approx(0.96)
+
+    nielsen = tmp_path / "nielsen.log"
+    nielsen.write_text("Epoch 0: 9012 / 10000\nEpoch 1: 9234 / 10000\nEpoch 2, accuracy 95.5 %\n")
+    ticks = logtail.read_stdout(nielsen, final=True)
+    assert [t["epoch"] for t in ticks] == [1, 2, 3]  # 0-based epochs counted from 1
+    assert ticks[0]["val_acc"] == pytest.approx(0.9012) and ticks[2]["train_acc"] == pytest.approx(0.955)
+
+
+PRINTS_ONLY = """\
+import time
+for epoch in range(3):
+    time.sleep(0.1)
+    print(f"Epoch {epoch + 1}/3 - loss: {1.0 / (epoch + 1):.3f} - val_accuracy: {0.5 + 0.1 * epoch:.2f}", flush=True)
+"""
+
+CRASHES = """\
+print("Loading data/mnist.pkl.gz", flush=True)
+raise FileNotFoundError("data/mnist.pkl.gz")
+"""
+
+
+def _train_until_done(tmp_path, script: str) -> tuple[str, list[dict]]:
+    repo = tmp_path / "repo"
+    (repo / ".forge").mkdir(parents=True)
+    (repo / ".forge" / "profile.json").write_text(json.dumps(
+        {"archetype": "generic", "python": sys.executable, "train_cmd": "python train.py"}))
+    (repo / "train.py").write_text(script)
+    with TestClient(make_app(repo)) as client, client.websocket_connect("/ws") as ws:
+        run_id = client.post("/ml/train", json={"epochs": 3}).json()["run_id"]
+        seen = []
+        while True:
+            event = ws.receive_json()
+            seen.append(event)
+            if event["type"] == "ml.run_state" and event["payload"]["status"] == "done":
+                return run_id, seen
+
+
+def test_a_script_that_only_prints_streams_curves_and_ends_done(tmp_path, monkeypatch):
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    run_id, seen = _train_until_done(tmp_path, PRINTS_ONLY)
+    metrics = [e["payload"] for e in seen if e["type"] == "ml.metrics"]
+    assert [m["epoch"] for m in metrics] == [1, 2, 3] and metrics[-1]["val_acc"] == pytest.approx(0.7)
+    assert seen[-1]["payload"] == {"run_id": run_id, "status": "done", "epoch": 3, "total_epochs": 3}
+
+
+def test_a_crashing_script_ends_done_with_its_error_instead_of_training_forever(tmp_path, monkeypatch):
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    run_id, seen = _train_until_done(tmp_path, CRASHES)
+    done = seen[-1]["payload"]
+    assert done["run_id"] == run_id and done["epoch"] == 0
+    assert "exit code 1" in done["error"] and "mnist.pkl.gz" in done["error"]
+
+
+def test_a_cloned_repo_trained_from_the_panel_streams_and_ends_done(tmp_path, monkeypatch):
+    """POST /ml/github/train used to start the clone's script with no tail: no curves, TRAINING forever."""
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    repo = tmp_path / "clone"
+    (repo / ".forge").mkdir(parents=True)
+    (repo / ".forge" / "profile.json").write_text(json.dumps(
+        {"archetype": "generic", "python": sys.executable, "train_cmd": "python train.py"}))
+    (repo / "train.py").write_text(PRINTS_ONLY)
+    app = make_app(repo)
+    svc = app.state.ml
+    svc.github_imports["imp123456789"] = {"mode": "clone", "path": str(repo), "repository": "owner/digits"}
+    svc.project["status"] = "ready"
+    with TestClient(app) as client, client.websocket_connect("/ws") as ws:
+        started = client.post("/ml/github/train", json={"import_id": "imp123456789", "epochs": 3})
+        assert started.status_code == 200, started.text
+        run_id = started.json()["run_id"]
+        seen = []
+        while not (seen and seen[-1]["type"] == "ml.run_state" and seen[-1]["payload"]["status"] == "done"):
+            seen.append(ws.receive_json())
+    assert [e["payload"]["epoch"] for e in seen if e["type"] == "ml.metrics"] == [1, 2, 3]
+    assert seen[-1]["payload"] == {"run_id": run_id, "status": "done", "epoch": 3, "total_epochs": 3}

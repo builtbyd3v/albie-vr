@@ -180,9 +180,15 @@ async def import_github(req: GitHubImportRequest, request: Request) -> GitHubImp
 
 
 @router.post("/github/train", response_model=TrainResponse)
-def train_github(req: GitHubTrainRequest, request: Request) -> TrainResponse:
-    """A cloned import: its own train_cmd once setup is ready. The preset: the checked-in CIFAR-10 worker."""
-    run_id = _call(_svc(request).start_github_training, req.import_id, req.epochs, str(request.base_url))
+async def train_github(req: GitHubTrainRequest, request: Request) -> TrainResponse:
+    """A cloned import: its own train_cmd once setup is ready. The preset: the checked-in CIFAR-10 worker.
+    Followed like POST /train: a clone's own logs or printed output become the live curves, and the run always ends
+    with ml.run_state done (before, a script with no forge calls left the panel on TRAINING with no result)."""
+    svc = _svc(request)
+    run_id = _call(svc.start_github_training, req.import_id, req.epochs, str(request.base_url))
+    if (svc.github_imports.get(req.import_id) or {}).get("mode") == "clone":  # the preset's worker reports through the SDK
+        _start_tail(request.app.state, logtail.LogTail(svc.repo, svc.runs_dir, run_id, total_epochs=req.epochs),
+                    svc.train_proc)
     return TrainResponse(run_id=run_id)
 
 
@@ -303,7 +309,7 @@ def _start_tail(state, tail: logtail.LogTail, proc=None) -> None:
             ended = proc is not None and proc.poll() is not None
             events = await asyncio.to_thread(tail.poll)
             if ended:
-                events += tail.finish()
+                events += tail.finish(proc.returncode)  # always closes the run, with an error if nothing was read
             for event_type, payload in events:
                 await state.bus.publish(event_type, payload)
                 _tell_albie(state, event_type, payload)
