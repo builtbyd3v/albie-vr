@@ -19,7 +19,7 @@ echo "Installing $APK ..."
 "$ADB" shell pm grant $PKG android.permission.RECORD_AUDIO || true
 "$ADB" shell pm grant $PKG com.oculus.permission.USE_SCENE || true
 "$ADB" shell am force-stop $PKG
-"$ADB" shell am start -n $PKG/com.unity3d.player.UnityPlayerGameActivity >/dev/null
+"$ADB" shell am start -n $PKG/com.unity3d.player.UnityPlayerActivity >/dev/null
 echo "Albie is running. Logs: $LOG (Ctrl+C stops recording; the app keeps running)."
 "$ADB" logcat -c || true
 while true; do
