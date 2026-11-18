@@ -3,7 +3,8 @@
     python -m desk.make_mocks [out_dir]     (from hub/; default hub/.data/mocks/desk)
 
 Resources/Mocks/ holds the REST answers (ForgeNet.Get reads Resources/Mocks/<path>.json): timers.json (GET /timers),
-notes.json (GET /notes), ui/widgets.json. desk/sequence.json is a
+notes.json (GET /notes), ui/widgets.json: all empty or closed, so Main with the hub off shows nothing made up.
+desk/sequence.json is a
 ForgeMockPlayer list that walks through the story: Albie sets a focus timer and a tea timer, notes come in, the notes
 shrink to a dot, the tea timer rings and is turned off. Copy both folders into unity/Assets/_Forge/Mocks/.
 """
@@ -21,9 +22,10 @@ from events import Note, NotesUpdated, TimersUpdated, TimerState, UiWidgets
 HUB = Path(__file__).resolve().parents[1]
 T0 = 1793030400.0  # a fixed "now" so the files don't change between runs
 
-NOTES = [Note(id="n3a91c0", text="Ask Adrian about Albie's jump timing", created_at=T0 - 60, updated_at=T0 - 60),
-         Note(id="n1f2e77", text="Push the demo build by 3", done=True, created_at=T0 - 1800, updated_at=T0 - 300),
-         Note(id="n08bd42", text="Re-record the fallback ML run", created_at=T0 - 7200, updated_at=T0 - 7200)]
+# The RC truck project, the same story as the artifact and notebook mocks.
+NOTES = [Note(id="n3a91c0", text="Retrain the Autopilot at 2 m/s", created_at=T0 - 60, updated_at=T0 - 60),
+         Note(id="n1f2e77", text="Charge the truck battery", done=True, created_at=T0 - 1800, updated_at=T0 - 300),
+         Note(id="n08bd42", text="Try a wider gap between the slalom cones", created_at=T0 - 7200, updated_at=T0 - 7200)]
 FOCUS = TimerState(timer_id="t4c2a1", label="Focus", status="running", duration_s=3600, remaining_s=2538)
 TEA = TimerState(timer_id="t9e07b", label="tea", status="running", duration_s=240, remaining_s=25)
 
@@ -49,7 +51,7 @@ def sequence() -> list[dict[str, Any]]:
 def files() -> dict[str, Any]:
     return {
         "Resources/Mocks/timers.json": TimersUpdated().model_dump(),  # none: a mock timer would ring in Main hub-off
-        "Resources/Mocks/notes.json": NotesUpdated(notes=NOTES).model_dump(),
+        "Resources/Mocks/notes.json": NotesUpdated().model_dump(),  # none: made-up notes would show as the user's own
         # Closed: hub off in Main shows nothing until asked; the sandbox's sequence opens them.
         "Resources/Mocks/ui/widgets.json": UiWidgets().model_dump(),
         "desk/sequence.json": sequence(),

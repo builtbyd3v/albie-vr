@@ -95,10 +95,15 @@ TOOLS: list[dict[str, Any]] = [
                     "metres, speeds, landing): mention one. If the demo is blocked, say why.",
      "parameters": {"type": "object", "properties": {"run": {"type": "boolean", "description": "default true"}}}},
     {"name": "cad_simulate_flight",
-     "description": "Rocket designs only: the flight numbers on a C6-5 motor without showing anything: apogee in "
-                    "metres, time to apogee, speeds, when the parachute opens, descent rate and landing time and "
-                    "distance (events). To show it flying, use cad_demo. If the result has a warning, mention it.",
-     "parameters": NO_ARGS},
+     "description": "Rocket designs only: simulate the open design's flight on a C6-5 motor (RocketPy) without showing "
+                    "anything: apogee in metres, time to apogee, top speed, stability margin in calibers, flight time, "
+                    "landing drift, when the parachute opens (events). wind_mps: a steady wind along the launch "
+                    "heading (default 0). To show it flying on the desk, use cad_demo; to launch it in the room with "
+                    "sliders and a saved result, artifact_create template rocket_launch. If the result has a "
+                    "warning, mention it.",
+     "parameters": {"type": "object", "properties": {
+         "wind_mps": {"type": "number", "minimum": 0, "maximum": 15,
+                      "description": "Steady wind in m/s along the launch heading; 0 if not asked."}}}},
     {"name": "cad_list_versions",
      "description": "The open design's recent versions, oldest first: number, what made it (the request, preset or "
                     "change), its main metric, and which one is current.",
@@ -341,8 +346,12 @@ async def call_tool(name: str, args: dict[str, Any], cad: CadService, bus: Event
         if name == "cad_take_part":
             return await _take(args, cad, bus, show)
         if name == "cad_simulate_flight":
-            flight = await cad.flight(None)
-            return {k: v for k, v in flight.items() if k not in ("trajectory_m", "samples")}  # for Unity, not the model
+            r = cad.current
+            flight = await cad.flight(None, float(args.get("wind_mps") or 0.0))
+            out = {k: v for k, v in flight.items() if k not in ("trajectory_m", "samples")}  # for Unity, not the model
+            margin = r.analysis.get("margin_cal")
+            return {"part": r.part, "version": r.version, **out,
+                    **({"static_margin_cal": margin, "stability": r.analysis.get("stability")} if margin is not None else {})}
         if name == "cad_list_versions":
             return _versions(cad)
         if name == "cad_restore_version":

@@ -5,7 +5,7 @@
   },
   "display_information": {
     "name": "Albie",
-    "description": "Forge's desk pet. Reads your team's Slack and replies for you, after you confirm.",
+    "description": "Albie, your desk assistant. Reads your team's Slack and replies for you, after you confirm.",
     "background_color": "#2b1d3a"
   },
   "features": {

@@ -15,11 +15,18 @@ RUN pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.p
 COPY hub/cad hub/cad
 COPY hub/ml hub/ml
 COPY hub/code_browser hub/code_browser
+COPY hub/models hub/models
+COPY hub/research hub/research
 COPY hub/events.py hub/events.py
-COPY hub/agent/events.py hub/agent/events.py
+# The crew's builds (cloud-py/cloud_builds.py): only the hub agent files a build imports, not its voice or Slack.
+COPY hub/agent/build.py hub/agent/build_review.py hub/agent/bus.py hub/agent/config.py hub/agent/crew.py hub/agent/demo_runner.py hub/agent/events.py hub/agent/fake.py hub/agent/runner.py hub/agent/tools.py hub/agent/turn.py hub/agent/workspace.py hub/agent/
 COPY forge-sdk/forge forge-sdk/forge
 COPY ml-examples/text-classification ml-examples/text-classification
 COPY cloud-py cloud-py
+# The crew runs on the Claude Agent SDK, whose wheel carries its own Claude Code CLI (no Node needed). Say so in the
+# build log if this platform's wheel came without one: builds then answer that the coding agent is missing.
+RUN python -c "import claude_agent_sdk, pathlib; cli = pathlib.Path(claude_agent_sdk.__file__).parent / '_bundled' / 'claude'; \
+print('claude cli bundled:', cli.is_file())" || echo "claude_agent_sdk missing; builds will say so"
 
 # ml_new ("start an RNN project"): the datasets it reaches for, sampled once here (~25 MB; it reads them from this
 # cache first), so the demo's new projects don't wait on, or get rate-limited by, Hugging Face. A failure only

@@ -192,9 +192,10 @@ def remote_url(repo: str) -> str:
     return os.getenv("BUILD_REMOTE") or f"https://github.com/{repo}.git"
 
 
-def prepare_workspace(build: Build) -> None:
-    """A fresh git workspace: a clone of BUILD_REPO on a new branch, or a new local repo."""
-    root = build_dir()
+def prepare_workspace(build: Build, root: Path | None = None) -> None:
+    """A fresh git workspace under root (BUILD_DIR if not given): a clone of BUILD_REPO on a new branch, or a new
+    local repo."""
+    root = root or build_dir()
     root.mkdir(parents=True, exist_ok=True)
     ws = root / f"{slug(build.goal, 24)}-{build.id[:6]}"
     build.workspace = ws
@@ -329,13 +330,30 @@ def _runner():
 
 
 class Builds:
-    def __init__(self) -> None:
+    """The hub has one (`builds`, below), with every argument left out. Albie's cloud makes one per headset
+    (cloud-py/cloud_builds.py): its own folder, its events on that headset's bus, and its own way to hatch the crew."""
+
+    def __init__(self, root: Path | None = None, *, target: Any = None, hatch: Any = None,
+                 where: str = "the hub") -> None:
         self.builds: dict[str, Build] = {}
         self.latest: str | None = None
         self._loaded_root: Path | None = None
+        self.root = root  # None: BUILD_DIR, read each time (the hub)
+        self.target = target  # anything with `await broadcast(event)`; None: the hub's bus, and Albie says it aloud
+        self.hatch = hatch  # `await hatch(agent_type) -> dict`; None: the hub's crew
+        self.where = where  # where the project is kept, for the lines the user reads
+
+    def dir(self) -> Path:
+        return self.root or build_dir()
+
+    async def say(self, text: str, card: ev.Card | None = None) -> None:
+        if self.target is None:
+            await say(text, card)
+        else:
+            await self.target.broadcast(ev.pet_say(LEAD, text, card))
 
     def load(self) -> None:
-        root = build_dir().resolve()
+        root = self.dir().resolve()
         if self._loaded_root == root:
             return
         self._loaded_root = root
@@ -355,16 +373,15 @@ class Builds:
                 build.base_commit = record.get("base_commit")
                 build.checks = record.get("checks") or []
                 if not build.done:
-                    build.state, build.error, build.finished_at = "failed", "The hub restarted during this build. Its files are kept; start a new build to continue.", now()
+                    build.state, build.error, build.finished_at = "failed", f"{self.where[0].upper()}{self.where[1:]} restarted during this build. Its files are kept; start a new build to continue.", now()
                 self.builds.setdefault(build.id, build)
             except (ValueError, KeyError, TypeError, OSError):
                 log.warning("Ignoring an unreadable build record")
         if self.builds:
             self.latest = max(self.builds.values(), key=lambda b: b.created_at).id
 
-    @staticmethod
-    def save(build: Build) -> None:
-        root = build_dir() / ".state"
+    def save(self, build: Build) -> None:
+        root = self.dir() / ".state"
         root.mkdir(parents=True, exist_ok=True)
         path = root / f"{build.id}.json"
         temporary = path.with_suffix(".tmp")
@@ -399,9 +416,10 @@ class Builds:
         running = next((b for b in self.builds.values() if not b.done), None)
         if running is not None:
             raise RuntimeError(f"the crew is still building {running.title or running.goal!r}; cancel it or wait")
-        from . import ws  # late: ws imports the runner; the card buttons must work before the first tap
+        if self.target is None:
+            from . import ws  # late: ws imports the runner; the card buttons must work before the first tap
 
-        ws.card_handlers.setdefault("build", on_card)
+            ws.card_handlers.setdefault("build", on_card)
         build = Build(uuid.uuid4().hex, goal, repo=repo or build_repo(), repo_request=repo,
                       backend=backend, demo=demo, simulated=backend == "claude" and os.getenv("FAKE_AGENT", "0") == "1",
                       checks=checks or [], control=TurnControl())
@@ -414,7 +432,7 @@ class Builds:
         """One event contract for the spatial window and any other XR frontend."""
         async with build.save_lock:
             await asyncio.to_thread(self.save, build)
-            await bus.broadcast(ev.Event(type="build.updated", payload=build.public()))
+            await (self.target or bus).broadcast(ev.Event(type="build.updated", payload=build.public()))
 
     async def approve(self, build: Build) -> dict:
         if build.state != "awaiting_plan":
@@ -425,11 +443,11 @@ class Builds:
 
     async def _run(self, build: Build) -> None:
         try:
-            await say(f"Planning: {build.goal}")
+            await self.say(f"Planning: {build.goal}")
             build.title, build.summary, build.steps, build.planned_by = await make_plan(build.goal)
             build.state = "awaiting_plan"
             await self.changed(build)
-            await say(f"Here's the plan for {build.title}.", ev.Card(
+            await self.say(f"Here's the plan for {build.title}.", ev.Card(
                 title=f"Plan: {build.title}",
                 bullets=[f"{TYPES[s.agent].name}: {s.task[:90]}" for s in build.steps],
                 actions=[ev.CardAction(label="Approve plan", action_id=f"build:approve:{build.id}"),
@@ -438,11 +456,11 @@ class Builds:
             if self._cancelled(build):
                 build.state = "cancelled"
                 return
-            await asyncio.to_thread(prepare_workspace, build)
+            await asyncio.to_thread(prepare_workspace, build, self.dir())
             build.state = "building"
             await self.changed(build)
             for agent in dict.fromkeys(s.agent for s in build.steps):  # hatch who the plan needs, in plan order
-                hatched = await crew.spawn(agent)
+                hatched = await (self.hatch or crew.spawn)(agent)
                 if "error" in hatched:
                     log.info("build %s: %s didn't hatch (%s); working without the character", build.id[:6], agent,
                              hatched["error"])
@@ -454,7 +472,7 @@ class Builds:
                 await self._step(build, project, i)
             if self._cancelled(build):
                 build.state = "cancelled"
-                await say(f"Stopped building {build.title}.")
+                await self.say(f"Stopped building {build.title}.")
                 return
             build.state = "verifying"
             await self.changed(build)
@@ -469,13 +487,13 @@ class Builds:
             if not build.review_head or not any(s.commit for s in build.steps):
                 raise RuntimeError("The crew produced no committed changes to review.")
             build.state = "ready"
-            await say(f"{build.title} is built.", self._ready_card(build))
+            await self.say(f"{build.title} is built.", self._ready_card(build, self.where))
         except asyncio.CancelledError:
             build.state = "cancelled"
         except Exception as exc:
             log.exception("build %s failed", build.id[:6])
             build.state, build.error = "failed", str(exc)[:300]
-            await say(f"The build stopped: {build.error}")
+            await self.say(f"The build stopped: {build.error}")
         finally:
             if build.done and build.finished_at is None:
                 build.finished_at = now()
@@ -485,7 +503,7 @@ class Builds:
         step = build.steps[i]
         agent = TYPES[step.agent]
         step.state, step.started_at = "running", now()
-        emitter = Emitter(agent.id, redact=[str(build.workspace)])
+        emitter = Emitter(agent.id, redact=[str(build.workspace)], target=self.target or bus)
         error_message = None
 
         async def emit(event: ev.Event) -> None:  # to the headset as always, and the latest line for the build page
@@ -500,7 +518,7 @@ class Builds:
         mode = "qa" if agent.read_only else "code"
         before = await asyncio.to_thread(head, build)
         await self.changed(build)
-        await say(f"{agent.name} is working on step {i + 1} of {len(build.steps)}.")
+        await self.say(f"{agent.name} is working on step {i + 1} of {len(build.steps)}.")
         try:
             if build.backend == "openhands":
                 from .openhands_executor import run_turn as run
@@ -542,7 +560,7 @@ class Builds:
         return build.control is not None and build.control.cancelled.is_set()
 
     @staticmethod
-    def _ready_card(build: Build) -> ev.Card:
+    def _ready_card(build: Build, where: str = "the hub") -> ev.Card:
         bullets = [f"{TYPES[s.agent].name}: {s.summary[:90]}" for s in build.steps if s.state == "done"]
         failed = [TYPES[s.agent].name for s in build.steps if s.state == "failed"]
         if failed:
@@ -551,7 +569,7 @@ class Builds:
             bullets.append("Scripted local demo complete. No provider calls; GitHub publication is disabled.")
             return ev.Card(title=f"Demo complete: {build.title}", bullets=bullets)
         if not build.repo:
-            bullets.append("Saved on the hub (no BUILD_REPO set, so there's nowhere to open a pull request).")
+            bullets.append(f"Saved on {where}. No repo is connected, so there is no pull request to open.")
             return ev.Card(title=f"Built: {build.title}", bullets=bullets)
         return ev.Card(title=f"Built: {build.title}", bullets=bullets, actions=[
             ev.CardAction(label="Open pull request", action_id=f"build:ship:{build.id}"),
@@ -582,15 +600,15 @@ class Builds:
             return await self._ship(build)
 
     async def _ship(self, build: Build) -> dict[str, Any]:
+        """Push the branch and open the pull request. Only call after the user said yes."""
         if build.demo or os.getenv("BUILD_DEMO") == "1":
             return {"error": "GitHub publication is disabled for the scripted local demo."}
-        """Push the branch and open the pull request. Only call after the user said yes."""
         if build.state == "shipped":
             return {"status": "already_shipped", "pr_number": build.pr_number, "pr_url": build.pr_url}
         if build.state != "ready":
             return {"error": f"the build is {build.state}, not ready to ship"}
         if not build.repo or not build.branch or build.workspace is None:
-            return {"error": "no BUILD_REPO is set for the hub, so the project stays on the hub"}
+            return {"error": f"no BUILD_REPO is set for {self.where}, so the project stays on {self.where}"}
         if await asyncio.to_thread(head, build) != build.review_head or _git(build.workspace, "status", "--porcelain").stdout.strip():
             return {"error": "The workspace changed after review. Run a new build before publishing."}
         if _git(build.workspace, "remote", "get-url", "origin").stdout.strip() != remote_url(build.repo):
@@ -614,7 +632,7 @@ class Builds:
             return {"error": f"couldn't open the pull request: {reason}"}
         build.state, build.pr_number, build.pr_url = "shipped", pr.get("number"), pr.get("url")
         await self.changed(build)
-        await say(f"Pull request #{build.pr_number} is open.", ev.Card(
+        await self.say(f"Pull request #{build.pr_number} is open.", ev.Card(
             title=f"PR #{build.pr_number}: {build.title}",
             bullets=[f"{build.branch} into {pr.get('base', 'main')}", str(build.pr_url or "")]))
         return {"status": "shipped", "pr_number": build.pr_number, "pr_url": build.pr_url}
@@ -658,7 +676,7 @@ TOOLS: list[dict[str, Any]] = [
      "description": "Where a build is: its plan, each crew member's step and result, and the pull request if opened.",
      "parameters": {"type": "object", "properties": {"build_id": _ID}}},
     {"name": "build_ship",
-     "description": "Push a finished build's branch and open a pull request on the demo GitHub account. Call it first "
+     "description": "Push a finished build's branch and open a pull request on the connected GitHub account. Call it first "
                     "without confirm: nothing is pushed, and you get what would be sent. Say the project name and "
                     "the repo, and ask 'open the pull request?'. Only after a clear yes, call again with confirm true.",
      "parameters": {"type": "object", "properties": {"build_id": _ID, "confirm": {"type": "boolean"}}}},
@@ -668,26 +686,28 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+async def call_tool(name: str, args: dict[str, Any], manager: Builds | None = None) -> dict[str, Any]:
+    """`manager`: whose builds (the hub's if left out)."""
+    manager = manager or builds
     if name == "build_start":
         try:
-            build = builds.start(str(args.get("goal", "")), repo=args.get("repo"), backend=args.get("backend"))
+            build = manager.start(str(args.get("goal", "")), repo=args.get("repo"), backend=args.get("backend"))
         except (ValueError, RuntimeError) as exc:
             return {"error": str(exc)}
         return {"status": "started", "build_id": build.id, "repo": build.repo,
                 "say": "Say you'll plan it and the crew will build it; you'll hear when it's ready."}
-    build = builds.get(args.get("build_id"))
+    build = manager.get(args.get("build_id"))
     if build is None:
-        return {"error": "no build yet (builds are kept in memory)"}
+        return {"error": "there is no build yet; start one with build_start"}
     if name == "build_status":
         return build.public()
     if name == "build_approve":
-        return await builds.approve(build) if args.get("confirm") is True else {"error": "Ask the user to approve the plan first."}
+        return await manager.approve(build) if args.get("confirm") is True else {"error": "Ask the user to approve the plan first."}
     if name == "build_review":
         from .build_review import review
         return await asyncio.to_thread(review, build)
     if name == "build_cancel":
-        if not await builds.cancel(build):
+        if not await manager.cancel(build):
             return {"error": f"the build is already {build.state}"}
         return build.public()
     if name == "build_ship":
@@ -695,11 +715,12 @@ async def call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
             if build.state != "ready":
                 return {"error": f"the build is {build.state}, not ready to ship"}
             build.ship_asked = True
+            say = (f"Ask: open a pull request for {build.title} on {build.repo}? Only after a clear yes, "
+                   "call build_ship again with confirm true.") if build.repo else \
+                f"No repo is connected, so this build stays on {manager.where}: say so, and don't offer a pull request."
             return {"status": "awaiting_confirmation", "title": build.title, "repo": build.repo,
-                    "branch": build.branch, "folder": build.folder,
-                    "say": f"Ask: open a pull request for {build.title} on {build.repo}? Only after a clear yes, "
-                           "call build_ship again with confirm true."}
-        return await builds.ship(build)
+                    "branch": build.branch, "folder": build.folder, "say": say}
+        return await manager.ship(build)
     return {"error": f"unknown tool {name!r}"}
 
 

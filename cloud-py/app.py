@@ -2,7 +2,8 @@
 
     PYTHONPATH=cloud-py/stubs:cloud-py:hub uvicorn app:app --port 8080      (from the repo root)
 
-Only hub/cad and hub/ml are mounted (no Slack, agent or voice). Every request carries
+hub/cad, hub/ml and the code browser are mounted, plus the crew's builds (cloud_builds.py: hub/agent/build.py per
+headset, on when the Space has a Claude key); no Slack or voice. Every request carries
   x-albie-key     == env ALBIE_APP_KEY (401 otherwise)
   x-albie-device  the headset's own id (the app makes one and keeps it); each device gets its own CAD library and
                   version history, its own ML project copy and its own event log, so nobody overwrites anyone.
@@ -13,8 +14,11 @@ Device routes beyond the hub's:
   GET  /events?after=N   what the hub would have broadcast on /ws (cad.model_updated, ml.metrics, pet.say ...)
   POST /tools/{name}     one of Albie's CAD or ML tools (hub/cad/tools.py, hub/ml/tools.py) -> {result, show}
                          `show`: the view the tool wanted open ("cad"/"ml"); the headset opens it.
+                         Albie's build_* tools too (cloud_builds.py), when builds are on.
+  /agent/builds...       the crew's builds for this headset: start, approve, review, ship, cancel (cloud_builds.py)
 Env: ALBIE_APP_KEY (required), CLOUD_DATA_DIR (/data), CAD_WORKERS (1), MAX_TRAINING (1), MAX_DEVICES (200),
 CLAUDE_PROXY_URL (the Vercel proxy for 'improve it'; empty = the free scripted change), PORT (8080).
+Builds: ANTHROPIC_API_KEY, BUILD_REPO, CLOUD_BUILDS=0 to switch them off; no limits unless set (cloud_builds.py).
 """
 from __future__ import annotations
 
@@ -47,6 +51,10 @@ from ml.setup.llm import LLMError, LLMResult
 from ml.tools import TOOLS as ML_TOOLS, MLTools
 from code_browser import tools as code_tools
 
+import cloud_builds
+import research  # hub/research: parts search (needs MOUSER_API_KEY; else says not set up)
+from research import tools as research_tools
+import models  # hub/models: open-licence 3D model search and fetch for artifacts (/models/*)
 import text_improve
 
 log = logging.getLogger("albie.cloud")
@@ -66,8 +74,11 @@ BLOCKED = ("/ml/project/rescan", "/ml/project/type", "/ml/github/", "/ml/project
 CAD_TOOLS = {t["name"] for t in cad_tools.TOOLS}
 ML_TOOL_NAMES = {t["name"] for t in ML_TOOLS}
 CODE_TOOLS = {t["name"] for t in code_tools.TOOLS}
+RESEARCH_TOOLS = {t["name"] for t in research_tools.TOOLS}
 EVENT_LOG = 400
+BUILD_USAGE = cloud_builds.Usage(DATA / "builds-usage.json")  # builds started today, over every headset
 
+os.environ.setdefault("FORGE_MODELS_DIR", str(DATA / "models"))  # fetched models, cached by id
 os.environ.setdefault("FORGE_ML_IMPROVE", "auto")  # Claude through the proxy when set, else the scripted change
 
 
@@ -277,6 +288,11 @@ class Device:
         app.include_router(cad_router)
         app.include_router(ml_router_module.router)
         app.include_router(code_browser.router)  # /code/*: the GitHub repos and pull requests in the code panel
+        app.include_router(research.router)  # /research/parts
+        app.include_router(models.router)  # /models/*: one cache for every headset (FORGE_MODELS_DIR)
+        # "Albie, build me a ...": this headset's own builds, kept in its folder, announced on its bus.
+        self.builds = cloud_builds.CloudBuilds(root / "builds", self.bus, BUILD_USAGE)
+        cloud_builds.mount(app, self.builds)
         self.add_routes(app)
         self.app = app
 
@@ -307,8 +323,12 @@ class Device:
                     shown.append("ml")
                 elif name == "ml_publish" and result.get("status") == "opened":
                     shown.append("code")  # the new pull request, in the code panel
+            elif name in RESEARCH_TOOLS:
+                result = await research_tools.call_tool(name, args, cad=self.cad)
             elif name in CODE_TOOLS:
                 result = await code_tools.call_tool(name, args, self.bus, app.state, show=show)
+            elif name in cloud_builds.TOOL_NAMES:
+                result = await cloud_builds.tool(name, args, self.builds)
             else:
                 result = {"error": f"no cloud tool {name!r}"}
             return {"result": result, "show": shown[0] if shown else None, "seq": self.bus.seq}
@@ -331,6 +351,7 @@ async def device(device_id: str) -> Device:
             while len(DEVICES) > MAX_DEVICES:  # its files stay on disk; it reloads on its next request
                 _, old = DEVICES.popitem(last=False)
                 try:
+                    await old.builds.close()  # a build still running for it is stopped; its files stay
                     await old.cad.stop()  # the shared POOL ignores it; a device's own worker would close here
                 except Exception:  # noqa: BLE001 - a failed close must not fail the new device's request
                     log.exception("closing evicted device %s failed", old.id)
@@ -369,7 +390,8 @@ async def app(scope, receive, send) -> None:
             return await JSONResponse({"error": "missing or wrong x-albie-key"}, 401)(scope, receive, send)
         if path == "/health":
             return await JSONResponse({"ok": True, "devices": len(DEVICES), "cad_workers": len(POOL.workers),
-                                       "training": training_now()})(scope, receive, send)
+                                       "training": training_now(), "builds": cloud_builds.unavailable() is None,
+                                       "building": cloud_builds.active()})(scope, receive, send)
         device_id = headers.get("x-albie-device", "")
     if not DEVICE_ID.match(device_id):
         return await JSONResponse({"error": "x-albie-device must be 8-64 letters, digits, - or _"}, 400)(scope, receive, send)

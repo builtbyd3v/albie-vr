@@ -31,7 +31,10 @@ if [ -n "${ALBIE_ANTHROPIC_API_KEY:-}" ]; then
   printf 'ANTHROPIC_API_KEY=%s\n' "$ALBIE_ANTHROPIC_API_KEY" | hf spaces secrets add "$SPACE" --secrets-file -
 fi
 
-git archive HEAD hub/cad hub/ml hub/code_browser hub/events.py hub/agent/events.py forge-sdk/forge ml-examples/text-classification cloud-py \
+# hub/agent: only what a build imports (cloud-py/cloud_builds.py), the same files the Dockerfile copies.
+AGENT_FILES="build.py build_review.py bus.py config.py crew.py demo_runner.py events.py fake.py runner.py tools.py turn.py workspace.py"
+git archive HEAD hub/cad hub/ml hub/code_browser hub/models hub/research hub/events.py $(printf 'hub/agent/%s ' $AGENT_FILES) \
+  forge-sdk/forge ml-examples/text-classification cloud-py \
   | tar -x -C "$STAGE"
 cp cloud-py/Dockerfile "$STAGE/Dockerfile"
 cat > "$STAGE/README.md" <<'EOF'
@@ -41,7 +44,7 @@ sdk: docker
 app_port: 8080
 pinned: false
 ---
-CAD, small ML training and the GitHub code browser for the Albie headset app. Every request needs the app key.
+CAD, small ML training, the GitHub code browser and the crew's builds for the Albie headset app. Every request needs the app key.
 EOF
 hf upload "$SPACE" "$STAGE" . --repo-type space --delete "*" --commit-message "Deploy $(git rev-parse --short HEAD)"
 

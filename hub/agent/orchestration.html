@@ -53,7 +53,7 @@
       box.append(label, select, promptLabel, prompt, remove); $('inputs').append(box);
     }
     async function request(url, options) {
-      const response = await fetch(url, options); const data = await response.json();
+      const response = await fetch(url, options); const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Please check the task inputs.');
       return data;
     }

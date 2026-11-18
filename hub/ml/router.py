@@ -13,13 +13,14 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel
 from starlette.datastructures import State
 
 from .models import (Atlas, Confusion, DatasetItem, Graph, IngestRequest, PatchRequest, ProjectRequest,
                      GitHubImportRequest, GitHubImportResponse, GitHubTrainRequest, RelabelRequest, ReplayRequest,
                      RunInfo, SampleDetail, SampleUpdated, Summary, TrainRequest, TrainResponse, TypeRequest, VizCard)
 from .github_import import GitHubImportError
-from . import logtail, nn_lab
+from . import logtail, nn_lab, research
 from .service import Conflict, MLService, NotFound
 from .setup import pipeline
 
@@ -114,7 +115,7 @@ async def train(req: TrainRequest, request: Request) -> TrainResponse:
 # Preset buttons on the Training panel, so nobody types a URL in the headset. FORGE_ML_GITHUB_PRESETS overrides
 # them without a rebuild: "Label|https://github.com/...;Label|https://github.com/...".
 DEFAULT_GITHUB_PRESETS = [
-    {"label": "Forge CIFAR demo", "url": "https://github.com/Satyabratadas/forge-cifar10-demo"},
+    {"label": "CIFAR-10 example", "url": "https://github.com/Satyabratadas/forge-cifar10-demo"},
     {"label": "PyTorch MNIST", "url": "https://github.com/pytorch/examples/tree/main/mnist"},
 ]
 
@@ -399,3 +400,70 @@ async def apply_patch(req: PatchRequest, request: Request) -> dict:
         # Skip: no forge calls in the script, so follow its own logs for runs started outside the hub (A6).
         _start_tail(request.app.state, logtail.LogTail(svc.repo, svc.runs_dir))
     return {"applied": applied}
+
+
+# --- research (ml_search_models / ml_search_datasets) and the publish confirm card ----------------------------
+# The Research panel and the publish card on the ML desk call these; the cloud mounts this router per headset, so
+# they work there too. Search results also stream as ml.research events while the request runs.
+
+class ResearchRequest(BaseModel):
+    query: str
+    task: str | None = None
+    limit: int = 6
+
+
+class UseModelRequest(BaseModel):
+    base_model: str
+    request: str | None = None  # the user's words for the project; the query the panel searched, by default
+    dataset: str | None = None
+
+
+class PublishRequest(BaseModel):
+    confirm: bool = False
+
+
+def _tools(request: Request):
+    tools = getattr(request.app.state, "ml_tools", None)
+    if tools is None:
+        raise HTTPException(503, "the ML tools aren't running")
+    return tools
+
+
+@router.post("/research/models")
+async def research_models(req: ResearchRequest, request: Request) -> dict:
+    try:
+        return await research.run(request.app.state, "models", req.query, req.task, req.limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/research/datasets")
+async def research_datasets(req: ResearchRequest, request: Request) -> dict:
+    try:
+        return await research.run(request.app.state, "datasets", req.query, req.task, req.limit)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/research/use")
+async def research_use(req: UseModelRequest, request: Request) -> dict:
+    """The panel's "Use this model" (after its own confirm tap): the real ml_new, fine-tuning that base model.
+    Errors come back as {"error"} with the reason, like the voice tool."""
+    words = (req.request or "").strip()
+    args = {"request": f"fine-tune {req.base_model}" + (f" on {words}" if words else ""), "model": "hf",
+            "base_model": req.base_model}
+    if req.dataset:
+        args["dataset"] = req.dataset
+    return await _tools(request).call("ml_new", args)
+
+
+@router.post("/publish")
+async def publish(req: PublishRequest, request: Request) -> dict:
+    """The publish card: without confirm it describes the pull request (and shows the card); Confirm sends
+    confirm true, which is the only way this route posts anything to GitHub."""
+    return await _tools(request).call("ml_publish", {"confirm": req.confirm})
+
+
+@router.post("/publish/cancel")
+async def publish_cancel(request: Request) -> dict:
+    return await _tools(request).cancel_publish()

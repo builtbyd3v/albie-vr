@@ -17,6 +17,7 @@ import asyncio
 import logging
 import re
 import time
+from pathlib import Path
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -72,6 +73,12 @@ def reply_context(said: str, ts: str) -> str:
             f"\"{ts}\" and their words: it only writes a draft for them to send.")
 
 
+def design_name(cad_script: str | None) -> str:
+    """The open design as Albie says it: its script's name ("rocket", "quadcopter"), or "design" when unknown."""
+    stem = Path(cad_script).stem.replace("_", " ").strip() if cad_script else ""
+    return stem or "design"
+
+
 def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | None:
     """What Albie says about one event, or None to stay quiet."""
     if type_ == "ml.overfit_alert":  # one per run (the SDK alerts once; each demo replay alerts once)
@@ -97,7 +104,8 @@ def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | No
         if p.get("source") != "script":
             return None  # pet and slider changes: the caller already sees the error
         n = p.get("error_line")
-        text = f"Line {n} broke the rocket." if n else "The rocket script broke."
+        design = design_name(cad_script)
+        text = f"Line {n} broke the {design}." if n else f"The {design} script broke."
         text = f"{text} I kept the last good one. Want me to fix it?"
         key = f"{p.get('kept_version')}:{p['error']}"  # a good rebuild moves kept_version, so a rehearsal re-fires
         where = f"line {n} of {cad_script}" if n else str(cad_script)
@@ -107,7 +115,10 @@ def line_for(type_: str, p: dict[str, Any], cad_script: str | None) -> Line | No
 
     if type_ == "cad.built":
         # Albie only says it once a broken rocket he spoke about builds again (Watcher.notify checks that)
-        return Line("cad", "fixed", "Fixed it. The rocket builds again.") if p.get("source") == "script" else None
+        if p.get("source") != "script":
+            return None
+        design = str(p.get("part") or "").replace("_", " ").strip() or design_name(cad_script)
+        return Line("cad", "fixed", f"Fixed it. The {design} builds again.")
 
     return None
 

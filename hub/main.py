@@ -44,6 +44,10 @@ from messaging.router import router as messaging_router
 from ml.router import router as ml_router
 from ml import nn_lab
 from ml.tools import TOOLS as ML_TOOLS, MLTools
+from models import router as models_router
+from models import tools as model_tools
+from research import router as research_router
+from research import tools as research_tools
 
 HUB_DIR = Path(__file__).resolve().parent
 
@@ -95,6 +99,10 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         agent_ws.task_stoppers["ml"] = ml_tools.stop_training  # "Albie, stop" during his training run
         agent_tools.register(ui_tools.TOOLS, lambda name, args: ui_tools.call_tool(name, args, bus))  # ui_highlight (AlbieUiDirector)
         agent_tools.register(code_tools.TOOLS, lambda name, args: code_tools.call_tool(name, args, bus, app.state, show=views.ensure))  # github_*: repos and pull requests in the code panel
+        # model_search / model_import: open-licensed 3D models; the import is sent to the headset as models.import
+        agent_tools.register(model_tools.TOOLS, lambda name, args: model_tools.call_tool(name, args, bus.publish))
+        # research_parts: real distributor listings (needs MOUSER_API_KEY; without it says "not set up")
+        agent_tools.register(research_tools.TOOLS, lambda name, args: research_tools.call_tool(name, args, cad))
         nn = nn_lab.lab(app.state, speech.speak, speech.note)  # Neural Net Lab: tools, its Apply card, the stall offer
         agent_tools.register(nn_lab.TOOLS, lambda name, args: nn_lab.call_tool(name, args, app.state))
 
@@ -118,7 +126,12 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
         # In the background: the first read of chat.db and the imsg checks never hold up Slack or /health.
         imessage_start = asyncio.create_task(imessage.start(), name="imessage-start") if imessage is not None else None
         proactive.cad_script = str(cad_script)  # proactive Albie, after start: nobody hears a boot failure
-        cad.on_regen_failed = lambda failure: proactive.notify("cad.regen_failed", failure)
+
+        def cad_failed(failure):
+            proactive.cad_script = str(cad.script)  # the design open now, not the one the hub started on
+            proactive.notify("cad.regen_failed", failure)
+
+        cad.on_regen_failed = cad_failed
         cad.on_built = lambda record: proactive.notify("cad.built", record)
         app.state.proactive = proactive  # ml/router.py: overfit alerts
         slack.on_mention = lambda msg: proactive.notify("notify.message", msg)  # a Slack mention or DM is read out
@@ -150,6 +163,8 @@ def create_app(*, data_dir: Path | None = None, cad_script: Path | None = None, 
     app.include_router(desk_router)
     app.include_router(ml_router)  # its MLService is created on first use, on app.state.ml
     app.include_router(artifacts_router)  # POST /artifacts/review: advisory Jev review of a new artifact
+    app.include_router(models_router)  # GET /models/search|fetch|file: open-licensed 3D models for artifacts (models/service.py)
+    app.include_router(research_router)  # POST /research/parts, GET /research/parts/status
     app.include_router(code_router)  # /code/sources, /code/{owner}/{repo}/tree|file|prs|pr/{n}, POST pr/{n}/approve|merge
 
     @app.websocket("/ws")

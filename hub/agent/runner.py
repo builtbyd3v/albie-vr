@@ -110,7 +110,7 @@ QA_PROMPT = (
     + " Answer questions about the code repository in your working directory. Look things up "
     "with your read-only tools before answering. Reply in 1-2 short spoken sentences (about 25 words), plain text, "
     "no markdown, no code blocks. Mention relevant file paths relative to the repo root "
-    "(e.g. hub/agent/ws.py). If you are not sure, say so briefly."
+    "(e.g. src/app.py). If you are not sure, say so briefly."
 )
 CREW_CODE_PROMPT = (
     " You are making a code change in your own git worktree, already on a fresh branch created for this task: "

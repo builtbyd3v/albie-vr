@@ -23,7 +23,7 @@ from typing import Any
 from agent import events as ev
 from agent import speech as agent_speech
 
-from . import github, github_publish, hf_data, improve, new_project, repo_env
+from . import github, github_publish, hf_data, improve, new_project, repo_env, research
 from .router import _stop_tail, service, start_run, start_setup
 from .service import Conflict, NotFound
 from .setup.adapt import ROOT
@@ -112,6 +112,33 @@ TOOLS: list[dict[str, Any]] = [
      "description": "Train the open ML project again (the Train button). The new score is spoken when it's done.",
      "parameters": {"type": "object", "properties": {
          "epochs": {"type": "integer", "description": "how many epochs, if the user said (default 10)"}}}},
+    {"name": "ml_search_models",
+     "description": "Research pretrained models on the Hugging Face Hub ('find me a small sentiment model', 'what "
+                    "models are there for tweets?'). Returns real model cards (task, parameters, licence, downloads, "
+                    "weight size, last update) each checked against what Albie's trainer can fine-tune, and one "
+                    "recommended pick with its reasons; the cards stream onto the ML desk's Research panel. Models the "
+                    "trainer can't fine-tune (image, generative, speech) are marked browse only. Say the pick and its "
+                    "main reason in one sentence, then offer to fine-tune it; only after a yes, call ml_new with "
+                    "base_model set to the pick's id. On-device latency is not measured: don't quote one.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "what to look for, in a few words ('sentiment', 'distilbert', "
+                                                    "'news topics')"},
+         "task": {"type": "string", "description": "text_classification (the default), image_classification, "
+                                                   "object_detection, speech_recognition, text_generation, or a "
+                                                   "Hugging Face task tag"},
+         "limit": {"type": "integer", "description": "how many cards, 1 to 10 (default 6)"}},
+         "required": ["query"]}},
+    {"name": "ml_search_datasets",
+     "description": "Research datasets on the Hugging Face Hub ('find a dataset of movie reviews'). Returns real "
+                    "dataset cards (task tags, size, licence, downloads, access) checked against what ml_new can "
+                    "train, and one recommended pick. Say the pick and why in one sentence; ml_new takes its id as "
+                    "dataset.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "what the data is about, in a few words"},
+         "task": {"type": "string", "enum": ["text_classification", "image_classification"],
+                  "description": "only if the user was clear about text or images"},
+         "limit": {"type": "integer", "description": "how many cards, 1 to 10 (default 6)"}},
+         "required": ["query"]}},
 ]
 
 
@@ -239,6 +266,11 @@ class MLTools:
             if name == "ml_train":
                 epochs = args.get("epochs")
                 return self.train(10 if epochs is None else int(epochs))
+            if name in ("ml_search_models", "ml_search_datasets"):
+                kind = "models" if name == "ml_search_models" else "datasets"
+                result = await research.run(self.state, kind, str(args.get("query") or ""),
+                                            str(args.get("task") or "").strip() or None, int(args.get("limit") or 6))
+                return research.spoken(result)
         except (improve.ImproveError, Conflict, NotFound, ValueError, new_project.NewProjectError,
                 hf_data.DatasetError, github_publish.PublishError) as e:
             return {"error": str(e)}
@@ -437,6 +469,7 @@ class MLTools:
             await self.say(f"I can't open the pull request: {e}.")
             return
         self.publish_offer = {**plan, "path": str(self.svc.repo)}
+        await self.publish_card("awaiting", plan)
         where = f"a new repo, {plan['repo']}" if plan["create_repo"] else plan["repo"]
         await self.say(f"Shall I open a pull request with the project in {where}?")
         await agent_speech.note(self.pet_id, "You just offered to open a GitHub pull request with the ML project. A yes "
@@ -450,14 +483,39 @@ class MLTools:
         if not confirm or offer is None or offer.get("path") != str(svc.repo):
             plan = await asyncio.to_thread(github_publish.plan, svc.repo)
             self.publish_offer = {**plan, "path": str(svc.repo)}
+            await self.publish_card("awaiting", plan)  # the ML desk's Confirm / Cancel card
             return {"status": "awaiting_confirmation", **plan,
                     "next": "Nothing was posted. Say the repo (and that it's new, if create_repo) and ask whether to "
                             "open the pull request. Only after a clear yes, call ml_publish again with confirm true."}
         self.publish_offer = None
-        done = await asyncio.to_thread(github_publish.publish, svc.repo, offer)
+        await self.publish_card("publishing", offer)
+        try:
+            done = await asyncio.to_thread(github_publish.publish, svc.repo, offer)
+        except github_publish.PublishError as e:
+            await self.publish_card("failed", offer, error=str(e))
+            raise
+        await self.publish_card("opened", {**offer, **done})
         await self.state.bus.publish("code.view", {"repo": done["repo"], "pr": done["number"]})  # the code panel shows it
         return {"status": "opened", **done,
                 "note": "Say the pull request number and that it's open in the code panel."}
+
+    async def publish_card(self, state: str, plan: dict[str, Any], error: str | None = None) -> None:
+        """`ml.publish_offer` for the ML desk's confirm card: what would be pushed and where (awaiting), then
+        publishing / opened / failed / cancelled. The card's Confirm is POST /ml/publish {confirm: true}."""
+        keep = ("repo", "create_repo", "branch", "folder", "title", "files", "paths", "with_data", "project",
+                "number", "url")
+        body: dict[str, Any] = {"state": state, **{k: plan[k] for k in keep if k in plan}}
+        if error:
+            body["error"] = error
+        bus = getattr(self.state, "bus", None)
+        if bus is not None:
+            await bus.publish("ml.publish_offer", body)
+
+    async def cancel_publish(self) -> dict[str, Any]:
+        """The card's Cancel (or a spoken no): forget the offer, so a later yes asks again."""
+        offer, self.publish_offer = self.publish_offer, None
+        await self.publish_card("cancelled", offer or {})
+        return {"status": "cancelled", "note": "Nothing was posted."}
 
     def _last_run(self) -> dict[str, Any]:
         try:
