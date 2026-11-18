@@ -500,7 +500,56 @@ public static class SlalomBrainCheck
         Expect(error == null && turned > 10f, "a hand tilted to the right (pinky side down) turns the truck right",
             error ?? $"turned {turned:0} degrees in 1 s (+ is right)");
 
+        var free = FreeDrive(brain);
+        while (free.MoveNext()) yield return null;
         brain.KeysFromKeyboard = true;
+    }
+
+    // Between laps the stick drives the truck around (SlalomBrain.FreeDrive), as the drone flies free: no lap is recorded,
+    // a cone stops it where it touched instead of freezing it, it backs away, and let go it coasts to a stop.
+    static IEnumerator FreeDrive(SlalomBrain brain)
+    {
+        brain.PlaceAtStart();
+        var start = brain.transform.position;
+        int laps = brain.Thing.Recorder.Set.Laps.Count;
+        QuestStick.Override = () => new Vector2(0f, 1f);
+        float until = Time.time + 1f;
+        while (Time.time < until) yield return null;
+        float drove = Vector3.Distance(start, brain.transform.position);
+        Expect(brain.State == SlalomBrain.Mode.Idle && drove > 0.2f && brain.Thing.Recorder.Set.Laps.Count == laps,
+            "between laps the thumbstick drives the truck freely, recording nothing",
+            $"{brain.State}, drove {drove:0.00} m in 1 s, laps {laps} > {brain.Thing.Recorder.Set.Laps.Count}");
+
+        // Straight on into the first cone (as the lap test): stopped against it, not frozen as crashed.
+        until = Time.time + 8f;
+        Vector3 last = brain.transform.position;
+        float stillFor = 0f;
+        while (Time.time < until && stillFor < 0.5f)
+        {
+            yield return null;
+            var now = brain.transform.position;
+            stillFor = (now - last).sqrMagnitude < 1e-8f ? stillFor + Time.deltaTime : 0f;
+            last = now;
+        }
+        var stoppedAt = brain.transform.position;
+        Expect(stillFor >= 0.5f && !brain.Body.Crashed && Vector3.Distance(start, stoppedAt) > 0.3f,
+            "free driving into a cone stops the truck where it touched, not crashed",
+            $"still {stillFor:0.0} s at {Vector3.Distance(start, stoppedAt):0.00} m from the start, crashed {brain.Body.Crashed}");
+
+        QuestStick.Override = () => new Vector2(0f, -1f);
+        until = Time.time + 1f;
+        while (Time.time < until) yield return null;
+        float backed = Vector3.Distance(stoppedAt, brain.transform.position);
+        Expect(backed > 0.1f, "after touching a cone the truck backs away", $"backed {backed:0.00} m in 1 s");
+
+        QuestStick.Override = () => Vector2.zero;
+        until = Time.time + 5f;
+        while (Time.time < until && Mathf.Abs(brain.Body.Speed) > 0.05f) yield return null;
+        Expect(Mathf.Abs(brain.Body.Speed) <= 0.05f && brain.Thing.Recorder.Set.Laps.Count == laps,
+            "let go, the free-driving truck coasts to a stop", $"speed {brain.Body.Speed:0.00} m/s");
+        QuestStick.Override = null;
+        ManualInputs.Clear();
+        brain.PlaceAtStart();
     }
 
     // The run records the scoreboard shows: scripted laps through the gates touch no cone, and top speed is the truck's.
