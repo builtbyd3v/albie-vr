@@ -457,3 +457,30 @@ No new code, no runtime bump; templates, sandboxes and the saved live fixtures g
 **Open for the Core owner:** since the A6 fill, an artifact written while a notebook is open is never linked unless
 the model writes `kind` itself (in 51f83ba the model's own kind decided linking). Option: fill `kind` as `project`
 when `NotebookStore.IsOpen`. Not built: it changes what gets linked to a project.
+
+## P-C7-1. Host 7: courses from a description, courses on a table, held finishes (C-12 sections 3.3, 5, 6.1 and 10)
+
+**Built, not yet accepted.** HostRuntime goes 6 to 7. Everything is additive: host 6 artifacts, layouts and runs read as before.
+
+- **Generator `room_course`** (`Artifacts/Scripts/Room/RoomCourse.cs`). Params: `thing` (`truck`, `drone`), `surface`, `around`,
+  `clearance_m`, and `elements`, an ordered list of `{type, ...}`: `straight` (`length_m`, `min_length_m`), `cones` and `gates`
+  (`count`, `spacing_m`), `hoops` (`count`, `spacing_m`, `width_m`, `height_m`; drone), and last only `bay` / `pad`
+  (`spacing_m`, `width_m`, `length_m`, `hold_s`) or `hover` (`spacing_m`, `width_m`, `height_m`, `hold_s`; drone). Slots:
+  `cones`, `gates`, `posts`, `hoops`, `path`, `start`, `finish` (unused ones are empty lists). It uses the slalom's free-floor
+  search; a tight room squeezes every spacing towards its minimum, then narrows; counts are never cut. Codes: `no_room_data`,
+  `no_free_floor`, `no_headroom`. Layouts record `placed: {segments: 1, spacing_m: half the strip, lane_m}`.
+- **`surface: "desk"`** on any generator's params (`floor_slalom`, `room_hoops`, `room_course`). The course is fitted on the
+  biggest TABLE in the scan at a quarter, fifth, seventh or tenth of full size (`Room/DeskPlan.cs`), and the scene root is
+  scaled to match (`ArtifactHost.CourseScale`). The layout's `room` gains `surface: "desk"` and `scale`, and its `key` ends
+  `#desk@<scale>`. New code `no_table`; a table too small is `no_free_floor`. Whatever spawns the Thing has to scale it by
+  `CourseScale`; nothing does yet.
+- **Run block** (`ArtifactRun.cs`): `finish.hold_s` (a number or `$input`) ends the run only after that long inside the finish
+  zone without a break; `finish.max_speed_ms` counts only time at or under that speed (times the course scale). Without
+  `hold_s` a finish ends on entry, as before.
+- **Metric ops**: `zone_drift` and `zone_offset` (`zones`: furthest from, and current distance to, a zone's centre while
+  inside it), `hold` (seconds held), `streak` (completed runs in a row since the scene was built; not kept across opens).
+- **`artifact_create`**: `course` (a spec: `title`, `thing`, `surface`, `around`, `elements`, `timeout_s`) is compiled by
+  `ArtifactCourses.Compile` into a full C-12 manifest and scene and saved through `ArtifactLibrary.FromScene`; `surface`
+  beside a template; templates `dash`, `park`, `hover`, `landing` (built-in specs, listed by `artifact_list`; they are not in
+  `ArtifactLibrary.Templates`, so their manifests have `template: null`). A hand-written `space: "room"` scene is still
+  refused, and its hint now points at `course`.
