@@ -21,6 +21,11 @@ namespace Forge.Artifacts
     /// - by voice (<see cref="IBrainLoop"/>, the <c>brain_*</c> and <c>autopilot_*</c> tools), <see cref="Record"/>
     ///   chains it all: "drive it twice and I'll learn it" records 2 completed laps, trains, then runs the Autopilot.
     /// A run that touches a cone or a wall is aborted (the artifact only counts hits; the demo shouldn't keep a crash).
+    /// Human laps (Nov 18 headset test: "after training Albie can't drive the truck"): the laps are cleaned before training
+    /// (<see cref="LapCleaner"/>: the wait at the start, the coast at the end, shaky steering and on-off throttle), the
+    /// rehearsal drives the truck's own design physics and rehearses the fallback too, the Autopilot tries the drivers in
+    /// <see cref="AutopilotPlan"/>'s order, a run that stands still for <see cref="StallSeconds"/> hands over to the next
+    /// driver, and the result of training and of the Autopilot is shown and said (<see cref="LastSaid"/>).
     /// Between laps (<see cref="FreeDrive"/>) the truck drives around the course by hand, the way the drone flies free:
     /// nothing is recorded or scored, and a touch stops it where it touched so it can back away.
     /// </summary>
@@ -30,6 +35,9 @@ namespace Forge.Artifacts
         public const int Candidates = 3;
         public const double BudgetMs = 4.0;
         public const float RunTimeoutS = 30f;
+        /// <summary>An Autopilot run that moves less than <see cref="StallMetres"/> (full size) in this long is stopped as
+        /// "stalled" and the next driver goes: a brain that sits on the start line used to wait out the whole timeout.</summary>
+        public const float StallSeconds = 3f, StallMetres = 0.1f;
         /// <summary>W/S hold this speed (m/s), about the scripted driver's: the stick's full 2 m/s is too fast to weave
         /// 1 m gates from a keyboard, and the trained net drives at the speed of its laps.</summary>
         public const float KeySpeed = 0.8f;
@@ -78,6 +86,11 @@ namespace Forge.Artifacts
         public int LapTarget => lapTarget;
         public BehaviourCloner[] Cloners => cloners;
         public Autopilot Autopilot => autopilot;
+        /// <summary>What cleaning the laps did for the last training (<see cref="LapCleaner"/>).</summary>
+        public LapCleaner.Report Cleaning => cleaning;
+        /// <summary>The last thing Albie said about the brain truck (a lap, training, the Autopilot), and a hook the checks set.</summary>
+        public string LastSaid { get; private set; }
+        public System.Action<string> SayHook;
         /// <summary>Every Autopilot run's result, in order ("candidate 1 crashed", "candidate 2 completed").</summary>
         public readonly System.Collections.Generic.List<string> Attempts = new System.Collections.Generic.List<string>();
 
@@ -89,6 +102,17 @@ namespace Forge.Artifacts
         Rehearsal rehearsal;
         ControllerFile[] trainedFiles;
         int[] order;
+        // The rehearsal's finishes for the candidates only (the fallback rehearses after them), the fallback's (-1: none),
+        // and the order the Autopilot tries them in (AutopilotPlan: -1 is the fallback), with why when the fallback leads.
+        int[] candidateFinished;
+        int fallbackFinished = -1;
+        int[] plan;
+        string planWhy;
+        ControllerFile fallbackFile;
+        LapCleaner.Report cleaning;
+        // An Autopilot run's progress: where the truck last was 10 cm from, and when.
+        Vector3 progressAt;
+        float progressTime;
         // Record(laps, thenAutopilot): the completed-lap count that ends recording (0: one lap at a time, as L does),
         // and whether training and the Autopilot follow with no further call.
         int lapTarget;
@@ -196,6 +220,15 @@ namespace Forge.Artifacts
             Hide(true);
         }
 
+        /// <summary>Albie says it (voice on: albie.say; off: the caption), once per event, never per frame.</summary>
+        void Say(string line)
+        {
+            if (string.IsNullOrEmpty(line)) return;
+            LastSaid = line;
+            if (SayHook != null) { SayHook(line); return; }
+            if (Application.isPlaying) FirstRunGuide.Say(line);
+        }
+
         // ---- Desk courses ---------------------------------------------------------------------------------------
 
         // The table top a desk course stands on, for the off-the-table rule (none on the floor, or with no table found).
@@ -258,6 +291,9 @@ namespace Forge.Artifacts
             /// <summary>The truck design it was trained on (<see cref="TruckDesign.Fingerprint"/>) and its saved version.</summary>
             public string Design;
             public int DesignVersion;
+            /// <summary>The Autopilot's order (<see cref="AutopilotPlan"/>; -1 the fallback) and why the fallback leads, or nulls.</summary>
+            public int[] Plan;
+            public string PlanWhy;
         }
         readonly System.Collections.Generic.List<Round> rounds = new System.Collections.Generic.List<Round>();
         readonly System.Collections.Generic.List<float> loss = new System.Collections.Generic.List<float>(512);
@@ -385,7 +421,7 @@ namespace Forge.Artifacts
             State = Mode.Lap;
             Status = driver != null ? "scripted lap: recording"
                 : KeyHints ? "lap: drive through the gates with WASD or the thumbstick (recording)"
-                : "lap: pinch to drive, tilt your hand to steer (recording)";
+                : "lap: drive through the gates with the transmitter, left stick drives, right stick steers (recording)";
             return null;
         }
 
@@ -433,13 +469,21 @@ namespace Forge.Artifacts
         {
             if (State != Mode.Idle) return Status = "busy: " + State.ToString().ToLowerInvariant();
             if (CompletedLaps < 2) return Status = $"drive 2 completed laps first ({CompletedLaps} so far)";
+            // A person's laps, cleaned first (LapCleaner): the wait at the start and the coast at the end dropped, the
+            // steering smoothed, the throttle the one that holds the laps' own speed on this design. Uncleanable laps (too
+            // short) train as they are.
+            var set = LapCleaner.Clean(Thing.Recorder.Set, DesignPhysics, out cleaning);
+            if (set.CompletedLaps < 1) set = Thing.Recorder.Set;
             cloners = new BehaviourCloner[Candidates];
-            for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(Thing.Recorder.Set, new BehaviourCloner.Options { Seed = i + 1 });
+            for (int i = 0; i < Candidates; i++) cloners[i] = new BehaviourCloner(set, new BehaviourCloner.Options { Seed = i + 1 });
             training = 0; trainFrames = 0; lastEpoch = 0;
             rehearsal = null; trainedFiles = null; order = null;
+            candidateFinished = null; fallbackFinished = -1; plan = null; planWhy = null; fallbackFile = null;
             loss.Clear();
             State = Mode.Training;
-            Status = $"training {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows)";
+            Status = $"training {Candidates} candidates on {CompletedLaps} laps ({cloners[0].TrainCount} rows"
+                   + (cleaning.LapsKept > 0 ? $", cleaned: steady {cleaning.CruiseSpeed:0.00} m/s" : "") + ")";
+            Say($"Training on your {CompletedLaps} laps. It takes a few seconds, then I try each brain on the course.");
             return null;
         }
 
@@ -471,19 +515,47 @@ namespace Forge.Artifacts
                 if (trainedFiles[i] == null) return error;
             }
             // The rehearsal's mock course and the pretrained fallback are the slalom's: other truck courses (dash, park, a
-            // room course) fly their candidates in training order with no fallback.
-            rehearsal = host != null && host.Build != null && IsSlalom ? new Rehearsal(trainedFiles, CourseFromSlots()) : null;
+            // room course) fly their candidates in training order with no fallback. It drives with the truck's design
+            // physics, and the fallback rehearses after the candidates, so the Autopilot knows which of them can drive.
+            fallbackFile = IsSlalom ? LoadFallback() : null;
+            ControllerFile[] rehearse = trainedFiles;
+            if (fallbackFile != null)
+            {
+                rehearse = new ControllerFile[trainedFiles.Length + 1];
+                System.Array.Copy(trainedFiles, rehearse, trainedFiles.Length);
+                rehearse[trainedFiles.Length] = fallbackFile;
+            }
+            rehearsal = host != null && host.Build != null && IsSlalom ? new Rehearsal(rehearse, CourseFromSlots(), DesignPhysics) : null;
             if (rehearsal != null) Status = $"rehearsing {Candidates} candidates on the course";
             return null;
         }
 
         /// <summary>Rehearsal finishes per candidate (out of <see cref="Rehearsal.Starts"/>), in training order, or null.</summary>
-        public int[] RehearsalFinished => rehearsal != null && rehearsal.Done ? rehearsal.Finished : null;
+        public int[] RehearsalFinished => candidateFinished;
+        /// <summary>The pretrained fallback's rehearsal finishes, or -1 (none rehearsed).</summary>
+        public int FallbackRehearsal => fallbackFinished;
+
+        /// <summary>The truck's design physics (null before a design is applied: the original tuning).</summary>
+        TruckPhysics? DesignPhysics => Body != null && Body.HasDesign ? Body.Design : (TruckPhysics?)null;
+
+        static ControllerFile LoadFallback()
+        {
+            var asset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
+            return asset != null ? ControllerFile.Parse(asset.text, out _) : null;
+        }
 
         void FinishTraining()
         {
             State = Mode.Idle;
-            order = rehearsal != null ? rehearsal.Order() : null;
+            if (rehearsal != null)
+            {
+                candidateFinished = new int[trainedFiles.Length];
+                System.Array.Copy(rehearsal.Finished, candidateFinished, candidateFinished.Length);
+                fallbackFinished = fallbackFile != null ? rehearsal.Finished[trainedFiles.Length] : -1;
+                order = RankCandidates(candidateFinished);
+                plan = AutopilotPlan.Order(candidateFinished, fallbackFile != null ? fallbackFinished : -1, out planWhy, Rehearsal.Starts);
+            }
+            else order = null;
             double compute = 0;
             foreach (var c in cloners) compute += c.ComputeSeconds;
             // The notebook's training entry (C-17 section 3), as the Controllers sandbox's B reports it.
@@ -494,22 +566,56 @@ namespace Forge.Artifacts
             block["thing"] = "truck";
             block["course"] = host != null ? host.OpenId : null;
             block["round"] = rounds.Count + 1;
-            rounds.Add(new Round { Files = trainedFiles, Order = order, Finished = rehearsal != null ? (int[])rehearsal.Finished.Clone() : null,
+            block["cleaning"] = new JObject
+            {
+                ["laps_in"] = cleaning.LapsIn, ["laps_kept"] = cleaning.LapsKept, ["rows_in"] = cleaning.RowsIn, ["rows_kept"] = cleaning.RowsKept,
+                ["start_rows_dropped"] = cleaning.StartRowsDropped, ["end_rows_dropped"] = cleaning.EndRowsDropped,
+                ["cruise_speed_ms"] = System.Math.Round(cleaning.CruiseSpeed, 3), ["steer_noise"] = System.Math.Round(cleaning.SteerNoise, 3),
+            };
+            if (candidateFinished != null) block["fallback_rehearsal"] = fallbackFinished;
+            rounds.Add(new Round { Files = trainedFiles, Order = order, Finished = candidateFinished != null ? (int[])candidateFinished.Clone() : null,
+                                   Plan = plan, PlanWhy = planWhy,
                                    Laps = CompletedLaps, Loss = cloners[0].TrainLoss, Course = host != null ? host.OpenId : null, Slalom = IsSlalom,
                                    Design = TruckDesignStore.Fingerprint, DesignVersion = TruckDesignStore.Version });
             selected = rounds.Count;
             TrainingLog.Report("truck_autopilot", 1, block);
             Status = $"trained {Candidates} candidates in {trainFrames} frames ({compute * 1000:0} ms compute)" + RehearsalLine() + Hint(". P: Autopilot");
+            string result = TrainingResult();
+            Status = result + " (" + Status + ")";
+            Say(result);
             if (!chainAutopilot) return;
             chainAutopilot = false;
             StartAutopilot();
         }
 
+        // Candidate indexes, most rehearsal finishes first; ties keep training order (Rehearsal.Order on the candidates only).
+        static int[] RankCandidates(int[] finished)
+        {
+            var o = new int[finished.Length];
+            for (int i = 0; i < o.Length; i++) o[i] = i;
+            for (int i = 1; i < o.Length; i++)
+                for (int j = i; j > 0 && finished[o[j]] > finished[o[j - 1]]; j--)
+                    (o[j], o[j - 1]) = (o[j - 1], o[j]);
+            return o;
+        }
+
+        // The training's result in one or two plain sentences, shown and said.
+        string TrainingResult()
+        {
+            string shaky = cleaning.LapsKept > 0 && cleaning.Jerky ? " Your laps were shaky, so I smoothed them; steady throttle in the Drive window makes cleaner laps." : "";
+            if (plan == null || plan.Length == 0)
+                return $"Training done on {CompletedLaps} laps. Tap Autopilot to see it drive." + shaky;
+            int best = candidateFinished[order[0]];
+            if (plan[0] < 0)
+                return (planWhy ?? "The pretrained driver goes first.") + " Drive two smoother laps to teach me again." + shaky;
+            return $"Training done. My best brain finished {best} of {Rehearsal.Starts} practice runs on this course, so it drives first. Tap Autopilot." + shaky;
+        }
+
         // "; in rehearsal the best finished 9 of 9 starts (the others 7 and 4), so it drives first"
         string RehearsalLine()
         {
-            if (order == null) return "";
-            var f = rehearsal.Finished;
+            if (order == null || candidateFinished == null) return "";
+            var f = candidateFinished;
             var others = new System.Text.StringBuilder();
             for (int i = 1; i < order.Length; i++) others.Append(i == 1 ? "" : i == order.Length - 1 ? " and " : ", ").Append(f[order[i]]);
             return $"; in rehearsal the best finished {f[order[0]]} of {Rehearsal.Starts} starts" +
@@ -519,7 +625,7 @@ namespace Forge.Artifacts
         JArray RehearsalInOrder()
         {
             var list = new JArray();
-            foreach (int i in order) list.Add(rehearsal.Finished[i]);
+            foreach (int i in order) list.Add(candidateFinished[i]);
             return list;
         }
 
@@ -536,15 +642,21 @@ namespace Forge.Artifacts
             var round = selected > 0 && selected <= rounds.Count ? rounds[selected - 1] : null;
             var useFiles = round != null ? round.Files : trainedFiles;
             var useOrder = round != null ? round.Order : order;
+            var usePlan = round != null ? round.Plan : plan;
             var files = new System.Collections.Generic.List<ControllerFile>();
-            for (int i = 0; i < useFiles.Length; i++) files.Add(useFiles[useOrder != null ? useOrder[i] : i]);
-            ControllerFile fallback = null;
-            if (IsSlalom)
+            ControllerFile fallback = IsSlalom ? LoadFallback() : null;
+            int fallbackAt = int.MaxValue;
+            if (usePlan != null)
             {
-                var fallbackAsset = Resources.Load<TextAsset>("Controllers/truck_autopilot_fallback");
-                fallback = fallbackAsset != null ? ControllerFile.Parse(fallbackAsset.text, out _) : null;
+                // The rehearsal's plan (AutopilotPlan): the fallback first when no trained brain finished the course.
+                foreach (int i in usePlan)
+                {
+                    if (i >= 0 && i < useFiles.Length) files.Add(useFiles[i]);
+                    else if (i < 0 && fallbackAt == int.MaxValue) fallbackAt = files.Count;
+                }
             }
-            autopilot = new Autopilot(files, fallback);
+            else for (int i = 0; i < useFiles.Length; i++) files.Add(useFiles[useOrder != null ? useOrder[i] : i]);
+            autopilot = fallback != null ? new Autopilot(files, fallback, fallbackAt) : new Autopilot(files);
             string engage = autopilot.Engage(Thing.Host);
             if (engage != null) return Status = engage;
             Attempts.Clear();
@@ -553,6 +665,8 @@ namespace Forge.Artifacts
             string begin = BeginAttempt();
             string note = DesignNote;
             if (begin == null && note != null) Status = note + " " + Status;
+            string why = round != null ? round.PlanWhy : planWhy;
+            if (begin == null && autopilot.UsingFallback && why != null) Status = why + " " + Status;
             return begin;
         }
 
@@ -561,7 +675,7 @@ namespace Forge.Artifacts
         {
             if (State != Mode.Autopilot) return Status = "the Autopilot isn't driving";
             if (host != null && host.Run != null) host.Run.Abort();
-            string who = autopilot.UsingFallback ? "the pretrained fallback" : $"candidate {autopilot.Index + 1}";
+            string who = autopilot.UsingFallback ? "the pretrained fallback" : $"candidate {autopilot.CandidateNumber}";
             Attempts.Add($"{who} stopped");
             Drove = null;
             State = Mode.Idle;
@@ -602,6 +716,11 @@ namespace Forge.Artifacts
                 ["design_note"] = DesignNote,
                 ["truck_design_version"] = TruckDesignStore.Version,
                 ["versions"] = Versions(),
+                // Additive: the fallback's own rehearsal (-1: none), why it drives first when it does, and Albie's last line.
+                ["fallback_rehearsal"] = fallbackFinished,
+                ["plan_note"] = planWhy,
+                ["said"] = LastSaid,
+                ["laps_cleaned"] = cleaning.LapsKept,
             };
         }
 
@@ -622,12 +741,25 @@ namespace Forge.Artifacts
 
         void AttemptEnded(bool completed, string how)
         {
-            string who = autopilot.UsingFallback ? "the pretrained fallback" : $"candidate {autopilot.Index + 1}";
+            bool usedFallback = autopilot.UsingFallback;
+            string who = usedFallback ? "the pretrained fallback" : $"candidate {autopilot.CandidateNumber}";
             Attempts.Add($"{who} {how}{RolledNote()}");
             string said = autopilot.RunEnded(Thing.Host, completed);
             if (!completed && autopilot.Exhausted && DesignNote != null) said += " " + DesignNote;
-            if (completed) { Drove = who; State = Mode.Idle; Status = said; Park(); return; }
-            if (autopilot.Exhausted) { Drove = "nothing"; State = Mode.Idle; Status = said; Park(); return; }
+            if (completed)
+            {
+                Drove = who; State = Mode.Idle; Status = said; Park();
+                Say(usedFallback ? "The pretrained driver drove the slalom. The brains from your laps didn't finish it this time: drive two smoother laps and train again."
+                                 : "The brain I trained on your laps drove the slalom.");
+                return;
+            }
+            if (autopilot.Exhausted)
+            {
+                Drove = "nothing"; State = Mode.Idle; Status = said; Park();
+                Say("None of my drivers finished the course this time" + (DesignNote != null ? ": this truck design drives differently from the one I learned on." : ".")
+                    + " Drive two laps, slowly and smoothly, and train me again.");
+                return;
+            }
             Status = said;
             BeginAttempt();
         }
@@ -645,6 +777,8 @@ namespace Forge.Artifacts
             PlaceAtStart();
             Thing.tickInFixedUpdate = true;
             runStarted = Time.time;
+            progressAt = transform.position;
+            progressTime = Time.time;
             return null;
         }
 
@@ -734,6 +868,13 @@ namespace Forge.Artifacts
             }
             if (LeftTable()) { Body.Crash(); run.Abort(); how = OffTable; return true; }
             if (Body.Crashed) { run.Abort(); how = "crashed"; return true; }
+            if (State == Mode.Autopilot)
+            {
+                // A brain that stands still (it learned "wait" from a lap's start, or it is stuck) hands over to the next.
+                float need = StallMetres * CourseScale;
+                if ((transform.position - progressAt).sqrMagnitude > need * need) { progressAt = transform.position; progressTime = Time.time; }
+                else if (Time.time - progressTime > StallSeconds) { run.Abort(); how = "stalled"; return true; }
+            }
             if (Time.time - runStarted > RunTimeoutS) { run.Abort(); how = "timed out"; return true; }
             return false;
         }
@@ -749,9 +890,10 @@ namespace Forge.Artifacts
                 KeyLeft = (k.aKey.isPressed ? 1f : 0f) - (k.dKey.isPressed ? 1f : 0f);
             }
 #endif
-            // The throttle that holds KeySpeed against drag (MockTruckSim's model, which ExampleTruckBody shares).
-            // A full thumbstick holds the same speed, so hand laps on a headset train like keyboard laps.
-            const float keyThrottle = KeySpeed * MockTruckSim.Drag / MockTruckSim.MaxAccel;
+            // The throttle that holds KeySpeed on this truck's design (ExampleTruckBody.ThrottleFor; the stock tuning's
+            // KeySpeed Drag / MaxAccel on the stock truck). A full thumbstick holds the same speed, so hand laps on a headset
+            // train like keyboard laps.
+            float keyThrottle = Body.ThrottleFor(KeySpeed);
             // Each source writes only when its own value changes, so it doesn't overwrite another writer every frame
             // (Person 1's hands transmitter writes stick.y and hand.roll too). Letting go writes 0 once: the truck stops.
             if (KeyForward != lastKeyForward || KeyLeft != lastKeyLeft)

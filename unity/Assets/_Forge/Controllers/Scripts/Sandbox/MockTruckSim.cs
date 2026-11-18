@@ -64,6 +64,40 @@ namespace Forge.Controllers
         /// <summary>The last ray distances in metres, for drawing.</summary>
         public readonly float[] RayDistance = new float[Rays];
 
+        // ---- The driving model: the original tuning unless a design's physics is applied (UsePhysics) ----------------
+        // With the defaults every step is exactly the original arithmetic, so the existing checks and laps are unchanged.
+
+        /// <summary>Full-throttle acceleration (m/s^2), linear drag (1/s) and quadratic drag (1/m): dv/dt = throttle A - L v - Q v|v|.</summary>
+        public float Accel = MaxAccel, LinearDrag = Drag, QuadDrag;
+        /// <summary>Wheelbase (m) and steering lock (degrees) the turn uses.</summary>
+        public float WheelbaseM = Wheelbase, SteerLockDeg = MaxSteerDeg;
+        /// <summary>Lateral acceleration where the tyres let go, and where it rolls over (m/s^2); infinite: no limit.</summary>
+        public float GripAccel = float.PositiveInfinity, TipAccel = float.PositiveInfinity;
+        /// <summary>It crashed by rolling over in a corner (only with a design whose roll-over limit is reachable).</summary>
+        public bool RolledOver;
+        float overTip;
+
+        /// <summary>
+        /// Drives with a truck design's physics (<see cref="TruckDesign.Derive"/>), as <see cref="ExampleTruckBody.ApplyDesign"/>
+        /// does on the real truck: launch, drag, wheelbase, steering lock, grip (understeer and scrub) and roll-over. So a
+        /// rehearsal on this sim is honest about the design the person is driving. The sensors are unchanged (speed over 3 m/s).
+        /// </summary>
+        public void UsePhysics(TruckPhysics p)
+        {
+            if (!(p.Accel > 0f) || !(p.Wheelbase > 0f)) return;
+            Accel = p.Accel; LinearDrag = p.LinearDrag; QuadDrag = p.QuadDrag;
+            WheelbaseM = p.Wheelbase; SteerLockDeg = p.MaxSteerDeg;
+            GripAccel = p.GripAccel > 0f ? p.GripAccel : float.PositiveInfinity;
+            TipAccel = p.TipAccel > 0f ? p.TipAccel : float.PositiveInfinity;
+        }
+
+        /// <summary>The throttle that holds <paramref name="speed"/> (m/s) against this model's drag, clamped to [0, 1].</summary>
+        public float ThrottleFor(float speed)
+        {
+            float v = Math.Max(0f, speed);
+            return Math.Max(0f, Math.Min(1f, (LinearDrag * v + QuadDrag * v * v) / Math.Max(1e-4f, Accel)));
+        }
+
         public MockTruckSim() { Reset(); }
 
         /// <summary>Starts <paramref name="y"/> metres left of the centre line, at <paramref name="heading"/> radians.</summary>
@@ -77,6 +111,7 @@ namespace Forge.Controllers
             X = 0f; Y = y; Heading = heading; Speed = 0f; Time = 0f;
             Crashed = Finished = false;
             GatesPassed = 0; Missed = null;
+            RolledOver = false; overTip = 0f;
         }
 
         /// <summary>Angle of ray <paramref name="i"/> relative to the truck's heading, in radians (d0 is +60°, left).</summary>
@@ -124,9 +159,26 @@ namespace Forge.Controllers
         {
             if (Crashed || Finished) { Speed = 0f; return; }
             float steer = Clamp(actuators[0]), throttle = Clamp(actuators[1]);
-            float accel = throttle * MaxAccel - Drag * Speed;
+            float accel = throttle * Accel - LinearDrag * Speed - QuadDrag * Speed * Math.Abs(Speed);
             Speed = Math.Max(-1f, Speed + accel * dt);
-            Heading += Speed / Wheelbase * (float)Math.Tan(steer * Deg(MaxSteerDeg)) * dt;
+            float yawRate = Speed / WheelbaseM * (float)Math.Tan(steer * Deg(SteerLockDeg));
+            // Past the tyres' grip it understeers and scrubs speed; over the roll-over limit for a moment, it goes over
+            // (ExampleTruckBody's rules). Neither binds with the original tuning.
+            float lateral = Math.Abs(Speed * yawRate);
+            if (lateral > GripAccel)
+            {
+                yawRate *= GripAccel / lateral;
+                float scrub = Math.Min(lateral - GripAccel, GripAccel) * 0.3f * dt;
+                Speed = Speed > 0f ? Math.Max(0f, Speed - scrub) : Math.Min(0f, Speed + scrub);
+                lateral = GripAccel;
+            }
+            if (lateral > TipAccel)
+            {
+                overTip += dt;
+                if (overTip >= ExampleTruckBodyTipHoldSeconds) { RolledOver = true; Crashed = true; Speed = 0f; return; }
+            }
+            else overTip = 0f;
+            Heading += yawRate * dt;
             X += Speed * (float)Math.Cos(Heading) * dt;
             Y += Speed * (float)Math.Sin(Heading) * dt;
             Time += dt;
@@ -210,6 +262,9 @@ namespace Forge.Controllers
             if (sphere > 0) t = sphere;
             return t < best ? t : best;
         }
+
+        /// <summary><see cref="ExampleTruckBody.TipHoldSeconds"/>, here so the sim stays plain C#.</summary>
+        const float ExampleTruckBodyTipHoldSeconds = 0.12f;
 
         static float Clamp(float v) => v < -1f ? -1f : v > 1f ? 1f : v;
         static float Deg(float degrees) => degrees * (float)Math.PI / 180f;

@@ -106,6 +106,8 @@ public static class SlalomBrainCheck
         if (EditorApplication.isPlaying && Time.timeScale != 1f) Time.timeScale = 1f;
         ManualInputs.Clear();
         QuestStick.Override = null;
+        HandsTransmitter.Source = null;
+        DriveAids.SteadyThrottle = false;
         ArtifactLibrary.RootOverride = null;
         ArtifactApprovals.FileOverride = null;
         NotebookFiles.Flush();
@@ -263,8 +265,287 @@ public static class SlalomBrainCheck
         NotebookFiles.Flush();
         Records(results.Count);
 
+        // The headset test of Nov 18: the docked transmitter, then laps by a shaky human hand on its stick channels.
+        IEnumerator docked = DockedTransmitter(sandbox);
+        while (docked.MoveNext()) yield return null;
+        IEnumerator human = HumanLaps(sandbox);
+        while (human.MoveNext()) yield return null;
+
         IEnumerator voice = Voice(sandbox);
         while (voice.MoveNext()) yield return null;
+    }
+
+    // ---- The docked transmitter (Nov 18) --------------------------------------------------------------------------
+
+    // A hand for the transmitter with no headset: open and flat (no grip, no pinch), well to the side, with its thumb tip
+    // put wherever the check says.
+    sealed class FakeHands : IHandSource
+    {
+        public readonly Vector3[] Thumb = new Vector3[2];
+        public readonly bool[] On = new bool[2];
+        public Vector3 Away = new Vector3(0.25f, 0f, -0.2f);
+        public Transform Frame;
+
+        public void Read(int hand, HandSample sample)
+        {
+            sample.isLeft = hand == 0;
+            sample.tracked = On[hand];
+            sample.highConfidence = On[hand];
+            if (!On[hand] || Frame == null) return;
+            Vector3 side = Frame.right * (hand == 0 ? -1f : 1f);
+            Vector3 o = Frame.position + side * Away.x + Frame.forward * Away.z + Frame.up * Away.y;
+            Vector3 f = Frame.forward, r = -side;
+            var j = sample.joints;
+            for (int i = 0; i < j.Length; i++) j[i] = o;
+            j[HandJoint.Thumb1] = o + r * 0.02f + f * 0.02f;
+            j[HandJoint.Thumb2] = o + r * 0.035f + f * 0.04f;
+            j[HandJoint.Thumb3] = o + r * 0.05f + f * 0.06f;
+            void Finger(int b, int tip, float across)
+            {
+                Vector3 bas = o + f * 0.09f + r * across;
+                j[b] = bas; j[b + 1] = bas + f * 0.03f; j[b + 2] = bas + f * 0.055f; j[tip] = bas + f * 0.075f;
+            }
+            Finger(HandJoint.Index1, HandJoint.IndexTip, 0.02f);
+            Finger(HandJoint.Middle1, HandJoint.MiddleTip, 0f);
+            Finger(HandJoint.Ring1, HandJoint.RingTip, -0.02f);
+            Finger(HandJoint.Pinky1, HandJoint.PinkyTip, -0.04f);
+            j[HandJoint.ThumbTip] = Thumb[hand];
+        }
+    }
+
+    // The transmitter docks in front of the user, stays put, and a thumb resting on a stick drives the truck through
+    // stick.y relative to where it touched; lifted, the stick centres. The drone's left stick (take-off) uses the same path.
+    static IEnumerator DockedTransmitter(SlalomSandbox sandbox)
+    {
+        var brain = sandbox.Brain;
+        var tx = RcTransmitter.Ensure();
+        if (brain == null || tx == null) { Fail("docked transmitter", "no brain truck or no transmitter"); yield break; }
+        bool wasDocked = RcTransmitter.Docked;
+        var hands = new FakeHands();
+        HandsTransmitter.Source = hands;
+        brain.KeysFromKeyboard = false;
+        brain.PlaceAtStart();
+        ManualInputs.Clear();
+        string where = tx.SetDocked(true) ?? tx.Show();
+        float until = Time.realtimeSinceStartup + 1.5f;
+        while (Time.realtimeSinceStartup < until && tx.Driving != RcTransmitter.Target.Truck) yield return null;
+        until = Time.realtimeSinceStartup + 0.6f;  // the glide to the dock
+        while (Time.realtimeSinceStartup < until) yield return null;
+        hands.Frame = tx.transform;
+        Vector3 dockedAt = tx.transform.position;
+        Quaternion dockedRot = tx.transform.rotation;
+        // The left thumb lands 1 cm off the cap's centre: forgiving, it reads zero there.
+        Vector3 Cap(float x, float z, float up) => tx.transform.TransformPoint(new Vector3(-0.05f + x, 0.0445f + up, -0.012f + z));
+        hands.On[0] = true;
+        hands.Thumb[0] = Cap(0.01f, -0.006f, 0.004f);
+        until = Time.realtimeSinceStartup + 0.3f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        float atTouch = tx.Stick(0).y;
+        // Push forward 2.5 cm from where it touched: full throttle (training speed).
+        for (int i = 0; i < 20; i++)
+        {
+            hands.Thumb[0] = Cap(0.01f, -0.006f + 0.025f * (i + 1) / 20f, 0.004f);
+            yield return null;
+        }
+        until = Time.realtimeSinceStartup + 0.4f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        int stickY = ManualInputs.IndexOf("stick.y");
+        float pushed = tx.Stick(0).y, wrote = ManualInputs.Values[stickY];
+        float moved = Vector3.Distance(tx.transform.position, dockedAt) + Quaternion.Angle(tx.transform.rotation, dockedRot) * 0.001f;
+        var start = brain.transform.position;
+        until = Time.time + 1f;
+        while (Time.time < until) yield return null;
+        float drove = Vector3.Distance(start, brain.transform.position);
+        // Lift the thumb 6 cm: the stick springs home and stick.y goes to zero.
+        hands.Thumb[0] = Cap(0.01f, 0.019f, 0.06f);
+        until = Time.realtimeSinceStartup + 0.5f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        float lifted = tx.Stick(0).y, wroteLifted = ManualInputs.Values[stickY];
+        float expected = brain.Body.ThrottleFor(DriveAids.TrainingSpeed);
+        Expect(RcTransmitter.Docked && tx.Shown && !tx.Held && Mathf.Abs(atTouch) < 0.05f && pushed > 0.85f && Mathf.Abs(wrote - expected) < 0.02f
+               && moved < 0.002f && drove > 0.15f && Mathf.Abs(lifted) < 0.05f && Mathf.Abs(wroteLifted) < 1e-4f,
+            "the docked transmitter stays put; a resting thumb drives stick.y from where it touched, and lifting it centres the stick",
+            $"{where}; at touch {atTouch:0.00}, pushed 2.5 cm {pushed:0.00} (stick.y {wrote:0.000}, training throttle {expected:0.000}), " +
+            $"the transmitter moved {moved * 1000f:0.0} mm, the truck drove {drove:0.00} m in 1 s, lifted {lifted:0.00} (stick.y {wroteLifted:0.000})");
+
+        // Steady throttle: one push and the truck holds the training speed with the thumb lifted; a pull back stops it.
+        DriveAids.SteadyThrottle = true;
+        brain.PlaceAtStart();
+        hands.Thumb[0] = Cap(0f, 0f, 0.004f);
+        until = Time.realtimeSinceStartup + 0.2f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        for (int i = 0; i < 10; i++) { hands.Thumb[0] = Cap(0f, 0.02f * (i + 1) / 10f, 0.004f); yield return null; }
+        until = Time.realtimeSinceStartup + 0.3f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        hands.Thumb[0] = Cap(0f, 0.02f, 0.07f);  // lifted: the stick centres, the cruise holds
+        until = Time.realtimeSinceStartup + 0.5f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        bool cruising = DriveAids.Cruising;
+        float cruiseWrote = ManualInputs.Values[stickY];
+        hands.Thumb[0] = Cap(0f, 0f, 0.004f);
+        until = Time.realtimeSinceStartup + 0.2f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        for (int i = 0; i < 10; i++) { hands.Thumb[0] = Cap(0f, -0.02f * (i + 1) / 10f, 0.004f); yield return null; }
+        until = Time.realtimeSinceStartup + 0.3f;
+        while (Time.realtimeSinceStartup < until) yield return null;
+        bool ended = !DriveAids.Cruising;
+        DriveAids.SteadyThrottle = false;
+        Expect(cruising && Mathf.Abs(cruiseWrote - expected) < 0.02f && ended,
+            "steady throttle: one push holds the training speed with the thumb lifted, a pull back ends it",
+            $"cruising {cruising} (stick.y {cruiseWrote:0.000} with the thumb lifted), ended by pulling back {ended}");
+
+        hands.On[0] = false;
+        HandsTransmitter.Source = null;
+        tx.CentreSticks();
+        RcTransmitter.Docked = wasDocked;
+        ManualInputs.Clear();
+        brain.KeysFromKeyboard = true;
+        until = Time.time + 0.5f;
+        while (Time.time < until) yield return null;
+        brain.PlaceAtStart();
+    }
+
+    // ---- Laps by a shaky human hand (Nov 18) ----------------------------------------------------------------------
+
+    // A person on the transmitter, as written to the channels it writes (stick.x steering with DriveAids' soft centre,
+    // stick.y the training-speed throttle): late, trembling, drifting, steering dropouts, a hesitant start, the throttle
+    // wobbling, let go and pulled back near cones. Pure pursuit through the gates' sides, as the scripted driver aims.
+    sealed class ShakyHand
+    {
+        readonly System.Random rng;
+        readonly float react, pref;
+        readonly bool pulser, brakes;
+        float t, drift, wob, sx, sy, releaseLeft, dropLeft, stopLeft, pulse;
+        readonly float[] delay = new float[6];
+        int head;
+
+        public ShakyHand(int seed)
+        {
+            rng = new System.Random(seed);
+            react = 0.4f + 0.6f * (float)rng.NextDouble();
+            pref = 0.65f + 0.35f * (float)rng.NextDouble();
+            pulser = rng.NextDouble() < 0.4;
+            brakes = rng.NextDouble() < 0.5;
+        }
+
+        float G() { double u = 1 - rng.NextDouble(), v = rng.NextDouble(); return (float)(Math.Sqrt(-2 * Math.Log(u)) * Math.Cos(2 * Math.PI * v)); }
+
+        /// <summary>The two sticks (x right, y forward) for the truck at (x, y, heading) in the course frame (x along it, y left).</summary>
+        public void Sticks(MockCourse course, float x, float y, float heading, float dt, out float steerStick, out float throttleStick)
+        {
+            t += dt;
+            float tx = x + 0.35f, ty = course.PathY(tx, 0.3f);
+            float alpha = Mathf.Atan2(ty - y, tx - x) - heading;
+            float dist = Mathf.Sqrt((tx - x) * (tx - x) + (ty - y) * (ty - y));
+            float want = Mathf.Clamp(Mathf.Atan(2f * MockTruckSim.Wheelbase * Mathf.Sin(alpha) / Mathf.Max(dist, 0.3f)) / (MockTruckSim.MaxSteerDeg * Mathf.Deg2Rad), -1f, 1f);
+            delay[head] = want; head = (head + 1) % delay.Length;
+            float late = delay[(head + 1) % delay.Length];
+            float m = Mathf.Abs(late);
+            float stick = m < 0.02f ? 0f : 0.1f + 0.9f * Mathf.Pow(m, 1f / 1.3f);
+            float sxNow = late < 0f ? stick : -stick;  // + left steer is a stick to the left (truck_manual's stick.x is -1)
+            drift += -drift / 0.5f * dt + 0.25f * Mathf.Sqrt(dt) * G();
+            sxNow += drift + 0.1f * G();
+            if (t < react) sxNow = 0.6f * Mathf.Sin(t * 9f);
+            if (dropLeft > 0f) { dropLeft -= dt; sxNow = 0f; }
+            else if (rng.NextDouble() < 0.15 * dt) dropLeft = 0.1f + 0.15f * (float)rng.NextDouble();
+            float syNow;
+            if (t < react) syNow = 0f;
+            else
+            {
+                wob += -wob / 0.4f * dt + 0.3f * Mathf.Sqrt(dt) * G();
+                syNow = pref + wob - 0.25f * m;
+                if (pulser) { pulse += dt; syNow = pulse % 0.9f < 0.55f ? 1f : 0f; }
+                if (releaseLeft > 0f) { releaseLeft -= dt; syNow = 0f; }
+                else if (rng.NextDouble() < 0.25 * dt) releaseLeft = 0.2f + 0.3f * (float)rng.NextDouble();
+                if (stopLeft > 0f) { stopLeft -= dt; syNow = stopLeft > 0.45f && brakes ? -0.5f : 0f; }
+                else if (m > 0.5f && rng.NextDouble() < 0.6 * dt) stopLeft = 0.6f + 0.6f * (float)rng.NextDouble();
+            }
+            float k = 1f - Mathf.Exp(-dt / 0.05f);  // the transmitter's stick smoothing
+            sx += (Mathf.Clamp(sxNow, -1f, 1f) - sx) * k;
+            sy += (Mathf.Clamp(syNow, -1f, 1f) - sy) * k;
+            steerStick = Mathf.Abs(sx) < 0.01f ? 0f : sx;
+            throttleStick = Mathf.Abs(sy) < 0.01f ? 0f : sy;
+        }
+    }
+
+    static MockCourse CourseOf(SlalomSandbox sandbox)
+    {
+        var course = new MockCourse { Name = "open slalom" };
+        var slots = sandbox.host.Build.Slots;
+        if (slots.TryGetValue("course.cones", out var cones)) foreach (var c in cones) course.AddCone(c.position.z, -c.position.x);
+        if (slots.TryGetValue("course.gates", out var gates)) foreach (var g in gates) course.AddGate(g.position.z, -g.position.x);
+        if (slots.TryGetValue("course.finish", out var finish) && finish.Count > 0) course.SetFinish(finish[0].position.z, -finish[0].position.x);
+        return course;
+    }
+
+    // Two completed laps by the shaky hand, written to stick.x and stick.y exactly as the transmitter writes them
+    // (DriveAids), on their own (the earlier rooms' laps are set aside): training must clean them, and the Autopilot
+    // must then drive the slalom on a scored run, by a brain trained on those laps.
+    static IEnumerator HumanLaps(SlalomSandbox sandbox)
+    {
+        var brain = sandbox.Brain;
+        if (brain == null || sandbox.host.Run == null) { Fail("human laps", "no brain truck with an open slalom"); yield break; }
+        var set = brain.Thing.Recorder.Set;
+        var saved = new List<Lap>(set.Laps);
+        set.Laps.Clear();
+        brain.KeysFromKeyboard = false;
+        brain.KeyForward = brain.KeyLeft = 0f;
+        var course = CourseOf(sandbox);
+        int stickX = ManualInputs.IndexOf("stick.x"), stickY = ManualInputs.IndexOf("stick.y");
+        var outcomes = new List<string>();
+        for (int attempt = 1; attempt <= 8 && brain.CompletedLaps < 2; attempt++)
+        {
+            var hand = new ShakyHand(7000 + attempt);
+            string error = brain.RecordLap();
+            if (error != null) { Fail("human laps: a lap", error); break; }
+            float top = 0f;
+            while (brain.State == SlalomBrain.Mode.Lap)
+            {
+                var origin = sandbox.host.SceneOrigin;
+                var toCourse = Quaternion.Inverse(origin.rotation);
+                float toFull = 1f / brain.CourseScale;
+                var local = toCourse * (brain.transform.position - origin.position) * toFull;
+                var fwd = toCourse * brain.transform.forward;
+                hand.Sticks(course, local.z, -local.x, Mathf.Atan2(-fwd.x, fwd.z), Time.deltaTime, out float steer, out float throttle);
+                // What RcTransmitter.WriteChannels writes for the brain truck.
+                ManualInputs.Values[stickX] = Mathf.Clamp(DriveAids.Steer(steer), -1f, 1f);
+                ManualInputs.Values[stickY] = Mathf.Clamp(DriveAids.Throttle(throttle, brain.Body.ThrottleFor(DriveAids.TrainingSpeed), false), -1f, 1f);
+                top = Mathf.Max(top, brain.Body.Speed);
+                yield return null;
+            }
+            var laps = set.Laps;
+            outcomes.Add($"{(laps.Count > 0 ? laps[laps.Count - 1].Outcome : "?")} ({top:0.00} m/s)");
+            ManualInputs.Clear();
+        }
+        brain.KeysFromKeyboard = true;
+        int humanLaps = brain.CompletedLaps;
+        Expect(humanLaps >= 2, "a shaky human hand on the transmitter's channels completes 2 laps", $"{humanLaps} completed: {string.Join(", ", outcomes)}");
+        if (humanLaps >= 2)
+        {
+            string error = brain.Train();
+            while (brain.State == SlalomBrain.Mode.Training) yield return null;
+            var c = brain.Cleaning;
+            int[] reh = brain.RehearsalFinished;
+            string said = brain.LastSaid;
+            Expect(error == null && c.LapsKept >= 2 && c.StartRowsDropped > 0 && c.CruiseSpeed > 0.25f && reh != null && said != null && said.Length > 0,
+                "training cleans the human laps (start dropped, steering smoothed, steady speed) and says the result",
+                $"{error ?? "trained"}: kept {c.LapsKept}/{c.LapsIn} laps, {c.RowsKept}/{c.RowsIn} rows, {c.StartRowsDropped} start rows dropped, " +
+                $"steady {c.CruiseSpeed:0.00} m/s, steering noise {c.SteerNoise:0.000}; rehearsal {(reh != null ? string.Join("/", reh) : "-")} " +
+                $"(fallback {brain.FallbackRehearsal}); said \"{said}\"");
+            error = brain.StartAutopilot();
+            float limit = Time.time + 5 * SlalomBrain.RunTimeoutS;
+            while (brain.State == SlalomBrain.Mode.Autopilot && Time.time < limit) yield return null;
+            if (brain.State == SlalomBrain.Mode.Autopilot) brain.StopAutopilot();
+            string attempts = string.Join(", ", brain.Attempts);
+            Expect(error == null && brain.Drove != null && brain.Drove != "nothing",
+                "after training on shaky human laps the Autopilot drives the slalom on a scored run", $"{error ?? "drove: " + brain.Drove}; {attempts}");
+            Expect(brain.Drove != null && brain.Drove.StartsWith("candidate") && !attempts.Contains("stalled"),
+                "a brain trained on those human laps drives it (not the fallback), and none stalls", $"{brain.Drove}; {attempts}; said \"{brain.LastSaid}\"");
+        }
+        ManualInputs.Clear();
+        // The earlier rooms' laps back in front, the human ones kept.
+        set.Laps.InsertRange(0, saved);
+        brain.PlaceAtStart();
     }
 
     // ---- The brain beat by voice --------------------------------------------------------------------------------

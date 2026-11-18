@@ -36,12 +36,24 @@ namespace Forge.Controllers
         public bool Done => candidate >= files.Length;
         public double ComputeSeconds => clock.Elapsed.TotalSeconds;
 
-        public Rehearsal(ControllerFile[] files, MockCourse course)
+        public Rehearsal(ControllerFile[] files, MockCourse course) : this(files, course, null) { }
+
+        /// <summary>
+        /// A rehearsal on the truck the person drives: <paramref name="physics"/> is its design's (<see cref="TruckDesign.Derive"/>),
+        /// so a candidate that only works with the stock tuning doesn't rehearse as fine on a truck that slides or tips.
+        /// Null: the original tuning.
+        /// </summary>
+        public Rehearsal(ControllerFile[] files, MockCourse course, TruckPhysics? physics)
         {
             this.files = files ?? throw new ArgumentNullException(nameof(files));
             this.course = course ?? throw new ArgumentNullException(nameof(course));
+            this.physics = physics;
             finished = new int[files.Length];
         }
+
+        readonly TruckPhysics? physics;
+        /// <summary>The design physics it rehearses with, or null (the original tuning).</summary>
+        public TruckPhysics? Physics => physics;
 
         /// <summary>Drives for up to <paramref name="budgetMs"/> of compute. Returns true when every candidate has rehearsed.</summary>
         public bool Step(double budgetMs)
@@ -74,6 +86,7 @@ namespace Forge.Controllers
             if (start == 0 && host.Attach(files[candidate]) != null) { candidate++; return false; }
             host.ResetState();
             sim = new MockTruckSim(course, StartOffsets[start / StartTurns.Length], StartTurns[start % StartTurns.Length]);
+            if (physics.HasValue) sim.UsePhysics(physics.Value);
             return true;
         }
 

@@ -113,6 +113,16 @@ namespace Forge.Controllers
         }
 
         /// <summary>
+        /// The throttle that holds <paramref name="speed"/> (m/s at full size) on this truck's driving model, so a hand's
+        /// "training speed" means the same speed on every design and at every course scale. Clamped to [0, 1].
+        /// </summary>
+        public float ThrottleFor(float speed)
+        {
+            float v = Mathf.Max(0f, speed);
+            return Mathf.Clamp01((LinearDrag * v + QuadDrag * v * v) / Mathf.Max(1e-4f, Accel));
+        }
+
+        /// <summary>
         /// Where the rays and the body sphere are, above the transform (m): <see cref="sensorHeight"/> at full size; on a
         /// miniature that times <see cref="Scale"/>, lifted so the beam and the sphere clear the table top by
         /// <see cref="SurfaceClearance"/>.

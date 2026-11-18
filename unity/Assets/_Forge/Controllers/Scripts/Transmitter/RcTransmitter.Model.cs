@@ -383,7 +383,7 @@ namespace Forge.Controllers
                 if (lp.y != y) stickPivot[s].localPosition = new Vector3(lp.x, y, lp.z);
                 var pad = thumbPad[s];
                 if (pad == null) continue;
-                bool on = locks[s].Locked;
+                bool on = locks[s].Locked || owner[s] >= 0;  // a locked thumb, or a fingertip on a docked stick
                 if (pad.gameObject.activeSelf != on) pad.gameObject.SetActive(on);
                 Material m = seating ? padFlash : padOn;
                 if (on && pad.sharedMaterial != m) pad.sharedMaterial = m;
@@ -413,7 +413,7 @@ namespace Forge.Controllers
             Material m;
             if (now < ledFlashUntil) m = ledFlash;
             else if (target == Target.None) m = ledRed;
-            else if (!Held) m = ledAmber;
+            else if (!Held && !Docked) m = ledAmber;
             else
             {
                 // Held and linked: steady green, blinking while it sends a stick.
@@ -443,9 +443,9 @@ namespace Forge.Controllers
 
             int state = StateCode(drone);
             int bars = LinkBars(drone);
-            int held = HeldMask() + (mouseHeld ? 4 : 0);
+            int held = HeldMask() + (mouseHeld ? 4 : 0) + (Docked ? 8 : 0) + (owner[0] >= 0 || owner[1] >= 0 ? 16 : 0) + (DriveAids.Cruising ? 32 : 0);
             bool flashing = flash != null && now < flashUntil;
-            int sk = unchecked(((((int)target * 31 + state) * 7 + bars) * 9 + held) * 2 + (easy ? 1 : 0)) * 2 + (full ? 1 : 0);
+            int sk = unchecked(((((int)target * 31 + state) * 7 + bars) * 67 + held) * 2 + (easy ? 1 : 0)) * 2 + (full ? 1 : 0);
             sk = unchecked(sk * 131 + (flashing ? flashId + 1 : 0));
             if (sk == screenKey) return;
             screenKey = sk;
@@ -456,7 +456,9 @@ namespace Forge.Controllers
             string line3 = flashing ? flash : StateText(drone, state);
             string link = target == Target.None ? "<color=#FF6060>NO LINK</color>"
                         : "LINK <color=#7CFF9A>" + Bars[bars] + "</color><color=#2E4038>" + Bars[4 - bars] + "</color>";
-            string who = mouseHeld ? "MOUSE" : HeldMask() == 3 ? "BOTH HANDS" : HeldMask() != 0 ? "ONE HAND" : "GRAB ME";
+            string who = mouseHeld ? "MOUSE" : HeldMask() == 3 ? "BOTH HANDS" : HeldMask() != 0 ? "ONE HAND"
+                       : Docked ? (owner[0] >= 0 || owner[1] >= 0 ? "DOCKED · ON" : "DOCKED") : "GRAB ME";
+            if (DriveAids.Cruising && target == Target.Truck && !flashing) line3 += " · CRUISE";
             screen.text = "<b>" + thing + "</b>\n" + mode + "\n" + line3 + "\n<size=80%>" + link + "  " + who + "</size>";
         }
 
@@ -539,7 +541,7 @@ namespace Forge.Controllers
                     case SlalomBrain.Mode.Autopilot: return "AUTOPILOT DRIVING";
                     default:
                         if (brain.Body != null && brain.Body.Crashed) return "CRASHED · PRESS RESET";
-                        return freeDriving ? "FREE DRIVE · NOT RECORDED" : "READY · GRAB TO DRIVE";
+                        return freeDriving ? "FREE DRIVE · NOT RECORDED" : Docked ? "READY · THUMBS ON STICKS" : "READY · GRAB TO DRIVE";
                 }
             }
             return target == Target.OtherTruck ? "READY" : "TO DRIVE THE TRUCK";
