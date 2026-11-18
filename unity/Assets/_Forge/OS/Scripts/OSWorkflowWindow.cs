@@ -264,14 +264,22 @@ namespace Forge.OS
             var lead = AlbieCrew.Instance?.Lead;
             var speech = lead != null ? lead.GetComponentInChildren<StreamedPcmTextToSpeech>(true) : null;
             var follow = lead != null ? lead.GetComponentInChildren<AlbieFollowUp>(true) : null;
+            // Voice is what matters here: the hub's voice session or, hub off, the headset's own (AlbieVoice), both
+            // reported as VoiceActive. The follow-up listener only opens the mic by itself after Albie asks; without it
+            // (held while the app has no input focus) the user still answers the usual way, so it never blocks the ask.
             if (!OSWorkflowTransport.Available) notice = OSWorkflowTransport.ConnectionMessage;
-            else if (speech == null || !speech.VoiceActive || follow == null || !follow.isActiveAndEnabled)
-                notice = "Voice is unavailable. Connect a voice-enabled hub or use Type instead.";
+            else if (speech == null || !speech.VoiceActive)
+                notice = ForgeNet.Status == ForgeNetStatus.Live
+                    ? "This hub has no voice. Start it with a voice provider, or use Type instead."
+                    : "Albie's voice isn't ready yet. Try again in a moment, or use Type instead.";
             else
             {
-                follow.ExpectProjectReply();
+                bool handsFree = follow != null && follow.isActiveAndEnabled;
+                if (handsFree) follow.ExpectProjectReply();
                 ForgeNet.Send("workflow.describe", new JObject());
-                notice = "What would you like the crew to build? Answer Albie aloud, or use Type instead.";
+                notice = handsFree
+                    ? "What would you like the crew to build? Answer Albie aloud when he asks, or use Type instead."
+                    : "What would you like the crew to build? Say \"Albie\" and answer, or use Type instead.";
             }
             Render();
         }
