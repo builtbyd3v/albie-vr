@@ -228,6 +228,9 @@ namespace Forge.OS
             if (placed && now > settleUntil && (here - lastPlaced).sqrMagnitude > MovedBy * MovedBy) pinned = true;  // the person moved it
 
             bool anchored = session.AnchorFor(eye, slots, out Vector3 bottom, out Vector3 top, out Vector3 up, out int anchorId);
+            // A stage with no tool up (Course before it is made): under the project window when it is open, not floating in
+            // front of the person, where the bar landed on the window's lower corner and hid "Make my own ...".
+            if (!anchored) anchored = ProjectWindowAnchor(shell, out bottom, out top, out up, out anchorId);
             if (!anchored) anchorId = 0;
             if (anchorId != lastAnchor)
             {
@@ -278,6 +281,24 @@ namespace Forge.OS
             Vector3 direction = (below - eye).normalized;
             if (direction.y < -MaxDownSine) return false;
             target = eye + direction * Mathf.Min(distance, Reach);
+            return true;
+        }
+
+        // The project window's bottom and top edge centres, as AnchorFor gives for a tool. False when it isn't open.
+        static bool ProjectWindowAnchor(OSShell shell, out Vector3 bottom, out Vector3 top, out Vector3 up, out int anchorId)
+        {
+            bottom = top = Vector3.zero;
+            up = Vector3.up;
+            anchorId = 0;
+            OSWindow w = shell.Windows.Find(OSProjectWindow.WindowId);
+            if (w == null || w.Panel == null || !w.gameObject.activeInHierarchy) return false;
+            var rect = (RectTransform)w.Panel.transform;
+            Vector3 center = rect.TransformPoint(rect.rect.center);
+            up = rect.up;
+            float half = w.Panel.SizeMeters.y * 0.5f;
+            bottom = center - up * half;
+            top = center + up * half;
+            anchorId = w.GetHashCode();
             return true;
         }
 

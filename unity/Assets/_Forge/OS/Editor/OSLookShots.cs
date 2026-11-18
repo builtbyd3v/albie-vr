@@ -145,6 +145,7 @@ namespace Forge.OS.Editor
             ClearLookFolder();
             index.Clear();
             textAudit.Clear();
+            overlapAudit.Clear();
             problems.Clear();
             unreachable.Clear();
             findings.Clear();
@@ -255,10 +256,13 @@ namespace Forge.OS.Editor
         // millimetres (the font's own cap line), and a flag when the text does not fit its own box ("wide": a line that does not wrap
         // is longer than the box; "tall": wrapped text is taller than the box). The measurements the text-size rubric needs.
         static readonly StringBuilder textAudit = new StringBuilder();
+        // Text over text or over a control, or outside its window, on every screen (WindowOverlapAudit): overlap_audit.txt.
+        static readonly StringBuilder overlapAudit = new StringBuilder();
         static readonly List<TMPro.TMP_Text> auditScratch = new List<TMPro.TMP_Text>();
 
         static void AuditText(string screen)
         {
+            foreach (string line in WindowOverlapAudit.Run(screen)) overlapAudit.AppendLine(line);
             if (shell == null) return;
             float unit = OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f;
             if (menu != null && menu.Visible) AuditRoot(screen, "menu", menu.gameObject, unit);
@@ -295,6 +299,7 @@ namespace Forge.OS.Editor
                 Directory.CreateDirectory(Dir);
                 File.WriteAllText(Path.Combine(Dir, "index.json"), new JArray(index).ToString(Newtonsoft.Json.Formatting.Indented));
                 File.WriteAllText(Path.Combine(Dir, "text_audit.txt"), textAudit.ToString());
+                File.WriteAllText(Path.Combine(Dir, "overlap_audit.txt"), overlapAudit.Length == 0 ? "clean\n" : overlapAudit.ToString());
             }
             catch (IOException e) { Debug.Log("[OSLookShots] couldn't write index.json: " + e.Message); }
         }

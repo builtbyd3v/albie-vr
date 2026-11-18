@@ -289,6 +289,16 @@ public class GesturePanel : MonoBehaviour
         var label = row.action.GetComponentInChildren<TMP_Text>();
         label.text = text;
         row.action.Rect.sizeDelta = new Vector2(Mathf.Max(112f, label.GetPreferredValues(text).x + 24f), 26f);
+        // The title and how-to end before the pill, however wide its label made it ("Close looked-at window" outgrew the
+        // 150 mm they kept, and the how-to ran under it); they shorten with "…" instead.
+        float right = 8f + row.action.Rect.sizeDelta.x + 10f;
+        if (!row.def.builtin)  // a taught gesture's Forget sits just left of the pill (at a fixed 138 mm a wide pill covered it)
+        {
+            PinRight(row.forget.Rect, right - 2f);
+            right += row.forget.Rect.sizeDelta.x + 10f;
+        }
+        row.title.rectTransform.offsetMax = new Vector2(-right, row.title.rectTransform.offsetMax.y);
+        row.how.rectTransform.offsetMax = new Vector2(-right, row.how.rectTransform.offsetMax.y);
     }
 
     // Which hand a built-in answers to now, before its how-to.

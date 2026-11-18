@@ -1136,26 +1136,29 @@ namespace Forge.OS
             bg.Glow = ForgeTheme.FloatingHalo;
             bg.raycastTarget = true;
             ForgeLook.Ring(root.transform, "Highlight", new Color(1f, 1f, 1f, ForgeTheme.FloatingRing), ForgeTheme.RadiusCard, 1.5f);
-            var strip = root.AddComponent<HorizontalLayoutGroup>();
-            strip.padding = new RectOffset(32, 20, 12, 12);
+            // Two rows: the question across the whole width (it wraps), then the buttons at the right. In one row a long
+            // question squeezed the buttons under their labels on a narrow window (Settings: "Cancel" ran onto the confirm
+            // button, the question into both). The strip grows to fit.
+            var strip = root.AddComponent<VerticalLayoutGroup>();
+            strip.padding = new RectOffset(32, 20, 14, 14);
             strip.spacing = ForgeTheme.Space4;
-            strip.childAlignment = TextAnchor.MiddleLeft;
+            strip.childAlignment = TextAnchor.UpperLeft;
             strip.childControlWidth = strip.childControlHeight = true;
-            strip.childForceExpandWidth = false;
+            strip.childForceExpandWidth = true;
             strip.childForceExpandHeight = false;
+            var fit = root.AddComponent<ContentSizeFitter>();
+            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             TMP_Text text = Text(root.transform, question, BodyText);
             text.alignment = TextAlignmentOptions.MidlineLeft;
-            var textLayout = text.GetComponent<LayoutElement>();
-            if (textLayout == null) textLayout = text.gameObject.AddComponent<LayoutElement>();
-            textLayout.flexibleWidth = 1f;
-            textLayout.minWidth = 120f;
-            Button(root.transform, confirmLabel, () =>
+            RectTransform buttons = Row(root.transform, ButtonHeight, ForgeTheme.Space4);
+            buttons.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleRight;
+            Button(buttons, confirmLabel, () =>
             {
                 UnityEngine.Object.Destroy(root);
                 onConfirm?.Invoke();
             }, OSButtonStyle.Primary);
-            Button(root.transform, "Cancel", () => UnityEngine.Object.Destroy(root), OSButtonStyle.Secondary);
+            Button(buttons, "Cancel", () => UnityEngine.Object.Destroy(root), OSButtonStyle.Secondary);
             Touch(host);
         }
 

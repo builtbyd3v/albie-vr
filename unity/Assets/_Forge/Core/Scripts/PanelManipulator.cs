@@ -127,8 +127,29 @@ public class PanelManipulator : MonoBehaviour
     {
         if (faceButton == null || straightButton == null) return;
         float buttons = panel != null && panel.Chrome != null ? panel.Chrome.ReservedWidth : 0f;
-        PlaceTitleButton(faceButton, buttons);
-        PlaceTitleButton(straightButton, buttons + faceButton.Rect.sizeDelta.x + 8f);
+        float pills = faceButton.Rect.sizeDelta.x + 8f + straightButton.Rect.sizeDelta.x;
+        // In the header only when they fit beside the title at its natural width. On a narrow window (the Welcome card)
+        // they were drawn over the title and subtitle: there they sit just above the top edge, inside the hit margin.
+        bool inHeader = panel == null || rect.sizeDelta.x - 14f - buttons - pills - 16f >= panel.TitleSpan;
+        if (inHeader)
+        {
+            PlaceTitleButton(faceButton, buttons);
+            PlaceTitleButton(straightButton, buttons + faceButton.Rect.sizeDelta.x + 8f);
+        }
+        else
+        {
+            PlaceAboveTop(faceButton, 0f);
+            PlaceAboveTop(straightButton, faceButton.Rect.sizeDelta.x + 8f);
+        }
+    }
+
+    // Just above the panel's top edge, from the right: the gap and the pill stay inside HandleMarginMm, so rays still hit it.
+    static void PlaceAboveTop(ForgePill pill, float fromRight)
+    {
+        var rt = pill.Rect;
+        rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 0f);
+        rt.anchoredPosition = new Vector2(-14f - fromRight, 8f);
     }
 
     /// <summary>Press this panel's own "−" (<see cref="AddMinimize"/>). False if it doesn't have one.</summary>
@@ -591,7 +612,7 @@ public class PanelManipulator : MonoBehaviour
     {
         var rt = pill.Rect;
         rt.anchorMin = rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot = new Vector2(1f, 0.5f);
+        rt.pivot = new Vector2(1f, 0.5f);  // (PlaceAboveTop uses pivot y 0: reset here when it moves back into the header)
         rt.anchoredPosition = new Vector2(-14f - fromRight, -ForgeTheme.PanelHeader * 0.5f);
     }
 
