@@ -19,7 +19,7 @@ using UnityEngine;
 /// FollowUpS + IdleCloseS after Albie's last word; a pause sends nothing, a connect from before it gives up, the next turn
 /// after it connects and the last 8 lines carry over; hands-free speech reaches the service only while the user faces
 /// Albie (30 degree cone, or Albie on the palm); a cold start sends the first words in order; a heard turn with no reply
-/// is asked once more after RetryS. Edit mode runs every step;
+/// is asked once more after RetryS; a failed connect (a 401 token) backs off instead of retrying per mic frame. Edit mode runs every step;
 /// Play mode only the pure ones (a test AlbieVoice would take over ForgeNet.LocalPeer and talk to the running pet).
 /// </summary>
 public static class VoiceCheck
@@ -62,6 +62,7 @@ public static class VoiceCheck
             failed += Step(sb, ref skipped, "4d A gated turn that fails to open clears RequireName", GateCleared);
             failed += Step(sb, ref skipped, "5  Cold start: frames queued while connecting go out in order", ColdStart);
             failed += Step(sb, ref skipped, "6  A heard turn with no reply is asked once more after RetryS", HeardTurnRetried);
+            failed += Step(sb, ref skipped, "7  A failed connect backs off (2 s, then 4 s), not once per mic frame", ConnectBackoff);
         }
         finally
         {
@@ -347,6 +348,30 @@ public static class VoiceCheck
         r.Tick();
         Expect(Count(s, "response.create") == 1, "an answered turn was asked again");
         return $"heard, no reply: 0 asks at {retry - 0.1f:0.0} s, 1 at {retry + 0.1f:0.0} s, still 1 at 20 s; an answered turn: 0 more";
+    }
+
+    static string ConnectBackoff()
+    {
+        if (Application.isPlaying) return PlaySkip;
+        using var r = new Rig();
+        r.voice.fetchToken = () =>
+        {
+            r.tokens++;
+            return Task.FromException<string>(new InvalidOperationException("voice token: 401 Unauthorized"));
+        };
+        r.WakeTurn(true);
+        for (byte b = 1; b <= 10; b++) r.Frame(b);  // a second of mic frames
+        Expect(r.tokens == 1, $"{r.tokens} token fetches in one second after a 401");
+        r.now = 2.1f;
+        r.Frame(11);
+        Expect(r.tokens == 2, $"no retry after the 2 s backoff ({r.tokens} fetches)");
+        r.now = 5f;
+        r.Frame(12);
+        Expect(r.tokens == 2, "retried before the doubled 4 s backoff");
+        r.now = 6.2f;
+        r.Frame(13);
+        Expect(r.tokens == 3 && r.sockets.Count == 0, $"{r.tokens} fetches, {r.sockets.Count} sessions at 6.2 s");
+        return "a 401 then 10 frames: 1 fetch; retries at 2.1 s and 6.2 s, none at 5 s";
     }
 
     // ---- The fake voice service --------------------------------------------------------------------------------

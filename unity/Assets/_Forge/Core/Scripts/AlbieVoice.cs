@@ -113,6 +113,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     bool away;  // Suspend..Resume: nothing goes to Grok and no session opens
     int epoch;  // bumped by Suspend: a Connect that started before it gives up instead of opening a session
     int connectingEpoch;
+    float connectBackoff, nextConnectAt;  // after a failed connect (a 401 token): no new one before nextConnectAt
 
     // Seams for Forge > Core > Check Voice (Core/Editor/VoiceCheck.cs). The app keeps these defaults; the check swaps in
     // a fake clock, token and socket, so the outbox, the idle close and a pause run with no network.
@@ -582,6 +583,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
     Task<bool> EnsureConnected()
     {
         if (ws != null && ws.State == WebSocketState.Open) return Task.FromResult(true);
+        // Every mic frame starts a send: without this, a 401 token fetch repeated about 10 times a second (live 18:59:28).
+        if ((connecting == null || connecting.IsCompleted) && clock() < nextConnectAt) return Task.FromResult(false);
         if (connecting == null || connecting.IsCompleted || connectingEpoch != epoch)
         {
             connectingEpoch = epoch;
@@ -615,6 +618,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
             }
             ws = socket;
             lastActivity = clock();
+            connectBackoff = 0f;
             _ = Receive(socket);
             Debug.Log("[AlbieVoice] connected to the voice service from the device.");
             return true;
@@ -623,7 +627,9 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         {
             socket?.Dispose();
             if (life.IsCancellationRequested || started != epoch) return false;
-            Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message}");
+            connectBackoff = Mathf.Min(connectBackoff > 0f ? connectBackoff * 2f : 2f, 60f);
+            nextConnectAt = clock() + connectBackoff;
+            Debug.LogWarning($"[AlbieVoice] can't reach the voice service: {e.Message} (next try in {connectBackoff:0} s)");
             if (turnOpen || committed) Final("");
             Emit("agent.error", new JObject { ["message"] = "Voice error: can't reach the voice service" }, "idle");
             return false;
