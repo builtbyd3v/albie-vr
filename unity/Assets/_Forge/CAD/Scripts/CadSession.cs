@@ -129,7 +129,9 @@ public class CadSession : MonoBehaviour
     CadModelUpdated pending;  // newest version announced while a fetch was running
 
     static string HubLabel => ForgeCloud.Routes("/cad/") ? "Albie's cloud" : "Hub " + ForgeNet.Url("").TrimEnd('/');
-    IDisposable cloudReady;
+    IDisposable cloudReady, turnEvents;
+    /// <summary>hub -> Unity: Albie's cad_turn on the hub (hub/cad/tools.py CadTurn). One-off, like cad.action.</summary>
+    public const string CadTurnType = "cad.turn";
     List<CadMockSet.Version> MockVersions => mocks.parts[mockPart].versions;
 
     /// <summary>The scene's session; created on first use, falling back to these mocks.</summary>
@@ -161,6 +163,7 @@ public class CadSession : MonoBehaviour
         ForgeNet.StatusChanged += OnNetStatus;
         cloudReady = ForgeNet.On("cloud.ready", _ => { if (Ready && IsMock && mode == Mode.Auto) StartHub(); });  // the cloud came up later
         ForgeCloud.StateChanged += OnCloudState;
+        turnEvents = ForgeNet.On(CadTurnType, OnTurnEvent);
     }
 
     void OnDisable()
@@ -173,6 +176,19 @@ public class CadSession : MonoBehaviour
         ForgeCloud.StateChanged -= OnCloudState;
         cloudReady?.Dispose();
         cloudReady = null;
+        turnEvents?.Dispose();
+        turnEvents = null;
+    }
+
+    // The viewer turns it (or keeps it a few seconds for a viewer still unfolding). The answer went back from the hub already.
+    static void OnTurnEvent(JToken payload)
+    {
+        CadTurnRequest request;
+        try { request = payload?.ToObject<CadTurnRequest>(); }
+        catch (Exception e) { Debug.LogWarning($"[CadSession] cad.turn: {e.Message}"); return; }
+        if (request == null) return;
+        var answer = CadViewer.RequestTurn(request);
+        if (answer?["error"] != null) Debug.LogWarning($"[CadSession] cad.turn: {answer["error"]}");
     }
 
     // This project enters Play mode without a domain reload: statics, and static subscriptions, outlive a session.

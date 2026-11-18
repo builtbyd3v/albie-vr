@@ -8,14 +8,20 @@ Tools that change what the user sees open the CAD view first through `show` (age
 by agent/tools.py), so "open the quadcopter" works with nothing open. Opening the view never blocks the change itself:
 if it fails (the user isn't at the desk) the result carries `view_error` for Albie to mention. Buttons only Unity has
 (Expand, the demo, markers, dimensions, the panel's tabs) are pressed with `cad.action` (Addendum H), which is not
-sticky: it means "now", and Unity applies it once the version it names is on screen.
+sticky: it means "now", and Unity applies it once the version it names is on screen. cad_turn ("rotate it", "spin the
+robot") goes as cad.turn (CadTurn below), which only turns the view: it never presses Expand or Explode, so an expanded,
+exploded model stays so. The headset runs its own copy of cad_turn (unity/.../CAD/Resources/AlbieTools/cad_device.json)
+so it also works with no hub or cloud.
 """
 from __future__ import annotations
 
 import itertools
+import math
 import re
 from collections.abc import Awaitable, Callable, Iterable
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 from cad.part_api import ParamError, primary_metric
 from cad.service import CadService, RegenError, version_label
@@ -23,6 +29,8 @@ from events import Attachment, CadAction, CadView, EventBus
 
 NO_ARGS = {"type": "object", "properties": {}}
 TABS = ["overview", "parameters", "analysis", "history"]
+FACES = ["front", "back", "left", "right"]
+AXES = ["up", "side"]
 VERSIONS_LISTED = 12
 GLYPH_WORDS = {"drone": "drone", "quad": "drone", "copter": "drone", "gears": "gears", "gear": "gears",
                "transmission": "gears", "reducer": "gears", "rocket": "rocket"}
@@ -32,13 +40,13 @@ _seq = itertools.count(1)
 
 TOOLS: list[dict[str, Any]] = [
     {"name": "cad_list_parts",
-     "description": "List the designs in the CAD library (model rocket, quadcopter, gearbox, ...) with their "
+     "description": "List the designs in the CAD library (model rocket, quadcopter, gearbox, humanoid robot, RC truck, ...) with their "
                     "descriptions and named presets, and which one is open on the desk.",
      "parameters": NO_ARGS},
     {"name": "cad_open_part",
      "description": "Open a design from the library on the desk and show it in the CAD view (opens the view if "
-                    "needed). `part` is an id from cad_list_parts (rocket, quadcopter, gearbox); a title or a word "
-                    "like 'drone' works too. Each design keeps its own history, so switching back resumes where it was.",
+                    "needed). `part` is an id from cad_list_parts (rocket, quadcopter, gearbox, humanoid, truck); a title or a "
+                    "word like 'drone' or 'robot' works too. Each design keeps its own history, so switching back resumes where it was.",
      "parameters": {"type": "object", "properties": {"part": {"type": "string"}}, "required": ["part"]}},
     {"name": "cad_get_params",
      "description": "The open design: every parameter with its value, range and unit; its metrics, each with a "
@@ -70,10 +78,11 @@ TOOLS: list[dict[str, Any]] = [
      "parameters": NO_ARGS},
     {"name": "cad_view",
      "description": "Change how the open design is shown (view only; the design doesn't change). Pass only what the "
-                    "user asked for. expand: true brings the model up big in front of the user, where they can pull "
-                    "parts off and turn them ('expand it', 'let me look at it', 'bring it closer'); false puts it back "
-                    "on the desk. explode: true spreads the parts out, false puts them back together (also snaps "
-                    "pulled-off parts back). focus_id: highlight a part (IDs from cad_get_params, e.g. NOSE_CONE, "
+                    "user asked for; asking for what is already so (expand while it is up, explode while it is apart) "
+                    "changes nothing. expand: true brings the model up big in front of the user, where they can pull "
+                    "parts off ('expand it', 'let me look at it', 'bring it closer'); false puts it back on the desk. "
+                    "explode: true spreads the parts out, false puts them back together (also snaps pulled-off parts "
+                    "back). Never use expand or explode to rotate or turn the model: that is cad_turn. focus_id: highlight a part (IDs from cad_get_params, e.g. NOSE_CONE, "
                     "FIN_1), several (FIN_1,FIN_3) or a group by prefix (FIN_* is every fin); empty string clears it. markers: the center of gravity and other markers on the model. "
                     "dimensions: dimension callouts on the model. tab: the design panel's tab.",
      "parameters": {"type": "object", "properties": {
@@ -90,10 +99,27 @@ TOOLS: list[dict[str, Any]] = [
          "part_id": {"type": "string"}, "put_back": {"type": "boolean"}}}},
     {"name": "cad_demo",
      "description": "Run the open design's demo in the CAD view: the rocket flies its simulated flight across the "
-                    "room, the quadcopter hovers, the gearbox turns at its ratio ('show me it flying', 'make it hover', "
-                    "'run it'). run=false stops it. For the rocket it also returns the flight numbers (apogee in "
+                    "room, the quadcopter hovers, the gearbox turns at its ratio, the humanoid robot walks a lap ('show "
+                    "me it flying', 'make it hover', 'run it', 'make it walk'). A demo puts an exploded model back "
+                    "together first, so it is not for 'rotate it' or 'spin it': that is cad_turn. run=false stops it. For the rocket it also returns the flight numbers (apogee in "
                     "metres, speeds, landing): mention one. If the demo is blocked, say why.",
      "parameters": {"type": "object", "properties": {"run": {"type": "boolean", "description": "default true"}}}},
+    {"name": "cad_turn",
+     "description": "Rotate the open design about its own centre, on the desk or expanded in front of the user "
+                    "(view only: nothing is rebuilt, and an expanded or exploded model stays expanded and exploded). For "
+                    "'rotate it', 'turn it around', 'spin the robot', 'show me the back', 'tip it toward me', 'stop "
+                    "spinning', 'put it straight'. Works on every design (rocket, quadcopter, gearbox, humanoid robot, "
+                    "RC truck). degrees: turn it this far from where it is (90 a quarter turn, 180 turns it around, "
+                    "negative the other way; 90 if nothing else is given). axis: up (default) turns it about its "
+                    "vertical; side tips it toward (+) or away from the user. face: turn it so that side faces the "
+                    "user instead. spin: true keeps it turning slowly, false stops. reset: back to how it first stood.",
+     "parameters": {"type": "object", "properties": {
+         "degrees": {"type": "number", "description": "How far to turn it from where it is now; negative turns it the "
+                                                      "other way."},
+         "axis": {"type": "string", "enum": AXES, "description": "up: about its vertical (default); side: tip it."},
+         "face": {"type": "string", "enum": FACES, "description": "Turn it so this side faces the user."},
+         "spin": {"type": "boolean", "description": "true: keep turning slowly; false: stop."},
+         "reset": {"type": "boolean", "description": "true: back to how it first stood."}}}},
     {"name": "cad_simulate_flight",
      "description": "Rocket designs only: simulate the open design's flight on a C6-5 motor (RocketPy) without showing "
                     "anything: apogee in metres, time to apogee, top speed, stability margin in calibers, flight time, "
@@ -122,6 +148,19 @@ TOOLS: list[dict[str, Any]] = [
                     "history and its part script source.",
      "parameters": NO_ARGS},
 ]
+
+
+class CadTurn(BaseModel):
+    """hub -> Unity, cad.turn: rotate the open design in the CAD view (cad_turn). View only and one-off, like cad.action;
+    Unity turns whatever is on screen (desk or stage) about the model's centre and keeps its explode."""
+    degrees: float | None = None      # relative turn; with no face/spin/reset and no degrees, 90
+    axis: Literal["up", "side"] = "up"
+    face: Literal["front", "back", "left", "right"] | None = None
+    spin: bool | None = None          # true: keep turning slowly; false: stop
+    reset: bool = False
+    part: str = ""
+    version: int | None = None
+    seq: int = 0
 
 
 def _brief(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +251,12 @@ async def _view(args: dict[str, Any], cad: CadService, bus: EventBus, show: Show
     if "view_error" in view:
         return {"error": view["view_error"]}  # everything below is only on screen
     done: list[str] = []
+    already: list[str] = []
+    latest = getattr(bus, "latest", None)  # the hub's EventBus remembers the last cad.view
+    if "explode" in args and callable(latest):
+        last = (latest("cad.view") or {}).get("cad.view") or {}
+        if bool(last.get("explode")) == bool(args["explode"]):
+            already.append("explode")  # Unity ignores the repeat; say so rather than re-run it
     if "explode" in args or "focus_id" in args:
         await bus.publish("cad.view", CadView(explode=args.get("explode"), focus_id=focus[0] if focus else None,
                                               focus_ids=focus))
@@ -225,7 +270,8 @@ async def _view(args: dict[str, Any], cad: CadService, bus: EventBus, show: Show
     if "tab" in args:
         await _press(bus, cad, "tab", tab=args["tab"])
         done.append("tab")
-    return {"ok": True, "shown": done, **({"focused": focus} if focus else {})}
+    return {"ok": True, "shown": done, **({"focused": focus} if focus else {}),
+            **({"already": already, "note": "It was already like that, so nothing moved."} if already else {})}
 
 
 async def _take(args: dict[str, Any], cad: CadService, bus: EventBus, show: Show | None) -> dict[str, Any]:
@@ -264,6 +310,37 @@ async def _demo(args: dict[str, Any], cad: CadService, bus: EventBus, show: Show
         return {"error": view["view_error"], **{k: v for k, v in out.items() if k == "flight"}}
     await _press(bus, cad, "demo", on=run)
     return {"ok": True, "running": run, **out}
+
+
+async def _turn(args: dict[str, Any], cad: CadService, bus: EventBus, show: Show | None) -> dict[str, Any]:
+    axis = str(args.get("axis") or "up").lower()
+    face = str(args.get("face") or "").lower() or None
+    if axis not in AXES:
+        return {"error": f"No axis {args['axis']!r}; the axes are {AXES}"}
+    if face is not None and face not in FACES:
+        return {"error": f"No side {args['face']!r}; the sides are {FACES}"}
+    degrees = None
+    if args.get("degrees") is not None:
+        try:
+            degrees = float(args["degrees"])
+        except (TypeError, ValueError):
+            return {"error": f"degrees must be a number, not {args['degrees']!r}"}
+        if not math.isfinite(degrees):
+            return {"error": "degrees must be a finite number"}
+    spin = args.get("spin") if isinstance(args.get("spin"), bool) else None
+    reset = args.get("reset") is True
+    if degrees is None and face is None and spin is None and not reset:
+        degrees = 90.0
+    view = await _show(show)
+    if "view_error" in view:
+        return {"error": view["view_error"]}
+    r = cad.current
+    await bus.publish("cad.turn", CadTurn(degrees=degrees, axis=axis, face=face, spin=spin, reset=reset,
+                                          part=r.part, version=r.version, seq=next(_seq)))
+    did = ("back as it first stood" if reset else "spinning slowly" if spin else "stopped turning" if spin is False
+           else f"turned so its {face} faces the user" if face else f"turned {degrees:g} degrees"
+           + (" (tipped)" if axis == "side" else ""))
+    return {"ok": True, "did": did, "part": r.part, "kept": "expanded and exploded views stay as they are"}
 
 
 def _versions(cad: CadService) -> dict[str, Any]:
@@ -345,6 +422,8 @@ async def call_tool(name: str, args: dict[str, Any], cad: CadService, bus: Event
             return await _demo(args, cad, bus, show)
         if name == "cad_take_part":
             return await _take(args, cad, bus, show)
+        if name == "cad_turn":
+            return await _turn(args, cad, bus, show)
         if name == "cad_simulate_flight":
             r = cad.current
             flight = await cad.flight(None, float(args.get("wind_mps") or 0.0))
