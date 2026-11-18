@@ -14,6 +14,28 @@ parts, so those controls have something to show.
 | Separate / Assemble | Parts glide apart over 0.7 s to a layout that ships with the model. Each part shows its name, and labels move above or below a part so they don't collide. The scene's own labels hide while the parts are apart. |
 | Reset view | Puts the model back whole, solid, assembled and in its starting pose. |
 
+## Hands first (`ArtifactHandGrab`)
+
+No controller needed. Every artifact volume gets it (`ArtifactHost.ShowVolume`).
+
+| With your hands | What happens |
+|---|---|
+| Pinch on (or within 6 cm of) the model | You pick it up. It follows your hand, and turning your wrist turns it (1.5× for spinning, 1.2× for tilting, so you don't need to twist far). |
+| Pinch with the other hand too | Pull your hands apart to make it bigger, or together to make it smaller (0.4× to 3×). Turn both hands like a steering wheel to spin it. |
+| Let go with one hand | The other hand keeps holding it. |
+| Separate, then pinch one part | You take just that part (the smallest under your fingers, so a valve beats the chamber around it) and can turn it freely. Assemble or Reset view glides it home. |
+| Reset view | Also puts back wherever your hands moved it. |
+
+How it stays smooth and dependable:
+- The pinch point and hand direction are smoothed more when your hand is still and less when it moves fast, so the
+  model doesn't shake but doesn't trail behind. In the checks, 4 mm of tracking jitter moves a held model well
+  under 2.5 mm.
+- The pinch closes at 24% of your hand's size and opens at 40%, so it doesn't flicker between the two.
+- It survives a quarter second of lost tracking.
+- While a hand is near or holding the model, the volume's ray grips (`VolumeManipulator`, for pointing from afar)
+  pause, so the two never fight. The base lights up and a hint line says what a pinch will do.
+- The logic is `HandGrabCore`, plain C#. `ArtifactChecks` drives it with synthetic hands.
+
 Two markers in the GLB, both empty child nodes of a part, drive this:
 
 - `explode` (or `explode.001` and so on, as Blender names them). Its local position is where the part goes when
