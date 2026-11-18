@@ -42,6 +42,31 @@
 
 Two people. **The operator** sits at the laptop with the remote open (`http://<laptop>:<hub port>/demo`) and presses **Cue** (or Space) at each of Hudson's moments. **Hudson** wears the headset with the controllers put down, so Quest tracks his bare hands. Everything his hands do in the shot is read from his real hands: Albie lands on his actual palm and rides it, the buttons press under his actual fingertip, and the drone comes home to his actual hand. Only the moment after each spoken line is cued from the laptop.
 
+### The plan, step by step
+
+**Before the first take**
+
+1. In Unity, on this branch: run **Forge > Demo > Play Whole Script** once and check it reaches the end. Then **Forge > Demo > Build Quest APK** and install it on the headset.
+2. On the laptop: start the hub (`uvicorn main:app --host 0.0.0.0 --port 8000` in `hub/`) and open `http://localhost:8000/demo`. Headset and laptop on the same Wi-Fi.
+3. Put both controllers out of reach. Hudson sits in the chair, headset on, and holds a hand up to check it's tracked.
+4. Start the headset's screen recording. Operator presses **Reset**.
+
+**The take** (Hudson's moves, with the operator's presses in bold)
+
+1. Hudson sits back, hands in his lap. **Cue** (the take starts).
+2. Hudson raises a hand, palm up, and holds it still. Albie runs over, lands on it and says hello.
+3. Hudson says line 1 to Albie. **Cue** on his last word. The quad builds and takes off.
+4. Hudson says line 2 to the drone. **Cue** on his last word. Research runs, then the verdict card comes up.
+5. Hudson pokes "Add to parts list". The camera flies onto the drone, then training runs.
+6. Hudson reads the card, then pokes "Confirm". Albie says it's in the repo.
+7. Hudson says line 5 and stands up. **Cue** on his last word. The drone follows him round the room.
+8. Hudson stops, raises his palm and holds it. The drone comes home over his hand, and Albie says his last line.
+9. **Cue** (end of the take). Stop the recording.
+
+**If something misses:** Hudson holds the pose and the operator presses **Cue** once; it does that move for him. If a beat is stuck, **Skip beat**. For another take, **Reset** and start from step 1.
+
+The table below has the detail for each hand moment.
+
 ### Hudson's hands, beat by beat
 
 | Beat | What Hudson does with his hands | How to make it read as real | Operator |
