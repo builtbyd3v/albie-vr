@@ -20,8 +20,8 @@ Agent Office's browser application.
 ## Use it
 
 1. Start the hub and Unity Main, using the same setup as `AGENT_WORKFLOW_TESTING.md`.
-2. Open **Tools → Agents**. Hatch Scout or any other existing role using the normal role buttons.
-3. Click **Agent office**. Albie and every hatched crew member get a workstation. New crew members appear
+2. Open **Tools → Agents**. Choose Project workflow to open the office alongside the plan, or open Agent office on its own.
+3. Click **Agent office**. Albie, each assigned project role, and manually hatched crew members get workstations. Project workers appear directly in the office. New crew members appear
    within three seconds. There is no automatic hiring or new inference loop.
 4. Select a role button below the viewport to inspect its work status and workflow task.
 5. Use **Project workflow** to create and approve a task. The office reads `build.updated` and the existing
