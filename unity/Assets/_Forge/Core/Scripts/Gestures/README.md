@@ -11,10 +11,16 @@ It installs itself in any scene with a `Workspace`, so there's nothing to set up
 | Point at a window, flick toward you | The window comes to about arm's length |
 | Point at a window, flick away | A window that came to you goes back; otherwise it minimizes into a dot (tap the dot to reopen it) |
 | Hand out flat, palm up, held for 0.6 s | Albie jumps onto your palm, sits and listens |
-| Close your hand into a fist | Albie hops off (does nothing else by default) |
-| Make a fist, then burst your fingers open | Shows or hides the gesture display |
+| Left hand: open it, then close it | Hides every window |
+| Left hand: make a fist, then burst it open | Shows them all again |
+| Right hand: look at a window, open your hand, close it | That window minimizes into a dot |
+| Right hand: make a fist, then burst it open | The last window closed comes back |
 
-Albie also hops off if you turn your hand over or it leaves tracking. The mic opens when he lands and again after each answer. One silence closes it until you call him again, so this never leaves a paid voice session listening to the room.
+The pointing flicks are the right hand's too. The Hands setting changes this: in Settings (page 3), the **Hands** pill on the gesture display, or by asking Albie (`gesture_hands`). The choices are *Left hand: all windows* (the default), *Right hand: all windows* (swapped), or *Either hand: one window* (nothing hides everything; both hands close, open and flick one window).
+
+A close has to start from an open hand, not a resting or pointing one, and an open or close can't start out of a point: the pose has to be made afresh after the hand stops pointing. After any gesture fires, the other gestures on that hand wait half a second. That's what keeps curling your finger after a flick from also closing or reopening a window.
+
+Closing the hand Albie sits in sends him off instead. Albie also hops off if you turn your hand over or it leaves tracking. The mic opens when he lands and again after each answer. One silence closes it until you call him again, so this never leaves a paid voice session listening to the room.
 
 ## Teaching a gesture
 
@@ -26,7 +32,7 @@ Press Play in `Main` with **Forge > Desktop Mode** on, then press E at the desk.
 
 | Key | Does |
 |---|---|
-| 1 2 3 4 | Relaxed, point, fist, open |
+| 1 2 3 4 | Relaxed, point, fist, open (the pretend hand is a right hand: set Hands to *Right hand: all windows* to try hiding everything) |
 | 5 | Palm up |
 | 6 | Peace sign |
 | Q / Y | Flick toward you / away |
@@ -71,8 +77,9 @@ Binding any of Albie's tools to a gesture is allowed, with limits, because a ges
 
 ```json
 {
-  "version": 1,
-  "bindings": { "fist_close": { "action": "albie.release" } },
+  "version": 2,
+  "hands": "LeftAll",
+  "bindings": { "close_one": { "action": "window.close" } },
   "gestures": [
     {
       "id": "peace_sign", "title": "peace sign", "how": "Your hand shape, held",

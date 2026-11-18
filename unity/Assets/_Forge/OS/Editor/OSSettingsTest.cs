@@ -347,15 +347,15 @@ namespace Forge.OS.Editor
             Check(view != null, "the Settings button opened the window");
             if (view == null) yield break;
             Check(!shell.MenuOpen, "the strip button closed the menu");
-            Check(view.Page == 0 && OSSettingsWindow.PageCount == 3, "it opens on page 1 of 3");
+            Check(view.Page == 0 && OSSettingsWindow.PageCount == 4, "it opens on page 1 of 4");
             yield return 0.8f;
             LookAtWindow(shell);
             yield return 0.5f;
 
             // ---- page 1: menu button
             string text = TextOf(view.transform);
-            Check(text.Contains("Table button") && text.Contains("Watch turn") && text.Contains("Corner button") && text.Contains("Corner side") && text.Contains("Hands-free") && text.Contains("1 of 3"),
-                "page 1 shows the three switches, the corner side, the Hands-free line and '1 of 3': " + text);
+            Check(text.Contains("Table button") && text.Contains("Watch turn") && text.Contains("Corner button") && text.Contains("Corner side") && text.Contains("Hands-free") && text.Contains("1 of 4"),
+                "page 1 shows the three switches, the corner side, the Hands-free line and '1 of 4': " + text);
             string problem = OSToolsTest.LayoutProblem(Win(shell));
             Check(problem == null, "page 1 has no clipped or overlapping text" + (problem ?? ""));
             Check(text.Contains("Voice is off in this session"), "the Voice line honestly says voice is off in this session (no fake switch)");
@@ -415,7 +415,7 @@ namespace Forge.OS.Editor
             view = View(shell);
             Check(view.Page == 1, "the next button went to page 2");
             text = TextOf(view.transform);
-            Check(text.Contains("Layout") && text.Contains("Gesture display") && text.Contains("Distance") && text.Contains("Height") && text.Contains("2 of 3"), "page 2 shows Layout, Gesture display, Distance, Height and '2 of 3': " + text);
+            Check(text.Contains("Layout") && text.Contains("Gesture display") && text.Contains("Distance") && text.Contains("Height") && text.Contains("2 of 4"), "page 2 shows Layout, Gesture display, Distance, Height and '2 of 4': " + text);
             Check(text.Contains("0.50 m") && text.Contains("15 degrees down"), "the sliders read '0.50 m' and '15 degrees down': " + text);
             LookAtWindow(shell);
             yield return 0.4f;
@@ -541,18 +541,43 @@ namespace Forge.OS.Editor
             yield return 0.6f;
             Check(Mathf.Approximately(SliderOf(SetPageAndGet(shell, 1), "Distance").value, 0.6f), "reopened, the Distance slider shows the saved 0.6");
 
-            // ---- page 3: resets, about
-            view = SetPageAndGet(shell, 2);
+            // ---- page 3: hands
+            view = SetPageAndGet(shell, OSSettingsWindow.HandsPage);
             yield return 0.6f;
             LookAtWindow(shell);
             yield return 0.4f;
             text = TextOf(view.transform);
-            Check(text.Contains("Window positions") && text.Contains("Artifact permissions") && text.Contains("About") && text.Contains("version") && text.Contains("3 of 3"), "page 3 shows both resets, About, the version and '3 of 3': " + text);
-            Check(text.Contains("Grab3D") && text.Contains("Quirky Series") && text.Contains("Fredoka") && text.Contains("third-party UI kit") && !text.Contains("Meta") && !text.Contains("Oculus"), "About credits the CC0 models, the gator, the font and the UI kit, and names no brand");
+            GestureLibrary gestures = GestureEngine.Current != null ? GestureEngine.Current.Library : null;
+            Check(text.Contains("All windows") && text.Contains("Left hand") && text.Contains("Right hand") && text.Contains("Off") && text.Contains("3 of 4"),
+                "page 3 shows the Hands choice and '3 of 4': " + text);
             problem = OSToolsTest.LayoutProblem(Win(shell));
             Check(problem == null, "page 3 has no clipped or overlapping text" + (problem ?? ""));
             CheckTouchSizes(view, "page 3");
-            Shot("page3");
+            Shot("page3_hands");
+            if (gestures != null)
+            {
+                HandSplit before = gestures.Split;
+                Button rightHand = ButtonOf(view.transform, "Button Right hand");
+                Check(rightHand != null && Press(rightHand.gameObject, out why), "a pointer reaches Right hand: " + why);
+                yield return 0.4f;
+                Check(gestures.Split == HandSplit.RightAll && TextOf(View(shell).transform).Contains("Close your right hand"), "Right hand makes the right hand hide every window, and the page says so");
+                gestures.Split = before;
+                yield return 0.4f;
+                Check(TextOf(View(shell).transform).Contains(OSSettingsWindow.HandsSentence(before)), "a change from elsewhere (the gesture display, Albie) shows on the page");
+            }
+
+            // ---- page 4: resets, about
+            view = SetPageAndGet(shell, 3);
+            yield return 0.6f;
+            LookAtWindow(shell);
+            yield return 0.4f;
+            text = TextOf(view.transform);
+            Check(text.Contains("Window positions") && text.Contains("Artifact permissions") && text.Contains("About") && text.Contains("version") && text.Contains("4 of 4"), "page 4 shows both resets, About, the version and '4 of 4': " + text);
+            Check(text.Contains("Grab3D") && text.Contains("Quirky Series") && text.Contains("Fredoka") && text.Contains("third-party UI kit") && !text.Contains("Meta") && !text.Contains("Oculus"), "About credits the CC0 models, the gator, the font and the UI kit, and names no brand");
+            problem = OSToolsTest.LayoutProblem(Win(shell));
+            Check(problem == null, "page 4 has no clipped or overlapping text" + (problem ?? ""));
+            CheckTouchSizes(view, "page 4");
+            Shot("page4");
 
             // Artifact permissions: asks first
             Button forget = ButtonOf(view.transform, "Button Forget permissions");
@@ -581,8 +606,8 @@ namespace Forge.OS.Editor
             LookAtWindow(shell);
             yield return 0.3f;
             problem = OSToolsTest.LayoutProblem(Win(shell));
-            Check(problem == null, "page 3 with the note has no clipped or overlapping text" + (problem ?? ""));
-            Shot("page3_after_reset");
+            Check(problem == null, "page 4 with the note has no clipped or overlapping text" + (problem ?? ""));
+            Shot("page4_after_reset");
 
             // Window positions: asks first, then the windows come back
             OSWindow w = Win(shell);

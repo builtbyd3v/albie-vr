@@ -12,14 +12,39 @@ using UnityEngine;
 /// </summary>
 public sealed class GestureLibrary
 {
-    public const string FistClose = "fist_close", FistOpen = "fist_open", PalmUp = "palm_up", FlickIn = "point_flick_in", FlickOut = "point_flick_out";
-    const int Version = 1;
+    public const string PalmUp = "palm_up", FlickIn = "point_flick_in", FlickOut = "point_flick_out";
+    // One window (the one you look at) and every window. New ids in version 2: the old fist_close / fist_open bindings
+    // (Albie off my hand, the display) don't carry over onto them.
+    public const string FistClose = "close_one", FistOpen = "open_one", FistCloseAll = "close_all", FistOpenAll = "open_all";
+    const int Version = 2;
 
     public readonly List<GestureDef> All = new List<GestureDef>();
     /// <summary>A gesture was added, removed or rebound.</summary>
     public event Action Changed;
 
     readonly string path;
+    HandSplit split = HandSplit.LeftAll;
+
+    /// <summary>The Hands setting: which hand opens and closes every window. Saved with the gestures.</summary>
+    public HandSplit Split
+    {
+        get => split;
+        set
+        {
+            if (split == value) return;
+            split = value;
+            Save();
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>The Hands setting in a few words, for the display and for Albie.</summary>
+    public static string Describe(HandSplit split) => split switch
+    {
+        HandSplit.LeftAll => "Left hand: all windows",
+        HandSplit.RightAll => "Right hand: all windows",
+        _ => "Either hand: one window",
+    };
 
     /// <param name="path">The save file; null keeps everything in memory (tests).</param>
     public GestureLibrary(string path)
@@ -123,9 +148,11 @@ public sealed class GestureLibrary
         .Range(HandFeature.IndexCurl, 0f, 0.3f).Range(HandFeature.MiddleCurl, 0f, 0.33f).Range(HandFeature.RingCurl, 0f, 0.38f).Range(HandFeature.PinkyCurl, 0f, 0.45f)
         .Range(HandFeature.IndexFlex, 0f, 0.4f).Range(HandFeature.MiddleFlex, 0f, 0.4f).Range(HandFeature.RingFlex, 0f, 0.4f).Range(HandFeature.PinkyFlex, 0f, 0.4f);
 
-    // A hand on its way to a fist: anything short of half closed.
+    // Where a close starts: a hand held open, not one at rest or pointing. Pointing (the other three fingers curled) is
+    // well outside it even widened, so curling the finger after a flick can't read as closing the hand. Looser than
+    // OpenPose on the outer fingers, which stay bent on a real open hand.
     static readonly GesturePose NotClosedPose = new GesturePose()
-        .Range(HandFeature.IndexCurl, 0f, 0.55f).Range(HandFeature.MiddleCurl, 0f, 0.55f).Range(HandFeature.RingCurl, 0f, 0.55f).Range(HandFeature.PinkyCurl, 0f, 0.55f);
+        .Range(HandFeature.IndexCurl, 0f, 0.35f).Range(HandFeature.MiddleCurl, 0f, 0.35f).Range(HandFeature.RingCurl, 0f, 0.4f).Range(HandFeature.PinkyCurl, 0f, 0.48f);
 
     static readonly GesturePose PalmUpPose = new GesturePose()
         .Range(HandFeature.IndexCurl, 0f, 0.42f).Range(HandFeature.MiddleCurl, 0f, 0.42f).Range(HandFeature.RingCurl, 0f, 0.46f).Range(HandFeature.PinkyCurl, 0f, 0.52f)
@@ -144,13 +171,13 @@ public sealed class GestureLibrary
     {
         All.Add(new GestureDef
         {
-            id = FlickIn, title = "Bring window", how = "Point at a window, flick toward you", builtin = true,
+            id = FlickIn, title = "Bring window", how = "Point at a window, flick toward you", builtin = true, role = GestureRole.OneWindow,
             start = PointPose, hold = 0.1f, window = 0.35f, action = GestureActions.WindowSummon,
             motion = new GestureMotion { direction = new Vector3(0f, 0.25f, -1f).normalized, minSpeed = 0.8f, minDistance = 0.05f, purity = 0.45f, fingertip = true },
         });
         All.Add(new GestureDef
         {
-            id = FlickOut, title = "Send window away", how = "Point at a window, flick away from you", builtin = true,
+            id = FlickOut, title = "Send window away", how = "Point at a window, flick away from you", builtin = true, role = GestureRole.OneWindow,
             start = PointPose, hold = 0.1f, window = 0.35f, action = GestureActions.WindowMinimize,
             motion = new GestureMotion { direction = Vector3.forward, minSpeed = 1f, minDistance = 0.06f, purity = 0.6f, fingertip = true },
         });
@@ -159,15 +186,23 @@ public sealed class GestureLibrary
             id = PalmUp, title = "Call Albie", how = "Hold your hand out flat, palm up", builtin = true,
             start = PalmUpPose, hold = 0.6f, action = GestureActions.AlbiePerch,
         });
+        // Open and close: one hand for every window, the other for the window you're looking at (the Hands setting).
+        // Closing the hand Albie sits in sends him off instead.
+        AddOpenClose(FistCloseAll, FistOpenAll, "Hide all windows", "Show all windows", GestureRole.AllWindows, GestureActions.WindowsHide, GestureActions.WindowsShow);
+        AddOpenClose(FistClose, FistOpen, "Close window", "Reopen window", GestureRole.OneWindow, GestureActions.WindowClose, GestureActions.WindowReopen);
+    }
+
+    void AddOpenClose(string closeId, string openId, string closeTitle, string openTitle, GestureRole role, string closeAction, string openAction)
+    {
         All.Add(new GestureDef
         {
-            id = FistClose, title = "Close fist", how = "Close your hand into a fist", builtin = true,
-            start = NotClosedPose, end = FistPose, hold = 0.1f, window = 0.6f, action = GestureActions.AlbieRelease,
+            id = closeId, title = closeTitle, how = role == GestureRole.AllWindows ? "Open your hand, then close it" : "Look at a window, open your hand, close it", builtin = true, role = role, quietAfterPoint = true,
+            start = NotClosedPose, end = FistPose, hold = 0.1f, window = 0.6f, action = closeAction,
         });
         All.Add(new GestureDef
         {
-            id = FistOpen, title = "Open fist", how = "Make a fist, then burst your fingers open", builtin = true,
-            start = FistPose, end = OpenPose, hold = 0.15f, window = 0.45f, action = GestureActions.DisplayToggle,
+            id = openId, title = openTitle, how = role == GestureRole.AllWindows ? "Make a fist, then burst it open" : "Make a fist, then burst it open: the last one closed", builtin = true, role = role, quietAfterPoint = true, freshAfterPoint = true,
+            start = FistPose, end = OpenPose, hold = 0.15f, window = 0.45f, action = openAction,
         });
     }
 
@@ -187,11 +222,12 @@ public sealed class GestureLibrary
                 bindings[g.id] = binding;
             }
         }
-        return new JObject { ["version"] = Version, ["bindings"] = bindings, ["gestures"] = taught };
+        return new JObject { ["version"] = Version, ["hands"] = split.ToString(), ["bindings"] = bindings, ["gestures"] = taught };
     }
 
     public void LoadJson(JObject json)
     {
+        if (Enum.TryParse((string)json["hands"], out HandSplit savedSplit)) split = savedSplit;
         if (json["bindings"] is JObject bindings)
             foreach (var pair in bindings)
             {

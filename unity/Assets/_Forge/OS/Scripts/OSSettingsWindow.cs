@@ -8,9 +8,9 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The Settings window (window id "settings", opened by the Settings button in the menu strip). Three pages, each a few
+    /// The Settings window (window id "settings", opened by the Settings button in the menu strip). Four pages, each a few
     /// sections of rows (label left, control right), paged with a back and next button the way the menu pages:
-    /// 1 Menu button and Voice, 2 Windows and Menu position, 3 Reset and About. Every change is written through
+    /// 1 Menu button and Voice, 2 Windows and Menu position, 3 Hands, 4 Reset and About. Every change is written through
     /// <see cref="OSSettings"/> at once and takes effect without a restart: the table button, the corner button and the
     /// wrist turn read the setting each frame, the layout is applied to the workspace now, the menu distance and height are
     /// read the next time the menu opens. The two resets ask first and do nothing until the confirm tap. Voice is shown as a
@@ -19,7 +19,7 @@ namespace Forge.OS
     public sealed class OSSettingsWindow : MonoBehaviour
     {
         public const string WindowId = "settings";
-        public const int PageCount = 3;
+        public const int PageCount = 4;
 
         /// <summary>Ranges the two sliders offer (inside what <see cref="OSSettings"/> allows).</summary>
         public const float DistanceMin = 0.35f, DistanceMax = 0.7f, DropMin = 0f, DropMax = 30f;
@@ -39,7 +39,7 @@ namespace Forge.OS
         public bool SavePending => saveAt >= 0f;
         string resetNote = "";
 
-        /// <summary>The page showing, 0 to 2.</summary>
+        /// <summary>The page showing, 0 to 3.</summary>
         public int Page => page;
 
         /// <summary>What the last reset said (empty until one was done).</summary>
@@ -73,8 +73,26 @@ namespace Forge.OS
             if (panel != null) dirty = true;  // back from being put away: the file may have changed
         }
 
+        // The Hands setting lives with the gestures (GestureLibrary), not in OSSettings: it can also change from the gesture
+        // display's pill or by voice, and the page shows the real one.
+        GestureLibrary watchedGestures;
+
+        void WatchGestures(GestureLibrary library)
+        {
+            if (watchedGestures == library) return;
+            if (watchedGestures != null) watchedGestures.Changed -= OnGesturesChanged;
+            watchedGestures = library;
+            if (library != null) library.Changed += OnGesturesChanged;
+        }
+
+        void OnGesturesChanged()
+        {
+            if (page == HandsPage) dirty = true;
+        }
+
         void OnDisable()
         {
+            WatchGestures(null);
             OSSettings.Changed -= OnSettingsChanged;
             FlushSave();  // a slider edit still waiting for its write is not lost when the window is put away
         }
@@ -97,7 +115,7 @@ namespace Forge.OS
             if (dirty && panel != null) Rebuild();
         }
 
-        /// <summary>Goes to a page (0 to 2) and rebuilds.</summary>
+        /// <summary>Goes to a page (0 to 3) and rebuilds.</summary>
         public void SetPage(int value)
         {
             value = Mathf.Clamp(value, 0, PageCount - 1);
@@ -156,6 +174,10 @@ namespace Forge.OS
             {
                 BuildWindows(Section(column, "Windows"));
                 BuildMenuPosition(Section(column, "Menu position"));
+            }
+            else if (page == HandsPage)
+            {
+                BuildHands(Section(column, "Hands"));
             }
             else
             {
@@ -319,7 +341,53 @@ namespace Forge.OS
             return texts.Length > 0 ? texts[texts.Length - 1] : null;
         }
 
-        // ---------------------------------------------------------------- page 3: reset, about
+        // ---------------------------------------------------------------- page 3: hands
+
+        /// <summary>The page with the Hands setting (0-based).</summary>
+        public const int HandsPage = 2;
+
+        static readonly HandSplit[] HandChoices = { HandSplit.LeftAll, HandSplit.RightAll, HandSplit.Off };
+        static readonly string[] HandLabels = { "Left hand", "Right hand", "Off" };
+
+        // Which hand hides and shows every window; the other hand works on one window.
+        void BuildHands(RectTransform section)
+        {
+            GestureEngine engine = GestureEngine.Current;
+            GestureLibrary library = engine != null ? engine.Library : null;
+            WatchGestures(library);
+            if (library == null)
+            {
+                OSUi.Text(section, "Hand gestures aren't running in this scene.", NoteSize, true);
+                return;
+            }
+            HandSplit split = library.Split;
+
+            RectTransform row = OSUi.Row(section, OSUi.ButtonHeight, 16f);
+            row.name = "Choice All windows";
+            OSUi.Text(row, "All windows", OSUi.BodyText);
+            for (int i = 0; i < HandChoices.Length; i++)
+            {
+                HandSplit choice = HandChoices[i];
+                OSUi.Button(row, HandLabels[i], () =>
+                {
+                    if (library.Split == choice) return;
+                    library.Split = choice;  // saved with the gestures; the gesture display and Albie see it too
+                    Rebuild();
+                }, choice == split ? OSButtonStyle.Primary : OSButtonStyle.Secondary);
+            }
+            OSUi.Text(section, HandsSentence(split), NoteSize, true);
+        }
+
+        /// <summary>What the Hands setting means, in a sentence.</summary>
+        public static string HandsSentence(HandSplit split)
+        {
+            if (split == HandSplit.Off)
+                return "No hand hides every window. Either hand closes the window you look at, reopens it, and flicks the one you point at.";
+            string all = split == HandSplit.LeftAll ? "left" : "right", one = split == HandSplit.LeftAll ? "right" : "left";
+            return $"Close your {all} hand to hide every window, and open it to show them again. Your {one} hand closes the window you look at, reopens it, and flicks the one you point at.";
+        }
+
+        // ---------------------------------------------------------------- page 4: reset, about
 
         void BuildReset(RectTransform section)
         {

@@ -20,6 +20,7 @@ public static class GestureTools
         },
         ["gesture_bind"] = (args, done) => done(Bind(args)),
         ["gesture_forget"] = (args, done) => done(Forget(args)),
+        ["gesture_hands"] = (args, done) => done(Hands(args)),
         ["gesture_display"] = (args, done) =>
         {
             Engine().Actions.ShowDisplay((bool?)args["show"] ?? true);
@@ -34,12 +35,27 @@ public static class GestureTools
         return engine;
     }
 
+    static JObject Hands(JObject args)
+    {
+        var library = Engine().Library;
+        string wanted = ((string)args["mode"] ?? "").Trim().ToLowerInvariant();
+        switch (wanted)
+        {
+            case "left_all": library.Split = HandSplit.LeftAll; break;
+            case "right_all": library.Split = HandSplit.RightAll; break;
+            case "off": library.Split = HandSplit.Off; break;
+            case "": break;
+            default: return AlbieTools.Error($"I don't know the hands setting '{wanted}'. It's left_all, right_all or off.");
+        }
+        return new JObject { ["ok"] = true, ["hands"] = GestureLibrary.Describe(library.Split) };
+    }
+
     static JObject List()
     {
         var gestures = new JArray();
         foreach (var g in Engine().Library.All)
             gestures.Add(new JObject { ["name"] = g.title, ["how"] = g.how, ["does"] = GestureActions.Describe(g), ["built_in"] = g.builtin });
-        return new JObject { ["gestures"] = gestures };
+        return new JObject { ["gestures"] = gestures, ["hands"] = GestureLibrary.Describe(Engine().Library.Split) };
     }
 
     // Answers when the takes are over, so Albie can say straight away whether it worked.
