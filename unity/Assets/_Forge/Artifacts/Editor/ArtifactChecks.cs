@@ -394,6 +394,13 @@ public static class ArtifactChecks
         Expect("cell", "follow a protein", "follow");
         Expect("plant_cell", "follow the sunlight", "sun");
         Expect("dna", "explain it", "explain");
+        Expect("lungs", "follow a breath", "breath");
+        Expect("lungs", "how do the lungs work", "breath");
+        Expect("lungs", "hold the breath", "breathe_pause");
+        Expect("kidneys", "follow the blood", "blood");
+        Expect("kidneys", "how do the kidneys work", "blood");
+        Expect("stomach", "follow a meal", "meal");
+        Expect("stomach", "how does digestion work", "meal");
         Expect("dna", "spin it", "spin_on");
         Expect("dna", "stop spinning", "spin_off");
         ArtifactLibrary.TryTemplate("heart", out _, out var heart);

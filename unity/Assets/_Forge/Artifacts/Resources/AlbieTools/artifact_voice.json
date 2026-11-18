@@ -1,7 +1,7 @@
 [
   {
     "name": "artifact_explore",
-    "description": "Act on the open 3D model (heart, eye, brain, animal cell, plant cell, DNA, or an imported model). action: separate ('expand', 'explode', 'take it apart', 'show me the parts': the parts glide apart, each named), assemble, cut_open, whole (undo the cut), xray, xray_off, isolate ('show me the frontal lobe', 'just the valves', 'show me this lobe': those parts glow and come forward, the rest fade to a faint outline), focus (that part solid, the rest see-through, nothing moves), unfocus ('show all', 'put it back': every part again), turn (degrees, default 30), reset. For isolate and focus give part as the user said it: one part, a list ('frontal and temporal lobes'), a group ('the chambers', 'the arteries', 'the left side'), or 'this' for the part they're pointing or looking at. If the result has options, ask which; if no part matched it lists the real ones. Pass template (heart, eye, brain, cell, plant_cell, dna) when they name a model that isn't open. Say in a few words what changed.",
+    "description": "Act on the open 3D model (heart, eye, brain, lungs, kidneys, stomach, animal cell, plant cell, DNA, or an imported model). action: separate ('expand', 'explode', 'take it apart', 'show me the parts': the parts glide apart, each named), assemble, cut_open, whole (undo the cut), xray, xray_off, isolate ('show me the frontal lobe', 'just the valves', 'show me this lobe': those parts glow and come forward, the rest fade to a faint outline), focus (that part solid, the rest see-through, nothing moves), unfocus ('show all', 'put it back': every part again), turn (degrees, default 30), reset. For isolate and focus give part as the user said it: one part, a list ('frontal and temporal lobes'), a group ('the chambers', 'the arteries', 'the left side'), or 'this' for the part they're pointing or looking at. If the result has options, ask which; if no part matched it lists the real ones. Pass template (heart, eye, brain, cell, plant_cell, dna) when they name a model that isn't open. Say in a few words what changed.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -43,7 +43,7 @@
         },
         "template": {
           "type": "string",
-          "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."
+          "description": "The model the user named, if it might not be the open one: heart, eye, brain, lungs, kidneys, stomach, cell, plant_cell or dna."
         }
       },
       "required": [
@@ -63,7 +63,7 @@
         },
         "template": {
           "type": "string",
-          "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."
+          "description": "The model the user named, if it might not be the open one: heart, eye, brain, lungs, kidneys, stomach, cell, plant_cell or dna."
         }
       },
       "required": [

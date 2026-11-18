@@ -9,7 +9,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Headless checks for the biology templates (cell, heart, brain, plant_cell, eye, dna): all are valid, buildable,
+/// Headless checks for the biology templates (cell, heart, brain, plant_cell, eye, dna, lungs, kidneys, stomach): all are valid, buildable,
 /// offered by <c>artifact_list</c> and made by <c>artifact_create</c>; every model is bundled, CC0, and matches its hash;
 /// every label has a leader and the show and hide buttons cover them all; step captions and moving parts stay hidden
 /// until their button is pressed; the heart beats about its own centre; the DNA turns a full circle and stopping puts
@@ -17,7 +17,7 @@ using UnityEngine;
 /// </summary>
 public static class BioTemplatesCheck
 {
-    static readonly string[] Bio = { "cell", "heart", "brain", "plant_cell", "eye", "dna" };
+    static readonly string[] Bio = { "cell", "heart", "brain", "plant_cell", "eye", "dna", "lungs", "kidneys", "stomach" };
 
     [MenuItem("Forge/Artifacts/Check Biology Templates")]
     static void Menu()

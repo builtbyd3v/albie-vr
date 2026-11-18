@@ -46,6 +46,9 @@ namespace Forge.OS
             { "plant_cell", "Plant cell" },
             { "eye", "Eye" },
             { "dna", "DNA" },
+            { "lungs", "Lungs" },
+            { "kidneys", "Kidneys" },
+            { "stomach", "Stomach" },
             { "double_pendulum", "Double pendulum" },
             { "solar_system", "Solar system" },
             { ThreeBodyId, "Three-body" },
@@ -456,7 +459,10 @@ namespace Forge.OS
                 case "brain":
                 case "plant_cell":
                 case "eye":
-                case "dna": return "biology";
+                case "dna":
+                case "lungs":
+                case "kidneys":
+                case "stomach": return "biology";
                 case "double_pendulum":
                 case "solar_system":
                 case ThreeBodyId: return "physics";

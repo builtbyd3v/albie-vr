@@ -48,7 +48,7 @@ namespace Forge.Artifacts
             }
             else if (host.OpenId == null)
             {
-                fail(Error("nothing_open: nothing is open; pass template (heart, eye, brain, cell, plant_cell or dna)"));
+                fail(Error("nothing_open: nothing is open; pass template (heart, eye, brain, lungs, kidneys, stomach, cell, plant_cell or dna)"));
                 return;
             }
             host.StartCoroutine(Wait(host, needModel, then, fail));

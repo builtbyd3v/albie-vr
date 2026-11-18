@@ -16,7 +16,7 @@ namespace Forge.Artifacts
     public static class ArtifactLibrary
     {
         /// <summary>The built-in templates.</summary>
-        public static readonly string[] Templates = { "slalom", "hoop_course", "repo_activity", "cell", "heart", "brain", "plant_cell", "eye", "dna", "double_pendulum", "solar_system", "rocket_launch" };
+        public static readonly string[] Templates = { "slalom", "hoop_course", "repo_activity", "cell", "heart", "brain", "plant_cell", "eye", "dna", "lungs", "kidneys", "stomach", "double_pendulum", "solar_system", "rocket_launch" };
 
         /// <summary>Checks point this at a scratch folder.</summary>
         public static string RootOverride;

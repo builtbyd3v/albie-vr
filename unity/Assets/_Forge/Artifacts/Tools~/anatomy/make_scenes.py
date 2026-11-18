@@ -430,7 +430,141 @@ def plant_cell():
     return model_scene(node, spec, 0.21, -0.13, (-0.12, 0.12), extra, rules, info), manifest("plant_cell", "Plant cell", "assets/plant_cell.glb", "CC0")
 
 
-scene, man = {"heart": heart, "eye": eye, "brain": brain, "dna": dna, "cell": cell, "plant_cell": plant_cell}[WHAT]()
+BP3D_CREDIT = ("3D model: BodyParts3D, (c) 2008 Life Science Integrated Database Center (CC BY-SA 2.1 JP). "
+               "This model is shared under CC BY-SA 4.0.")
+
+
+def breathing(node, timeline, duration=4.0, depth=0.035):
+    """The model swells and settles once a breath (about 15 a minute), about its own centre, like the heart's beat."""
+    rest = node["scale"][0]
+    keys = [[0, 1.0], [round(duration * 0.4, 3), 1 + depth], [duration, 1.0]]
+    return [{"type": "animate", "target": node["id"], "property": "scale", "timeline": timeline,
+             "keys": [[t, round(rest * k, 4)] for t, k in keys]},
+            {"type": "animate", "target": node["id"], "property": "pos", "timeline": timeline,
+             "keys": [[t, node["pos"]] for t, _ in keys]}]
+
+
+def lungs():
+    node = {"id": "lungs", "kind": "gltf", "asset": "assets/lungs.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [0.9, 0.9, 0.9]}
+    A = lambda part: anchor(part, node)
+    spec = [("trachea", "Trachea", A("Trachea")), ("bronchi", "Bronchi", A("Bronchi")),
+            ("right_upper", "Right upper lobe", A("Right upper lobe")), ("right_middle", "Right middle lobe", A("Right middle lobe")),
+            ("right_lower", "Right lower lobe", A("Right lower lobe")), ("left_upper", "Left upper lobe", A("Left upper lobe")),
+            ("left_lower", "Left lower lobe", A("Left lower lobe")), ("arteries", "Pulmonary arteries", A("Pulmonary arteries")),
+            ("veins", "Pulmonary veins", A("Pulmonary veins"))]
+    top, car = L("trachea_top", node), L("carina", node)
+    D = 12.0
+    air_nodes, air_rules = [], []
+    for i, (lobe, side) in enumerate((("Right upper lobe", "right"), ("Right middle lobe", "right"), ("Right lower lobe", "right"),
+                                      ("Left upper lobe", "left"), ("Left lower lobe", "left"))):
+        path = [top, car, L(side + "_bronchus", node), L(lobe, node)]
+        nn, rr = train(f"air{i + 1}_", path, 2, "#BFEFFF", 0.008, D, "breath")
+        air_nodes += nn; air_rules += rr
+    captions = ["Air comes in through the trachea, held open by rings of cartilage",
+                "At the carina it splits into the right and left main bronchi",
+                "The bronchi branch about 23 times, into every lobe: three on the right, two on the left",
+                "At the tips, 300 million tiny air sacs pass oxygen into the blood",
+                "The pulmonary arteries bring oxygen-poor blood in; the veins carry it back to the heart"]
+    step_nodes, step_rules = steps(captions, 0.2, -0.12, D, "breath")
+    span = D / len(captions)
+    hl = (highlight(["trachea"], 0.01, span, "breath") + highlight(["bronchi"], span, 2 * span, "breath")
+          + highlight(["right_upper", "right_middle", "right_lower", "left_upper", "left_lower"], 2 * span, 3 * span, "breath")
+          + highlight(["arteries", "veins"], 4 * span, D - 0.05, "breath"))  # step 4 (the air sacs) is inside every lobe: no label of its own
+    rules = breathing(node, "breathing") + step_rules + hl + air_rules + [
+        {"type": "on_input", "input": "breath", "do": [{"timeline": "breath", "action": "restart"}]},
+        {"type": "on_input", "input": "breathe_pause", "do": [{"timeline": "breathing", "action": "restart"}, {"timeline": "breathing", "action": "pause"}]},
+        {"type": "on_input", "input": "breathe_play", "do": [{"timeline": "breathing", "action": "play"}]}]
+    info = {"id": "info", "kind": "panel", "title": "Human lungs", "widgets": [
+        {"type": "note", "text": "A real adult pair of lungs from anatomical scans, shown with the airways and blood vessels inside. "
+                                 "The right lung has three lobes and the left two, leaving room for the heart. Together they hold about 6 litres of air. "
+                                 "Cut them open, X-ray them, or separate the lobes."},
+        {"type": "button", "id": "breath", "label": "Follow a breath", "primary": True},
+        {"type": "button", "id": "breathe_pause", "label": "Hold the breath", "alt_id": "breathe_play", "alt_label": "Breathe"},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": BP3D_CREDIT}]}
+    extra = [{"id": "breathing", "kind": "timeline", "duration_s": 4.0, "loop": True, "autoplay": True},
+             {"id": "breath", "kind": "timeline", "duration_s": D, "loop": False, "autoplay": False}] + step_nodes + air_nodes
+    return model_scene(node, spec, 0.21, -0.12, (-0.12, 0.12), extra, rules, info, 0.015), manifest("lungs", "Human lungs", "assets/lungs.glb")
+
+
+def kidneys():
+    node = {"id": "kidneys", "kind": "gltf", "asset": "assets/kidneys.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [0.75, 0.75, 0.75]}
+    A = lambda part: anchor(part, node)
+    spec = [("kidney", "Kidney", A("Left kidney")), ("pelvis", "Renal pelvis", A("Left renal pelvis")),
+            ("adrenal", "Adrenal gland", A("Left adrenal gland")), ("artery", "Renal artery", A("Right renal artery")),
+            ("vein", "Renal vein", A("Right renal vein")), ("ureter", "Ureter", A("Right ureter")),
+            ("aorta", "Aorta", A("Aorta")), ("ivc", "Inferior vena cava", A("Inferior vena cava")),
+            ("bladder", "Bladder", A("Urinary bladder"))]
+    D = 12.0
+    flow_nodes, flow_rules = [], []
+    for k in ("left", "right"):
+        paths = [("blood_" + k, [L("aorta_top", node), L("aorta_" + k, node), L("artery_" + k, node), L("hilum_" + k, node), L("kidney_" + k, node)], "#FF5A5A"),
+                 ("clean_" + k, [L("kidney_" + k, node), L("vein_" + k, node), L("ivc_" + k, node)], "#5A8CFF"),
+                 ("urine_" + k, [L("pelvis_" + k, node)] + [L(f"ureter_{k}_{i}", node) for i in range(6)] + [L("bladder", node)], "#FFE066")]
+        for prefix, pts, colour in paths:
+            nn, rr = train(prefix + "_", pts, 2, colour, 0.009, D, "blood")
+            flow_nodes += nn; flow_rules += rr
+    captions = ["Blood arrives from the aorta through the renal arteries: a fifth of every heartbeat",
+                "In each kidney about a million nephrons filter it, some 180 litres a day",
+                "Clean blood leaves through the renal veins into the inferior vena cava",
+                "What's filtered out becomes urine and collects in the renal pelvis",
+                "The ureters carry it down to the bladder, which holds about half a litre"]
+    step_nodes, step_rules = steps(captions, 0.2, -0.12, D, "blood")
+    span = D / len(captions)
+    hl = (highlight(["aorta", "artery"], 0.01, span, "blood") + highlight(["kidney"], span, 2 * span, "blood")
+          + highlight(["vein", "ivc"], 2 * span, 3 * span, "blood") + highlight(["pelvis"], 3 * span, 4 * span, "blood")
+          + highlight(["ureter", "bladder"], 4 * span, D - 0.05, "blood"))
+    rules = step_rules + hl + flow_rules + [{"type": "on_input", "input": "blood", "do": [{"timeline": "blood", "action": "restart"}]}]
+    info = {"id": "info", "kind": "panel", "title": "Kidneys", "widgets": [
+        {"type": "note", "text": "A real adult pair of kidneys from anatomical scans, with their blood supply, the ureters and the bladder. "
+                                 "Each kidney is about 11 cm long. Cut them open or separate them to see the renal pelvis that collects urine."},
+        {"type": "button", "id": "blood", "label": "Follow the blood", "primary": True},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": CREDIT}]}
+    extra = [{"id": "blood", "kind": "timeline", "duration_s": D, "loop": False, "autoplay": False}] + step_nodes + flow_nodes
+    return model_scene(node, spec, 0.2, -0.12, (-0.13, 0.12), extra, rules, info, 0.015), manifest("kidneys", "Human kidneys", "assets/kidneys.glb")
+
+
+def stomach():
+    node = {"id": "stomach", "kind": "gltf", "asset": "assets/stomach.glb", "pos": [0, 0, 0], "rot": [0, 180, 0], "scale": [1.1, 1.1, 1.1]}
+    A = lambda part: anchor(part, node)
+    spec = [("oesophagus", "Oesophagus", A("Oesophagus")), ("fundus", "Fundus", A("Fundus")),
+            ("body", "Body", A("Body of stomach")), ("antrum", "Pyloric antrum", A("Pyloric antrum")),
+            ("pylorus", "Pylorus", A("Pylorus")), ("duodenum", "Duodenum", A("Duodenum")),
+            ("rugae", "Rugae (folds)", A("Lining (rugae)"))]
+    D = 12.0
+    route = [L("oesophagus_top", node), L("cardia", node), L("Fundus", node), L("Body of stomach", node),
+             L("Pyloric antrum", node), L("pylorus", node), L("duodenum_mid", node), L("duodenum_end", node)]
+    times = [0.01, 2.2, 3.6, 5.6, 7.6, 9.4, 10.6, 11.8]
+    rules = [{"type": "animate", "target": "bolus", "property": "visible", "timeline": "meal", "keys": [[0, False], [0.01, True], [11.9, False]]},
+             {"type": "animate", "target": "bolus", "property": "pos", "timeline": "meal", "keys": [[t, p] for t, p in zip(times, route)]},
+             {"type": "animate", "target": "bolus", "property": "color", "timeline": "meal",
+              "keys": [[0, "#C9A27E"], [5.6, "#C9A27E"], [7.6, "#E6D3A3"], [11.9, "#E6D3A3"]]}]
+    captions = ["Food is pushed down the oesophagus and enters the stomach at the cardia",
+                "The fundus and body store it; the wall stretches from 50 ml to over a litre",
+                "Acid and the enzyme pepsin start digesting protein; the rugae unfold as it fills",
+                "In the antrum, waves of muscle churn it into a paste called chyme",
+                "The pylorus lets a little through at a time into the duodenum"]
+    step_nodes, step_rules = steps(captions, 0.2, -0.12, D, "meal")
+    span = D / len(captions)
+    hl = (highlight(["oesophagus"], 0.01, span, "meal") + highlight(["fundus", "body"], span, 2 * span, "meal")
+          + highlight(["rugae"], 2 * span, 3 * span, "meal") + highlight(["antrum"], 3 * span, 4 * span, "meal")
+          + highlight(["pylorus", "duodenum"], 4 * span, D - 0.05, "meal"))
+    rules += step_rules + hl + [{"type": "on_input", "input": "meal", "do": [{"timeline": "meal", "action": "restart"}]}]
+    info = {"id": "info", "kind": "panel", "title": "Stomach", "widgets": [
+        {"type": "note", "text": "A real adult stomach from anatomical scans, with the end of the oesophagus and the duodenum. "
+                                 "Empty it holds about 50 ml and its lining lies in folds; after a meal it stretches to 1 to 1.5 litres. "
+                                 "Cut it open to see the folds, or separate its regions."},
+        {"type": "button", "id": "meal", "label": "Follow a meal", "primary": True},
+        {"type": "button", "id": "labels_off", "label": "Hide labels", "alt_id": "labels_on", "alt_label": "Show labels"},
+        {"type": "note", "text": BP3D_CREDIT}]}
+    extra = [{"id": "meal", "kind": "timeline", "duration_s": D, "loop": False, "autoplay": False}] + step_nodes + [
+        {"id": "bolus", "kind": "primitive", "shape": "sphere", "pos": route[0], "size": [0.013] * 3, "color": "#C9A27E", "glow": True, "visible": False}]
+    return model_scene(node, spec, 0.2, -0.12, (-0.12, 0.12), extra, rules, info, 0.015), manifest("stomach", "Human stomach", "assets/stomach.glb")
+
+
+scene, man = {"heart": heart, "eye": eye, "brain": brain, "dna": dna, "cell": cell, "plant_cell": plant_cell,
+              "lungs": lungs, "kidneys": kidneys, "stomach": stomach}[WHAT]()
 with open(os.path.join(OUT, "scene.json"), "w") as f:
     json.dump(scene, f, indent=2)
 with open(os.path.join(OUT, "manifest.json"), "w") as f:
