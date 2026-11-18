@@ -667,10 +667,11 @@ namespace Forge.OS
         {
             OSShell shell = OSShell.Current;
             if (shell == null || host == null) return;
-            Transform head = OSShell.FindHead();
-            if (head == null) return;
             OSWindows windows = shell.Windows;
             if (windows == null) return;
+            TrackWhole(host, windows);
+            Transform head = OSShell.FindHead();
+            if (head == null) return;
             Transform frame = DeskFrame(head);
             string artifactId = OpenId();
 
@@ -703,6 +704,39 @@ namespace Forge.OS
             volumeScratch.Clear();
             // A model stands there now, labels and all: windows that were already open and cover it move aside.
             if (hadVolume) windows.ClearAllSoon(host.transform);
+        }
+
+        /// <summary>The window id the open artifact as a whole is tracked under (see <see cref="TrackWhole"/>), plus its id.</summary>
+        public const string WholePrefix = "open-artifact:";
+
+        static readonly List<OSWindow> wholeScratch = new List<OSWindow>();
+
+        /// <summary>
+        /// The open artifact (or the one waiting on its Allow sheet) as one group entry in the window manager, whatever it put
+        /// in the world: its panels and volume are adopted one by one below, but a room course stands on the floor outside the
+        /// host and its truck or drone are separate objects, and a course with no panel left nothing in the window list at
+        /// all, so Close all never closed it (the bug the headset showed). Closing the entry closes the artifact, which takes
+        /// its course down and puts its Thing away. An entry for an artifact that is no longer the open one is let go of.
+        /// Its id does not start with "artifact:" (those are the movable panels and volumes).
+        /// </summary>
+        static void TrackWhole(ArtifactHost host, OSWindows windows)
+        {
+            string id = OpenId();
+            string want = id != null ? WholePrefix + id : null;
+            wholeScratch.Clear();
+            for (int i = 0; i < windows.All.Count; i++)
+            {
+                OSWindow w = windows.All[i];
+                if (w != null && w.IsGroup && w.Id.StartsWith(WholePrefix, System.StringComparison.Ordinal) && w.Id != want) wholeScratch.Add(w);
+            }
+            for (int i = 0; i < wholeScratch.Count; i++) wholeScratch[i].Detach();
+            wholeScratch.Clear();
+            if (want == null || windows.IsOpen(want)) return;
+            string title = host.OpenTitle;
+            windows.Adopt(want, string.IsNullOrEmpty(title) ? id : title, null, () =>
+            {
+                if (OpenId() == id) CloseArtifact();  // already closed by one of its own windows: nothing to do
+            });
         }
 
         // A fresh id each time: a rebuilt artifact's old windows are destroyed at the end of the frame, so a reused id would still find them.

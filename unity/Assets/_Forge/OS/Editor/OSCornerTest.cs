@@ -13,8 +13,8 @@ namespace Forge.OS.Editor
 {
     /// <summary>
     /// Forge > OS > Run Corner Test: the real Main scene in Play mode on the desktop rig with voice off, on a scratch settings file
-    /// (the user's real one is never read or written). It checks that the corner button is hidden at the desk, shows once the user
-    /// walks away, sits about 0.45 m out in the lower right of the view, lags the head (a 10 degree turn leaves it alone, a 40
+    /// (the user's real one is never read or written). It checks that the corner button shows at the desk (beside the table button:
+    /// the headset showed the menu has to be easy to reach there too) and keeps showing once the user walks away, sits about 0.45 m out in the lower right of the view, lags the head (a 10 degree turn leaves it alone, a 40
     /// degree turn or half a metre of walking re-anchors it with a 0.4 s ease), opens the menu when pressed, hides while the menu is
     /// open and returns when it closes, and that the Settings window switches it off and moves it to the left or the right.
     /// Screenshots go to Logs/os/ (listed in a manifest, cleared by the next run). The result is in <see cref="LastResult"/> and a
@@ -303,10 +303,12 @@ namespace Forge.OS.Editor
             OSSettings s = OSSettings.Current;
             Check(s.cornerButton && !s.cornerOnLeft, "the scratch settings start with the corner button on, on the right");
 
-            // ---- at the desk: hidden
+            // ---- at the desk: both launchers, the corner one within reach in the lower corner of the view
             foreach (float w in Until(() => table.Shown, 6f)) yield return w;
             Check(shell.AtDesk && table.Shown, "at the desk the table button shows");
-            Check(!corner.Shown, "at the desk the corner button is hidden");
+            foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
+            Check(corner.Shown, "at the desk the corner button shows too");
+            Check(!corner.Easing && corner.Recenters == 0, "its first showing at the desk is not a fly-in and not a re-centre");
 
             // ---- stand and walk away
             var presence = workspace.presence;
@@ -322,10 +324,11 @@ namespace Forge.OS.Editor
             foreach (float w in Until(() => corner.Shown, 2f)) yield return w;
             Check(corner.Shown, "away from the desk the corner button shows");
             Check(!table.Shown, "away from the desk the table button is hidden");
+            foreach (float w in Until(() => !corner.Easing, 2f)) yield return w;
             yield return 0.6f;
             Transform head = shell.Head;
-            Check(head != null && !corner.Easing, "the first showing is not a fly-in (it is not easing)");
-            Check(corner.Recenters == 0, "the first placing is not counted as a re-centre");
+            Check(head != null && !corner.Easing, "it has settled after following the user away from the desk");
+            Check(corner.Recenters >= 1, "walking away from the desk re-anchored it (Recenters " + corner.Recenters + ")");
 
             // ---- where it sits
             Where(head, corner.Position, out float side, out float drop, out float metres);
@@ -464,11 +467,11 @@ namespace Forge.OS.Editor
             shell.Windows.Close(OSSettingsWindow.WindowId);
             yield return 0.5f;
 
-            // ---- back at the desk: hidden again
+            // ---- back at the desk: it still shows
             presence.forceSeated = true;
             foreach (float w in Until(() => shell.AtDesk, 4f)) yield return w;
             yield return 0.5f;
-            Check(shell.AtDesk && !corner.Shown, "back at the desk the corner button is hidden again");
+            Check(shell.AtDesk && corner.Shown, "back at the desk the corner button still shows");
 
             // ---- both buttons are scene objects of their own (the corner one a root, the table one under the desk frame): they go with the shell
             yield return 0.3f;

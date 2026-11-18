@@ -134,7 +134,7 @@ namespace Forge.Controllers
 
         Vector3 followGoal, followFace;
         float followSpeed;
-        float bMaxSpeed, bAccel, bBrake, bClimb, bYaw, bTakeoff, bMinHover, bRadius, bRest, bCrash, bRange, bReturn, bLand;
+        float bMaxSpeed, bAccel, bBrake, bClimb, bYaw, bTakeoff, bMinHover, bRadius, bRest, bCrash, bRange, bReturn, bLand, bTilt, bTiltFollow;
         bool baseCaptured;
 
         void CaptureBase()
@@ -143,7 +143,14 @@ namespace Forge.Controllers
             baseCaptured = true;
             bMaxSpeed = maxSpeed; bAccel = accel; bBrake = brake; bClimb = climbSpeed; bYaw = yawRate;
             bTakeoff = takeoffHeight; bMinHover = minHover; bRadius = radius; bRest = restHeight; bCrash = crashSpeed;
-            bRange = maxRange; bReturn = returnSpeed; bLand = landSpeed;
+            bRange = maxRange; bReturn = returnSpeed; bLand = landSpeed; bTilt = maxTiltDeg; bTiltFollow = tiltFollow;
+        }
+
+        /// <summary>The full-size tuning the design's factors multiply: top speed (m/s), climb (m/s), turn rate (°/s), pick-up (m/s²).</summary>
+        public void BaseTuning(out float speed, out float climb, out float yaw, out float pickUp)
+        {
+            CaptureBase();
+            speed = bMaxSpeed; climb = bClimb; yaw = bYaw; pickUp = bAccel;
         }
 
         /// <summary>The rest height it was built with (the design's feet are placed this far under its centre, before any course scale).</summary>
@@ -156,15 +163,27 @@ namespace Forge.Controllers
         /// design's factors on acceleration, braking, climb and turn rate (1 = unchanged). The altitude limits stay the room's.
         /// </summary>
         public void Retune(float sizeScale, float radiusFullSize, float accelK, float brakeK, float climbK, float yawK)
+            => Retune(sizeScale, radiusFullSize, accelK, brakeK, climbK, yawK, 1f, 1f);
+
+        /// <summary>
+        /// <see cref="Retune(float, float, float, float, float, float)"/> with the design's top-speed factor and its agility
+        /// (how quickly it leans into a move, and how far: short arms are twitchy, long arms steady). The factors come from
+        /// <see cref="DroneFlightModel"/> and are clamped wide (0.15 to 2), so a big design change is felt in the hand.
+        /// It takes effect at the next physics step, also while it flies.
+        /// </summary>
+        public void Retune(float sizeScale, float radiusFullSize, float accelK, float brakeK, float climbK, float yawK, float speedK, float agilityK)
         {
             CaptureBase();
             float s = Mathf.Clamp(sizeScale, 0.05f, 1f);
             SizeScale = s;
-            maxSpeed = bMaxSpeed * s;
-            accel = bAccel * s * Mathf.Clamp(accelK, 0.5f, 1.5f);
-            brake = bBrake * s * Mathf.Clamp(brakeK, 0.5f, 1.5f);
-            climbSpeed = bClimb * s * Mathf.Clamp(climbK, 0.5f, 1.5f);
-            yawRate = bYaw * Mathf.Clamp(yawK, 0.5f, 1.5f);
+            maxSpeed = bMaxSpeed * s * Mathf.Clamp(speedK, 0.4f, 1.5f);
+            accel = bAccel * s * Mathf.Clamp(accelK, 0.2f, 1.8f);
+            brake = bBrake * s * Mathf.Clamp(brakeK, 0.3f, 1.6f);
+            climbSpeed = bClimb * s * Mathf.Clamp(climbK, 0.15f, 1.8f);
+            yawRate = bYaw * Mathf.Clamp(yawK, 0.35f, 2f);
+            float agile = Mathf.Clamp(agilityK, 0.5f, 2f);
+            tiltFollow = bTiltFollow * agile;
+            maxTiltDeg = bTilt * Mathf.Clamp(Mathf.Sqrt(agile), 0.75f, 1.35f);
             takeoffHeight = bTakeoff * s;
             minHover = bMinHover * s;
             radius = (radiusFullSize > 0.01f ? radiusFullSize : bRadius) * s;

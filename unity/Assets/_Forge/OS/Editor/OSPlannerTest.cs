@@ -462,12 +462,25 @@ namespace Forge.OS.Editor
                 DesktopRig.Current.LookAt(OSToolsTest.CenterOf(pw.Panel.transform));
                 yield return 0.6f;
                 string ptext = OSToolsTest.AllText(pw);
-                missing = Missing(ptext, "Plan v1", "Build a self-driving RC truck that is small and quick.", "Next step: tap Course");
-                Check(missing == null, "the Project window shows plan v1, its goal and the first step" + (missing != null ? ": " + missing : ""));
-                Check(!ptext.Contains("No plan written yet"), "the Project window no longer says there is no plan");
+                // The overview: the goal and the big first step; the suggestion that only repeats it stays in the status, not on screen.
+                missing = Missing(ptext, "Build a self-driving RC truck that is small and quick.", "Next: Course");
+                Check(missing == null, "the Project window shows its goal and the first step as its big button" + (missing != null ? ": " + missing : ""));
+                Check(view != null && view.StatusLine.StartsWith("Next step: tap Course", StringComparison.Ordinal), "Start offered the first step (" + (view != null ? view.StatusLine : "no window") + ")");
+                Check(!ptext.Contains("No plan yet"), "the Project window no longer says there is no plan");
                 layout = OSToolsTest.LayoutProblem(pw);
                 Check(layout == null, "the Project window with the new plan: no clipped or overlapping text" + (layout != null ? ": " + layout : ""));
                 Shot("62_build_started");
+                if (view != null)
+                {
+                    view.DetailsOpen = true;
+                    yield return 0.4f;
+                    ptext = OSToolsTest.AllText(pw);
+                    Check(ptext.Contains("Plan v1") && !ptext.Contains("No plan written yet"), "its Details page shows plan v1");
+                    layout = OSToolsTest.LayoutProblem(pw);
+                    Check(layout == null, "the new plan's Details page: no clipped or overlapping text" + (layout != null ? ": " + layout : ""));
+                    view.DetailsOpen = false;
+                    yield return 0.3f;
+                }
             }
             NotebookStore.Flush();
             string planFile = Path.Combine(ProjectsFolder, "proj_my_truck", "plans", "plan_v0001.json");

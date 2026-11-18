@@ -7,8 +7,8 @@ namespace Forge.OS.Editor
     /// <summary>
     /// Forge > OS > Check ML Projects (or -executeMethod Forge.OS.Editor.OSMLProjectsCheck.RunBatch): the Projects
     /// tab's Machine learning section from a sample <c>GET /ml/projects</c> answer, with no hub and no cloud. Each project
-    /// gets a tile with a true status line, the starters and Import from GitHub are there as "new" tiles, and offline
-    /// they say they need the cloud instead of pretending. Console line: "[OSMLProjectsCheck] N passed, M failed".
+    /// gets a tile with a true status line; offline the starters and Import from GitHub, which could only say they need
+    /// the cloud, are one "New ML model" tile that says so. Console line: "[OSMLProjectsCheck] N passed, M failed".
     /// </summary>
     public static class OSMLProjectsCheck
     {
@@ -47,18 +47,18 @@ namespace Forge.OS.Editor
                 // The section also holds the ML projects saved on the headset (OSProjects): count the cloud's tiles only.
                 foreach (var t in tiles) if (t.section == OSMLProjects.Section && t.id.StartsWith("ml_", System.StringComparison.Ordinal)) byId[t.id] = t;
 
-                Check(byId.Count == 4 + 3 + 1, $"four projects, three starters and Import from GitHub ({byId.Count} tiles)");
+                // No hub and no cloud in this check: the three starters and Import can only say they need the cloud, so one tile says it.
+                Check(byId.Count == 4 + 1, $"four projects and one offline 'New ML model' tile ({byId.Count} tiles)");
                 Check(Status(byId, "ml_project:hf-imdb-1117") == "87.4% · built by Albie", "a built project shows its score");
                 Check(Status(byId, "ml_project:Sentiment-Analysis-IMDb-Reviews") == "not trained yet · from source control", "a cloned repo says it hasn't trained");
                 Check(Status(byId, "ml_project:lstm-imdb") == "training now", "a project that's training says so");
                 Check(byId.TryGetValue("ml_project:template", out var open) && open.isOpen(), "the open project shows as open");
                 Check(byId.TryGetValue("ml_project:Sentiment-Analysis-IMDb-Reviews", out var repo) && repo.icon == "repo", "a cloned repo has the repo icon");
+                Check(byId.TryGetValue(OSMLProjects.OfflineId, out var offline) && offline.outline && offline.title == OSMLProjects.OfflineTitle,
+                    "offline, one new-style tile stands in for the starters and Import");
+                Check(offline != null && offline.status() == OSMLProjects.NeedsCloudShort, "it says it needs the cloud");
                 foreach (var id in new[] { "ml_new_distilbert", "ml_new_rnn", "ml_new_cnn", "ml_import_github" })
-                {
-                    Check(byId.TryGetValue(id, out var tile) && tile.outline, id + " is a new-style tile");
-                    // No hub and no cloud in this check: the starters say so rather than offering to build.
-                    Check(tile != null && tile.status() == OSMLProjects.NeedsCloudShort, id + " says it needs the cloud when offline");
-                }
+                    Check(!byId.ContainsKey(id), id + " isn't listed offline (it could only say it needs the cloud)");
             }
             finally
             {

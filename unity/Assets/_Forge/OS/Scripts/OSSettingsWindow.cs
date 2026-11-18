@@ -22,7 +22,7 @@ namespace Forge.OS
         public const int PageCount = 4;
 
         /// <summary>Ranges the two sliders offer (inside what <see cref="OSSettings"/> allows).</summary>
-        public const float DistanceMin = 0.35f, DistanceMax = 0.7f, DropMin = 0f, DropMax = 30f;
+        public const float DistanceMin = OSSettings.MinDistance, DistanceMax = OSSettings.MaxDistance, DropMin = OSSettings.MinDrop, DropMax = OSSettings.MaxDrop;
 
         static readonly Vector2 SizeMeters = new Vector2(0.74f, 0.62f);
         const float NoteSize = OSUi.SmallText;
@@ -259,7 +259,7 @@ namespace Forge.OS
             PushToTalk talk = FindAnyObjectByType<PushToTalk>();
             if (talk != null && !talk.CanListenHandsFree)
                 return "Voice is on, but there is no microphone to listen with here.";
-            return "On. Albie listens after you whistle or hold out your hand. This can't be turned off here yet.";
+            return "On. Albie listens after you call him (Call Albie in the menu's Tools, or F) or hold out your hand. This can't be turned off here yet.";
         }
 
         // ---------------------------------------------------------------- page 2: windows, menu position

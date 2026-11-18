@@ -148,7 +148,8 @@ namespace Forge.Controllers
     /// <summary>
     /// Before the drone's Autopilot flies, each trained candidate flies the recorded course line in
     /// <see cref="DroneFlightSim"/> from <see cref="Starts"/> starts (on the start, and 10 cm off it four ways). A start
-    /// finishes when the candidate reaches every target in order (within <see cref="Reach"/>) before the time is up.
+    /// finishes when the candidate reaches every target in order (inside the target's zone box when the brain recorded it,
+    /// else within <see cref="Reach"/> of its centre; see <see cref="Reached"/>) before the time is up.
     /// Candidates then fly best-first, and one that finishes fewer than <see cref="MinFinishes"/> is not flown at all:
     /// the loop says so instead. Time-sliced (<see cref="Step"/>) so the headset holds its frame rate.
     /// It knows nothing of the room's walls or a hoop's frame, so it can only rule a candidate out, never vouch for it.
@@ -213,7 +214,7 @@ namespace Forge.Controllers
             }
             var target = targets[next];
             float dx = target[0] - sim.X, dy = target[1] - sim.Y, dz = target[2] - sim.Z;
-            if (dx * dx + dy * dy + dz * dz <= Reach * Reach)
+            if (Reached(target, dx, dy, dz))
             {
                 next++;
                 if (next >= targets.Count) { finished[candidate]++; seconds[candidate] += t; EndStart(); return; }
@@ -225,6 +226,21 @@ namespace Forge.Controllers
             sim.Step(commands[0], commands[1], commands[2], Dt);
             t += Dt;
             if (t >= timeoutS) EndStart();
+        }
+
+        /// <summary>
+        /// Whether the drone counts as at <paramref name="target"/> (<paramref name="dx"/>.. is the target minus the drone):
+        /// within <see cref="Reach"/> of its centre, or, for a target that carries its zone's box (7 numbers: centre,
+        /// half extents, the box's yaw from the course in degrees), inside that box, which is what the run engine scores.
+        /// A hoop counts anywhere in its opening and the finish on entering its box, as when the person flew it.
+        /// </summary>
+        public static bool Reached(float[] target, float dx, float dy, float dz)
+        {
+            if (dx * dx + dy * dy + dz * dz <= Reach * Reach) return true;
+            if (target.Length < 7) return false;
+            float x = -dx, z = -dz;
+            DroneCourseMath.Turn(-target[6], ref x, ref z);
+            return Math.Abs(x) <= target[3] && Math.Abs(dy) <= target[4] && Math.Abs(z) <= target[5];
         }
 
         void EndStart()

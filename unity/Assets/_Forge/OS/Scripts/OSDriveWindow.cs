@@ -160,6 +160,16 @@ namespace Forge.OS
                 if (RcTransmitter.Instance != null) RcTransmitter.Instance.Hide();
                 if (actionText != null) actionText.text = "Transmitter put away. Hand me the transmitter brings it back.";
             });
+            OSUi.Button(txRow, "Edit the design", () =>
+            {
+                if (ArtifactDrone.Live != null)  // the drone: CAD on the quadcopter's Parameters; it retunes mid-flight
+                {
+                    ArtifactDrone.ChangeDesign(null, line => { if (actionText != null) actionText.text = line; });
+                    return;
+                }
+                Forge.Controllers.TruckDesignPanel.Open();
+                if (actionText != null) actionText.text = "Truck design is open. Move a slider and the truck changes as you drive.";
+            });
 
             RectTransform setupRow = OSUi.Row(column, OSUi.ButtonHeight, 12f);
             setupBar = setupRow.gameObject;
@@ -322,7 +332,7 @@ namespace Forge.OS
                 string m = droneBrain.ModeName;
                 bool idle = m == "idle";
                 if (record != null) record.interactable = idle || m == "lap";
-                if (train != null) train.interactable = idle && droneBrain.LapsCompleted > 0;
+                if (train != null) train.interactable = idle && droneBrain.LapsCompleted >= 2;  // the brain trains on two laps
                 if (autopilot != null) autopilot.interactable = (idle && droneBrain.VersionCount > 0) || m == "autopilot";
                 if (followLine != null) followLine.interactable = idle;
                 int lk = (m == "lap" ? 1 : 0) + (m == "autopilot" ? 2 : 0) + 4;
@@ -375,7 +385,7 @@ namespace Forge.OS
                 stateText.text = stateLine;
                 if (!flying && brain != null && actionText != null)
                     actionText.text = brain.State == SlalomBrain.Mode.Idle
-                        ? "Drive it around any time. To teach it, record two laps, then Train and Autopilot."
+                        ? "Pick up the transmitter and drive it around any time (not recorded). Record two laps to teach Albie, then Train and Autopilot."
                         : "Let go of the sticks to brake. Stop ends the recording or Autopilot.";
             }
         }
@@ -425,7 +435,8 @@ namespace Forge.OS
             if (cb == null) return 0;
             float p = cb.TrainProgress;
             int m = cb.ModeName == "lap" ? 1 : cb.ModeName == "training" ? 2 : cb.ModeName == "autopilot" ? 3 : 4;
-            return (m + 5 * Mathf.Min(cb.LapsCompleted, 99) + 500 * Mathf.Min(cb.VersionCount, 20) + 10000 * (p >= 0f ? 1 + Mathf.RoundToInt(p * 20f) : 0));
+            return (m + 5 * Mathf.Min(cb.LapsCompleted, 99) + 500 * Mathf.Min(cb.VersionCount, 20) + 10000 * (p >= 0f ? 1 + Mathf.RoundToInt(p * 20f) : 0))
+                ^ ((cb.StatusLine ?? "").GetHashCode() << 18);  // a new status line redraws the state line
         }
 
         static string BrainText(ICourseBrain cb)
@@ -439,6 +450,8 @@ namespace Forge.OS
                     return " · training" + (p >= 0f ? " " + Mathf.RoundToInt(p * 100f) + "%" : "");
                 case "autopilot": return " · " + cb.StatusLine;
                 default:
+                    // The loop's own last line ("Lap 1 recorded ...", "v1 ready: passed 4 of 5 ..."), else the counts.
+                    if (!string.IsNullOrEmpty(cb.StatusLine)) return " · " + cb.StatusLine;
                     int laps = cb.LapsCompleted, v = cb.VersionCount;
                     if (laps == 0 && v == 0) return "";
                     return " · " + laps + (laps == 1 ? " lap" : " laps") + (v > 0 ? ", brain v" + cb.SelectedVersion + " of " + v : "");

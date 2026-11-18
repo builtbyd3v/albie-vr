@@ -915,9 +915,9 @@ namespace Forge.OS.Editor
             Problem0(shell.MenuOpen, "the table button opens the menu");
             foreach (float w in OpenTab(OSTab.Tools)) yield return w;
             yield return 0.5f;
-            FrameMenu("menu_tools", "The menu on the Tools tab: the tab bar, eight tool tiles (CAD, Code, Train, Notebook, Messages, Gestures, Drive, Agents) with a status line each, and the bottom strip (Build something, Agents, Settings, Bring windows here, Close).");
+            FrameMenu("menu_tools", "The menu on the Tools tab: the tab bar, eight tool tiles (CAD, Code, Train, Notebook, Messages, Gestures, Drive, Agents) with a status line each, and the bottom strip (New project, Agents, Settings, Spaces, Bring here, Close).");
             foreach (float w in OpenTab(OSTab.Projects)) yield return w;
-            FrameMenu("menu_projects", "The menu on the Projects tab: New project and the person's own projects first, then the four samples under their heading (RC truck started, with its version and a passed slalom; Quadcopter, Rocket and Image classifier saying what each shows), and the strip.");
+            FrameMenu("menu_projects", "The menu on the Projects tab, first page: one row under Your projects (New project and the newest projects of the person's own); with none yet, New project and the four samples in one row. The rest (older projects, the samples, Machine learning) is a page turn away, and the strip.");
             foreach (float w in OpenTab(OSTab.Artifacts)) yield return w;
             FrameMenu("menu_artifacts_page1", "The menu on the Artifacts tab, page 1: the artifacts already made (slalom, heart, solar system) first, then the New heading with template tiles, and the page arrows.");
             PressButton("chevron_right", menu);
@@ -997,7 +997,18 @@ namespace Forge.OS.Editor
 
             OSProjects.OpenProject("proj_truck");
             yield return 1.5f;
-            FrameWindow("project_truck_full", "The RC truck sample's Project window with a full plan: the header card (SAMPLE · LOOK AROUND, what it shows, its test), Make my own RC truck as the one primary button beside Next, Notebook and Send, the steps card (Course, Drive, Train, Autopilot, Code as a stepper of chips: done, next, upcoming) with the last result, and the two-column summary (plan and milestones, newest version with its outcome, last training, last run, artifacts).", shell.Windows.Find(OSProjectWindow.WindowId));
+            FrameWindow("project_truck_full", "The RC truck sample's Project window, overview: one sentence (what the sample shows), one big Next button, the last result, the five steps as one row of chips (done, next, upcoming; all tappable), and along the bottom Make my own RC truck and More. Nothing else: the plan, versions and runs are on Details.", shell.Windows.Find(OSProjectWindow.WindowId));
+            {
+                OSProjectWindow truckView = shell.Windows.Find(OSProjectWindow.WindowId)?.GetComponent<OSProjectWindow>();
+                if (truckView != null)
+                {
+                    truckView.DetailsOpen = true;
+                    yield return 0.6f;
+                    FrameWindow("project_truck_details", "The RC truck sample's Details page: Back, then one two-column card (sample, plan and milestones, newest version with its outcome, last training, last run, artifacts, the truck's live line).", shell.Windows.Find(OSProjectWindow.WindowId));
+                    truckView.DetailsOpen = false;
+                    yield return 0.3f;
+                }
+            }
             shell.Windows.CloseAll();
             OSModes.Close();
             yield return 0.8f;

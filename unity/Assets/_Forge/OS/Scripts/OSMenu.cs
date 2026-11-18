@@ -11,21 +11,25 @@ namespace Forge.OS
     /// <summary>
     /// The Albie menu view. A UI Set backplate (world-space canvas with poke, ray and mouse input) holding a tab bar (Tools,
     /// Projects, Artifacts, Close), a grid of tiles (4 columns by 2 rows a page, with paging when there are more) read from
-    /// <see cref="OSRegistry"/>, and a bottom strip (Build something, Agents, Settings, Bring windows here, Close). It
-    /// follows <see cref="OSShell"/> events: when the shell opens the menu it appears where it was summoned (a fixed
-    /// distance and drop from the eyes, facing the user, never following the head), and grows from the summon point.
-    /// Sizes are OS units (0.65 mm). Tiles are pooled; nothing allocates per frame (there is no Update).
+    /// <see cref="OSRegistry"/>, and a bottom strip (New project, Agents, Settings, Spaces, Bring here, Close). It
+    /// follows <see cref="OSShell"/> events: when the shell opens the menu it appears where it was summoned and grows from
+    /// the summon point. It sits within easy poking reach (see <see cref="Pose"/>: 0.47 m from the eyes and 20 degrees below
+    /// eye level by default, never nearer than 0.42 m, facing the user, its lower edge above the desk) and stays put while the user looks at it;
+    /// when the user turns well away from it (or walks off) it glides round to where they face now. Sizes are OS units
+    /// (0.65 mm) times <see cref="MenuScale"/>. Tiles are pooled; Update only compares a few numbers (no allocations).
     /// </summary>
     public sealed class OSMenu : MonoBehaviour
     {
-        // ---- layout, in OS units (one unit is OSKit.unitMeters)
-        const float Pad = 28f, TabHeight = 72f, TabWidth = 156f, Gap = 20f;
-        // 226 wide tiles make the plate as wide as the strip of 22 unit body text buttons needs, with at least 19 units (12 mm) between them (Build something, Agents, Settings, Bring windows here, Close).
-        const float TileWidth = 226f, TileHeight = 108f, TileGap = 20f, HeadingHeight = 30f;
+        // ---- layout, in menu units (one unit is OSKit.unitMeters times MenuScale: 0.611 mm)
+        const float Pad = 28f, TabHeight = 72f, TabWidth = 156f, Gap = 22f;  // 22 units is 13.4 mm at the menu scale
+        // 226 wide tiles make the plate as wide as the strip of 22 unit body text buttons needs, with 22 units (13.4 mm) between them (New project, Agents, Settings, Spaces, Bring here, Close).
+        // A tile is 138 x 66 mm at the menu scale.
+        const float TileWidth = 226f, TileHeight = 108f, TileGap = 22f, HeadingHeight = 30f;
         const int Columns = 4, Rows = 2;
         const float GridWidth = Columns * TileWidth + (Columns - 1) * TileGap;
         const float GridHeight = Rows * TileHeight + (Rows - 1) * TileGap + HeadingHeight;
-        const float StripHeight = 52f;
+        // The strip's buttons are this tall: 50 units at the menu's scale is 30.6 mm, a hand-sized poke target.
+        const float StripButtonHeight = 50f, StripHeight = 56f;
         const float PlateWidth = GridWidth + 2f * Pad;
         const float PlateHeight = Pad + TabHeight + Gap + GridHeight + Gap + StripHeight + Pad;
         const float GridTop = Pad + TabHeight + Gap;
@@ -34,13 +38,32 @@ namespace Forge.OS
         // ---- motion
         const float OpenSeconds = 0.22f, CloseSeconds = 0.12f, StartScale = 0.3f;
 
-        // ---- placement: how the menu keeps clear of panels (see Pose)
-        const float DistanceStep = 0.02f, ProbeYawDegrees = 10f, ProbeTiltDegrees = 10f, MaxDropDegrees = 70f;
+        // ---- size: the plate is drawn at this fraction of the OS unit, so at arm's length it still fits in the view
+        // (0.63 m wide, about 67 degrees at 0.47 m), its text keeps the rubric's cap height for its distance, and every control
+        // stays at least 28 mm (see OSCheck.MenuReach).
+        /// <summary>The menu's scale against the OS unit.</summary>
+        public const float MenuScale = 0.94f;
+
+        // ---- placement: within easy poking reach (see Pose). Tune on the headset.
+        /// <summary>The menu never comes nearer than this to the eyes (m): any nearer and the hand can't get in front of it.</summary>
+        public const float ReachNearest = OSSettings.MinDistance;
+        /// <summary>Nor further than this (m): any further and the arm has to lock straight to poke it.</summary>
+        public const float ReachFarthest = OSSettings.MaxDistance;
+        /// <summary>Degrees below eye level it may sit at (the setting is kept inside these).</summary>
+        public const float MinDropDegrees = OSSettings.MinDrop, MaxDropDegrees = OSSettings.MaxDrop;
+        // When a panel or a model stands in the way the menu comes at most this much nearer than its setting (m), in steps.
+        const float NearerAtMost = 0.04f;
+        // At a desk the plate's lower edge stays this far above the desk top (m), clear of the hands resting on it.
+        const float DeskClearMeters = 0.04f;
+        // Turned more than RefaceDegrees from the menu (or moved RefaceMeters from where it was placed) for RefaceHoldSeconds:
+        // it glides round to where the user faces now, in RefaceSeconds.
+        const float RefaceDegrees = 40f, RefaceMeters = 0.35f, RefaceHoldSeconds = 0.6f, RefaceSeconds = 0.3f;
+        const float DistanceStep = 0.02f, ProbeYawDegrees = 10f, ProbeTiltDegrees = 5f;
         // The menu keeps this far in front of a panel's plane (m) and counts a panel's rectangle this much bigger (canvas units).
         const float ClearMarginMeters = 0.05f, ClearMarginUnits = 20f;
         // Cost of a place, in "degrees": turning or tilting costs TurnCost a degree, coming nearer costs one per centimetre.
         const float TurnCost = 2f;
-        const int MaxProbeSteps = 3, MaxTiltSteps = 4, ProbeColumns = 7, ProbeRows = 4;
+        const int MaxProbeSteps = 3, MaxTiltSteps = 4, ProbeColumns = 7, ProbeRows = 4;  // tilt steps go down, up, further down, further up
 
         [SerializeField] GameObject visual;
         [SerializeField] RectTransform canvasRoot, plate;
@@ -75,7 +98,11 @@ namespace Forge.OS
         /// <summary>The way the menu faced when it last opened.</summary>
         public Quaternion LastRotation { get; private set; } = Quaternion.identity;
         /// <summary>The plate's size in metres at the OS unit.</summary>
-        public Vector2 SizeMeters => new Vector2(PlateWidth, PlateHeight) * (OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f);
+        public Vector2 SizeMeters => new Vector2(PlateWidth, PlateHeight) * UnitMeters;
+        /// <summary>Metres per menu unit: the OS unit times <see cref="MenuScale"/>.</summary>
+        public static float UnitMeters => (OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f) * MenuScale;
+        /// <summary>How many times the open menu glided round to the user because they turned away from it.</summary>
+        public int Refaces { get; private set; }
         public bool Visible => visual != null && visual.activeSelf;
         public int PageCount => pageCount;
         public int Page => page;
@@ -144,6 +171,8 @@ namespace Forge.OS
             Pose(out to, out rotation);
             LastCenter = to;
             LastRotation = rotation;
+            placedFrom = shell.Head != null ? shell.Head.position : Vector3.zero;
+            turnedFor = 0f;
             HideCoveringContent(shell.Head != null ? shell.Head.position : Vector3.zero, to, rotation, SizeMeters);
             Vector3 from = shell.SummonPoint ?? to;
             transform.SetPositionAndRotation(from, rotation);
@@ -212,17 +241,102 @@ namespace Forge.OS
             }
         }
 
+        Vector3 placedFrom;
+        float turnedFor;
+
+        // While it is open and still: if the user has turned well away from it (or walked off) for a moment, it glides round
+        // to where they face now. Only compares a few vectors a frame; the new place is worked out once, when it moves.
+        void Update()
+        {
+            if (motion != null || !Visible || shell == null || !shell.MenuOpen || PanelManipulator.Grabbing > 0)
+            {
+                turnedFor = 0f;
+                return;
+            }
+            Transform head = shell.Head;
+            if (head == null) return;
+            Vector3 toMenu = LastCenter - head.position;
+            toMenu.y = 0f;
+            Vector3 facing = head.forward;
+            facing.y = 0f;
+            bool turned = toMenu.sqrMagnitude > 1e-4f && facing.sqrMagnitude > 1e-4f && Vector3.Angle(facing, toMenu) > RefaceDegrees;
+            bool moved = (head.position - placedFrom).sqrMagnitude > RefaceMeters * RefaceMeters;
+            if (!turned && !moved)
+            {
+                turnedFor = 0f;
+                return;
+            }
+            turnedFor += Time.unscaledDeltaTime;
+            if (turnedFor < RefaceHoldSeconds) return;
+            Reface();
+        }
+
+        /// <summary>Places the open menu again in front of the user, gliding there. For the turn above, and for checks.</summary>
+        public void Reface()
+        {
+            if (!Visible || shell == null) return;
+            turnedFor = 0f;
+            Pose(out Vector3 to, out Quaternion rotation);
+            LastCenter = to;
+            LastRotation = rotation;
+            placedFrom = shell.Head != null ? shell.Head.position : Vector3.zero;
+            HideCoveringContent(placedFrom, to, rotation, SizeMeters);
+            Refaces++;
+            if (motion != null) StopCoroutine(motion);
+            motion = StartCoroutine(Glide(transform.position, transform.rotation, to, rotation));
+        }
+
+        IEnumerator Glide(Vector3 fromPosition, Quaternion fromRotation, Vector3 toPosition, Quaternion toRotation)
+        {
+            float t = 0f;
+            while (t < RefaceSeconds)
+            {
+                t += Time.unscaledDeltaTime;
+                float e = ForgeTween.EaseOutCubic(Mathf.Clamp01(t / RefaceSeconds));
+                transform.SetPositionAndRotation(Vector3.LerpUnclamped(fromPosition, toPosition, e), Quaternion.SlerpUnclamped(fromRotation, toRotation, e));
+                yield return null;
+            }
+            transform.SetPositionAndRotation(toPosition, toRotation);
+            motion = null;
+        }
+
+        /// <summary>The distance (m) and drop (degrees) the menu aims for: the settings, kept inside easy reach.</summary>
+        public static void ReachSetting(out float distance, out float dropDegrees)
+        {
+            OSSettings settings = OSSettings.Current;
+            distance = Mathf.Clamp(settings.menuDistance, ReachNearest, ReachFarthest);
+            dropDegrees = Mathf.Clamp(settings.menuDropDegrees, MinDropDegrees, MaxDropDegrees);
+        }
+
         /// <summary>
-        /// Where the menu sits: <c>menuDistance</c> from the eyes, <c>menuDropDegrees</c> below eye level, straight ahead of
-        /// where the head faces now, turned to face the eyes. World-locked: nothing moves it afterwards. The menu is the
-        /// system surface, so it is always in front of every window and mode panel: when a panel stands in the way at that
-        /// distance, the menu comes nearer (down to the nearest comfortable reach, in steps) and, if that is not enough,
-        /// turns a little to the side, to the nearest place where nothing is in front of it. With no clear place it takes the
-        /// one with the least in front of it.
+        /// The plain place within reach in front of <paramref name="head"/> (no search around obstacles), for a system surface
+        /// the user touches that opens without the menu (the Spaces list by voice): centre and the rotation facing the eyes.
+        /// </summary>
+        public static void ReachPose(Transform head, out Vector3 center, out Quaternion rotation)
+        {
+            ReachSetting(out float distance, out float drop);
+            Vector3 eye = head != null ? head.position : Vector3.zero;
+            Vector3 flat = head != null ? head.forward : Vector3.forward;
+            flat.y = 0f;
+            flat = flat.sqrMagnitude < 1e-4f ? Vector3.forward : flat.normalized;
+            Vector3 direction = Direction(flat, 0f, drop);
+            center = eye + direction * distance;
+            rotation = Quaternion.LookRotation(direction, Vector3.up);
+        }
+
+        /// <summary>
+        /// Where the menu sits: within easy poking reach, straight ahead of where the head faces now, turned to face the eyes:
+        /// <c>menuDistance</c> from the eyes and <c>menuDropDegrees</c> below eye level, kept inside 0.42 to 0.6 m and 10 to 30
+        /// degrees (<see cref="ReachSetting"/>). At a desk the drop is lessened until the plate's lower edge is above the desk top,
+        /// clear of hands resting there. The menu is the system surface, so it is in front of every window and mode panel:
+        /// when a panel stands in the way it comes a little nearer (never nearer than <see cref="ReachNearest"/>), then tilts
+        /// a little down or up, then turns a little to the side, to the cheapest place where nothing is in front of it. With
+        /// no clear place it takes the one with the least in front of it (and hides the model parts that are left in front:
+        /// <see cref="HideCoveringContent"/>), rather than coming close to the face.
         /// </summary>
         void Pose(out Vector3 position, out Quaternion rotation)
         {
-            OSSettings settings = OSSettings.Current;
+            ReachSetting(out float wantDistance, out float wantDrop);
             Transform head = shell.Head;
             Vector3 eye = head != null ? head.position : Vector3.zero;
             Vector3 flat = head != null ? head.forward : Vector3.forward;
@@ -230,14 +344,16 @@ namespace Forge.OS
             flat = flat.sqrMagnitude < 1e-4f ? Vector3.forward : flat.normalized;
             Vector2 size = SizeMeters;
             CollectVolumes();
+            float deskTop = DeskTop();
+            wantDrop = AboveDesk(eye, flat, wantDistance, wantDrop, size.y, deskTop);
 
-            // Every place worth trying has a cost: coming nearer than the setting costs one per centimetre (down to the
-            // nearest reach the settings allow), turning aside or tilting further down costs TurnCost per degree, so nearer
+            // Every place worth trying has a cost: coming nearer than the setting costs one per centimetre (at most
+            // NearerAtMost, never nearer than ReachNearest), tilting or turning aside costs TurnCost per degree, so nearer
             // is preferred to turning. The cheapest place with nothing in front of any part of the plate wins; the settings'
             // own place costs nothing and is tried first, so with nothing in the way the menu sits where it is set.
-            float nearest = OSSettings.MinDistance;
-            float bestDistance = settings.menuDistance, bestCost = float.MaxValue;
-            Vector3 bestDirection = Direction(flat, 0f, settings.menuDropDegrees);
+            float nearest = Mathf.Max(ReachNearest, wantDistance - NearerAtMost);
+            float bestDistance = wantDistance, bestCost = float.MaxValue;
+            Vector3 bestDirection = Direction(flat, 0f, wantDrop);
             // First a place clear of panels, volumes and the model solids under them. A model's solids can stand nearer than the
             // menu may come (Train's slabs); then the place clear of panels and volumes alone is taken, and the open menu hides
             // the solids that are left in front of it (see HideCoveringContent).
@@ -247,17 +363,21 @@ namespace Forge.OS
                 int fewestBlocked = int.MaxValue;
                 for (int tilt = 0; tilt <= MaxTiltSteps; tilt++)
                 {
-                    float drop = Mathf.Min(settings.menuDropDegrees + tilt * ProbeTiltDegrees, MaxDropDegrees);
+                    // 0, then down, up, further down, further up; each kept inside the reach band and above the desk.
+                    float step = ((tilt + 1) / 2) * ProbeTiltDegrees * (tilt % 2 == 1 ? 1f : -1f);
+                    float drop = Mathf.Clamp(wantDrop + step, MinDropDegrees, MaxDropDegrees);
+                    if (tilt > 0 && Mathf.Abs(drop - wantDrop) < 0.5f) continue;  // clamped onto a place already tried
                     for (int k = 0; k <= 2 * MaxProbeSteps; k++)
                     {
                         float yaw = ((k + 1) / 2) * ProbeYawDegrees * (k % 2 == 1 ? 1f : -1f);
-                        float turning = TurnCost * (Mathf.Abs(yaw) + (drop - settings.menuDropDegrees));
+                        float turning = TurnCost * (Mathf.Abs(yaw) + Mathf.Abs(drop - wantDrop));
                         if (turning >= bestCost) continue;
-                        Vector3 direction = Direction(flat, yaw, drop);
-                        Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
-                        for (float d = settings.menuDistance; d >= nearest - 0.001f; d -= DistanceStep)
+                        for (float d = wantDistance; d >= nearest - 0.001f; d -= DistanceStep)
                         {
-                            float cost = turning + (settings.menuDistance - d) * 100f;
+                            float placeDrop = AboveDesk(eye, flat, d, drop, size.y, deskTop);
+                            Vector3 direction = Direction(flat, yaw, placeDrop);
+                            Quaternion facing = Quaternion.LookRotation(direction, Vector3.up);
+                            float cost = turning + (wantDistance - d) * 100f;
                             // Once a clear place is known only a count of 0 matters, and before that only a count under the fewest so far:
                             // the count may stop at that limit (the answer to both questions is the same as with the full count).
                             int limit = bestCost == float.MaxValue ? fewestBlocked : 1;
@@ -285,6 +405,31 @@ namespace Forge.OS
             }
             position = eye + bestDirection * bestDistance;
             rotation = Quaternion.LookRotation(bestDirection, Vector3.up);
+        }
+
+        // The desk top's height when the user is at a desk, else minus infinity.
+        float DeskTop()
+        {
+            Workspace ws = shell != null ? shell.workspace : null;
+            if (ws == null || ws.presence == null || !ws.presence.AtDesk || ws.presence.Frame == null) return float.NegativeInfinity;
+            return ws.presence.Frame.position.y;
+        }
+
+        /// <summary>
+        /// The drop (degrees) at or under <paramref name="drop"/> that keeps a plate <paramref name="height"/> m tall, centred
+        /// <paramref name="distance"/> m from the eye and facing it, with its lower edge <c>DeskClearMeters</c> above
+        /// <paramref name="deskTop"/>. Never under 0 (eye level): a desk that high leaves the menu level with the eyes.
+        /// </summary>
+        public static float AboveDesk(Vector3 eye, Vector3 flat, float distance, float drop, float height, float deskTop)
+        {
+            if (float.IsNegativeInfinity(deskTop)) return drop;
+            for (float d = drop; d > 0f; d -= 2f)
+            {
+                float rad = d * Mathf.Deg2Rad;
+                float bottom = eye.y - Mathf.Sin(rad) * distance - Mathf.Cos(rad) * height * 0.5f;
+                if (bottom >= deskTop + DeskClearMeters) return d;
+            }
+            return 0f;
         }
 
         // ---------------------------------------------------------------- content in front of the plate
@@ -538,7 +683,7 @@ namespace Forge.OS
             foreach (var layout in canvasRoot.GetComponents<LayoutGroup>()) layout.enabled = false;
             foreach (var layout in plate.GetComponents<LayoutGroup>()) layout.enabled = false;
             canvasRoot.sizeDelta = new Vector2(PlateWidth, PlateHeight);
-            canvasRoot.localScale = Vector3.one * kit.unitMeters;
+            canvasRoot.localScale = Vector3.one * kit.unitMeters * MenuScale;
             plate.anchorMin = plate.anchorMax = plate.pivot = new Vector2(0.5f, 0.5f);
             plate.anchoredPosition = Vector2.zero;
             plate.sizeDelta = new Vector2(PlateWidth, PlateHeight);
@@ -593,26 +738,75 @@ namespace Forge.OS
             PlaceTopLeft(emptyRect, Pad + GridWidth * 0.2f, GridTop);
             emptyRect.sizeDelta = new Vector2(GridWidth * 0.6f, GridHeight);
 
-            // Bottom strip
-            float stripX = Pad;
-            stripX = Strip("New project", "build", OSButtonStyle.Primary, () => OpenSystem("build"), stripX);
-            stripX = Strip("Agents", "agents", OSButtonStyle.Secondary, () => OpenSystem("agents"), stripX);
-            stripX = Strip("Settings", "settings", OSButtonStyle.Secondary, () => OpenSystem("settings"), stripX);
-            stripX = Strip("Bring windows here", "bring", OSButtonStyle.Secondary, BringWindows, stripX);
-            Button close = OSUi.Button(plate, "Close", CloseMenu, OSButtonStyle.Secondary);
-            var closeRect = (RectTransform)close.transform;
-            PlaceTopLeft(closeRect, PlateWidth - Pad - closeRect.sizeDelta.x, StripTop + (StripHeight - OSUi.ButtonHeight) * 0.5f);
+            // Bottom strip: the system pages, the Spaces list (everything open around the user), Bring here, and Close at
+            // the right end, nearest the hand that reaches up from below.
+            Button[] strip =
+            {
+                StripButton("New project", "build", OSButtonStyle.Primary, () => OpenSystem("build")),
+                StripButton("Agents", "agents", OSButtonStyle.Secondary, () => OpenSystem("agents")),
+                StripButton("Settings", "settings", OSButtonStyle.Secondary, () => OpenSystem("settings")),
+                StripButton("Spaces", "apps", OSButtonStyle.Secondary, OpenSpaces),
+                StripButton("Bring here", "bring", OSButtonStyle.Secondary, BringWindows),
+            };
+            Button close = StripButton("Close", null, OSButtonStyle.Secondary, CloseMenu);
+            LayStrip(strip, close);
 
             if (themeManager != null) themeManager.ApplyCurrentTheme();
             return true;
         }
 
-        float Strip(string label, string icon, OSButtonStyle style, Action onClick, float x)
+        Button StripButton(string label, string icon, OSButtonStyle style, Action onClick)
         {
             Button button = OSUi.Button(plate, label, onClick, style, icon);
+            if (button == null) return null;
             var rect = (RectTransform)button.transform;
-            PlaceTopLeft(rect, x, StripTop + (StripHeight - OSUi.ButtonHeight) * 0.5f);
-            return x + rect.sizeDelta.x + Gap;
+            OSUi.Size(rect, rect.sizeDelta.x, StripButtonHeight);
+            return button;
+        }
+
+        // Left to right with Gap between, Close at the right end. If the labels came out too wide for the plate, the icons go
+        // from the secondary buttons, rightmost first, until the row fits (a label alone is still a hand-sized target).
+        void LayStrip(Button[] strip, Button close)
+        {
+            float available = PlateWidth - 2f * Pad;
+            float closeWidth = close != null ? ((RectTransform)close.transform).sizeDelta.x + Gap : 0f;
+            for (int drop = strip.Length - 1; drop >= 1 && StripWidth(strip) + closeWidth > available; drop--)
+                DropIcon(strip[drop]);
+            float y = StripTop + (StripHeight - StripButtonHeight) * 0.5f;
+            float x = Pad;
+            for (int i = 0; i < strip.Length; i++)
+            {
+                if (strip[i] == null) continue;
+                var rect = (RectTransform)strip[i].transform;
+                PlaceTopLeft(rect, x, y);
+                x += rect.sizeDelta.x + Gap;
+            }
+            if (close != null)
+            {
+                var closeRect = (RectTransform)close.transform;
+                PlaceTopLeft(closeRect, PlateWidth - Pad - closeRect.sizeDelta.x, y);
+            }
+        }
+
+        static float StripWidth(Button[] strip)
+        {
+            float width = 0f;
+            for (int i = 0; i < strip.Length; i++)
+                if (strip[i] != null) width += ((RectTransform)strip[i].transform).sizeDelta.x + Gap;
+            return width - Gap;
+        }
+
+        static void DropIcon(Button button)
+        {
+            if (button == null) return;
+            Transform elements = button.transform.Find("Content/Background/Elements");
+            Transform icon = elements != null ? elements.Find("Icon") : null;
+            if (icon == null || !icon.gameObject.activeSelf) return;
+            icon.gameObject.SetActive(false);
+            Transform gap = elements.Find("Gap");
+            if (gap != null) gap.gameObject.SetActive(false);
+            var rect = (RectTransform)button.transform;
+            OSUi.Size(rect, Mathf.Max(96f, rect.sizeDelta.x - 32f), rect.sizeDelta.y);
         }
 
         static void PlaceTopLeft(Transform t, float x, float y)
@@ -640,6 +834,14 @@ namespace Forge.OS
         {
             if (shell == null) return;
             shell.Windows.BringHere();
+            shell.CloseMenu();
+        }
+
+        // The Spaces list opens where the menu is now (within reach), and the menu goes.
+        void OpenSpaces()
+        {
+            if (shell == null) return;
+            OSSpacesWindow.Open(LastCenter, LastRotation);
             shell.CloseMenu();
         }
 

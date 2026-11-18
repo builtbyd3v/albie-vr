@@ -22,7 +22,9 @@ public static class MainSceneBuilder
     const string CameraRigPath = "Packages/com.meta.xr.sdk.core/Prefabs/OVRCameraRig.prefab";
     const string MrukPath = "Packages/com.meta.xr.mrutilitykit/Core/Tools/MRUK.prefab";
     const string DesktopRoomJsonPath = "Assets/_Forge/Core/Rooms/SimLivingRoom.json";
-    // The pet: Albie + voice + whistle + crew + hatchery + ArrivalDirector, one root object in the room.
+    // The pet: Albie + voice + whistle + crew + hatchery + ArrivalDirector, one root object in the room. The whistle's puck
+    // no longer shows on the table (WhistleButton.ShowOnTable is off at runtime); the component stays for F / controller B
+    // and WhistleButton.CallAlbie, which the OS Spaces list's Albie row uses.
     const string PetRuntimePath = "Assets/_Forge/Pet/Prefabs/PetRuntime.prefab";
     const string DeskExtrasPath = "Assets/_Forge/Desk/Resources/DeskExtras.prefab";
 

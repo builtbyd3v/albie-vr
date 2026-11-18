@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Forge.Pet
 {
     /// <summary>
-    /// Where desk props sit (WhistleButton on the near-right corner until the DeskDock shows, AlbieHatchery on the near-left): the corner of a
+    /// Where desk props sit (WhistleButton's spot on the near-right corner until the DeskDock shows, its puck hidden now; AlbieHatchery on the near-left): the corner of a
     /// horizontal rectangle on the edge nearest the viewer, on their right or left, with a rotation tilted toward them.
     /// </summary>
     public static class DeskCorner

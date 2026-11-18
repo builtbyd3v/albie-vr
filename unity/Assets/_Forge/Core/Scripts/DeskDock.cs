@@ -16,7 +16,7 @@ using UnityEngine.UI;
 /// Rings brighten as a pointer comes near and run a comet of light while hovered. The dock comes in in two beats: the
 /// frame slides along the front edge in from the user's right, then the rings plop on left to right (ForgeTheme.DockSlide*).
 /// It comes in centered on the edge and slides along it, keeping <see cref="endRoom"/> free at each end of the desk (the
-/// Albie's whistle sits just past its right end: <see cref="TryGetRightSide"/>): ‹ and › at its ends (they fade in only
+/// spot for Albie's whistle is just past its right end, though its puck no longer shows (WhistleButton.ShowOnTable): <see cref="TryGetRightSide"/>): ‹ and › at its ends (they fade in only
 /// while a pointer is on them) move it a step, and holding the right controller's grip (middle mouse button in desktop
 /// mode) while pointing anywhere on it drags it; with hands, pinch on it and slide.
 /// Input stays flat: each button is an invisible raycast Image + Button on the dock canvas that never moves. The light
@@ -34,7 +34,7 @@ public class DeskDock : MonoBehaviour
     public float inset = 0.09f;
     [Tooltip("How far one press of ‹ or › slides the dock along the front edge (m).")]
     public float nudgeStep = 0.15f;
-    [Tooltip("Desk kept free past each end of the dock when it slides (m): the whistle sits past the right end, the crew egg on the near-left corner.")]
+    [Tooltip("Desk kept free past each end of the dock when it slides (m): the whistle's spot (its puck is hidden now) past the right end, the crew egg on the near-left corner.")]
     public float endRoom = 0.12f;
 
     const float GlowPad = DockRing.GlowPad;  // room around each ring's quad for its glow (mm)

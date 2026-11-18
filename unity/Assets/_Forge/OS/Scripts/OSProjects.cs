@@ -15,12 +15,13 @@ namespace Forge.OS
 
     /// <summary>
     /// The Projects tab. One way to start a project: the New project tile (Build something: a few questions, then a plan).
-    /// The tab lists, in this order, the New project tile and the person's own projects (every other folder under the
-    /// notebook's <c>projects/</c> folder), then the four samples under their own heading (RC truck, Quadcopter, Rocket,
-    /// Image classifier: finished examples to look around, each tile saying what it shows). A sample is never copied: its
-    /// window's one call to action, Make my own (<see cref="MakeOwn"/>), opens the same New project questions with the
-    /// sample's kind already picked, so the person gets the choices and a real project with its own plan
-    /// ("My RC truck", which follows the sample's loop). The
+    /// The tab's first page is one row under "Your projects": New project and the person's three newest projects (every
+    /// other folder under the notebook's <c>projects/</c> folder; the open one first). The rest is on the pages after it,
+    /// each under its own heading: "All your projects" (the older ones), "Samples" (RC truck, Quadcopter, Rocket, Image
+    /// classifier in one row: finished examples to look around, each tile saying what it shows in one short line), and
+    /// Machine learning (<see cref="OSMLProjects"/>). A sample is never copied: its window's Make my own
+    /// (<see cref="MakeOwn"/>) opens the same New project questions with the sample's kind already picked, so the person gets
+    /// the choices and a real project with its own plan ("My RC truck", which follows the sample's loop). The
     /// folder listing and each project's status line are cached: they are read again when something asks (a registry
     /// change, a notebook write, <see cref="Refresh"/>) or after a few seconds, never every frame. A project is open when
     /// <see cref="NotebookStore.ProjectId"/> matches; <see cref="OpenProject"/> always leaves a project open (it switches
@@ -43,8 +44,14 @@ namespace Forge.OS
             public float? runSeconds;
         }
 
-        /// <summary>The heading over the four samples on the Projects tab.</summary>
-        public const string SampleSection = "Samples to look around";
+        /// <summary>The heading over the four samples on the Projects tab (a page of their own, one row).</summary>
+        public const string SampleSection = "Samples";
+        /// <summary>The heading of the tab's first page: New project and the person's newest projects.</summary>
+        public const string OwnSection = "Your projects";
+        /// <summary>The heading of the person's other projects, on the pages after the first.</summary>
+        public const string MoreOwnSection = "All your projects";
+        /// <summary>How many of the person's own projects the first page shows beside New project (one row of four).</summary>
+        public const int OwnOnFirstPage = 3;
         /// <summary>The tag a sample's window and voice answers carry.</summary>
         public const string SampleTag = "Sample";
         /// <summary>What a sample is for, in one line (the window and the welcome card say it).</summary>
@@ -117,6 +124,8 @@ namespace Forge.OS
             folderIds.Clear();
             mlFolderIds.Clear();
             scratchLinked.Clear();
+            recent.Clear();
+            touched.Clear();
             dirty = true;
             lastScan = -1000f;
             chosen = null;
@@ -206,22 +215,64 @@ namespace Forge.OS
                 Debug.Log("[OS] Couldn't list the project folders: " + e.Message);
             }
 
-            // The person's own first: New project (Build something), then their projects; then the four samples under their own
-            // heading (on the same page while the person has three projects or fewer); then one Machine learning section: the
-            // ML projects saved on the headset, and (from OSMLProjects, registered after this source) the hub's or cloud's.
+            // A calm first page: one row under "Your projects", New project and the person's three newest projects (the open one
+            // first); before the person has any, New project alone with the samples' row under it. Every heading after it starts a page of its own (the menu puts one heading on a page), so the rest is a
+            // page turn away and never on screen with the first row: the person's other projects ("All your projects"), then
+            // the four samples in one row ("Samples"), then one Machine learning page: the ML projects saved on the headset,
+            // and (from OSMLProjects, registered after this source) the hub's or cloud's. Every entry stays in the registry,
+            // so voice (os_open, project_open) and the checks find each one.
             entries.Add(new OSEntry
             {
                 id = StartOwnId,
                 title = NewProjectTitle,
                 icon = "plus",
                 tab = OSTab.Projects,
+                // With no projects of the person's own yet, the samples share the first page (New project, then their row).
+                section = folderIds.Count == 0 ? null : OwnSection,
                 outline = true,
                 status = () => NewProjectLine,
                 open = StartOwn,
             });
-            for (int i = 0; i < folderIds.Count; i++) AddEntry(folderIds[i], TitleFor(folderIds[i]), IconFor(folderIds[i], "projects"), null);
+            NewestFirst(folderIds, recent);
+            for (int i = 0; i < recent.Count; i++)
+                AddEntry(recent[i], TitleFor(recent[i]), IconFor(recent[i], "projects"), i < OwnOnFirstPage ? OwnSection : MoreOwnSection);
             for (int i = 0; i < starters.Length; i++) AddEntry(starters[i].id, starters[i].title, starters[i].icon, SampleSection);
             for (int i = 0; i < mlFolderIds.Count; i++) AddEntry(mlFolderIds[i], TitleFor(mlFolderIds[i]), "classifier", OSMLProjects.Section);
+        }
+
+        static readonly List<string> recent = new List<string>();
+        static readonly List<KeyValuePair<string, DateTime>> touched = new List<KeyValuePair<string, DateTime>>();
+
+        // The person's projects, the open one first, then the most recently written (its folder or the folders right inside it).
+        // Read on a rescan only, never per frame.
+        static void NewestFirst(List<string> ids, List<string> into)
+        {
+            into.Clear();
+            touched.Clear();
+            string root = Path.Combine(NotebookStore.Root ?? NotebookStore.DefaultRoot, "projects");
+            for (int i = 0; i < ids.Count; i++)
+            {
+                DateTime when = DateTime.MinValue;
+                try
+                {
+                    string folder = Path.Combine(root, ids[i]);
+                    when = Directory.GetLastWriteTimeUtc(folder);
+                    foreach (string sub in Directory.GetDirectories(folder))
+                    {
+                        DateTime t = Directory.GetLastWriteTimeUtc(sub);
+                        if (t > when) when = t;
+                    }
+                }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
+                if (IsOpen(ids[i])) when = DateTime.MaxValue;
+                touched.Add(new KeyValuePair<string, DateTime>(ids[i], when));
+            }
+            touched.Sort((a, b) =>
+            {
+                int byTime = b.Value.CompareTo(a.Value);
+                return byTime != 0 ? byTime : StringComparer.OrdinalIgnoreCase.Compare(a.Key, b.Key);
+            });
+            for (int i = 0; i < touched.Count; i++) into.Add(touched[i].Key);
         }
 
         /// <summary>The New project tile's line.</summary>

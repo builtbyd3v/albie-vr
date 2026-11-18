@@ -1,0 +1,21 @@
+[
+  {"name": "spaces_show",
+   "description": "Open the Spaces list: everything open around the user (windows, the open mode such as CAD or Train, the open artifact and its room course, the truck or drone, the RC transmitter, loose panels, Albie's card, and Albie himself), each with where it is and Here, Away and Close buttons. Answers with the same list, so you can say what is open and where. Use it for 'what's open', 'show my spaces' or 'where are my windows'.",
+   "parameters": {"type": "object", "properties": {}}},
+  {"name": "spaces_bring_here",
+   "description": "Bring things in front of the user. Without name, everything that was sent away comes back and every window and the open mode come in front of them. With name, just that one (as named in the Spaces list: 'Settings', 'CAD', 'the heart', 'Albie' calls Albie over and he listens).",
+   "parameters": {"type": "object", "properties": {
+     "name": {"type": "string", "description": "optional: the one thing to bring, as the Spaces list names it"}}}},
+  {"name": "spaces_send_away",
+   "description": "Send things out of the user's way into the Spaces tray (a window shrinks into a small dot where it was, a model hides); nothing is closed and spaces_bring_here brings it back. Without name, everything except Albie goes. With name, just that one.",
+   "parameters": {"type": "object", "properties": {
+     "name": {"type": "string", "description": "optional: the one thing to send away, as the Spaces list names it"}}}},
+  {"name": "spaces_close",
+   "description": "Close one thing by name, as the Spaces list names it (a window, the open mode, the artifact or its course; 'the truck' or 'the drone' closes its course, which puts it away; 'the transmitter' puts it away). If a run is going on that would be lost, it asks the user on the Spaces list instead, and says so.",
+   "parameters": {"type": "object", "properties": {
+     "name": {"type": "string", "description": "the thing to close"}},
+     "required": ["name"]}},
+  {"name": "spaces_close_all",
+   "description": "Close everything around the user: every window, the open mode, the open artifact and its room course, the truck or drone, the RC transmitter and loose panels. If a run is going on that would be lost, it asks the user on the Spaces list first and says so; otherwise it closes at once.",
+   "parameters": {"type": "object", "properties": {}}}
+]
