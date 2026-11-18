@@ -6,8 +6,11 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 /// <summary>
-/// The sample project that ships in the app (Resources/CodeSample.json: rocket.py, train.py, model.py, README), so the
-/// code panel works with no laptop. Edits are saved on the device under persistentDataPath/code/&lt;project&gt;/;
+/// The sample code that ships in the app, one small set of files per starter project (Resources/CodeSample.json,
+/// <c>projects</c> by project id: the truck's autopilot, the quadcopter's hover test, the rocket's stability check with
+/// one deliberate "try: fix the error" typo, the classifier's training), so the code panel works with no laptop. It
+/// follows the open project (<see cref="ProjectRepos.CurrentProject"/>); <see cref="SyncProject"/> switches the set.
+/// Edits are saved on the device under persistentDataPath/code/&lt;project&gt;/;
 /// <see cref="Reset"/> brings back the originals. Also holds what the panel shows: the open file, the highlighted
 /// lines and a status line. <see cref="Changed"/> fires on any of it. Main thread only.
 /// </summary>
@@ -28,13 +31,16 @@ public static class CodeProject
 
     const int MaxUndo = 10;
     static readonly List<File> files = new List<File>();
-    static string project = "rocket-lab";
+    static string project = "rc-truck";
+    static string loadedFor;   // the project id whose files are loaded
+    static bool switched;      // the set changed since the panel last rebuilt its file list
+    static File open;
 
     public static event Action Changed;
 
     public static string Name { get { Load(); return project; } }
     public static IReadOnlyList<File> Files { get { Load(); return files; } }
-    public static File Open { get; private set; }
+    public static File Open { get { Load(); return open; } private set => open = value; }
     public static int HighlightStart { get; private set; }  // 1-based, 0 = none
     public static int HighlightEnd { get; private set; }
     public static string Note { get; private set; } = "";
@@ -44,7 +50,9 @@ public static class CodeProject
     static void ResetStatics()
     {
         files.Clear();
-        Open = null;
+        open = null;
+        loadedFor = null;
+        switched = false;
         HighlightStart = HighlightEnd = 0;
         Note = Status = "";
         Changed = null;
@@ -52,25 +60,47 @@ public static class CodeProject
 
     static string Folder => Path.Combine(Application.persistentDataPath, "code", project);
 
+    /// <summary>Loads the open project's sample files if another project's are loaded. Cheap; the panel calls it every frame.</summary>
+    public static void SyncProject() => Load();
+
+    /// <summary>True once after the sample switched to another project's files (the panel rebuilds its file list).</summary>
+    public static bool TakeSwitched()
+    {
+        bool was = switched;
+        switched = false;
+        return was;
+    }
+
     static void Load()
     {
-        if (files.Count > 0) return;
+        string want = ProjectRepos.CurrentProject;
+        if (files.Count > 0 && want == loadedFor) return;
         var asset = Resources.Load<TextAsset>("CodeSample");
         if (asset == null)
         {
-            Debug.LogError("[CodeProject] no Resources/CodeSample.json");
+            if (files.Count == 0) Debug.LogError("[CodeProject] no Resources/CodeSample.json");
             return;
         }
         var json = JObject.Parse(asset.text);
-        project = (string)json["project"] ?? project;
-        foreach (JObject f in json["files"])
+        var projects = json["projects"] as JObject;
+        var set = projects?[want ?? ""] as JObject ?? projects?[(string)json["fallback"] ?? ""] as JObject ?? json;
+        bool reload = files.Count > 0;
+        files.Clear();
+        loadedFor = want;
+        project = (string)set["project"] ?? project;
+        foreach (JObject f in set["files"])
         {
             var file = new File { path = (string)f["path"], original = ((string)f["text"]).Replace("\r\n", "\n") };
             string saved = Path.Combine(Folder, file.path);
             file.text = System.IO.File.Exists(saved) ? System.IO.File.ReadAllText(saved) : file.original;
             files.Add(file);
         }
-        Open = files[0];
+        open = files.Count > 0 ? files[0] : null;
+        if (!reload) return;
+        switched = true;
+        HighlightStart = HighlightEnd = 0;
+        Note = Status = "";
+        Changed?.Invoke();
     }
 
     /// <summary>A file by path or name (case-insensitive, "rocket" finds rocket.py); empty = the open file.</summary>
@@ -143,7 +173,7 @@ public static class CodeProject
             f.undo.Clear();
         }
         Status = "Back to the original files.";
-        Show(Open ?? files[0]);
+        Show(Open ?? files[0]);  // Open loads the set first
     }
 
     static void Save(File f)

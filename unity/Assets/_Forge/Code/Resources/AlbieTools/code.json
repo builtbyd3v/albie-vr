@@ -1,6 +1,6 @@
 [
   {"name": "code_list_files",
-   "description": "The files of the sample project in the code view (rocket.py, train.py, model.py, README.md), with line counts, which one is open and how many problems each has. Call it when the user asks what's in the project.",
+   "description": "The sample files in the code view for the open project (the truck's autopilot, the quadcopter's hover test, the rocket's rocket.py, the classifier's train.py), with line counts, which one is open and how many problems each has. Call it when the user asks what's in the project.",
    "parameters": {"type": "object", "properties": {}}},
   {"name": "code_open_file",
    "description": "Open a project file in the code view at a line (opens the code view if needed). The user sees it on the main screen.",

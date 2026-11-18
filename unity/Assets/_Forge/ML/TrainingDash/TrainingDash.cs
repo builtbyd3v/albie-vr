@@ -118,7 +118,9 @@ namespace Forge.ML
             valAccValue.text = Num(m?.val_acc, "0.0%");
             lrValue.text = Num(m?.lr, "G3");
             ShowRunMetrics(m);
-            string state = session.Done ? "Done" : e >= 0 ? "Training" : session.NoImageData ? "Ready" : "Waiting";
+            // Hub off and nothing trained here: the curves are the bundled sample run playing back, not a training run.
+            bool sampleRun = session.replay && !session.HubData;
+            string state = session.Done ? "Done" : e >= 0 ? (sampleRun ? "Replaying" : "Training") : session.NoImageData ? "Ready" : "Waiting";
             Color stateColor = session.Done ? MLUI.Good : e >= 0 ? MLUI.Accent : MLUI.Faint;
             statusText.text = state.ToUpperInvariant(); statusText.color = Color.Lerp(stateColor, Color.white, 0.2f);
             statusChip.color = new Color(stateColor.r, stateColor.g, stateColor.b, 0.16f);
@@ -179,7 +181,7 @@ namespace Forge.ML
         }
         void DrawLiveGraphs()
         {
-            sectionTitle.text = session.RunId == "on-device" ? "PER-CLASS ACCURACY  ·  HELD-OUT IMAGES" : session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  DEMO REPLAY";
+            sectionTitle.text = session.RunId == "on-device" ? "PER-CLASS ACCURACY  ·  HELD-OUT IMAGES" : session.HubData ? "PER-CLASS ACCURACY  ·  LIVE" : "PER-CLASS ACCURACY  ·  SAMPLE RUN";
             int classes = session.Data.classes.Length;
             int columns = classHistory.Count;
             // The heat map keeps every class name readable: a row is never under MinRow units, even when that leaves the
@@ -391,9 +393,10 @@ namespace Forge.ML
                 actionRow.gameObject.SetActive(key != null);
                 presetRow.gameObject.SetActive(key == null);
             }
-            if (session.ProjectSource != shownSource)
+            string source = session.ProjectSource ?? (session.replay && !session.HubData ? "Sample run  ·  bundled images" : null);
+            if (source != shownSource)
             {
-                shownSource = session.ProjectSource;
+                shownSource = source;
                 GetComponent<ForgePanel>().Subtitle = shownSource ?? "";
             }
         }

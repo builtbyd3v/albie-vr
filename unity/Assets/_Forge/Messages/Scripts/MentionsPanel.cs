@@ -38,7 +38,7 @@ public class MentionsPanel : MonoBehaviour
         var placeholder = content.Find("Placeholder");
         if (placeholder != null) placeholder.gameObject.SetActive(false);
         heading = ChatUi.OverlineText(content, "Heading");
-        heading.text = "Mentions & notifications";
+        heading.text = "Unread direct messages and mentions";
         list = ChatUi.Rect(content, "List");
         footer = ChatUi.Text(content, "Footer", ChatUi.Small, ChatUi.Subtext, align: TextAlignmentOptions.Center);
         empty = ChatUi.Text(content, "Empty", ChatUi.Body, ChatUi.Subtext, align: TextAlignmentOptions.Center, wrap: true);

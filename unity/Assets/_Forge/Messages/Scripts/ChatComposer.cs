@@ -275,7 +275,7 @@ public class ChatComposer
         ClearDraft();
         // ownText / ownChannel / ownDraftId stay until the next Send: the hub's notify.draft for a typed message can
         // land after its send completed, and must still be recognised as ours.
-        Status("Sent");
+        Status(ChatStore.Demo ? "Sent in the sample chat (stays on this headset)" : "Sent");
         RefreshButtons();
     }
 
@@ -283,7 +283,7 @@ public class ChatComposer
     {
         Debug.LogWarning($"[ChatComposer] {error}");
         sending = false;
-        Status(error != null && error.Contains("404") ? "That draft is gone (sent, cancelled or expired)" : "Hub didn't answer, try again");
+        Status(error != null && error.Contains("404") ? "That draft is gone (sent, cancelled or expired)" : "That didn't go through, try again");
         RefreshButtons();
     }
 

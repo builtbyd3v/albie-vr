@@ -68,7 +68,7 @@ public static class MessagesPrefabBuilder
 
         var name = ChatUi.Text(rect, "Name", ChatUi.Name, ChatUi.TextColor, bold: true);
         name.overflowMode = TextOverflowModes.Ellipsis;
-        name.text = "Hudson  <alpha=#80><size=85%>#forge-team";
+        name.text = "Maya Chen  <alpha=#80><size=85%>#general";
         ChatUi.Place(name.rectTransform, 52f, 8f, 220f, 16f);
 
         var time = ChatUi.Text(rect, "Time", ChatUi.Time, ChatUi.Subtext, align: TextAlignmentOptions.Right);
@@ -77,7 +77,7 @@ public static class MessagesPrefabBuilder
 
         var body = ChatUi.Text(rect, "Body", ChatUi.Body, ChatUi.TextColor, wrap: true);
         body.overflowMode = TextOverflowModes.Ellipsis;
-        body.text = "is the demo build ready by 3?";
+        body.text = "Is the design review still on for Thursday?";
         ChatUi.Place(body.rectTransform, 52f, 26f, 298f, 38f);
 
         var meta = ChatUi.Text(rect, "Meta", ChatUi.Overline, ChatUi.Accent, bold: true);
@@ -132,12 +132,12 @@ public static class MessagesPrefabBuilder
 
         var header = ChatUi.Text(content, "Header", ChatUi.Name, ChatUi.TextColor, bold: true);
         header.overflowMode = TextOverflowModes.Ellipsis;
-        header.text = "#forge-team";
+        header.text = "#general";
         ChatUi.Band(header.rectTransform, 10f, 18f, 14f, 14f);
 
         var replying = ChatUi.Text(content, "Replying", ChatUi.Small, ChatUi.Subtext);
         replying.overflowMode = TextOverflowModes.Ellipsis;
-        replying.text = "Replying to Hudson: is the demo build ready by 3?";
+        replying.text = "Replying to Maya Chen: Is the design review still on for Thursday?";
         ChatUi.Band(replying.rectTransform, 30f, 16f, 14f, 14f);
 
         // Albie wrote it: his white sticker with the lime hard shadow, ink text. Room on the right and below for the shadow.
@@ -150,7 +150,7 @@ public static class MessagesPrefabBuilder
         body.enableAutoSizing = true;  // a long draft shrinks before it is cut: the user reads all of it before Send
         body.fontSizeMax = body.fontSize;
         body.fontSizeMin = body.fontSize * 0.75f;
-        body.text = "Yes, I'll ping you when it's pushed.";
+        body.text = "Yes, Thursday at 2 PM still works.";
         float pad = DraftCard.BodyPad;
         ChatUi.Stretch(body.rectTransform, pad + 2f, pad, pad + 2f, pad);
 

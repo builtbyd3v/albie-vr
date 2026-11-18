@@ -4,8 +4,13 @@ Team chat on the desk: a chat panel in MSG mode, a "New for you" list beside it,
 Send / Cancel card that keep working while MSG mode is closed. Hub side: `hub/messaging/` (Socket Mode, no tunnel);
 spec: `docs/PROJECT_CONTEXT.md` 7, 8.7 and 8.8; event shapes mirrored in `Core/Net/ForgeEvents.cs` (`NotifyMessage`,
 `ChatChannel` / `NotifyChannels`, `NotifyDraft`, `NotifySent`, `NotifyDraftCancelled`, `NotifyDigest`).
-Live hub only. There is no mock mode: run the hub with the messenger tokens in `hub/.env` (hub/README.md) and test against the real workspace;
-without a hub the panels show "Hub offline" and connect by themselves when it appears.
+With the hub live it shows the real workspace (messenger tokens in `hub/.env`, hub/README.md). With the hub off (and
+always on a standalone headset: the cloud has no `/messages`) it runs on the bundled **sample workspace**,
+`Resources/MessagesDemo.json` via `MessagesDemo`: "Garage Lab (sample)", four fictional teammates (Maya Chen, Jordan
+Lee, Sam Ortiz, Priya Nair), `#general` and one channel per starter project (`#rc-truck`, `#quadcopter`, `#rocket`,
+`#image-classifier`, each tagged with its `"project"` id), whose numbers match the notebook and CAD/ML mocks. The frame
+says "sample", sends stay on the device, and one scripted message arrives only after you open Messages or switch
+project, about the project open then.
 
 ## What it does
 
@@ -52,6 +57,13 @@ without a hub the panels show "Hub offline" and connect by themselves when it ap
   card), and answers `messages.opened {ok, reason?}` in the same frame (`not_at_desk` away from the desk), so Albie says
   what really happened. A DM the hub just opened gets a row at once (`ChatStore.Provisional`).
 
+- **Projects <-> messages** (`MessagesShare`). `MessagesShare.DraftForProject(projectId, out status)` drafts a message
+  to the project's channel with its latest real result (newest run, CAD design version and verdict, ML epoch and
+  validation accuracy, else the notebook's last judged attempt). It is only a draft: the composer or the DraftCard shows
+  it with Send / Cancel, as for Albie's `messages_send`. A project channel's header has **Open project** (the same
+  `OSProjects.OpenProject` path as `os_open`), and `messages_read_channel` / `messages_open` return
+  `project: {id, title, open_with}` so Albie can offer it.
+
 ## Look
 
 "Graphite + Albie". Every colour and size is in `Scripts/MessagesLook.cs`, to tune after a headset test.
@@ -92,6 +104,9 @@ without a hub the panels show "Hub offline" and connect by themselves when it ap
 | `Scripts/DigestTrigger.cs` | `RequestDigest()` + the floating digest; shared `SpawnAtDesk` / `FaceUser` / `PopIn` / `FoldOut` (the Pet module calls them). |
 | `Scripts/DraftPresenter.cs` | Routes `notify.draft`: composer when the chat panel is open, else a floating `DraftCard`. Self-installs. |
 | `Scripts/DraftCard.cs` | The Send / Cancel card. |
+| `Scripts/MessagesDemo.cs`, `Resources/MessagesDemo.json` | Hub off: the sample workspace, its drafts and sends on the device, the one scripted message. |
+| `Scripts/MessagesTools.cs` | Albie's messaging tools over the sample workspace (hub off). |
+| `Scripts/MessagesShare.cs` | Project <-> channel links and `DraftForProject` (a draft with the project's latest result). |
 | `Scripts/MessagesDeskZone.cs` | Marker + desk-frame `Footprint` the pet keeps clear of while cards float (unchanged). |
 | `Editor/MessagesPrefabBuilder.cs` | **Forge > Messages > Build Prefabs** builds the four prefabs below (and deletes the old MessagesPanel.prefab). |
 | `Resources/ChatPanel.prefab`, `MentionsPanel.prefab`, `MessageCard.prefab`, `DraftCard.prefab` | Built, not hand-edited; commit them with their `.meta`s. |
