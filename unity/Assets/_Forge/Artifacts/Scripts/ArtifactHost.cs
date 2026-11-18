@@ -690,6 +690,7 @@ namespace Forge.Artifacts
             volume.Title = open.Title;
             volume.SetAccent(accent);
             volume.SetSize(volumeSize);
+            volume.gameObject.AddComponent<ArtifactHandGrab>();  // pick it up and turn it with your hands
             spawned.Add(volume.gameObject);
             float radius = open.Scene["view"]?.Value<float?>("radius") ?? 0f;
             fitOnLoad = radius <= 0f;

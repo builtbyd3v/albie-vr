@@ -70,8 +70,9 @@ namespace Forge.Artifacts
                 // A model brought in with model_import isn't authored in named parts: it gets the plain turn and reset,
                 // and the credit its licence asks for (CC BY), from the manifest.
                 string credit = ModelImport.Credits(build.Host.OpenManifest);
-                y += Note(panel.Content, y, credit != null ? "Turn the model to see it from every side."
-                    : "Explore the model: cut it open, separate its parts (each one is named), or see through the outer layers.") + Gap;
+                y += Note(panel.Content, y, credit != null
+                    ? "With your hands: pinch the model to pick it up and turn it, and pinch with both hands to resize it."
+                    : "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
                 // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
                 var hiddenLabels = new List<GameObject>();
                 Action<bool> sceneLabels = apart =>
@@ -113,7 +114,12 @@ namespace Forge.Artifacts
                 x += Pill(panel.Content, y, x, "Turn 30°", () => inspect(e => e.Turn())) + 10f;
                 if (credit != null)
                 {
-                    Pill(panel.Content, y, x, "Reset view", () => inspect(e => e.ResetView()));
+                    Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                    {
+                        e.ResetView();
+                        var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
+                        if (hands != null) hands.ResetPose();
+                    }));
                     y += PillRow + Gap;
                     y += Note(panel.Content, y, credit) + Gap;
                 }
@@ -126,7 +132,12 @@ namespace Forge.Artifacts
                     y += PillRow + Gap;
                     apartPill = PillControl(panel.Content, y, 0f, "Separate", () => inspect(e => e.Separate()));
                     x = apartPill.Rect.sizeDelta.x + 10f;
-                    Pill(panel.Content, y, x, "Reset view", () => inspect(e => e.ResetView()));
+                    Pill(panel.Content, y, x, "Reset view", () => inspect(e =>
+                    {
+                        e.ResetView();
+                        var hands = e.GetComponentInParent<ArtifactHandGrab>();  // and undo what hands did to it
+                        if (hands != null) hands.ResetPose();
+                    }));
                     y += PillRow + Gap;
                 }
             }
