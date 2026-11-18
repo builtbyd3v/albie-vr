@@ -67,7 +67,8 @@ namespace Forge.Artifacts
             bool boundaryTooSmall = !fit.Ok && room.Boundary != null && FitsWithoutBoundary(room, s, id, lane, straight);
             if (!fit.Ok)
             {
-                fit.Message = boundaryTooSmall ? "Your Quest boundary is too small for a hoop course here. Redraw it bigger, or ask for a slalom." : string.Format(CultureInfo.InvariantCulture,
+                fit.BoundaryLimited = boundaryTooSmall;
+                fit.Message = boundaryTooSmall ? FloorSlalom.BoundaryMessage(room, "a hoop course") : string.Format(CultureInfo.InvariantCulture,
                     "There isn't enough clear floor here for a hoop course. Even the smallest course ({0} hoops in a straight line, {1:0.0} m apart) needs a clear strip about {2:0.0} by {3:0.0} m, with {4:0} cm to spare around it.",
                     s.MinHoops, s.TightSpacing, FloorSlalom.Length(s.MinHoops, s.TightSpacing), 2f * straight, s.Clearance * 100f);
                 return fit;

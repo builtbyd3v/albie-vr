@@ -212,9 +212,11 @@ namespace Forge.OS
             try
             {
                 string path = Path.Combine(ArtifactLibrary.Folder(id), "manifest.json");
-                if (File.Exists(path) && NotebookFiles.Parse(File.ReadAllText(path)) is JObject manifest && manifest["links"] is JObject links)
+                if (File.Exists(path) && NotebookFiles.Parse(File.ReadAllText(path)) is JObject manifest && manifest["links"] is JObject)
                 {
-                    string project = (string)links["project"];
+                    // An older artifact linked to a sample it has nothing to do with (a heart that says proj_truck because the
+                    // app's truck notebook was open) shows as standalone: never "for RC truck" on something unrelated.
+                    string project = OSProjects.EffectiveProject(manifest);
                     if (!string.IsNullOrEmpty(project))
                     {
                         row.project = project;
@@ -554,8 +556,8 @@ namespace Forge.OS
         }
 
         /// <summary>
-        /// Makes an artifact from a template and opens it. A project that is open stays open, so the library links the new
-        /// artifact to it (the slalom for the truck keeps links.thing and the brain truck appears). Null on success, else
+        /// Makes an artifact from a template and opens it. Only a course links to a project (the slalom for the truck keeps
+        /// links.thing and the brain truck appears); a heart or a sim is standalone whatever project is open. Null on success, else
         /// what went wrong: "couldn't make it" when nothing was written, "made it, but it wouldn't open" when it was.
         /// </summary>
         public static string Create(string template)
@@ -587,8 +589,8 @@ namespace Forge.OS
             return null;
         }
 
-        // The new artifact links to the project the person has open, or to the starter its course belongs to (a drone
-        // course to the Quadcopter, the slalom to the RC truck), or to none: never by default to the truck (OSProjects.PrepareForArtifact).
+        // Only a course can belong to a project: the person's open project when it runs that Thing, or (with none chosen) the
+        // sample the course belongs to. Anything else is standalone, never linked by default to the truck (OSProjects.PrepareForArtifact).
         static void EnsureProjectOpen(string template)
         {
             try

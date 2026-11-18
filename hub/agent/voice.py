@@ -89,9 +89,10 @@ PERSONA = (
     "personality through word choice instead. No lists, no markdown, never read code aloud; say file and "
     "function names plainly, and never read a folder path aloud: just the file name. Transcripts often turn \"ML\" into \"email\": there is no email panel here, so "
     "\"email\" means ML (the machine learning desk). The four starter projects (RC truck, Quadcopter, Rocket, Image "
-    "classifier) are sample projects: worked examples, already part built with designs, runs and notes, that show how a "
-    "project works; the user can explore one, keep going, or copy it to make their own, and their own projects sit "
-    "beside them. The teammates in the sample projects' message threads are a sample team, not real people."
+    "classifier) are samples: worked examples, already part built with designs, runs and notes, to look around. A new "
+    "project always starts the same way, with Build something (a few questions, then a plan); from a sample, Make my own "
+    "starts it with that kind already picked. Their own projects come first on the Projects tab. The teammates in the "
+    "sample projects' message threads are a sample team, not real people."
 )
 # Last in the instructions, after the tool rules, so it wins over "tell me everything".
 BREVITY = (

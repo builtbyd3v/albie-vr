@@ -32,6 +32,7 @@ namespace Forge.Artifacts
         bool fitOnLoad;
         Coroutine reveal;
         Pose courseOrigin;
+        bool onDesk;  // "Put it on the desk" / course_to_desk: this open's floor course goes on the table
 
         /// <summary>The host Albie's artifact tools use: the last one enabled.</summary>
         public static ArtifactHost Current { get; private set; }
@@ -313,6 +314,33 @@ namespace Forge.Artifacts
             CourseNote = null;
             LayoutReused = false;
             AwaitingApproval = false;
+            onDesk = false;
+        }
+
+        /// <summary>True while a room course (a scene with a generator) is open, or was refused for want of floor.</summary>
+        public bool HasRoomCourse => open != null && open.Scene["generators"] is JArray g && g.Count > 0 && !AwaitingApproval;
+
+        /// <summary>The room courses are placed in: <see cref="Room"/>, else MRUK's current room. Null with no scan.</summary>
+        public IFloorPlan CourseRoom => Room ?? MrukFloorPlan.Current();
+
+        /// <summary>
+        /// Lays the open room course out again, after the play area changed (<see cref="PlayAreaEditor"/>,
+        /// <c>play_area_set</c>) or to put it on the desk (<paramref name="desk"/>). Works after a refusal too: the course
+        /// that didn't fit gets another try. A saved layout that still fits the new area is reused. False when no room
+        /// course is open.
+        /// </summary>
+        public bool RetryLayout(bool desk)
+        {
+            if (!HasRoomCourse) return false;
+            var inputs = build?.Inputs;
+            Teardown();
+            LastProblem = null;
+            LastErrors = new List<ArtifactError>();
+            LayoutMessage = null;
+            CourseNote = null;
+            onDesk = desk;
+            Show(inputs, false);
+            return build != null;
         }
 
         /// <summary>Makes a new layout for this room and rebuilds (C-12 <c>artifact_relayout</c>). The old layout and its runs are kept.</summary>
@@ -521,15 +549,18 @@ namespace Forge.Artifacts
                     Refuse(open.Title, "This version places one generator per scene.");
                     return;
                 }
-                var placement = ArtifactGenerators.Place(open.Manifest, (JObject)generators[0], inputs, scenario, Room ?? MrukFloorPlan.Current(), forceNew);
+                var plan = CourseRoom;
+                var placement = ArtifactGenerators.Place(open.Manifest, (JObject)generators[0], inputs, scenario, plan, forceNew, onDesk);
                 LayoutMessage = placement.Message;
                 if (!placement.Ok)
                 {
                     LastErrors = new List<ArtifactError> { new ArtifactError(placement.Code, "generators[0]", placement.Message) };
                     Emit("artifact.layout", new JObject { ["artifact_id"] = open.Id, ["layout_id"] = null, ["placed"] = null, ["shrunk"] = false, ["code"] = placement.Code, ["message"] = placement.Message });
-                    Refuse(open.Title, placement.Message);
+                    RefuseCourse(open.Title, placement);
                     return;
                 }
+                // The area it was fitted in, faintly on the floor for a few seconds: what "Play area" changes.
+                if (placement.Scale >= 0.99f) PlayAreaEditor.Flash(plan);
                 LastLayout = placement.Layout;
                 LayoutReused = placement.Reused;
                 courseOrigin = placement.Origin;
@@ -790,6 +821,36 @@ namespace Forge.Artifacts
             var cam = Camera.main;
             if (cam != null) panel.rotation = Quaternion.LookRotation(panel.position - cam.transform.position);
             else panel.rotation = courseOrigin.rotation;
+        }
+
+        // A course that doesn't fit: the reason, and a button for each thing that would help, so nothing is a dead end.
+        void RefuseCourse(string title, ArtifactGenerators.Placement placement)
+        {
+            if (!placement.CanUseRoom && !placement.CanDraw)
+            {
+                Refuse(title, placement.Message);
+                return;
+            }
+            Debug.Log($"[Artifacts] {title}: {placement.Message}");
+            var panel = NewPanel(title);
+            float y = ArtifactWidgets.Note(panel.Content, 0f, placement.Message, true) + 16f;
+            float x = 0f;
+            if (placement.CanUseRoom)
+            {
+                var room = ArtifactWidgets.PillControl(panel.Content, y, x, "Use my whole room", () =>
+                {
+                    UserPlayArea.SetMode(CourseRoom, UserPlayArea.Mode.Room);
+                    RetryLayout(false);
+                });
+                room.On = true;
+                x += room.Rect.sizeDelta.x + 10f;
+            }
+            if (placement.CanDraw) ArtifactWidgets.Pill(panel.Content, y, x, "Draw a bigger area", () => PlayAreaEditor.Open(CourseRoom, true));
+            y += ForgeTheme.PillHeight + 10f;
+            ArtifactWidgets.Pill(panel.Content, y, 0f, "Close", Close);
+            y += ForgeTheme.PillHeight;
+            panel.SizeMeters = new Vector2(ArtifactWidgets.PanelWidth, ArtifactWidgets.PanelHeight(y + 4f)) * ForgePanel.MetersPerUnit;
+            LastProblem = placement.Message;
         }
 
         void Refuse(string title, string message)

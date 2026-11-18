@@ -253,6 +253,13 @@ namespace Forge.OS.Editor
             return sb.ToString();
         }
 
+        static JObject ReadManifest(string id)
+        {
+            string path = Path.Combine(ArtifactLibrary.Folder(id), "manifest.json");
+            try { return File.Exists(path) ? JObject.Parse(File.ReadAllText(path)) : null; }
+            catch (Exception) { return null; }
+        }
+
         static OSProjectWindow View(OSShell shell)
         {
             OSWindow w = shell.Windows.Find(OSProjectWindow.WindowId);
@@ -309,14 +316,14 @@ namespace Forge.OS.Editor
             // ---- the tab, from nothing
             string listing = Listing();
             Measure("fresh: " + listing);
-            Check(listing == "proj_truck=Design, drive, train (open) | proj_quadcopter=Design, fly, learn | proj_rocket=Design, sim, launch | proj_classifier=Find, train, publish | "
-                             + OSProjects.StartOwnId + "=Build something new | ",
-                "fresh install: the Projects tab lists the four sample projects, each saying what it shows, then Start my own (" + listing + ")");
+            Check(listing == OSProjects.StartOwnId + "=" + OSProjects.NewProjectLine + " | proj_truck=Design, drive, train (open) | proj_quadcopter=Design, fly, learn | proj_rocket=Design, sim, launch | proj_classifier=Find, train, publish | ",
+                "fresh install: the Projects tab lists New project first, then the four samples, each saying what it shows (" + listing + ")");
             var fresh = new List<OSEntry>();
             OSRegistry.Fill(OSTab.Projects, fresh);
             bool samplesHeaded = fresh.Count >= 5;
-            for (int i = 0; i < 4 && i < fresh.Count; i++) samplesHeaded &= fresh[i].section == OSProjects.SampleSection;
-            Check(samplesHeaded && fresh[4].outline && fresh[4].section == null, "the four samples sit under the '" + OSProjects.SampleSection + "' heading and Start my own starts the next row");
+            for (int i = 1; i < 5 && i < fresh.Count; i++) samplesHeaded &= fresh[i].section == OSProjects.SampleSection;
+            Check(samplesHeaded && fresh[0].outline && fresh[0].section == null && fresh[0].title == OSProjects.NewProjectTitle,
+                "New project leads the person's own row, and the four samples sit under the '" + OSProjects.SampleSection + "' heading");
 
             // ---- RC truck from the real tile
             var step = PressTile(shell, menu, "proj_truck", "50_projects_tab_fresh");
@@ -331,9 +338,12 @@ namespace Forge.OS.Editor
             DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.6f;
             string text = OSToolsTest.AllText(win);
-            foreach (string needle in new[] { "RC truck", "Plan", "Versions", "Linked", "Continue", "Course", "Drive", "Train", "Autopilot", "Code", "Notebook", "No plan written yet", "No artifacts yet",
-                                              OSProjects.SampleTag, OSProjects.SampleShows(NotebookStore.DefaultProject), OSProjectWindow.CopyLabel, OSProjects.StartOwnTitle })
+            foreach (string needle in new[] { "RC truck", "Steps", "Where it stands", "Plan", "Versions", "Course", "Drive", "Train", "Autopilot", "Code", "Notebook", "No plan written yet", "No artifacts yet",
+                                              OSProjectWindow.SampleTagLine, OSProjects.SampleShows(NotebookStore.DefaultProject), OSProjects.SampleLine, OSProjects.MakeOwnLabel(NotebookStore.DefaultProject) })
                 Check(text.Contains(needle), "the truck window shows '" + needle + "'");
+            Check(!text.Contains("Make a copy") && !text.Contains("Start my own"), "the sample offers one way to make your own (Make my own), not Make a copy and Start my own");
+            Button makeOwn = FindButton(win, OSProjects.MakeOwnLabel(NotebookStore.DefaultProject));
+            Check(makeOwn != null && makeOwn.interactable, "the sample's one call to action is a real button: " + OSProjects.MakeOwnLabel(NotebookStore.DefaultProject));
             Check(win.Panel.Subtitle.StartsWith(OSProjects.SampleTag, StringComparison.Ordinal), "the sample's header says it is a sample project (" + win.Panel.Subtitle + ")");
             Check(OSRegistry.Find(OSTab.Tools, "drive") != null && !text.Contains("Coming with") && !text.Contains(OSProjectWindow.DriveMissing), "Drive is a real step: the tool is registered and the window carries no 'coming soon' or 'not found' line");
             Check(!text.Contains(OSProjects.SendUnavailable), "the window carries no line about a Send step that can never run");
@@ -387,11 +397,35 @@ namespace Forge.OS.Editor
             DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.6f;
             text = OSToolsTest.AllText(win);
-            Check(text.Contains("Slalom") && text.Contains("no runs yet"), "the Artifacts section lists the slalom with 'no runs yet'");
+            Check(text.Contains("Slalom v1") && text.Contains("no runs yet"), "the summary lists the slalom under Artifacts and 'no runs yet' as its last run");
             Check(text.Contains("Course: open") && text.Contains("brain truck ready"), "the live brain line says the course is open and the truck is ready");
             problem = OSToolsTest.LayoutProblem(win);
             Check(problem == null, "after Course the window text is inside it and doesn't overlap" + (problem ?? ""));
             Shot("52_truck_window_course");
+
+            // ---- linking: a heart made while the truck is open is standalone, and an older heart linked to it shows standalone
+            JObject heart = AlbieTools.Call("artifact_create", new JObject { ["template"] = "heart", ["open"] = false });
+            JObject heartManifest = ReadManifest("heart");
+            Check(heart["error"] == null && heartManifest != null && heartManifest["links"]?["project"]?.Type != JTokenType.String && (string)heartManifest["kind"] == "standalone",
+                "a heart made while the RC truck is open links to no project (" + (heartManifest != null ? heartManifest["links"]?.ToString(Newtonsoft.Json.Formatting.None) : (string)heart["error"]) + ")");
+            JObject slalomManifest = ReadManifest("slalom");
+            Check(slalomManifest != null && OSProjects.EffectiveProject(slalomManifest) == NotebookStore.DefaultProject, "the slalom the truck's Course made belongs to the truck project");
+            if (heartManifest != null)
+            {
+                var legacy = (JObject)heartManifest.DeepClone();
+                legacy["id"] = "old_heart";
+                legacy["kind"] = "project";
+                legacy["links"]["project"] = NotebookStore.DefaultProject;
+                string legacyFolder = ArtifactLibrary.Folder("old_heart");
+                Directory.CreateDirectory(legacyFolder);
+                File.WriteAllText(Path.Combine(legacyFolder, "manifest.json"), legacy.ToString());
+                var linkedNow = new List<OSProjects.LinkedArtifact>();
+                OSProjects.LinkedArtifacts(NotebookStore.DefaultProject, linkedNow);
+                bool hasOld = false, hasSlalom = false;
+                foreach (var a in linkedNow) { hasOld |= a.id == "old_heart"; hasSlalom |= a.id == "slalom"; }
+                Check(OSProjects.EffectiveProject(legacy) == null && !hasOld && hasSlalom, "an older heart saved as linked to proj_truck counts as standalone; the slalom still counts");
+                Directory.Delete(legacyFolder, true);
+            }
 
             // ---- Autopilot with no laps recorded must not throw, and says what happened
             string autopilotLine = view.Do("autopilot");
@@ -419,10 +453,11 @@ namespace Forge.OS.Editor
             Measure("with data: " + listing);
             Check(listing.Contains("proj_truck=v1 · slalom passed (open)"), "RC truck says its version and its newest run: 'v1 · slalom passed' (" + listing + ")");
             Check(listing.Contains("proj_demo_folder=not started"), "a folder on disk is listed (proj_demo_folder)");
-            Check(listing.Split('|').Length == 7, "the list has the four samples, Start my own and the folder");
+            Check(listing.Split('|').Length == 7, "the list has New project, the folder and the four samples");
+            Check(listing.IndexOf("proj_demo_folder=", StringComparison.Ordinal) < listing.IndexOf("proj_truck=", StringComparison.Ordinal), "the person's own projects come before the samples");
             yield return 0.8f;
             text = OSToolsTest.AllText(win);
-            Check(text.Contains("12.4 s") && text.Contains("last run passed"), "the Artifacts section shows the run: 'last run passed · 12.4 s'");
+            Check(text.Contains("12.4 s") && text.Contains("last run passed"), "the summary shows the run: 'last run passed · 12.4 s'");
             problem = OSToolsTest.LayoutProblem(win);
             Check(problem == null, "with data the window text is inside it and doesn't overlap" + (problem ?? ""));
             Shot("53_truck_window_run");
@@ -456,8 +491,8 @@ namespace Forge.OS.Editor
             NotebookStore.Mark(attempt, "worked", "person");
             yield return 1.0f;
             text = OSToolsTest.AllText(win);
-            Check(text.Contains("Plan v1") && text.Contains("Done: Drives on the real floor") && text.Contains("To do: A clean lap at 2 m/s or more") && text.Contains("and 3 more"), "the plan card shows the goal, the milestones (done or not) and how many more");
-            Check(text.Contains("v4 · Softer steering near the cones, tuned on the real floor · worked") && text.Contains("and 1 earlier"), "the versions list shows the newest first with each version's outcome");
+            Check(text.Contains("Plan v1 · 3 of 7 milestones done · next: A clean lap at 2 m/s or more"), "the summary's Plan line says how many milestones are done and which is next");
+            Check(text.Contains("v4 · Softer steering near the cones, tuned on the real floor · worked (4 in all)"), "the summary's Versions line shows the newest with its outcome and how many there are");
             problem = OSToolsTest.LayoutProblem(win);
             Check(problem == null, "the fullest truck window text is inside it and doesn't overlap" + (problem ?? ""));
             Shot("58_truck_window_full");
@@ -557,29 +592,72 @@ namespace Forge.OS.Editor
             Check(NotebookStore.IsOpen && NotebookStore.ProjectId == before, "a bad id leaves the previous project open (" + NotebookStore.ProjectId + ")");
             Check(Listing().Split('|').Length == 7, "the list is unchanged after a bad id");
 
-            // ---- Make a copy: the person's own project from a sample, with its plan and loop and none of its history
+            // ---- Make my own: Build something with the sample's kind picked, then a project of the person's own with its own plan
             windows.CloseAll();
-            yield return 0.4f;
-            string copyId = OSProjects.CopySample(OSProjects.RocketId, out string copyError);
-            yield return 1.2f;
-            Check(copyId == "proj_my_rocket", "Make a copy of the rocket makes proj_my_rocket (" + (copyId ?? copyError) + ")");
-            if (copyId != null)
+            OSModes.Close();
+            yield return 0.6f;
+            OSProjects.OpenProject(OSProjects.RocketId);
+            yield return 1.0f;
+            view = View(shell);
+            string madeLine = view != null ? view.Do("make_own") : "no window";
+            yield return 0.8f;
+            OSBuildFlow flow = OSBuildFlow.Current;
+            Check(flow != null && flow.Planner.Asked == 1 && flow.Planner.Current != null && flow.Planner.Current.id == "rocket_aim" && flow.PresetKind == OSPlanner.Kind.Rocket,
+                "Make my own rocket opens Build something on the rocket's own question (" + madeLine + ")");
+            Check(NotebookStore.ProjectId == OSProjects.RocketId && !Directory.Exists(Path.Combine(scratch, "projects", "proj_my_rocket")), "nothing is made before Start, and the sample is still the open project");
+            OSWindow card = windows.Find(OSBuildFlow.WindowId);
+            if (card != null)
             {
-                Check(NotebookStore.ProjectId == copyId && OSProjects.TitleFor(copyId) == "My rocket" && OSProjects.CopyOf(copyId) == OSProjects.RocketId,
-                    "the copy is open, titled 'My rocket' (" + OSProjects.TitleFor(copyId) + "), and remembers its sample");
-                Check(!OSProjects.IsSample(copyId) && OSProjectWindow.LoopOf(copyId) == OSProjectWindow.Loop.Rocket && OSProjects.DesignOf(copyId) == "rocket",
-                    "the copy is the person's own project with the rocket's loop and design link");
-                Check(NotebookStore.CurrentPlan != null && NotebookStore.Versions.Count == 0, "the copy has a plan and no versions (no sample history)");
-                OSWindow copyWin = windows.Find(OSProjectWindow.WindowId);
-                string copyText = copyWin != null ? OSToolsTest.AllText(copyWin) : "";
-                Check(copyText.Contains("Copied from the sample Rocket") && !copyText.Contains(OSProjectWindow.CopyLabel), "the copy's window says where it came from and offers no Make a copy");
-                Check(OSProjects.Resolve("my rocket") == copyId && OSProjects.Resolve("rocket") == OSProjects.RocketId, "'my rocket' is the copy, 'rocket' is still the sample");
-                Check(Listing().Contains(copyId + "="), "the copy is listed with the person's own projects");
-                string again = OSProjects.CopySample(OSProjects.RocketId, out _);
-                yield return 0.6f;
-                Check(again == "proj_my_rocket_2", "a second copy gets its own id (" + again + ")");
+                DesktopRig.Current.LookAt(OSToolsTest.CenterOf(card.Panel.transform));
+                yield return 0.5f;
+                problem = OSToolsTest.LayoutProblem(card);
+                Check(problem == null, "the pre-answered card's text is inside it and doesn't overlap" + (problem ?? ""));
             }
-            Check(OSProjects.Resolve(OSProjects.StartOwnTitle) == null, "the Start my own tile is never taken for a project");
+            string ownId = null;
+            if (flow != null)
+            {
+                flow.Pick(0);
+                flow.Pick(0);
+                Check(flow.StartBuild(out string startError), "Start on the rocket plan works: " + startError);
+                ownId = OSBuildFlow.LastProjectId;
+            }
+            yield return 1.2f;
+            Check(ownId == "proj_my_rocket", "Start makes proj_my_rocket (" + ownId + ")");
+            if (ownId != null)
+            {
+                Check(NotebookStore.ProjectId == ownId && OSProjects.TitleFor(ownId) == "My rocket" && OSProjects.CopyOf(ownId) == OSProjects.RocketId,
+                    "the new project is open, titled 'My rocket' (" + OSProjects.TitleFor(ownId) + "), and follows the Rocket sample");
+                Check(!OSProjects.IsSample(ownId) && OSProjectWindow.LoopOf(ownId) == OSProjectWindow.Loop.Rocket && OSProjects.DesignOf(ownId) == "rocket",
+                    "it is the person's own project with the rocket's loop and design link");
+                string goal = (string)NotebookStore.CurrentPlan?["goal"];
+                Check(goal != null && goal.Contains("flies straight") && NotebookStore.Versions.Count == 0, "it has the plan from the answers (" + goal + ") and no versions");
+                OSWindow ownWin = windows.Find(OSProjectWindow.WindowId);
+                string ownText = ownWin != null ? OSToolsTest.AllText(ownWin) : "";
+                Check(ownText.Contains(OSProjectWindow.OwnTagLine) && ownText.Contains("flies straight") && !ownText.Contains("Make my own"),
+                    "its window says it is your project, shows its goal and offers no Make my own");
+                if (ownWin != null)
+                {
+                    DesktopRig.Current.LookAt(OSToolsTest.CenterOf(ownWin.Panel.transform));
+                    yield return 0.5f;
+                    problem = OSToolsTest.LayoutProblem(ownWin);
+                    Check(problem == null, "the own project's window text is inside it and doesn't overlap" + (problem ?? ""));
+                    Shot("59_own_rocket_window");
+                }
+                Check(OSProjects.Resolve("my rocket") == ownId && OSProjects.Resolve("rocket") == OSProjects.RocketId, "'my rocket' is the person's project, 'rocket' is still the sample");
+                OSProjects.Refresh();
+                string ownListing = Listing();
+                Check(ownListing.Contains(ownId + "=") && ownListing.IndexOf(ownId + "=", StringComparison.Ordinal) < ownListing.IndexOf("proj_truck=", StringComparison.Ordinal),
+                    "it is listed with the person's own projects, before the samples");
+            }
+            JObject viaTool = AlbieTools.Call("project_copy", new JObject { ["name"] = "rocket" });
+            yield return 0.6f;
+            Check(viaTool["error"] == null && OSBuildFlow.Current != null && OSBuildFlow.Current.Planner.Asked == 1,
+                "project_copy (the old name) opens Make my own: the card on the rocket's question (" + viaTool.ToString(Newtonsoft.Json.Formatting.None) + ")");
+            if (OSBuildFlow.Current != null) OSBuildFlow.Current.Cancel();
+            yield return 0.4f;
+            Check(OSProjects.FreeOwnId(OSProjects.RocketId) == "proj_my_rocket_2" && !Directory.Exists(Path.Combine(scratch, "projects", "proj_my_rocket_2")),
+                "cancelled, it leaves nothing; the next one would be proj_my_rocket_2");
+            Check(OSProjects.Resolve(OSProjects.NewProjectTitle) == null, "the New project tile is never taken for a project");
 
             // ---- the real menu still shows the tab after all of it
             windows.CloseAll();

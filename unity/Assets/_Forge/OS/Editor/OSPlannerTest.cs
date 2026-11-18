@@ -231,7 +231,7 @@ namespace Forge.OS.Editor
             if (!shell.MenuOpen) { tapWhy = "the menu didn't open"; yield break; }
             DesktopRig.Current.LookAt(menu.LastCenter);
             yield return 0.4f;
-            Transform b = OSToolsTest.FindDeep(menu.transform, "Button Build something");
+            Transform b = OSToolsTest.FindDeep(menu.transform, "Button New project");
             if (b == null) { tapWhy = "no Build something button in the menu"; yield break; }
             tapOk = OSToolsTest.Press(b.gameObject, out tapWhy);
             yield return 1.0f;
@@ -449,11 +449,14 @@ namespace Forge.OS.Editor
             while (step.MoveNext()) yield return step.Current;
             Check(tapOk, "a pointer reaches Start: " + tapWhy);
             yield return 1.2f;
-            Check(NotebookStore.IsOpen && NotebookStore.ProjectId == "proj_truck", "Start opened the truck project in the notebook (" + NotebookStore.ProjectId + ")");
+            Check(NotebookStore.IsOpen && NotebookStore.ProjectId == "proj_my_truck", "Start made the person's own truck project, not the sample, and opened it (" + NotebookStore.ProjectId + ")");
+            Check(OSProjects.TitleFor("proj_my_truck") == "My RC truck" && OSProjects.CopyOf("proj_my_truck") == NotebookStore.DefaultProject && OSProjectWindow.LoopOf("proj_my_truck") == OSProjectWindow.Loop.Truck,
+                "it is 'My RC truck' (" + OSProjects.TitleFor("proj_my_truck") + "), with the truck's loop");
+            Check(!File.Exists(Path.Combine(ProjectsFolder, "proj_truck", "plans", "plan_v0001.json")), "the RC truck sample got no plan from Start");
             Check(!windows.IsOpen("build") && OSBuildFlow.Current == null, "the Build something card closed");
             OSWindow pw = windows.Find(OSProjectWindow.WindowId);
             OSProjectWindow view = pw != null ? pw.GetComponent<OSProjectWindow>() : null;
-            Check(view != null && view.ProjectId == "proj_truck", "the Project window is open on proj_truck");
+            Check(view != null && view.ProjectId == "proj_my_truck", "the Project window is open on proj_my_truck");
             if (pw != null)
             {
                 DesktopRig.Current.LookAt(OSToolsTest.CenterOf(pw.Panel.transform));
@@ -467,8 +470,8 @@ namespace Forge.OS.Editor
                 Shot("62_build_started");
             }
             NotebookStore.Flush();
-            string planFile = Path.Combine(ProjectsFolder, "proj_truck", "plans", "plan_v0001.json");
-            Check(File.Exists(planFile), "plan_v0001.json is on disk under proj_truck");
+            string planFile = Path.Combine(ProjectsFolder, "proj_my_truck", "plans", "plan_v0001.json");
+            Check(File.Exists(planFile), "plan_v0001.json is on disk under proj_my_truck");
             if (File.Exists(planFile))
             {
                 JObject plan = JObject.Parse(File.ReadAllText(planFile));
@@ -483,8 +486,8 @@ namespace Forge.OS.Editor
             JObject post = null;
             foreach (JObject entry in NotebookStore.Entries) if ((string)entry["kind"] == "postmortem") post = entry;
             Check(post != null && post.ToString().Contains("Small and quick"), "the notebook's postmortem entry holds the answers");
-            Check(OSBuildFlow.LastProjectId == "proj_truck" && OSBuildFlow.LastPlanVersion == 1 && OSBuildFlow.LastStep == "started",
-                "the flow reports proj_truck, plan 1, started (" + OSBuildFlow.LastProjectId + ", " + OSBuildFlow.LastPlanVersion + ", " + OSBuildFlow.LastStep + ")");
+            Check(OSBuildFlow.LastProjectId == "proj_my_truck" && OSBuildFlow.LastPlanVersion == 1 && OSBuildFlow.LastStep == "started",
+                "the flow reports proj_my_truck, plan 1, started (" + OSBuildFlow.LastProjectId + ", " + OSBuildFlow.LastPlanVersion + ", " + OSBuildFlow.LastStep + ")");
 
             // ---- F. Cancel leaves the scratch root exactly as it was
             windows.CloseAll();
@@ -517,7 +520,7 @@ namespace Forge.OS.Editor
             while (step.MoveNext()) yield return step.Current;
             yield return 0.5f;
             Check(!windows.IsOpen("build") && OSBuildFlow.Current == null && OSBuildFlow.LastStep == "cancelled", "Cancel on the plan card closes it");
-            Check(Listing() == before && NotebookStore.ProjectId == "proj_truck", "Cancel on the plan card leaves no file behind and the truck project open");
+            Check(Listing() == before && NotebookStore.ProjectId == "proj_my_truck", "Cancel on the plan card leaves no file behind and My RC truck open");
 
             OSBuildFlow.Open();
             yield return 0.8f;
@@ -543,25 +546,26 @@ namespace Forge.OS.Editor
                 if (failing != null)
                 {
                     string keepReason = failing.reason;
-                    string newFolder = Path.Combine(ProjectsFolder, "proj_" + failing.projectBase);
+                    string newFolder = Path.Combine(ProjectsFolder, "proj_my_" + failing.projectBase);
                     failing.reason = "";  // RevisePlan refuses a plan with no reason
                     string error;
                     bool started = flow.StartBuild(out error);
                     Check(!started && !string.IsNullOrEmpty(error), "Start with a plan the notebook refuses returns false with a sentence: " + error);
-                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "...and nothing was kept: no folder, no file, the truck project is open again (" + NotebookStore.ProjectId + ")");
+                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_my_truck", "...and nothing was kept: no folder, no file, My RC truck is open again (" + NotebookStore.ProjectId + ")");
                     Check(OSBuildFlow.Current == flow && windows.IsOpen("build"), "...and the card is still open, so the user can go on");
                     // The notebook made the folder before the plan failed: Start takes down what it made.
                     OSBuildFlow.OpenedForTests = f => { Directory.CreateDirectory(f); File.WriteAllText(Path.Combine(f, "stray.txt"), "x"); };
                     started = flow.StartBuild(out error);
                     OSBuildFlow.OpenedForTests = null;
                     Check(!started, "Start fails again with the folder made first");
-                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "...the folder this Start made is removed and the truck project is open again");
-                    // A folder that was already there is not this Start's to remove.
+                    Check(!Directory.Exists(newFolder) && Listing() == before && NotebookStore.ProjectId == "proj_my_truck", "...the folder this Start made is removed and My RC truck is open again");
+                    // A truck plan now makes a second project of the person's own (proj_my_truck_2): a failed one never touches the first.
                     failing.kind = OSPlanner.Kind.Truck;
-                    string truckFolder = Path.Combine(ProjectsFolder, "proj_truck");
-                    Check(Directory.Exists(truckFolder), "the truck project's folder exists from before");
+                    string truckFolder = Path.Combine(ProjectsFolder, "proj_my_truck");
+                    Check(Directory.Exists(truckFolder), "My RC truck's folder exists from before");
                     started = flow.StartBuild(out error);
-                    Check(!started && Directory.Exists(truckFolder) && Listing() == before && NotebookStore.ProjectId == "proj_truck", "a failed Start on a project that was there keeps its folder and files exactly");
+                    Check(!started && Directory.Exists(truckFolder) && !Directory.Exists(Path.Combine(ProjectsFolder, "proj_my_truck_2")) && Listing() == before && NotebookStore.ProjectId == "proj_my_truck",
+                        "a failed truck Start keeps My RC truck exactly and leaves no proj_my_truck_2");
                     failing.kind = OSPlanner.Kind.Drone;
                     failing.reason = keepReason;
                 }
@@ -571,7 +575,7 @@ namespace Forge.OS.Editor
                 Check(!windows.IsOpen("build") && Listing() == before, "Cancel after the failed Starts leaves the scratch root as it was");
             }
 
-            // ---- G. a drone plan fills the Quadcopter starter, and a second one revises the same project's plan
+            // ---- G. a drone plan makes the person's own quadcopter project, and a second one makes another (never the sample)
             string[][] droneAnswers = { new[] { "Drone", "Hover steadily", "Hover for one minute" } };
             for (int round = 0; round < 2; round++)
             {
@@ -585,9 +589,10 @@ namespace Forge.OS.Editor
                 step = Tap(shell, "Start");
                 while (step.MoveNext()) yield return step.Current;
                 yield return 1.2f;
-                string want = OSProjects.QuadcopterId;
-                string wantPlan = "plan_v000" + (round + 1) + ".json";
-                Check(NotebookStore.ProjectId == want, "building a drone" + (round == 0 ? "" : " again") + " fills " + want + " (" + NotebookStore.ProjectId + ")");
+                string want = round == 0 ? "proj_my_quadcopter" : "proj_my_quadcopter_2";
+                string wantPlan = "plan_v0001.json";
+                Check(NotebookStore.ProjectId == want, "building a drone" + (round == 0 ? "" : " again") + " makes " + want + " (" + NotebookStore.ProjectId + ")");
+                Check(!Directory.Exists(Path.Combine(ProjectsFolder, OSProjects.QuadcopterId, "plans")), "the Quadcopter sample got no plan");
                 NotebookStore.Flush();
                 Check(File.Exists(Path.Combine(ProjectsFolder, want, "plans", wantPlan)), want + " has " + wantPlan + " on disk");
                 OSProjects.Refresh();
@@ -634,7 +639,7 @@ namespace Forge.OS.Editor
             layout = win != null ? OSToolsTest.LayoutProblem(win) : "no window";
             Check(layout == null, "the plan card with the user's own words: no clipped or overlapping text" + (layout != null ? ": " + layout : ""));
             Shot("64_build_plan_free_words");
-            Check(OSBuildFlow.Choose("start") && NotebookStore.ProjectId == OSProjects.RocketId, "'start' on the plan card fills the Rocket starter: proj_rocket (" + NotebookStore.ProjectId + ")");
+            Check(OSBuildFlow.Choose("start") && NotebookStore.ProjectId == "proj_my_rocket", "'start' on the plan card makes the person's own rocket: proj_my_rocket (" + NotebookStore.ProjectId + ")");
             yield return 0.8f;
             windows.CloseAll();
             JObject noCard = AlbieTools.Call("os_answer", new JObject { ["answer"] = "drone" });

@@ -346,7 +346,9 @@ namespace Forge.OS
                 }
             }
             int hosts = ThingHosts.Count;
-            int tk = (brain != null ? 1 : 0) | (loop != null ? 2 : 0) | (Mathf.Min(hosts, 15) << 2) | (flying ? 64 : 0) | (droneBrain != null ? 128 : 0);
+            // A desk course's scale is in the key too (as its 1:N), so "Desk course · 1:N scale" follows a rebuilt course.
+            int deskRatio = brain != null && brain.CourseScale < 0.99f ? Mathf.Min(Mathf.RoundToInt(1f / brain.CourseScale), 63) : 0;
+            int tk = (brain != null ? 1 : 0) | (loop != null ? 2 : 0) | (Mathf.Min(hosts, 15) << 2) | (flying ? 64 : 0) | (droneBrain != null ? 128 : 0) | (deskRatio << 8);
             if (force || tk != thingKey)
             {
                 thingKey = tk;
@@ -355,7 +357,9 @@ namespace Forge.OS
                 if (actionsBar != null) actionsBar.SetActive(!flying || droneBrain != null);
                 if (followLine != null) followLine.gameObject.SetActive(droneBrain != null);
                 if (flying) thingLine = "Drives: the drone (on the open course)";
-                else if (brain != null) thingLine = "Drives: the truck (the brain truck on the slalom)";
+                else if (brain != null) thingLine = deskRatio > 0
+                    ? "Drives: the truck (the brain truck on the course) · Desk course · 1:" + deskRatio + " scale"
+                    : "Drives: the truck (the brain truck on the slalom)";
                 else if (hosts > 0) thingLine = "Drives: " + FirstThing();
                 else thingLine = "No truck to drive yet. Tap Set up truck to create a course.";
                 thingText.text = thingLine;

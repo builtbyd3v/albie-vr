@@ -157,7 +157,7 @@ namespace Forge.OS
             if (!NotebookStore.IsOpen)
             {
                 panel.Subtitle = "";
-                Line(column, "No project is open. Pick a sample project or one of yours on the Projects tab.", BodySize, true);
+                Line(column, "No project is open. Open one of yours, or a sample, on the Projects tab.", BodySize, true);
                 return;
             }
             panel.Subtitle = ProjectName(NotebookStore.ProjectId)

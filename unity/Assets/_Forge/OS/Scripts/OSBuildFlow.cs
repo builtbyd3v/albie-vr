@@ -13,13 +13,16 @@ namespace Forge.OS
 {
     /// <summary>
     /// Build something: Albie comes to the user and plans with them, one question at a time, then shows a plan card to
-    /// confirm. It registers the "build" page the menu strip opens (<see cref="OSShell.RegisterSystem"/>). The questions
+    /// confirm. It is the one way to start a project: the menu strip's Build something, the Projects tab's New project tile and
+    /// a sample's Make my own (<see cref="OpenFor"/>: the first question already answered with the sample's kind) all open it.
+    /// It registers the "build" page the menu strip opens (<see cref="OSShell.RegisterSystem"/>). The questions
     /// come from <see cref="OSPlanner"/>; each is a card (an OS window, id "build") with two to four tappable answers, and
     /// "Something else" (say it in your own words) only while the voice is live. The plan card has Start (primary), Change
     /// (back to the first question, keeping nothing) and Cancel. NOTHING is created or written before Start: no
-    /// notebook call, no folder. Cancel and closing the window leave no files. Start fills the matching starter project
-    /// (<c>proj_truck</c>, <c>proj_quadcopter</c>, <c>proj_rocket</c>, <c>proj_classifier</c>: <see cref="OSProjects.StarterFor"/>)
-    /// or, for "something else", a new one (<c>proj_my_project</c> and so on), saves the plan with
+    /// notebook call, no folder. Cancel and closing the window leave no files. Start always makes a new project of the
+    /// person's own and never writes into a sample: for the truck, the drone, the rocket or the model one that follows that
+    /// sample's loop ("My RC truck", <c>proj_my_truck</c>, then <c>proj_my_truck_2</c>: <see cref="OSProjects.FreeOwnId"/>),
+    /// for "something else" <c>proj_my_project</c> and so on. It saves the plan with
     /// <see cref="NotebookStore.RevisePlan"/> (the answers go in as its reason, and the parts and answers are added to the
     /// saved plan), opens the Project window and offers its first step there.
     /// With the voice live (<see cref="VoiceLive"/>) Albie says each question and a spoken answer that matches a choice
@@ -94,6 +97,28 @@ namespace Forge.OS
         /// </summary>
         public static OSWindow Open()
         {
+            pendingKind = null;
+            return OpenCard();
+        }
+
+        // The kind Make my own asked for, taken by the card when it is made (so the first question is never said first).
+        static OSPlanner.Kind? pendingKind;
+
+        /// <summary>
+        /// Make my own: the card with the first question already answered with <paramref name="kind"/> ("RC truck"), so the
+        /// person goes on with that kind's questions. An open card starts again with it. Null when the scene has no shell.
+        /// </summary>
+        public static OSWindow OpenFor(OSPlanner.Kind kind)
+        {
+            pendingKind = kind;
+            OSWindow opened = OpenCard();
+            if (pendingKind.HasValue && Current != null) Current.Preset(kind);  // the card was already open
+            pendingKind = null;
+            return opened;
+        }
+
+        static OSWindow OpenCard()
+        {
             OSShell shell = OSShell.Current;
             if (shell == null)
             {
@@ -101,7 +126,7 @@ namespace Forge.OS
                 return null;
             }
             bool fresh = !shell.Windows.IsOpen(WindowId);
-            OSWindow opened = shell.Windows.Open(WindowId, "Build something", SizeMeters, Build, "BUILD");
+            OSWindow opened = shell.Windows.Open(WindowId, "New project", SizeMeters, Build, "BUILD");
             if (opened != null && fresh) AlbieComes();
             return opened;
         }
@@ -118,11 +143,44 @@ namespace Forge.OS
             window = GetComponent<OSWindow>();
             if (window != null) window.Closed += OnWindowClosed;
             Current = this;
+            if (pendingKind.HasValue)
+            {
+                OSPlanner.Kind kind = pendingKind.Value;
+                pendingKind = null;
+                Preset(kind);
+                return;
+            }
             planner.Reset();
+            preset = null;
             LastStep = "question 1";
             Render();
             SpeakQuestion();
         }
+
+        OSPlanner.Kind? preset;
+
+        // The first question answered with this kind: the kind's own questions follow.
+        void Preset(OSPlanner.Kind kind)
+        {
+            freeMode = false;
+            notice = "";
+            if (!planner.AnswerKind(kind))
+            {
+                planner.Reset();
+                preset = null;
+                LastStep = "question 1";
+            }
+            else
+            {
+                preset = kind;
+                LastStep = planner.Done ? "plan" : "question " + planner.Number;
+            }
+            Render();
+            SpeakQuestion();
+        }
+
+        /// <summary>The kind Make my own picked for the first question, or null when the person is choosing it.</summary>
+        public OSPlanner.Kind? PresetKind => preset;
 
         void OnWindowClosed()
         {
@@ -211,6 +269,7 @@ namespace Forge.OS
         public void Change()
         {
             planner.Reset();
+            preset = null;
             freeMode = false;
             notice = "";
             dirty = true;
@@ -241,8 +300,10 @@ namespace Forge.OS
             }
 
             string previous = NotebookStore.IsOpen ? NotebookStore.ProjectId : null;
-            // The truck, the drone, the rocket and the model fill their starter project; only "something else" gets a new one.
-            string id = OSProjects.StarterFor(plan.kind) ?? NewProjectId(plan);
+            // Always a new project of the person's own: one that follows the sample of its kind ("My RC truck"), or for
+            // "something else" a project of its own. A sample is never written into.
+            string sample = OSProjects.SampleForKind(plan.kind);
+            string id = sample != null ? OSProjects.FreeOwnId(sample) : NewProjectId(plan);
             // Whether the project's folder is already there, so a failed Start removes only what this Start made.
             string folder = ProjectFolder(id);
             bool existed = Directory.Exists(folder);
@@ -254,6 +315,14 @@ namespace Forge.OS
                 return false;
             }
             OpenedForTests?.Invoke(folder);
+            if (sample != null && !OSProjects.MarkOwn(id, sample))
+            {
+                error = "The project couldn't be made.";
+                Discard(id, previous, folder, existed);
+                notice = error;
+                dirty = true;
+                return false;
+            }
 
             int version;
             try
@@ -299,6 +368,7 @@ namespace Forge.OS
         {
             if (previous != null && previous != id) OSProjects.EnsureOpen(previous, out string _);
             if (existed) return;
+            ProjectMeta.Forget(id);  // the record of a project this Start began (its title, its sample) goes with its folder
             try
             {
                 NotebookStore.Flush();
@@ -325,7 +395,7 @@ namespace Forge.OS
             OSBuildFlow flow = Current;
             if (flow == null)
             {
-                ChooseProblem = "The Build something card isn't open.";
+                ChooseProblem = "The New project card isn't open.";
                 return false;
             }
             return flow.ChooseText(text);
@@ -425,10 +495,12 @@ namespace Forge.OS
 
         void BuildQuestion(RectTransform column, OSPlanner.Question q)
         {
-            panel.Subtitle = "Albie is planning with you";
+            string sample = preset.HasValue ? OSProjects.SampleForKind(preset.Value) : null;
+            panel.Subtitle = sample != null ? OSProjects.OwnTitle(sample) + " · a new project" : "Albie is planning with you";
             OSUi.Text(column, "Question " + planner.Number + " of " + OSPlanner.MaxQuestions, NoteSize, true);
             TMP_Text title = OSUi.Text(column, q.text, LeadSize);
             title.fontStyle = FontStyles.Bold;
+            if (planner.Asked == 0) OSUi.Text(column, FirstHint, NoteSize, true);
 
             for (int i = 0; i < q.choices.Length; i++)
             {
@@ -463,11 +535,15 @@ namespace Forge.OS
             Rigid(OSUi.Button(row, "Change", Change, OSButtonStyle.Secondary));
             Rigid(OSUi.Button(row, "Cancel", Cancel, OSButtonStyle.Borderless));
 
-            OSUi.Text(column, "Nothing is saved until you tap Start.", NoteSize, true);
+            string own = OSProjects.SampleForKind(plan.kind);
+            OSUi.Text(column, "Nothing is saved until you tap Start. Then it is " + (own != null ? OSProjects.OwnTitle(own) : "a project") + ", your own.", NoteSize, true);
             if (notice.Length > 0) OSUi.Text(column, notice, LineSize);
         }
 
         void StartTapped() => StartBuild(out string _);
+
+        /// <summary>The line under the first question: the kinds are the samples' kinds, and Something else is any idea.</summary>
+        public const string FirstHint = "Pick a kind like one of the samples, or Something else for your own idea.";
 
         static void Labelled(Transform parent, string label, string text)
         {

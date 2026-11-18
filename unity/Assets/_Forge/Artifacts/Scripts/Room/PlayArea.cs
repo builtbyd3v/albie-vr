@@ -39,6 +39,12 @@ namespace Forge.Artifacts
             return null;
         }
 
+        /// <summary>How far inside <paramref name="room"/>'s boundary a course keeps: less for an area drawn on purpose.</summary>
+        public static float MarginOf(IFloorPlan room) => room is PlayAreaPlan area ? area.Margin : Margin;
+
+        /// <summary>"your Quest boundary" or "the play area you drew", for what Albie says about <paramref name="room"/>'s boundary.</summary>
+        public static string Words(IFloorPlan room) => room is PlayAreaPlan area ? area.Words : "your Quest boundary";
+
         public static bool Inside(Vector2[] polygon, Vector3 point, float clearance)
         {
             if (polygon == null || polygon.Length < 3) return true;

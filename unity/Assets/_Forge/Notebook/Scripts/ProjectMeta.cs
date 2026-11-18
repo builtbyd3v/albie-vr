@@ -13,8 +13,8 @@ namespace Forge.Notebook
     /// <c>title</c> (the tile's name), <c>kind</c> ("ml" for a project made for a cloud or hub ML project),
     /// <c>ml_project</c> (that ML project's name in <c>GET /ml/projects</c>), <c>parent</c> (the project it was made from,
     /// for an <c>ml_new</c> project started while another project was open) and <c>ml_links</c> (the ML projects made
-    /// from this one: an array of <c>{name, title}</c>) and <c>copy_of</c> (the sample project it was copied from with Make a
-    /// copy, so it gets the sample's loop and design). Read once and cached; every write goes through
+    /// from this one: an array of <c>{name, title}</c>) and <c>copy_of</c> (the sample a project of the person's own follows,
+    /// set by Build something's Start or, in older ones, by Make a copy, so it gets the sample's loop and design). Read once and cached; every write goes through
     /// <see cref="NotebookFiles.Write"/> like the rest of the notebook. Never called from Update.
     /// </summary>
     public static class ProjectMeta
@@ -29,6 +29,12 @@ namespace Forge.Notebook
 
         /// <summary>Forgets what was read (a check that switches the notebook root).</summary>
         public static void ClearCache() => cache.Clear();
+
+        /// <summary>Forgets one project's record (its folder was just removed, by a Start that failed).</summary>
+        public static void Forget(string projectId)
+        {
+            if (!BadId(projectId)) cache.Remove(Root + "|" + projectId);
+        }
 
         static string Root => NotebookStore.Root ?? NotebookStore.DefaultRoot;
 

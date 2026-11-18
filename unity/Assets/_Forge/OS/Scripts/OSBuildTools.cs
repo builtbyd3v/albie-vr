@@ -26,7 +26,7 @@ namespace Forge.OS
         {
             string said = ((string)args["answer"] ?? "").Trim();
             if (said.Length == 0) return AlbieTools.Error("Say which answer the user gave.");
-            if (OSBuildFlow.Current == null) return AlbieTools.Error("The Build something card isn't open. Open it with os_open, kind system, id build.");
+            if (OSBuildFlow.Current == null) return AlbieTools.Error("The New project card isn't open. Open it with os_open, kind system, id build.");
             if (!OSBuildFlow.Choose(said)) return AlbieTools.Error(OSBuildFlow.ChooseProblem ?? "That isn't one of the choices.");
             return new JObject { ["ok"] = true, ["step"] = OSBuildFlow.LastStep };
         }

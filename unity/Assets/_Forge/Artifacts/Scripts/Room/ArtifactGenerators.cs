@@ -14,6 +14,11 @@ namespace Forge.Artifacts
     /// On a desk (<c>params.surface: "desk"</c>) the same generator fits its full-size course on the room's table,
     /// magnified (<see cref="DeskPlan"/>), at the biggest scale that fits; the scene is then shown at that scale
     /// (<see cref="Placement.Scale"/>). No table is <c>no_table</c>; a table too small is <c>no_free_floor</c>.
+    ///
+    /// On the floor the course is fitted in the play area chosen for this room (<see cref="UserPlayArea"/>): the Quest
+    /// boundary, an area drawn in Albie, or the room's whole clear floor; by default the Quest boundary when the course
+    /// fits in it, else the clear floor. A floor course that fits nowhere on the floor goes on the table if it works small
+    /// (<see cref="DeskCapable"/>), and says so.
     /// </summary>
     public static class ArtifactGenerators
     {
@@ -28,6 +33,27 @@ namespace Forge.Artifacts
             public Pose Origin;            // world: where the scene root goes
             public float Scale = 1f;       // the scene root's scale: 1 on the floor, smaller on a desk
             public Dictionary<string, List<Pose>> Slots;
+            /// <summary>A floor course that didn't fit the floor, put on the table instead (<see cref="DeskPlan"/>).</summary>
+            public bool DeskFallback;
+            /// <summary>On a refusal: what could make it fit (the play area was the limit), for the buttons and for Albie to offer.</summary>
+            public bool CanUseRoom, CanDraw;
+            /// <summary>The play area the floor course was fitted in, or null (desk, refusal).</summary>
+            public PlayAreaPlan Area;
+        }
+
+        /// <summary>
+        /// Whether a generator's course makes sense on a desk at 1:4 to 1:10: the truck's courses (dash, park, slalom)
+        /// and the drone's hover and landing. Hoops stay on the floor: a hoop a tenth of its size is too small to fly through.
+        /// </summary>
+        public static bool DeskCapable(JObject generator)
+        {
+            string type = generator?.Value<string>("type");
+            if (type == "floor_slalom") return true;
+            if (type != RoomCourse.Type) return false;
+            if (generator["params"]?["elements"] is JArray elements)
+                foreach (var e in elements)
+                    if (e is JObject o && o.Value<string>("type") == "hoops") return false;
+            return true;
         }
 
         /// <summary>One generator type: what it was asked for, how to fit it, and how to check a saved one.</summary>
@@ -102,12 +128,22 @@ namespace Forge.Artifacts
         }
 
         /// <param name="forceNew">Make a new layout even if one is saved (<c>artifact_relayout</c>).</param>
-        public static Placement Place(JObject manifest, JObject generator, ArtifactInputs inputs, JObject scenario, IFloorPlan room, bool forceNew)
+        /// <param name="onDesk">Put a floor course on the table (the "Put it on the desk" button, <c>course_to_desk</c>).</param>
+        /// <remarks>
+        /// A floor course is fitted in the play area the person chose for this room (<see cref="UserPlayArea.Areas"/>):
+        /// for each area in turn, the saved layout if it still fits there, else a new fit. If none fits and the course
+        /// makes sense on a desk (<see cref="DeskCapable"/>), it goes on the table at the biggest scale that fits, and
+        /// says so. A refusal says what would help (<see cref="Placement.CanUseRoom"/> and the others).
+        /// </remarks>
+        public static Placement Place(JObject manifest, JObject generator, ArtifactInputs inputs, JObject scenario, IFloorPlan room, bool forceNew, bool onDesk = false)
         {
             string id = generator.Value<string>("id");
+            string type = generator.Value<string>("type");
             var p = generator["params"] as JObject ?? new JObject();
-            bool desk = p["surface"] != null && p["surface"].Type == JTokenType.String && (string)p["surface"] == "desk";
-            var course = Read(generator.Value<string>("type"), id, p, inputs, desk);
+            bool askedDesk = p["surface"] != null && p["surface"].Type == JTokenType.String && (string)p["surface"] == "desk";
+            bool deskOk = DeskCapable(generator);
+            bool desk = askedDesk || (onDesk && deskOk);
+            var course = Read(type, id, p, inputs, desk);
             if (desk) course.Requested["surface"] = "desk";  // a floor layout's request is unchanged, so saved ones still match
             var job = new Job
             {
@@ -115,40 +151,87 @@ namespace Forge.Artifacts
                 Version = manifest.Value<int?>("version") ?? 1,
                 Scenario = scenario?.Value<string>("id") ?? "default",
                 Seed = scenario?.Value<int?>("seed") ?? 0,
+                Title = manifest.Value<string>("title"),
             };
 
+            room = PlayAreaPlan.Unwrap(room);
             if (room == null || !room.HasFloor)
             {
                 var none = FloorSlalom.NoRoomData();
                 return new Placement { Code = none.Code, Message = none.Message };
             }
-            if (desk) return PlaceOnDesk(course, room, job, forceNew);
+            if (desk) return PlaceOnDesk(course, room, job, forceNew, null);
 
-            bool moved = false, boundaryChanged = false, lostAnchor = false;
-            if (!forceNew)
+            bool moved = false, boundaryChanged = false, lostAnchor = false, limited = false, roomTried = false;
+            FloorSlalom.Result failed = null;
+            var notes = new List<string>();
+            var areas = UserPlayArea.Areas(room, notes);
+            for (int i = 0; i < areas.Count; i++)
             {
-                var reused = Reuse(course, room, null, job, out moved, out boundaryChanged, out lostAnchor);
-                if (reused != null) return reused;
+                var area = areas[i];
+                roomTried |= area.Kind == PlayAreaPlan.Source.Room;
+                if (!forceNew)
+                {
+                    var reused = Reuse(course, area, null, job, out bool m, out bool b, out bool l);
+                    if (reused != null)
+                    {
+                        reused.Area = area;
+                        return reused;
+                    }
+                    if (i == 0) lostAnchor = l;
+                    moved |= m;
+                    boundaryChanged |= b;
+                }
+                var fit = course.Fit(area);
+                if (!fit.Ok)
+                {
+                    limited |= fit.BoundaryLimited;
+                    if (failed == null || failed.Code == "no_free_floor") failed = fit;  // the widest area's words (the last), unless an earlier one had another reason (no_headroom)
+                    continue;
+                }
+                string message = Join(notes[i], fit.Message);
+                if (notes[i] != null && notes[i].Contains(UserPlayArea.Safety)) UserPlayArea.MarkTold(room);
+                if (lostAnchor) message = Join("I can't find the saved course in this room, so I made a new one.", message);
+                else if (moved) message = Join(boundaryChanged ? "Your play area boundary has changed since I made the course, so I made a new one." : "Something in the room has moved since I made the course, so I made a new one.", message);
+                var layout = ArtifactLayouts.Make(job.ArtifactId, job.Version, job.Scenario, job.Seed, area, course.Requested, fit, message, course.CountKey);
+                ArtifactLayouts.Save(layout);
+                return new Placement
+                {
+                    Ok = true, Layout = layout, Message = message, Slots = fit.Slots, Area = area,
+                    Origin = new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f)),
+                };
             }
 
-            var fit = course.Fit(room);
-            if (!fit.Ok) return new Placement { Code = fit.Code, Message = fit.Message };
-            string message = fit.Message;
-            if (lostAnchor) message = "I can't find the saved course in this room, so I made a new one." + (message != null ? " " + message : "");
-            else if (moved) message = (boundaryChanged ? "Your boundary has changed since I made the course, so I made a new one." : "Something in the room has moved since I made the course, so I made a new one.") + (message != null ? " " + message : "");
-            var layout = ArtifactLayouts.Make(job.ArtifactId, job.Version, job.Scenario, job.Seed, room, course.Requested, fit, message, course.CountKey);
-            ArtifactLayouts.Save(layout);
-            return new Placement
+            // Nothing fits on the floor. A course that works small goes on the table, if there is one.
+            bool table = DeskPlan.TryMake(room, DeskPlan.Scales[0], out _);
+            if (failed.Code == "no_free_floor" && deskOk && table)
             {
-                Ok = true, Layout = layout, Message = message, Slots = fit.Slots,
-                Origin = new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f)),
-            };
+                var deskCourse = Read(type, id, p, inputs, true);
+                deskCourse.Requested["surface"] = "desk";
+                var onTable = PlaceOnDesk(deskCourse, room, job, forceNew, limited ? "Your play area is too small for it on the floor" : "There isn't enough clear floor for it here");
+                if (onTable.Ok) return onTable;
+            }
+            string why = failed.Message;
+            if (failed.Code == "no_free_floor" && deskOk)
+                why = Join(why, table ? "Your table is too small for it as well." : "If you add your desk in Space Setup, I can put a small version on it.");
+            return new Placement { Code = failed.Code, Message = why, CanUseRoom = limited && !roomTried, CanDraw = limited };
         }
+
+        static string Join(string first, string second) => first == null ? second : second == null ? first : first + " " + second;
 
         struct Job
         {
-            public string ArtifactId, Scenario;
+            public string ArtifactId, Scenario, Title;
             public int Version, Seed;
+        }
+
+        // "the dash", "Kitchen run": what a course is called in a sentence.
+        static string Named(string title)
+        {
+            if (string.IsNullOrEmpty(title)) return "the course";
+            if (title == "Dash") return "the dash (drag race)";
+            if (title == "Parking" || title == "Hover" || title == "Landing" || title == "Slalom") return "the " + title.ToLowerInvariant() + " course";
+            return title;
         }
 
         // The saved layout for this plan, if there is one and it still has free floor; else null, with why it can't be used.
@@ -180,7 +263,9 @@ namespace Forge.Artifacts
         }
 
         // The table top, biggest scale first: a saved layout at any scale wins, then the largest course that fits.
-        static Placement PlaceOnDesk(Course course, IFloorPlan room, Job job, bool forceNew)
+        // why: set when a floor course falls back to the table ("Your play area is too small for it on the floor"); null
+        // when the desk was asked for.
+        static Placement PlaceOnDesk(Course course, IFloorPlan room, Job job, bool forceNew, string why)
         {
             if (!DeskPlan.TryMake(room, DeskPlan.Scales[0], out var first))
                 return new Placement
@@ -193,7 +278,11 @@ namespace Forge.Artifacts
                     if (DeskPlan.TryMake(room, scale, out var saved))
                     {
                         var reused = Reuse(course, saved, saved, job, out _, out _, out _);
-                        if (reused != null) return reused;
+                        if (reused != null)
+                        {
+                            reused.DeskFallback = why != null;
+                            return reused;
+                        }
                     }
 
             FloorSlalom.Result failed = null;
@@ -207,12 +296,15 @@ namespace Forge.Artifacts
                     continue;
                 }
                 var real = plan.ToReal(new Pose(fit.Origin, Quaternion.Euler(0f, fit.Yaw, 0f)));
-                string message = "I put it on the table, at " + DeskPlan.SizeWords(scale) + ". Clear the table top first.";
+                string message = why != null
+                    ? $"{why}, so I put {Named(job.Title)} on your desk at {DeskPlan.RatioWords(scale)} scale ({DeskPlan.SizeWords(scale)}). Clear the table top first. " +
+                      "To run it on the floor instead, tap Play area and use your whole room or draw a bigger area."
+                    : "I put it on the table, at " + DeskPlan.SizeWords(scale) + ". Clear the table top first.";
                 // The fit's own words give sizes in full-size metres, which would be wrong on a table: say only that it shrank.
                 if (fit.Shrunk) message += " I made the course shorter so it fits the table top.";
                 var layout = ArtifactLayouts.Make(job.ArtifactId, job.Version, job.Scenario, job.Seed, plan, course.Requested, fit, message, course.CountKey, real, scale);
                 ArtifactLayouts.Save(layout);
-                return new Placement { Ok = true, Layout = layout, Message = message, Slots = fit.Slots, Origin = real, Scale = scale };
+                return new Placement { Ok = true, Layout = layout, Message = message, Slots = fit.Slots, Origin = real, Scale = scale, DeskFallback = why != null };
             }
             if (failed != null && failed.Code != "no_free_floor") return new Placement { Code = failed.Code, Message = failed.Message };  // no_headroom keeps its own words
             var top = first.TopSize;
