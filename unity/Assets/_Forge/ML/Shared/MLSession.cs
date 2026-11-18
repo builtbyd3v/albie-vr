@@ -116,7 +116,9 @@ namespace Forge.ML
         int nextEvent;
         bool ownsAtlas, loading, reloadQueued, importPending, offlineTraining;  // importPending: POST /ml/github/import sent, no answer yet
         string atlasUrl;
-        IDisposable epochPreds, metricsEvents;
+        IDisposable epochPreds, metricsEvents, runErrors;
+        // ml.run_state's optional error (a run that ended with nothing read from it): Core's MlRunState doesn't carry it.
+        string errorRunId, runError;
         IDisposable classAccEvents;
         IDisposable probeEvents, projectEvents, cloudEvents;
         public const int AtlasColumns = 8;
@@ -136,6 +138,7 @@ namespace Forge.ML
             ForgeEvents.OnMlRunState += OnLiveRunState;
             // By name, not ForgeEvents.OnMlMetrics: Core's MlMetrics can't hold a null metric or `extra`, and drops the tick.
             metricsEvents = ForgeNet.On("ml.metrics", OnLiveMetrics);
+            runErrors = ForgeNet.On("ml.run_state", OnLiveRunError);
             ForgeEvents.OnMlOverfitAlert += OnLiveOverfit;
             ForgeEvents.OnMlSampleUpdated += OnLiveSampleUpdated;
             ForgeEvents.OnMlResultsReady += OnLiveResultsReady;
@@ -153,6 +156,7 @@ namespace Forge.ML
         {
             ForgeEvents.OnMlRunState -= OnLiveRunState;
             metricsEvents?.Dispose(); metricsEvents = null;
+            runErrors?.Dispose(); runErrors = null;
             ForgeEvents.OnMlOverfitAlert -= OnLiveOverfit;
             ForgeEvents.OnMlSampleUpdated -= OnLiveSampleUpdated;
             ForgeEvents.OnMlResultsReady -= OnLiveResultsReady;
@@ -525,6 +529,17 @@ namespace Forge.ML
                 Data.metrics = new MLMetrics[0]; EpochIndex = -1; Done = Overfit = false; OverfitReason = null; Notice = null;
             }
             SetRunState(state.status, state.totalEpochs);
+            if (state.status == "done" && runError != null && state.runId == errorRunId) { Notice = runError; Changed?.Invoke(); }
+        }
+        // A run the hub followed that ended with no epochs it could read: say why, or the panel looks stuck.
+        void OnLiveRunError(Newtonsoft.Json.Linq.JToken token)
+        {
+            if (!IsLive || token == null) return;
+            string error = (string)token["error"];
+            if (string.IsNullOrEmpty(error)) return;
+            errorRunId = (string)token["run_id"];
+            runError = error;
+            if (errorRunId == RunId) { Notice = error; Changed?.Invoke(); }
         }
         // ml.epoch_preds {run_id, epoch, pred_idx[]} in /ml/dataset order: red dots turn green as it learns.
         // Probabilities arrive only with the final results, so the stale ones are dropped until then.

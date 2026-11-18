@@ -4,6 +4,13 @@ picked Skip, or the repo was never patched). Reads what the script already logs 
 - Hugging Face Trainer: `trainer_state.json` (log_history)
 - PyTorch Lightning CSVLogger: `metrics.csv`
 - TensorBoard: `events.out.tfevents.*` (SummaryWriter, Lightning's default logger, Keras, TF2)
+- Last resort, a run started by the hub: the script's own printed output (`.forge/train-<run_id>.log`), for the
+  many GitHub scripts that only print() their progress ("Epoch 3 ... loss: 0.12 ... acc: 97.1%",
+  "Epoch 2: 9123 / 10000", PyTorch's MNIST "Test set: Average loss: 0.03, Accuracy: 9898/10000"). An epoch is
+  sent once the next one starts, or when the process exits.
+
+A run started by the hub always ends with ml.run_state done, also when nothing could be read (a crash, or a script
+that prints nothing we recognise): that one carries an `error` line, so the panels stop saying TRAINING.
 
 No tensorboard dependency: event files are read with the small TFRecord + protobuf decoder below.
 
@@ -17,6 +24,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import re
 import struct
 import time
 import uuid
@@ -68,6 +76,76 @@ def read(path: Path) -> list[Tick]:
     if path.name == "metrics.csv":
         return read_lightning_csv(path)
     return read_tensorboard(path)
+
+
+# --- printed output (the script's stdout and stderr) --------------------------------------------------------
+_NUM = r"(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
+EPOCH_RE = re.compile(r"\bepoch\b\s*[:=#\[(]?\s*(\d+)(?:\s*(?:/|of)\s*(\d+))?", re.I)
+# A loss or accuracy and its value: "loss: 0.12", "val_acc=0.97", "Accuracy: 9898/10000", "accuracy 97.1 %"
+PAIR_RE = re.compile(r"((?:[A-Za-z]+[ _\-/])*?(?:loss|acc|accuracy))\s*[:=]?\s*" + _NUM + r"(?:\s*(%)|\s*/\s*(\d+))?", re.I)
+# Nielsen-style "Epoch 2: 9123 / 10000" (correct out of the test set) right after the epoch
+FRACTION_RE = re.compile(r"^\s*[:,\-]?\s*(\d+)\s*/\s*(\d+)\b")
+MAX_STDOUT_BYTES = 4_000_000  # read the last few MB of a chatty log
+
+
+def read_stdout(path: Path, final: bool = False) -> list[Tick]:
+    """Per-epoch ticks from a script's printed output. The epoch still running is left out until `final` (the process
+    exited): its numbers keep changing. Lines with no epoch number (a test line after an epoch) count for the last one."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - MAX_STDOUT_BYTES))
+            text = f.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    epochs: dict[int, dict[str, float]] = {}
+    current: int | None = None
+    offset: int | None = None  # 0-based epochs become 1-based
+    for line in text.replace("\r", "\n").splitlines():
+        rest = line
+        match = EPOCH_RE.search(line)
+        if match:
+            number = int(match.group(1))
+            if offset is None:
+                offset = 1 if number == 0 else 0
+            current = number + offset
+            rest = line[match.end():]
+            fraction = FRACTION_RE.match(rest)
+            if fraction and int(fraction.group(2)) > 1:
+                epochs.setdefault(current, {})["val_accuracy"] = int(fraction.group(1)) / int(fraction.group(2))
+        if current is None:
+            continue
+        lower = line.lower()
+        prefix = "val_" if any(re.search(rf"\b{w}\b", lower) for w in VAL_WORDS) else ""
+        for pair in PAIR_RE.finditer(rest):
+            name = pair.group(1).strip().lower().replace(" ", "_")
+            value = float(pair.group(2))
+            if pair.group(4) and int(pair.group(4)) > 0:
+                value = value / int(pair.group(4))
+            if not any(name.startswith(w) for w in VAL_WORDS):
+                name = prefix + name.split("_")[-1]
+            epochs.setdefault(current, {})[name] = value
+    numbers = sorted(epochs)
+    if not final and numbers:
+        numbers = numbers[:-1]
+    return [to_tick(n, epochs[n]) for n in numbers if epochs[n]]
+
+
+def last_line(path: Path) -> str | None:
+    """The script's last printed line that says something (an exception's message, usually), for the error."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 8192))
+            lines = f.read().decode("utf-8", "replace").replace("\r", "\n").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        line = line.strip()
+        if line:
+            return line[:300]
+    return None
 
 
 def preferred(sources: list[Path]) -> Path:
@@ -340,6 +418,11 @@ class LogTail:
         self.last_change = time.monotonic()
         self.done = False
         self.stopped = False  # the SDK owns this run
+        # A run the hub started: what the script prints (service.start_training writes it here)
+        self.stdout = self.repo / ".forge" / f"train-{run_id}.log" if run_id else None
+
+    def _read(self, final: bool = False) -> list[Tick]:
+        return read_stdout(self.source, final) if self.source == self.stdout else read(self.source)
 
     def poll(self) -> list[tuple[str, dict]]:
         if self.stopped:
@@ -348,6 +431,14 @@ class LogTail:
             self.stopped = True
             return []
         sources = find_sources(self.repo, self.since)
+        if not sources and self.stdout is not None and self.source in (None, self.stdout) and self.stdout.exists():
+            # No log files: the printed output, until a real log appears (then that wins, as it's richer)
+            if self.source is None:
+                self.source = self.stdout
+            return self._send(self._read())
+        if self.source == self.stdout and sources:
+            self.source = None  # a real log appeared: start over from it
+            self.sent = 0
         if not sources:
             return self._idle()
         events: list[tuple[str, dict]] = []
@@ -361,28 +452,43 @@ class LogTail:
             self.source = preferred(fresh or sources)
             self.sent, self.prev, self.rises, self.alerted, self.done = 0, None, 0, False, False
         self.seen.update(sources)
-        ticks = read(self.source)
+        return events + self._send(self._read())
+
+    def _send(self, ticks: list[Tick]) -> list[tuple[str, dict]]:
         if len(ticks) <= self.sent:
-            return events + self._idle()
+            return self._idle()
         if self.run_id is None:
             self.run_id = uuid.uuid4().hex[:8]
         self.last_change = time.monotonic()
+        events: list[tuple[str, dict]] = []
         for tick in ticks[self.sent:]:
             events += self._tick_events(tick)
         self.sent = len(ticks)
         self._record(events)
         return events
 
-    def finish(self) -> list[tuple[str, dict]]:
-        """The run ended (process exited, or the source went quiet): one final run_state done."""
+    def finish(self, returncode: int | None = None) -> list[tuple[str, dict]]:
+        """The run ended (process exited, or the source went quiet): one final run_state done. A run the hub started
+        (`returncode` is its exit code) always gets one, with an `error` when nothing could be read from it."""
         if self.stopped:
             return self._close_sdk_run()
-        if self.done or self.run_id is None or self.sent == 0:
+        if self.done or self.run_id is None:
             return []
+        events: list[tuple[str, dict]] = []
+        if self.source == self.stdout and self.source is not None:
+            events += self._send(read_stdout(self.source, final=True))  # the last epoch, now complete
+        if self.sent == 0 and returncode is None:
+            return events
         self.done = True
         epochs = self.total_epochs or self.sent
-        events = [("ml.run_state", {"run_id": self.run_id, "status": "done", "epoch": self.sent, "total_epochs": epochs})]
-        self._record(events)
+        state: dict[str, Any] = {"run_id": self.run_id, "status": "done", "epoch": self.sent, "total_epochs": epochs}
+        if self.sent == 0:
+            said = last_line(self.stdout) if self.stdout is not None else None
+            state["error"] = (f"The training script stopped (exit code {returncode}): {said}" if returncode
+                              else "The training script finished, but printed no epochs with a loss or accuracy."
+                              + (f" Its last line: {said}" if said else ""))
+        events.append(("ml.run_state", state))
+        self._record(events[-1:])
         return events
 
     def _close_sdk_run(self) -> list[tuple[str, dict]]:
