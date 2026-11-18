@@ -15,6 +15,8 @@ namespace Forge.OS
     /// projects saved on the headset (OSProjects lists those), so the tab has one ML list. An <c>ml_new</c> project made
     /// while another project is open is linked to it (<see cref="ProjectMeta.LinkMl"/>). Under them are one-tap starters that build a new project with
     /// no typing (<c>ml_new</c>), and Import from GitHub, which opens the ML desk's repository field and presets.
+    /// Offline those four can only say they need the cloud, so one "New ML model" tile stands in for them. The section is a page
+    /// of the Projects tab of its own (it has its own heading), never on screen with the first row.
     /// The list is fetched only when the hub or the cloud serves <c>/ml/</c>, never from mocks, and at most every
     /// <see cref="RefreshSeconds"/>; each tap's outcome shows on its tile for a while.
     /// </summary>
@@ -59,7 +61,7 @@ namespace Forge.OS
         static readonly Dictionary<string, string> notices = new Dictionary<string, string>(StringComparer.Ordinal);
         static readonly Dictionary<string, float> noticeAt = new Dictionary<string, float>(StringComparer.Ordinal);
         static float lastFetch = -1000f;
-        static bool fetching, built;
+        static bool fetching, built, builtLive;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
@@ -126,8 +128,9 @@ namespace Forge.OS
 
         static void Fill(List<OSEntry> into)
         {
-            if (Live && !fetching && Time.realtimeSinceStartup - lastFetch > RefreshSeconds) Fetch();
-            if (!built) Build();
+            bool live = Live;
+            if (live && !fetching && Time.realtimeSinceStartup - lastFetch > RefreshSeconds) Fetch();
+            if (!built || live != builtLive) Build();
             into.AddRange(entries);
         }
 
@@ -186,9 +189,13 @@ namespace Forge.OS
             return true;
         }
 
+        /// <summary>The one tile the section shows for its starters and Import while neither the hub nor the cloud serves ML.</summary>
+        public const string OfflineId = "ml_offline", OfflineTitle = "New ML model";
+
         static void Build()
         {
             built = true;
+            builtLive = Live;
             entries.Clear();
             foreach (var card in cards)
             {
@@ -206,6 +213,22 @@ namespace Forge.OS
                     isOpen = () => c.open || OSProjects.IsOpen(OSProjects.MlProjectId(c.name)),
                     open = () => OpenProject(id, c.name, c.title, c.kind),
                 });
+            }
+            if (!builtLive)
+            {
+                // Offline the three starters and Import can only say they need the cloud: one quiet tile says it for all four.
+                entries.Add(new OSEntry
+                {
+                    id = OfflineId,
+                    title = OfflineTitle,
+                    icon = "plus",
+                    tab = OSTab.Projects,
+                    section = Section,
+                    outline = true,
+                    status = () => NeedsCloudShort,
+                    open = () => Notice(OfflineId, NeedsCloudShort),
+                });
+                return;
             }
             foreach (var starter in starters)
             {

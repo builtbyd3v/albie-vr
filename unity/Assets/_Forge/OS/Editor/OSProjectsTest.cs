@@ -221,9 +221,20 @@ namespace Forge.OS.Editor
             yield return 0.3f;
             DesktopRig.Current.LookAt(menu.LastCenter);
             yield return 0.4f;
-            OSTileView tile = null;
-            for (int i = 0; i < menu.ActiveTiles.Count; i++)
-                if (menu.ActiveTiles[i].entry != null && menu.ActiveTiles[i].entry.id == id) tile = menu.ActiveTiles[i];
+            // From the first page: the tab keeps one row there and puts the rest (older projects, the samples, ML) a page turn away.
+            for (int back = 0; back < 8 && menu.Page > 0; back++)
+            {
+                if (!PageButton(menu, "chevron_left")) break;
+                yield return 0.3f;
+            }
+            firstPageTiles = menu.ActiveTiles.Count;
+            OSTileView tile = FindTile(menu, id);
+            for (int turn = 0; tile == null && turn < 6 && menu.Page < menu.PageCount - 1; turn++)
+            {
+                if (!PageButton(menu, "chevron_right")) break;
+                yield return 0.3f;
+                tile = FindTile(menu, id);
+            }
             if (tile == null)
             {
                 string have = "";
@@ -235,6 +246,43 @@ namespace Forge.OS.Editor
             pressOk = OSToolsTest.Press(tile.gameObject, out pressWhy);
             if (!pressOk) Shot("99_press_failed_" + id);
             yield return 0.9f;
+        }
+
+        static int firstPageTiles;
+
+        static OSTileView FindTile(OSMenu menu, string id)
+        {
+            for (int i = 0; i < menu.ActiveTiles.Count; i++)
+                if (menu.ActiveTiles[i].entry != null && menu.ActiveTiles[i].entry.id == id) return menu.ActiveTiles[i];
+            return null;
+        }
+
+        static bool PageButton(OSMenu menu, string icon)
+        {
+            Transform t = OSToolsTest.FindDeep(menu.transform, "Button " + icon);
+            Button b = t != null ? t.GetComponent<Button>() : null;
+            if (b == null || !b.interactable) return false;
+            b.onClick.Invoke();
+            return true;
+        }
+
+        // Shows the Details page (true) or the overview (false) and waits for the window to rebuild.
+        static IEnumerable<float> ShowDetails(OSShell shell, bool on)
+        {
+            OSProjectWindow v = View(shell);
+            if (v == null) yield break;
+            v.DetailsOpen = on;
+            yield return 0.4f;
+        }
+
+        // The buttons a person can press in the window right now.
+        static int Targets(OSWindow window)
+        {
+            int n = 0;
+            OSBody body = window.GetComponentInChildren<OSBody>(true);
+            if (body == null) return -1;
+            foreach (Button b in body.GetComponentsInChildren<Button>(false)) if (b.interactable) n++;
+            return n;
         }
 
         static Button FindButton(OSWindow window, string label)
@@ -249,7 +297,8 @@ namespace Forge.OS.Editor
             OSRegistry.Fill(OSTab.Projects, list);
             var sb = new System.Text.StringBuilder();
             foreach (var e in list)
-                sb.Append(e.id).Append('=').Append(e.status()).Append(e.isOpen != null && e.isOpen() ? " (open)" : "").Append(" | ");
+                if (e.section != OSMLProjects.Section)  // the Machine learning page is OSMLProjectsCheck's
+                    sb.Append(e.id).Append('=').Append(e.status()).Append(e.isOpen != null && e.isOpen() ? " (open)" : "").Append(" | ");
             return sb.ToString();
         }
 
@@ -338,9 +387,28 @@ namespace Forge.OS.Editor
             DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.6f;
             string text = OSToolsTest.AllText(win);
-            foreach (string needle in new[] { "RC truck", "Steps", "Where it stands", "Plan", "Versions", "Course", "Drive", "Train", "Autopilot", "Code", "Notebook", "No plan written yet", "No artifacts yet",
-                                              OSProjectWindow.SampleTagLine, OSProjects.SampleShows(NotebookStore.DefaultProject), OSProjects.SampleLine, OSProjects.MakeOwnLabel(NotebookStore.DefaultProject) })
-                Check(text.Contains(needle), "the truck window shows '" + needle + "'");
+            string problem = OSToolsTest.LayoutProblem(win);
+            Check(problem == null, "the truck overview text is inside it and doesn't overlap" + (problem ?? ""));
+            // The overview: one sentence, the big Next button, the steps row, Make my own and More. Nothing else.
+            foreach (string needle in new[] { "RC truck", "Next: Course", "Design", "Course", "Drive", "Train", "Autopilot", "Code", OSProjectWindow.MoreLabel,
+                                              OSProjects.SampleShows(NotebookStore.DefaultProject), OSProjects.MakeOwnLabel(NotebookStore.DefaultProject) })
+                Check(text.Contains(needle), "the truck overview shows '" + needle + "'");
+            foreach (string tucked in new[] { "Versions", "No plan written yet", "No artifacts yet", OSProjects.SampleLine, "Notebook" })
+                Check(!text.Contains(tucked), "the truck overview keeps '" + tucked + "' tucked away");
+            int targets = Targets(win);
+            Measure("overview targets: " + targets);
+            Check(targets > 0 && targets <= 9, "the overview has at most 9 targets: Next, six steps, Make my own, More (" + targets + ")");
+            foreach (float w in ShowDetails(shell, true)) yield return w;
+            text = OSToolsTest.AllText(win);
+            foreach (string needle in new[] { "Plan", "Versions", "No plan written yet", "No artifacts yet", OSProjectWindow.SampleTagLine, OSProjects.SampleLine, OSProjectWindow.BackLabel })
+                Check(text.Contains(needle), "the truck's Details page shows '" + needle + "'");
+            problem = OSToolsTest.LayoutProblem(win);
+            Check(problem == null, "the truck's Details page text is inside it and doesn't overlap" + (problem ?? ""));
+            Shot("51b_truck_details_fresh");
+            foreach (float w in ShowDetails(shell, false)) yield return w;
+            view.MoreOpen = true;
+            yield return 0.4f;
+            text = OSToolsTest.AllText(win);
             Check(!text.Contains("Make a copy") && !text.Contains("Start my own"), "the sample offers one way to make your own (Make my own), not Make a copy and Start my own");
             Button makeOwn = FindButton(win, OSProjects.MakeOwnLabel(NotebookStore.DefaultProject));
             Check(makeOwn != null && makeOwn.interactable, "the sample's one call to action is a real button: " + OSProjects.MakeOwnLabel(NotebookStore.DefaultProject));
@@ -348,9 +416,9 @@ namespace Forge.OS.Editor
             Check(OSRegistry.Find(OSTab.Tools, "drive") != null && !text.Contains("Coming with") && !text.Contains(OSProjectWindow.DriveMissing), "Drive is a real step: the tool is registered and the window carries no 'coming soon' or 'not found' line");
             Check(!text.Contains(OSProjects.SendUnavailable), "the window carries no line about a Send step that can never run");
             Check(!text.Contains("TMP") && !text.Contains("New Text"), "no default text left in the window");
-            string problem = OSToolsTest.LayoutProblem(win);
-            Check(problem == null, "the truck window text is inside it and doesn't overlap" + (problem ?? ""));
-            foreach (string label in new[] { "Course", "Drive", "Train", "Autopilot", "Code", "Send", "Notebook" })
+            problem = OSToolsTest.LayoutProblem(win);
+            Check(problem == null, "the truck window text (More open) is inside it and doesn't overlap" + (problem ?? ""));
+            foreach (string label in new[] { "Course", "Drive", "Train", "Autopilot", "Code", "Send", "Notebook", OSProjectWindow.DetailsLabel })
             {
                 Button b = FindButton(win, label);
                 Check(b != null, "the " + label + " button exists");
@@ -358,10 +426,12 @@ namespace Forge.OS.Editor
                 var r = (RectTransform)b.transform;
                 float w = OSToolsTest.Mm(r.rect.width, r), h = OSToolsTest.Mm(r.rect.height, r);
                 if (label == "Course") Measure($"Course button {w:F0} x {h:F0} mm");
-                Check(w >= 22f && h >= 22f, label + " is at least 22 x 22 mm (" + w.ToString("F0") + " x " + h.ToString("F0") + ")");
+                Check(w >= 28f && h >= 28f, label + " is at least 28 x 28 mm (" + w.ToString("F0") + " x " + h.ToString("F0") + ")");
             }
-            Check(FindButton(win, "Send") != null, "there is a Send step (it drafts to the project's channel; the message panel confirms)");
+            Check(FindButton(win, "Send") != null, "there is a Send step under More (it drafts to the project's channel; the message panel confirms)");
             Shot("51_truck_window_fresh");
+            view.MoreOpen = false;
+            yield return 0.4f;
 
             // ---- Course: the first press asks (nothing approved on a fresh install), the second opens the slalom with the brain truck
             ArtifactHost host = ArtifactHost.Current ?? ArtifactBootstrap.Ensure();
@@ -396,12 +466,17 @@ namespace Forge.OS.Editor
             Check(ArtifactLibrary.Root.StartsWith(scratch, StringComparison.Ordinal), "the slalom was made in the scratch library, not this machine's");
             DesktopRig.Current.LookAt(OSToolsTest.CenterOf(win.Panel.transform));
             yield return 0.6f;
-            text = OSToolsTest.AllText(win);
-            Check(text.Contains("Slalom v1") && text.Contains("no runs yet"), "the summary lists the slalom under Artifacts and 'no runs yet' as its last run");
-            Check(text.Contains("Course: open") && text.Contains("brain truck ready"), "the live brain line says the course is open and the truck is ready");
             problem = OSToolsTest.LayoutProblem(win);
-            Check(problem == null, "after Course the window text is inside it and doesn't overlap" + (problem ?? ""));
+            Check(problem == null, "after Course the overview text is inside it and doesn't overlap" + (problem ?? ""));
+            Check(FindButton(win, "Course") != null && FindButton(win, "Course").interactable, "Course can still be tapped once it is done");
             Shot("52_truck_window_course");
+            foreach (float w in ShowDetails(shell, true)) yield return w;
+            text = OSToolsTest.AllText(win);
+            Check(text.Contains("Slalom v1") && text.Contains("no runs yet"), "Details lists the slalom under Artifacts and 'no runs yet' as its last run");
+            Check(text.Contains("Course: open") && text.Contains("brain truck ready"), "Details' live truck line says the course is open and the truck is ready");
+            problem = OSToolsTest.LayoutProblem(win);
+            Check(problem == null, "after Course the Details text is inside it and doesn't overlap" + (problem ?? ""));
+            Shot("52b_truck_details_course");
 
             // ---- linking: a heart made while the truck is open is standalone, and an older heart linked to it shows standalone
             JObject heart = AlbieTools.Call("artifact_create", new JObject { ["template"] = "heart", ["open"] = false });
@@ -457,7 +532,7 @@ namespace Forge.OS.Editor
             Check(listing.IndexOf("proj_demo_folder=", StringComparison.Ordinal) < listing.IndexOf("proj_truck=", StringComparison.Ordinal), "the person's own projects come before the samples");
             yield return 0.8f;
             text = OSToolsTest.AllText(win);
-            Check(text.Contains("12.4 s") && text.Contains("last run passed"), "the summary shows the run: 'last run passed · 12.4 s'");
+            Check(text.Contains("12.4 s") && text.Contains("last run passed"), "Details shows the run: 'last run passed · 12.4 s'");
             problem = OSToolsTest.LayoutProblem(win);
             Check(problem == null, "with data the window text is inside it and doesn't overlap" + (problem ?? ""));
             Shot("53_truck_window_run");
@@ -494,8 +569,12 @@ namespace Forge.OS.Editor
             Check(text.Contains("Plan v1 · 3 of 7 milestones done · next: A clean lap at 2 m/s or more"), "the summary's Plan line says how many milestones are done and which is next");
             Check(text.Contains("v4 · Softer steering near the cones, tuned on the real floor · worked (4 in all)"), "the summary's Versions line shows the newest with its outcome and how many there are");
             problem = OSToolsTest.LayoutProblem(win);
-            Check(problem == null, "the fullest truck window text is inside it and doesn't overlap" + (problem ?? ""));
-            Shot("58_truck_window_full");
+            Check(problem == null, "the fullest truck Details text is inside it and doesn't overlap" + (problem ?? ""));
+            Shot("58_truck_details_full");
+            foreach (float w in ShowDetails(shell, false)) yield return w;
+            problem = OSToolsTest.LayoutProblem(win);
+            Check(problem == null, "the fullest truck overview text is inside it and doesn't overlap" + (problem ?? ""));
+            Shot("58b_truck_window_full");
 
             AlbieTools.Call("artifact_close", new JObject());
             yield return 0.8f;
@@ -509,6 +588,7 @@ namespace Forge.OS.Editor
             step = PressTile(shell, menu, "proj_demo_folder", "54_projects_tab");
             while (step.MoveNext()) yield return step.Current;
             Check(pressOk, "a pointer reaches the folder's tile: " + pressWhy);
+            Check(firstPageTiles > 0 && firstPageTiles <= 4, "with a project of the person's own the tab's first page is one row: New project and the newest projects (" + firstPageTiles + " tiles)");
             yield return 0.9f;
             view = View(shell);
             Check(view != null && view.ProjectId == "proj_demo_folder" && NotebookStore.ProjectId == "proj_demo_folder", "the folder opens as the open project and its window shows it");
@@ -582,6 +662,8 @@ namespace Forge.OS.Editor
                     problem = OSToolsTest.LayoutProblem(win);
                     Check(problem == null, "the quadcopter window text is inside it and doesn't overlap" + (problem ?? ""));
                     Shot("57_quadcopter_window");
+                    Button designChip = FindButton(win, "Design");
+                    Check(designChip != null && designChip.interactable, "quadcopter: the Design step can be tapped again after it is done");
                 }
             }
 
@@ -633,8 +715,11 @@ namespace Forge.OS.Editor
                 Check(goal != null && goal.Contains("flies straight") && NotebookStore.Versions.Count == 0, "it has the plan from the answers (" + goal + ") and no versions");
                 OSWindow ownWin = windows.Find(OSProjectWindow.WindowId);
                 string ownText = ownWin != null ? OSToolsTest.AllText(ownWin) : "";
-                Check(ownText.Contains(OSProjectWindow.OwnTagLine) && ownText.Contains("flies straight") && !ownText.Contains("Make my own"),
-                    "its window says it is your project, shows its goal and offers no Make my own");
+                Check(ownText.Contains("flies straight") && !ownText.Contains("Make my own"), "its window shows its goal and offers no Make my own");
+                foreach (float w in ShowDetails(shell, true)) yield return w;
+                ownText = ownWin != null ? OSToolsTest.AllText(ownWin) : "";
+                Check(ownText.Contains(OSProjectWindow.OwnTagLine), "its Details page says it is your project");
+                foreach (float w in ShowDetails(shell, false)) yield return w;
                 if (ownWin != null)
                 {
                     DesktopRig.Current.LookAt(OSToolsTest.CenterOf(ownWin.Panel.transform));

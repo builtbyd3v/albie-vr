@@ -653,6 +653,52 @@ namespace Forge.OS.Editor
             slalomStatus = Status("slalom");
             Check(slalomStatus.Contains("for RC truck") && !slalomStatus.StartsWith("open", StringComparison.Ordinal), "the slalom tile still says for RC truck and no longer says open (" + slalomStatus + ")");
 
+            // ---- Close everything (the Spaces list) closes an artifact and its room course even when the window manager holds
+            // none of its panels: the case the headset showed (Close all left the course standing). The slalom opens again, its
+            // panel windows are let go of, and only the whole-artifact entry is left to reach it.
+            {
+                step = PressTile(shell, menu, "slalom", null);
+                while (step.MoveNext()) yield return step.Current;
+                yield return 2f;
+                Check(OpenId() == "slalom" && host.HasRoomCourse, "the slalom is open again for Close everything (" + (OpenId() ?? "none") + ")");
+                Check(windows.IsOpen(OSArtifacts.WholePrefix + "slalom"), "the open artifact is tracked as a whole by the window manager");
+                var spaceItems = new List<SpaceItem>();
+                OSSpaces.Collect(spaceItems);
+                bool listsArtifact = false, listsCourse = false, listsTruck = false;
+                foreach (SpaceItem item in spaceItems)
+                {
+                    if (item.kind == SpaceKind.Artifact) listsArtifact = true;
+                    if (item.kind == SpaceKind.Course) listsCourse = true;
+                    if (item.kind == SpaceKind.Thing) listsTruck = true;
+                }
+                Check(listsArtifact && listsCourse && listsTruck, $"the Spaces list shows the slalom, its course and the truck (artifact {listsArtifact}, course {listsCourse}, truck {listsTruck})");
+                Transform courseRoot = host.ContentRoot;
+                Check(courseRoot != null && !courseRoot.IsChildOf(host.transform), "the course stands on the floor, outside the host");
+                var panelWindows = new List<OSWindow>();
+                foreach (var w in windows.All)
+                    if (w != null && w.Id.StartsWith("artifact:", StringComparison.Ordinal)) panelWindows.Add(w);
+                foreach (var w in panelWindows) UnityEngine.Object.Destroy(w);  // the manager forgets them; the panels stay
+                yield return 0.3f;
+                OSSpaces.CloseEverything();
+                yield return 1.5f;
+                Check(OpenId() == null, "Close everything closed the slalom with no panel window to reach it (open: " + (OpenId() ?? "none") + ")");
+                Check(courseRoot == null || !courseRoot.gameObject.activeInHierarchy, "and its course is gone from the floor");
+                var truck = BrainLoops.Active as SlalomBrain;
+                Check(truck == null || truck.Hidden, "and the truck is put away");
+                Check(windows.Count == 0, "and no window is left (" + windows.Count + ")");
+
+                // A volume artifact the same way: the heart.
+                string heartProblem = OSArtifacts.Open("heart");
+                yield return 2f;
+                if (heartProblem == null && OpenId() == "heart")
+                {
+                    OSSpaces.CloseEverything();
+                    yield return 1f;
+                    Check(OpenId() == null && FirstVolume(shell) == null, "Close everything closes a volume artifact (the heart) too");
+                }
+                else Measure("heart not opened for the Close everything check: " + (heartProblem ?? OpenId() ?? "none"));
+            }
+
             // ---- the honest error path
             string problemText = OSArtifacts.Open("no_such_thing");
             Check(!string.IsNullOrEmpty(problemText), "opening something that isn't there answers with the reason (" + problemText + ")");

@@ -355,9 +355,17 @@ namespace Forge.OS.Editor
             float drop = Mathf.Atan2(head.position.y - menu.LastCenter.y, new Vector2(menu.LastCenter.x - head.position.x, menu.LastCenter.z - head.position.z).magnitude) * Mathf.Rad2Deg;
             float fov = 2f * Mathf.Atan(widthM * 0.5f / distance) * Mathf.Rad2Deg;
             Measure($"menu: {widthM:F3} m wide, {heightM:F3} m tall, {distance:F2} m from the eyes, {drop:F1} degrees below eye level, {fov:F1} degrees of horizontal view");
-            Check(Mathf.Abs(distance - OSSettings.Current.menuDistance) < 0.01f, "the menu is menuDistance from the eyes");
-            Check(Mathf.Abs(drop - OSSettings.Current.menuDropDegrees) < 1f, "the menu is menuDropDegrees below eye level");
+            OSMenu.ReachSetting(out float wantDistance, out float wantDrop);
+            Check(Mathf.Abs(distance - wantDistance) < 0.01f, $"the menu is menuDistance from the eyes ({distance:F2} m, want {wantDistance:F2})");
+            Check(drop <= wantDrop + 1f && drop >= OSMenu.MinDropDegrees - 1f, $"the menu is menuDropDegrees below eye level, or a little less to clear the desk ({drop:F1}, want {wantDrop:F1})");
+            Check(distance >= 0.4f && distance <= 0.55f, $"the menu is within easy poking reach, 0.4 to 0.55 m from the eyes ({distance:F2} m)");
+            Check(drop >= 10f && drop <= 30f, $"the menu is below eye level, 10 to 30 degrees down ({drop:F1})");
             Check(fov < 70f, "the menu fits in 70 degrees of horizontal view (" + fov.ToString("F1") + ")");
+            if (workspace.presence.Frame != null)
+            {
+                float bottom = menu.LastCenter.y - heightM * 0.5f * Mathf.Cos(drop * Mathf.Deg2Rad);
+                Check(bottom > workspace.presence.Frame.position.y + 0.02f, $"the menu's lower edge is above the desk top, clear of resting hands ({bottom - workspace.presence.Frame.position.y:F2} m above it)");
+            }
             Vector3 menuPositionBefore = menu.transform.position;
             yield return 0.3f;
 
@@ -375,14 +383,17 @@ namespace Forge.OS.Editor
                     Check(gap >= 12f, "tiles are at least 12 mm apart");
                 }
             }
-            foreach (string label in new[] { "Button Build something", "Button Agents", "Button Settings", "Button Bring windows here", "Button Close", "Tab Tools" })
+            foreach (string label in new[] { "Button New project", "Button Agents", "Button Settings", "Button Spaces", "Button Bring here", "Button Close", "Tab Tools" })
             {
                 Transform t = FindDeep(menu.transform, label);
                 Check(t != null, "found " + label);
                 if (t == null) continue;
                 var r = (RectTransform)t;
                 Measure($"{label}: {Mm(r.rect.width, r):F0} x {Mm(r.rect.height, r):F0} mm");
-                Check(Mm(r.rect.width, r) >= 22f && Mm(r.rect.height, r) >= 22f, label + " is at least 22 x 22 mm");
+                Check(Mm(r.rect.width, r) >= 28f && Mm(r.rect.height, r) >= 28f, label + " is a hand-sized target, at least 28 x 28 mm");
+                // Inside the plate: a button pushed off its edge by a long label could not be reached.
+                Vector3 local = canvasRoot.InverseTransformPoint(r.TransformPoint(r.rect.max));
+                Check(local.x <= canvasRoot.rect.xMax + 0.5f, label + " stays inside the plate");
             }
             Shot("01_menu_desk_tools");
             LabelWeights(menu);
@@ -456,6 +467,52 @@ namespace Forge.OS.Editor
             shell.Windows.Close(OSAgentsWindow.WindowId);   // the strip now opens the real Agents window; put it away so it does not stay into the next step
             Check(shell.MenuOpen || OSShell.HasSystem("agents"), "Agents with no page registered leaves the menu open and doesn't throw");
             shell.CloseMenu();
+            yield return 0.4f;
+
+            // ---- Spaces: the strip opens the list where the menu was, within reach
+            shell.OpenMenu(OSSummon.Code);
+            yield return 0.6f;
+            Vector3 menuAt = menu.LastCenter;
+            Check(Press(FindDeep(menu.transform, "Button Spaces")?.gameObject, out why), "a pointer reaches Spaces: " + why);
+            yield return 0.8f;
+            OSWindow spaces = shell.Windows.Find(OSSpaces.WindowId);
+            Check(spaces != null && !shell.MenuOpen, "Spaces opens the Spaces list and closes the menu");
+            if (spaces != null)
+            {
+                var spacesRect = (RectTransform)spaces.Panel.transform;
+                Vector3 spacesAt = spacesRect.TransformPoint(spacesRect.rect.center);
+                float reach = Vector3.Distance(spacesAt, shell.Head.position);
+                Measure($"Spaces list: {reach:F2} m from the eyes, {Vector3.Distance(spacesAt, menuAt):F2} m from where the menu was");
+                Check(reach >= 0.4f && reach <= 0.6f && Vector3.Distance(spacesAt, menuAt) < 0.05f, $"the Spaces list opens where the menu was, within reach ({reach:F2} m)");
+                yield return 1.2f;  // it reads the list once a second
+                Transform everything = FindDeep(spaces.Panel.transform, "Button Close everything");
+                Check(everything != null, "the Spaces list has Close everything");
+                if (everything != null)
+                {
+                    var r = (RectTransform)everything;
+                    Check(Mm(r.rect.height, r) >= 28f, $"its buttons are hand-sized ({Mm(r.rect.height, r):F0} mm tall)");
+                }
+                Shot("05a_spaces_list");
+                shell.Windows.Close(OSSpaces.WindowId);
+                yield return 0.4f;
+            }
+
+            // ---- the open menu comes round when the user turns well away from it
+            shell.OpenMenu(OSSummon.Code);
+            yield return 0.6f;
+            int refaces = menu.Refaces;
+            Transform turnHead = shell.Head;
+            Vector3 facing0 = Vector3.ProjectOnPlane(turnHead.forward, Vector3.up).normalized;
+            Vector3 turned = Quaternion.Euler(0f, 70f, 0f) * facing0;
+            DesktopRig.Current.LookAt(turnHead.position + turned * 2f);
+            yield return 1.6f;
+            Vector3 toMenu = Vector3.ProjectOnPlane(menu.LastCenter - turnHead.position, Vector3.up);
+            float off = Vector3.Angle(Vector3.ProjectOnPlane(turnHead.forward, Vector3.up), toMenu);
+            Check(menu.Refaces > refaces && off < 15f, $"turning 70 degrees away brings the menu round in front again (refaces {menu.Refaces - refaces}, {off:F0} degrees off)");
+            Check(Vector3.Distance(menu.transform.position, menu.LastCenter) < 0.01f, "and it has landed there");
+            shell.CloseMenu();
+            yield return 0.3f;
+            DesktopRig.Current.LookAt(turnHead.position + facing0 * 2f);  // face the desk again for what follows
             yield return 0.4f;
 
             // ---- an empty tab
@@ -578,10 +635,10 @@ namespace Forge.OS.Editor
                 new[] { "Tab Tools", "Content/Background/Elements/" + OSUi.TabTitleName, "dark" },
                 new[] { "Tab Projects", "Content/Background/Elements/" + OSUi.TabTitleName, "white" },
                 new[] { "Tab Artifacts", "Content/Background/Elements/" + OSUi.TabTitleName, "white" },
-                new[] { "Button Build something", "Content/Background/Elements/Text/Label", "dark" },
+                new[] { "Button New project", "Content/Background/Elements/Text/Label", "dark" },
                 new[] { "Button Agents", "Content/Background/Elements/Text/Label", "white" },
                 new[] { "Button Settings", "Content/Background/Elements/Text/Label", "white" },
-                new[] { "Button Bring windows here", "Content/Background/Elements/Text/Label", "white" },
+                new[] { "Button Bring here", "Content/Background/Elements/Text/Label", "white" },
             };
             foreach (var entry in labels)
             {

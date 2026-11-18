@@ -11,27 +11,28 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The Project window (window id "project"), built in code in four parts (see <see cref="Rebuild"/>): a header card (a
-    /// SAMPLE or YOUR PROJECT tag, what it is, its test, where it stands); one row with the single primary button (Next: the
-    /// next step, or on a sample "Make my own RC truck", which opens Build something with the sample's kind picked) and the
-    /// quiet Notebook and Send; a steps card with the loop as a stepper of chips (done, next, upcoming, off):
+    /// The Project window (window id "project"), built in code with progressive disclosure (see <see cref="Rebuild"/>). The
+    /// overview shows only what is needed now: one sentence (the sample's line, or the plan's goal), ONE big button (the next
+    /// step, or "Fly the new version" right after the design changed), the last result, and the loop as a row of step chips
+    /// that can all be tapped at any time (a done step opens its tool again: Design opens the CAD design on its Parameters tab):
     /// - RC truck: Course, Drive, Train, Autopilot, Code;
     /// - Quadcopter: Design (CAD), Course (a drone course), Fly (the Drive window as the drone's transmitter), Train, Autopilot;
     /// - Rocket: Design (CAD), Simulate (the design's flight), Launch (the <c>rocket_launch</c> artifact);
     /// - Image classifier and every ML project: Data, Train, Results, Publish;
-    /// - anything else: Course (when its plan names one), CAD, Train;
-    /// and a two-column summary (plan, versions, last training, last run, artifacts, design, what it follows). A step whose
-    /// feature isn't there (no drone brain yet, no cloud) is switched off with a short reason under the stepper, never a
-    /// button that does nothing. Every step shows the tool's real result, or its error as a plain sentence, in the status
-    /// line. What a step makes (the course, the launch pad) is linked to this project (<see cref="ArtifactLibrary.ForProject{T}"/>).
-    /// A sample's steps run as sample runs (its laps and training go in the sample's notebook, as its history did); nothing
-    /// else is attached to it. Versions are cut by <see cref="ProjectSpine"/>. The window follows the open notebook project.
+    /// - anything else: Course (when its plan names one), CAD, Train.
+    /// Along the bottom: Make my own on a sample, and More, which opens a small row with Details, Notebook and Send. Details is
+    /// a second page: the test, plan, versions, design, last training, last run, artifacts, what it follows, the live truck line
+    /// and why a step is off. A step whose feature isn't there (no drone brain yet, no cloud) is switched off with a short
+    /// reason, never a button that does nothing. Every step shows the tool's real result, or its error as a plain sentence, in
+    /// the status line. What a step makes (the course, the launch pad) is linked to this project
+    /// (<see cref="ArtifactLibrary.ForProject{T}"/>). A sample's steps run as sample runs; nothing else is attached to it.
+    /// Versions are cut by <see cref="ProjectSpine"/>. The window follows the open notebook project.
     /// </summary>
     public sealed class OSProjectWindow : MonoBehaviour
     {
         public const string WindowId = "project";
 
-        static readonly Vector2 SizeMeters = new Vector2(0.78f, 0.76f);
+        static readonly Vector2 SizeMeters = new Vector2(0.70f, 0.62f);  // seen at 45-60 cm: smaller than before, the overview is short
         const float PollSeconds = 0.5f;
         const int MaxMilestones = 4, MaxVersions = 3, MaxArtifacts = 2;
 
@@ -54,6 +55,13 @@ namespace Forge.OS
         Loop loop;
         string design, mlName;
         bool dirty, simulated, dataOpened;
+        // What the window shows: the overview, or the Details page; and whether More's small row is open.
+        bool details, more;
+        // After Design: the design's version when CAD showed it (-2 while waiting for CAD to show it, -1 not watching), the step
+        // that was next before, and whether the design has changed since (the big button then offers the obvious next move).
+        int designAtOpen = -1;
+        string returnTo;
+        bool designChanged;
         int availabilityKey = int.MinValue;
         string statusLine = "";
         TMP_Text statusText, brainText;
@@ -119,6 +127,9 @@ namespace Forge.OS
             {
                 statusLine = "";
                 simulated = dataOpened = false;
+                details = more = designChanged = false;
+                designAtOpen = -1;
+                returnTo = null;
             }
             projectId = id;
             kind = OSProjects.KindOf(id);
@@ -156,6 +167,7 @@ namespace Forge.OS
             NotebookStore.VersionCut += OnNotebook;
             NotebookStore.PlanUpdated += OnNotebook;
             OSRegistry.Changed += MarkDirty;
+            CadSession.ParamsRequested += OnDesignParams;
         }
 
         void OnDisable()
@@ -165,6 +177,7 @@ namespace Forge.OS
             NotebookStore.VersionCut -= OnNotebook;
             NotebookStore.PlanUpdated -= OnNotebook;
             OSRegistry.Changed -= MarkDirty;
+            CadSession.ParamsRequested -= OnDesignParams;
         }
 
         void OnNotebook(JObject _) => dirty = true;
@@ -185,6 +198,7 @@ namespace Forge.OS
                 return;
             }
             PollBrain();
+            PollDesign();
             int key = AvailabilityKey();
             if (key != availabilityKey) dirty = true;  // a step became available or went away: rebuild the row next frame
         }
@@ -199,14 +213,15 @@ namespace Forge.OS
 
         // ---------------------------------------------------------------- building the window
 
-        // The layout, top to bottom, in OS units (the body is about 1145 x 1086 at this window's size):
-        // 1 a header card: a tag (SAMPLE · LOOK AROUND, or YOUR PROJECT), what the project is (the sample's line, or the
-        //   plan's goal), its test, and where it stands (v2 · slalom passed);
-        // 2 one row of actions: the one primary button (Next: Course for a project of your own; Make my own RC truck on a
-        //   sample, with the next step beside it), then Notebook and Send, quiet;
-        // 3 a steps card: the loop as a stepper, one chip per step (done, next, upcoming, off), why a step is off, the live
-        //   brain line (truck) and the last result;
-        // 4 a summary card, two columns: Plan, Versions, Last training, Last run, Artifacts, Design, Follows / Made from.
+        // The overview, top to bottom, in OS units (the body is about 1020 x 780 at this window's size):
+        // 1 one sentence: what the project is (the sample's line, or the plan's goal) - the title, the SAMPLE / MY PROJECT
+        //   badge and the status ("v2 · slalom passed") are already in the window's header;
+        // 2 the one big button (Next: Course; Fly the new version right after a design change);
+        // 3 the last result (what the last step did), only when there is one;
+        // 4 the loop as one row of step chips (done, next, upcoming, off), every one tappable, and why a step is off;
+        // 5 at the bottom: Make my own on a sample, and More (Details, Notebook, Send in a small row).
+        // Details is a second page: Back, then one two-column card (test, plan, versions, design, last training, last run,
+        // artifacts, what it follows, the truck's live line, the steps that are off and why).
         void Rebuild()
         {
             dirty = false;
@@ -220,7 +235,7 @@ namespace Forge.OS
             RectTransform body = OSUi.Body(panel);
             if (body == null) return;
             OSUi.Clear(body);
-            RectTransform column = OSUi.Column(body, 18f);
+            RectTransform column = OSUi.Column(body, OSProjectLayout.GroupGap);
 
             OSProjects.LinkedArtifacts(projectId, linked);
             bool sample = OSProjects.IsSample(projectId);
@@ -230,107 +245,197 @@ namespace Forge.OS
 
             availabilityKey = AvailabilityKey();
             string next = NextAction();
-            BuildHeader(OSUi.Card(column, 24f, 8f), sample, isOpen, status);
-            BuildActionRow(column, sample, next);
-            BuildSteps(OSUi.Card(column, 24f, 10f), next);
-            BuildSummary(OSUi.Card(column, 24f, 8f), isOpen);
+            CollectSteps();
+            CollectExtras();
+            if (details) BuildDetails(column, isOpen);
+            else BuildOverview(column, sample, isOpen, next);
             steps.AddRange(extras);  // the loop's steps first, then Notebook and Send (the voice tool reads them in this order)
             extras.Clear();
             PollBrain();
         }
 
-        /// <summary>The sample window's one call to action ("Make my own RC truck"): Build something with the sample's kind picked.</summary>
+        /// <summary>The sample window's call to action ("Make my own RC truck"): Build something with the sample's kind picked.</summary>
         public static string MakeOwnLabel(string sampleId) => OSProjects.MakeOwnLabel(sampleId);
 
         /// <summary>Old name of the sample's call to action; it is now <see cref="MakeOwnLabel"/> (a sample is never copied).</summary>
         public const string CopyLabel = "Make my own";
 
-        /// <summary>The tag line of a sample's header, and of a project of the person's own.</summary>
+        /// <summary>The tag line of a sample on the Details page, and of a project of the person's own.</summary>
         public const string SampleTagLine = "Sample · look around", OwnTagLine = "Your project";
 
-        // 1 What it is, its test, where it stands.
-        void BuildHeader(RectTransform card, bool sample, bool isOpen, string status)
+        /// <summary>The labels of the overflow button, its row's page button, and the Details page's way back.</summary>
+        public const string MoreLabel = "More", LessLabel = "Less", DetailsLabel = "Details", BackLabel = "Back";
+
+        /// <summary>True while the window shows the Details page (plan, versions, runs...) instead of the overview.</summary>
+        public bool DetailsOpen
         {
-            JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
-            string goal = plan != null ? (string)plan["goal"] : null;
-            string test = plan != null && plan["test"] != null && plan["test"].Type == JTokenType.String ? (string)plan["test"] : null;
-            string follows = OSProjects.CopyOf(projectId);
-            string tag = sample ? SampleTagLine
-                : follows != null ? OwnTagLine + " · like the " + OSProjects.TitleFor(follows) + " sample"
-                : OwnTagLine;
-            OSUi.Tag(card, tag);
-            string what = sample ? OSProjects.SampleShows(projectId) + "."
-                : !string.IsNullOrWhiteSpace(goal) ? goal
-                : "No plan written yet. Ask Albie to plan it with you.";
-            TMP_Text lead = OSUi.Text(card, Clip(what, 120), OSUi.TitleText, !sample && string.IsNullOrWhiteSpace(goal));
-            lead.fontStyle = FontStyles.Bold;
-            if (!string.IsNullOrWhiteSpace(test)) OSUi.Text(card, "Test: " + Clip(test, 110), LineSize);
-            OSUi.Text(card, sample ? OSProjects.SampleLine : "Now: " + status, NoteSize, true);
+            get => details;
+            set { if (details != value) { details = value; more = false; dirty = true; } }
         }
 
-        // 2 The one primary button, then the quiet ones.
-        void BuildActionRow(RectTransform column, bool sample, string next)
+        /// <summary>True while More's small row (Details, Notebook, Send) is open on the overview.</summary>
+        public bool MoreOpen
         {
-            RectTransform row = OSUi.Row(column, OSUi.ChipHeight, OSUi.MinGap);
-            OSUi.Rigid(row);
-            string nextLabel = next != null ? LabelOf(next) : null;
-            if (sample)
-            {
-                string own = OSProjects.MakeOwnLabel(projectId);
-                Chip(OSUi.Button(row, own, () => Do("make_own"), OSButtonStyle.Primary, "plus"));
-                if (nextLabel != null && UnavailableOf(next) == null)
-                    Chip(OSUi.Button(row, "Next: " + nextLabel, () => Do(next), OSButtonStyle.Secondary));
-            }
-            else if (nextLabel != null && UnavailableOf(next) == null)
-            {
-                Chip(OSUi.Button(row, "Next: " + nextLabel, () => Do(next), OSButtonStyle.Primary, IconOf(next)));
-            }
-            var spacer = new GameObject("Spacer", typeof(RectTransform));
-            spacer.transform.SetParent(row, false);
-            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            AddAction(row, "Notebook", "notebook", OSButtonStyle.Borderless, OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null, "notebook");
-            // Send drafts the project's latest result to its channel (rc-truck, quadcopter, rocket, image-classifier); the
-            // message panel's Send / Cancel is the confirm, so nothing leaves the headset from this button.
-            AddAction(row, "Send", "send", OSButtonStyle.Borderless, null, "send");
+            get => more;
+            set { if (more != value) { more = value; dirty = true; } }
         }
 
-        static void Chip(Button button)
-        {
-            if (button == null) return;
-            var layout = button.GetComponent<LayoutElement>();
-            OSUi.Size(button.transform, layout != null ? layout.preferredWidth : OSUi.ButtonMinWidth, OSUi.ChipHeight);
-        }
+        /// <summary>True right after the project's design got a new version: the big button offers the obvious next move.</summary>
+        public bool DesignChanged => designChanged;
 
-        // 3 The loop as a stepper: what is done, what is next, what is off and why, and the last result.
-        void BuildSteps(RectTransform card, string next)
+        // The loop's steps, with why each is off (the voice tool and both pages read them).
+        void CollectSteps()
         {
-            OSUi.Tag(card, "Steps");
-            RectTransform stepper = OSUi.Stepper(card);
             LoopSteps(scratchSteps);
-            int current = -1;
-            for (int i = 0; i < scratchSteps.Count; i++)
-                if (scratchSteps[i] == next) { current = i; break; }
             for (int i = 0; i < scratchSteps.Count; i++)
             {
                 string action = scratchSteps[i];
                 string off = UnavailableOf(action);
-                OSUi.StepState state = off != null ? OSUi.StepState.Locked
-                    : i == current ? OSUi.StepState.Current
-                    : current >= 0 && i < current ? OSUi.StepState.Done
-                    : OSUi.StepState.Upcoming;
-                string captured = action;
-                OSUi.StepChip(stepper, i + 1, LabelOf(action), IconOf(action), state, () => DoIfOn(captured));
                 steps.Add(new Step { label = LabelOf(action), action = action, unavailable = off });
                 if (off != null) Hint(LabelOf(action), off);
             }
-            for (int i = 0; i < hints.Count; i++) OSUi.Text(card, hints[i], NoteSize, true);
-            if (kind == OSProjectKind.Truck) brainText = OSUi.Text(card, "", NoteSize, true);
-            statusText = OSUi.Text(card, statusLine.Length > 0 ? statusLine : NextStepLine(), LeadSize);
+        }
+
+        // Notebook and Send (in More's row). Send drafts the project's latest result to its channel (rc-truck, quadcopter,
+        // rocket, image-classifier); the message panel's Send / Cancel is the confirm, so nothing leaves the headset from it.
+        void CollectExtras()
+        {
+            string noNotebook = OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null;
+            extras.Add(new Step { label = "Notebook", action = "notebook", unavailable = noNotebook });
+            extras.Add(new Step { label = "Send", action = "send", unavailable = null });
+            if (noNotebook != null) Hint("Notebook", noNotebook);
+        }
+
+        // ---- the overview
+
+        void BuildOverview(RectTransform column, bool sample, bool isOpen, string next)
+        {
+            // 1 What it is, in one sentence.
+            JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
+            string goal = plan != null ? (string)plan["goal"] : null;
+            bool noPlan = !sample && string.IsNullOrWhiteSpace(goal);
+            string what = sample ? OSProjects.SampleShows(projectId) + "."
+                : !noPlan ? goal
+                : "No plan yet. Ask Albie to plan it with you.";
+            TMP_Text lead = OSUi.Text(column, Clip(what, 110), OSUi.TitleText, noPlan);
+            lead.fontStyle = FontStyles.Bold;
+
+            // 2 The one big button.
+            string hero = HeroAction(next, out string heroLabel);
+            if (hero != null)
+            {
+                string captured = hero;
+                OSProjectLayout.Hero(column, heroLabel, () => Do(captured), hero == "notebook" ? "notebook" : IconOf(hero));
+            }
+
+            // 3 The last result. A suggestion that only repeats the big button ("Next step: tap Course...") isn't shown.
+            string shown = hero != null && statusLine.StartsWith("Next step: tap ", StringComparison.Ordinal) ? "" : statusLine;
+            statusText = OSUi.Text(column, shown, LeadSize);
+
+            // 4 The loop: every chip can be tapped at any time (a done step opens its tool again); an off one says why below.
+            RectTransform stepper = OSUi.Stepper(column);
+            int current = -1;
+            string ringed = hero != null && IsLoopStep(hero) ? hero : next;
+            for (int i = 0; i < scratchSteps.Count; i++)
+                if (scratchSteps[i] == ringed) { current = i; break; }
+            int doneUpTo = -1;
+            for (int i = 0; i < scratchSteps.Count; i++)
+                if (scratchSteps[i] == next) { doneUpTo = i; break; }
+            for (int i = 0; i < scratchSteps.Count; i++)
+            {
+                string action = scratchSteps[i];
+                OSUi.StepState state = UnavailableOf(action) != null ? OSUi.StepState.Locked
+                    : i == current ? OSUi.StepState.Current
+                    : doneUpTo >= 0 && i < doneUpTo ? OSUi.StepState.Done
+                    : OSUi.StepState.Upcoming;
+                string captured = action;
+                OSUi.StepChip(stepper, i + 1, LabelOf(action), IconOf(action), state, () => DoIfOn(captured));
+            }
+            if (hints.Count > 0) OSUi.Text(column, Clip(string.Join(" ", hints), 150), NoteSize, true);
+
+            // 5 Along the bottom.
+            OSProjectLayout.FlexibleHeight(column);
+            if (more)
+            {
+                RectTransform extraRow = OSUi.Row(column, OSUi.ChipHeight, OSUi.MinGap);
+                OSUi.Rigid(extraRow);
+                OSProjectLayout.Fit(OSUi.Button(extraRow, DetailsLabel, () => DetailsOpen = true, OSButtonStyle.Secondary), OSUi.ChipHeight);
+                for (int i = 0; i < extras.Count; i++)
+                {
+                    Step e = extras[i];
+                    string action = e.action;
+                    string off = e.unavailable;
+                    Button b = OSUi.Button(extraRow, e.label, () => { if (off == null) Do(action); }, OSButtonStyle.Secondary, action);
+                    OSProjectLayout.Fit(b, OSUi.ChipHeight);
+                    if (b != null && off != null) b.interactable = false;
+                }
+            }
+            RectTransform row = OSUi.Row(column, OSUi.ChipHeight, OSUi.MinGap);
+            OSUi.Rigid(row);
+            if (sample) OSProjectLayout.Fit(OSUi.Button(row, OSProjects.MakeOwnLabel(projectId), () => Do("make_own"), OSButtonStyle.Secondary, "plus"), OSUi.ChipHeight);
+            OSProjectLayout.FlexibleWidth(row);
+            OSProjectLayout.Fit(OSUi.Button(row, more ? LessLabel : MoreLabel, () => MoreOpen = !more, OSButtonStyle.Borderless), OSUi.ChipHeight);
+        }
+
+        bool IsLoopStep(string action)
+        {
+            for (int i = 0; i < scratchSteps.Count; i++)
+                if (scratchSteps[i] == action) return true;
+            return false;
+        }
+
+        // What the big button does, and its label: right after a design change the obvious next move ("Fly the new version",
+        // "Simulate the new version", or back to the step that was next); otherwise the next step when it can run; a project
+        // with no next step to suggest gets its notebook (Build something's first step for "something else").
+        string HeroAction(string next, out string label)
+        {
+            label = null;
+            if (designChanged)
+            {
+                string after = AfterDesign(next);
+                if (after != null && UnavailableOf(after) == null)
+                {
+                    label = after == "fly" ? "Fly the new version"
+                        : after == "simulate" ? "Simulate the new version"
+                        : after == returnTo ? "Back to " + LabelOf(after)
+                        : "Next: " + LabelOf(after);
+                    return after;
+                }
+            }
+            if (next != null)
+            {
+                if (UnavailableOf(next) != null) return null;
+                label = "Next: " + LabelOf(next);
+                return next;
+            }
+            if (OSProjects.FindTool("notebook") == null) return null;
+            label = "Next: Notebook";
+            return "notebook";
+        }
+
+        // The obvious move after the design changed: fly it (a drone on its course), simulate it (the rocket), or go back.
+        string AfterDesign(string next)
+        {
+            if (loop == Loop.Quadcopter && ArtifactDrone.Live != null) return "fly";
+            if (loop == Loop.Rocket) return "simulate";
+            if (returnTo != null && returnTo != "design" && returnTo != "cad") return returnTo;
+            return next != "design" && next != "cad" ? next : null;
+        }
+
+        // ---- the Details page
+
+        void BuildDetails(RectTransform column, bool isOpen)
+        {
+            RectTransform row = OSUi.Row(column, OSUi.ChipHeight, OSUi.MinGap);
+            OSUi.Rigid(row);
+            OSProjectLayout.Fit(OSUi.Button(row, BackLabel, () => DetailsOpen = false, OSButtonStyle.Secondary, "chevron_left"), OSUi.ChipHeight);
+            BuildSummary(OSUi.Card(column, 24f, 8f), isOpen);
         }
 
         readonly List<string> scratchSteps = new List<string>(6);
 
-        // A tap on a chip: a step that is off does nothing (its reason is already under the stepper).
+        // A tap on a chip: any step that is on runs, done or not (a done step opens its tool again). An off chip is switched
+        // off (its reason is under the row), so this only guards a press that lands anyway.
         void DoIfOn(string action)
         {
             if (UnavailableOf(action) == null) Do(action);
@@ -342,7 +447,7 @@ namespace Forge.OS
             into.Clear();
             switch (loop)
             {
-                case Loop.Truck: into.Add("course"); into.Add("drive"); into.Add("train"); into.Add("autopilot"); into.Add("code"); break;
+                case Loop.Truck: into.Add("design"); into.Add("course"); into.Add("drive"); into.Add("train"); into.Add("autopilot"); into.Add("code"); break;
                 case Loop.Quadcopter: into.Add("design"); into.Add("course"); into.Add("fly"); into.Add("train"); into.Add("autopilot"); break;
                 case Loop.Rocket: into.Add("design"); into.Add("simulate"); into.Add("launch"); break;
                 case Loop.Ml: into.Add("data"); into.Add("train"); into.Add("results"); into.Add("publish"); break;
@@ -422,11 +527,16 @@ namespace Forge.OS
             hints.Add(label + tail);
         }
 
-        // 4 Where it stands, as a two-column summary.
+        // The Details page's card: where it stands, as a two-column summary.
         void BuildSummary(RectTransform card, bool isOpen)
         {
-            OSUi.Tag(card, "Where it stands");
+            bool sample = OSProjects.IsSample(projectId);
+            string follows = OSProjects.CopyOf(projectId);
+            OSUi.Tag(card, sample ? SampleTagLine : follows != null ? OwnTagLine + " · like the " + OSProjects.TitleFor(follows) + " sample" : OwnTagLine);
             JObject plan = isOpen ? NotebookStore.CurrentPlan : null;
+            string test = plan != null && plan["test"] != null && plan["test"].Type == JTokenType.String ? (string)plan["test"] : null;
+            if (!string.IsNullOrWhiteSpace(test)) OSUi.Pair(card, "Test", Clip(test, 110));
+            else if (sample) OSUi.Pair(card, "Sample", OSProjects.SampleLine);
             OSUi.Pair(card, "Plan", PlanLine(plan));
 
             var versions = isOpen ? NotebookStore.Versions : null;
@@ -453,6 +563,9 @@ namespace Forge.OS
             OSUi.Pair(card, "Artifacts", ArtifactsLine());
             string from = MlLinksLine(out string fromLabel);
             if (from != null) OSUi.Pair(card, fromLabel, from);
+            if (kind == OSProjectKind.Truck) brainText = OSUi.Pair(card, "Truck", "");
+            if (hints.Count > 0) OSUi.Pair(card, "Off", Clip(string.Join(" ", hints), 150));
+            if (statusLine.Length > 0) statusText = OSUi.Pair(card, "Last result", statusLine);
         }
 
         // "v2 · 3 of 7 milestones done · next: A clean lap at 2 m/s or more", or what to do when there is none.
@@ -573,16 +686,6 @@ namespace Forge.OS
         /// <summary>What the Drive step says in the one case left: the Drive tool is not in the menu's registry (it is registered at start).</summary>
         public const string DriveMissing = "The Drive pad couldn't be found.";
 
-        void AddAction(RectTransform row, string label, string action, OSButtonStyle style, string disabledReason, string icon)
-        {
-            Button button = OSUi.Button(row, label, () => { if (disabledReason == null) Do(action); }, style, icon);
-            Chip(button);
-            extras.Add(new Step { label = label, action = action, unavailable = disabledReason });
-            if (disabledReason == null) return;
-            if (button != null) button.interactable = false;
-            Hint(label, disabledReason);
-        }
-
         // ---------------------------------------------------------------- the next step
 
         /// <summary>
@@ -603,8 +706,9 @@ namespace Forge.OS
                 case Loop.Quadcopter:
                     if (ProjectSpine.PinnedCad("quadcopter") == 0 && ProjectSpine.LastCadPart != "quadcopter") return "design";
                     if (ArtifactDrone.Live == null) return "course";
-                    if (DroneBrainProblem() == null) return HasTraining() ? "autopilot" : "train";
-                    return "fly";
+                    if (DroneBrainProblem() != null) return "fly";
+                    if (!HasTraining() && ((DroneLoop() as Forge.Controllers.ICourseBrain)?.LapsCompleted ?? 0) < 2) return "fly";  // two flown laps before Train
+                    return HasTraining() ? "autopilot" : "train";
                 case Loop.Rocket:
                     if (ProjectSpine.PinnedCad("rocket") == 0 && ProjectSpine.LastCadPart != "rocket") return "design";
                     if (!simulated) return "simulate";
@@ -697,6 +801,13 @@ namespace Forge.OS
                 text = OSProjects.Plain(e.Message);
             }
             if (text != null) SetStatus(text);
+            // Any other step of the loop answers "what now" after a design change; Notebook and Send don't.
+            if (designChanged && action != "design" && action != "notebook" && action != "send")
+            {
+                designChanged = false;
+                designAtOpen = -1;
+                returnTo = null;
+            }
             dirty = true;  // the lists (versions, runs, buttons) may have changed; the next Update rebuilds
             return statusLine;
         }
@@ -722,9 +833,18 @@ namespace Forge.OS
                     MessagesShare.DraftForProject(projectId, out string sendStatus);
                     return string.IsNullOrEmpty(sendStatus) ? "Nothing to share yet." : sendStatus;
                 case "notebook": return OpenToolLine(OSProjects.FindTool("notebook"), "Notebook");
+                case "design" when loop == Loop.Truck:
+                    // The truck's design is on the device (TruckDesign): sliders change it on the course at once.
+                    Forge.Controllers.TruckDesignPanel.Open();
+                    return "Truck design is open. Move a slider and the truck on the course changes; Save as version keeps it.";
                 case "design":
+                    WatchDesign();
                     SetStatus("Opening CAD...");
-                    OSProjects.OpenDesign(design, SetStatus);
+                    OSProjects.OpenDesign(design, line =>
+                    {
+                        SetStatus(line);
+                        ShowParameters();
+                    });
                     return null;
                 case "dataset": return DoDataset();
                 case "make_own":
@@ -1065,6 +1185,62 @@ namespace Forge.OS
         {
             statusLine = text ?? "";
             if (statusText != null) statusText.text = statusLine;
+        }
+
+        // ---------------------------------------------------------------- after a design change
+
+        // Design was tapped: remember what was next, and watch the design's version from the one CAD shows now (or shows next).
+        void WatchDesign()
+        {
+            string before = NextAction();
+            if (before != "design" && before != "cad") returnTo = before;
+            else if (!designChanged) returnTo = null;
+            designChanged = false;
+            designAtOpen = design != null && ProjectSpine.LastCadPart == design ? ProjectSpine.LastCadVersion : -2;
+        }
+
+        // The design's Parameters tab, so the design can be changed at once (CAD's own cad.action "tab", which waits until the
+        // design is on screen).
+        void ShowParameters()
+        {
+            if (string.IsNullOrEmpty(design)) return;
+            try
+            {
+                ForgeEvents.Raise(ForgeEvents.CadActionType, new JObject { ["action"] = "tab", ["tab"] = "parameters", ["part"] = design });
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+        }
+
+        // A slider or preset of this design was changed after Design was tapped. Offline CAD shows the nearest stored version,
+        // which may be the same number, so the change itself counts, not only a new version.
+        void OnDesignParams(string part, Dictionary<string, object> changes)
+        {
+            if (designAtOpen == -1 || design == null || part != design || designChanged) return;
+            designChanged = true;
+            simulated = false;
+            SetStatus("The " + design + " design changed.");
+            dirty = true;
+        }
+
+        // Every poll (no allocation unless the version really changed): a newer version of the design than the one opened.
+        void PollDesign()
+        {
+            if (designAtOpen == -1 || design == null || ProjectSpine.LastCadPart != design) return;
+            int shown = ProjectSpine.LastCadVersion;
+            if (designAtOpen == -2)
+            {
+                designAtOpen = shown;  // CAD now shows the design: changes count from here
+                return;
+            }
+            if (shown <= designAtOpen) return;
+            designChanged = true;
+            simulated = false;  // a new rocket hasn't flown in the sim yet
+            designAtOpen = shown;
+            SetStatus("The " + design + " is now v" + shown + ".");
+            dirty = true;
         }
 
         // ---------------------------------------------------------------- the live brain line (truck)

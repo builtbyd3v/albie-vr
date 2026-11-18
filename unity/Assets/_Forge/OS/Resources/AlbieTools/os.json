@@ -15,7 +15,7 @@
      "id": {"type": "string", "description": "the id of the tool, project, artifact or system page"}},
      "required": ["kind", "id"]}},
   {"name": "os_windows",
-   "description": "Manage the user's open windows. recenter brings every window back in front of the user, side by side. close_all closes them all.",
+   "description": "Manage the user's open windows. recenter brings every window back in front of the user, side by side. close_all closes everything: the windows, the open mode, the open artifact and its room course, the truck or drone, the RC transmitter and loose panels (the same as spaces_close_all; it asks on the Spaces list first when a run going on would be lost).",
    "parameters": {"type": "object", "properties": {
      "action": {"type": "string", "enum": ["recenter", "close_all"]}},
      "required": ["action"]}}

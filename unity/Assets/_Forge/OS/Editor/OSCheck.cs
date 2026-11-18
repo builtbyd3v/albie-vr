@@ -80,6 +80,9 @@ ok &= Check(sb, "the planner tree is valid: no problems, every path ends in a pl
 ok &= Check(sb, "the Agents page registers under the strip's id and the crew's Bring home hook is in place", AgentsPage);
             ok &= Check(sb, "the hand-drag guards are wired: slider writes wait for the drag, a held panel is left alone, the menu and wrist button are built ahead, tile captions are out of the animator's reach", HandDragGuards);
             ok &= Check(sb, "the test environment saves and restores the user's prefs and reports a changed pref or file", TestEnvironment);
+            ok &= Check(sb, "the menu sits within easy reach of a synthetic head (0.4 to 0.55 m, 15 to 25 degrees down, facing it, above the desk) and its controls are hand-sized", MenuReach);
+            ok &= Check(sb, "the whistle's puck no longer shows on the table, and the whistle still presses", WhistleOffTable);
+            ok &= Check(sb, "spaces.json defines the Spaces tools, each has a handler, they answer an error with no shell, and the spaces page is registered", SpacesTools);
             return (ok ? "PASS" : "FAIL") + " os check\n" + sb;
         }
 
@@ -246,7 +249,11 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 ("os_tab", new JObject { ["tab"] = "projects" }),
                 ("os_open", new JObject { ["kind"] = "tool", ["id"] = "cad" }),
                 ("os_windows", new JObject { ["action"] = "recenter" }),
+                ("os_windows", new JObject { ["action"] = "close_all" }),
+                ("spaces_show", new JObject()),
+                ("spaces_close_all", new JObject()),
             };
+            if (!AlbieTools.Has(OSSpaces.ToolNames[0])) OSSpaces.Register();
             foreach (var call in calls)
             {
                 JObject result = AlbieTools.Call(call.tool, call.args);
@@ -335,7 +342,10 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
 
                 var s = OSSettings.Current;
                 if (!s.tableButton || !s.watchTurn || !s.cornerButton || s.cornerOnLeft || s.gestureDisplay || s.flatLayout) return "the defaults are wrong";
-                if (!Mathf.Approximately(s.menuDistance, 0.5f) || !Mathf.Approximately(s.menuDropDegrees, 15f)) return "the menu placement defaults are wrong";
+                if (!Mathf.Approximately(s.menuDistance, OSSettings.DefaultDistance) || !Mathf.Approximately(s.menuDropDegrees, OSSettings.DefaultDrop)) return "the menu placement defaults are wrong";
+                if (OSSettings.DefaultDistance < 0.4f || OSSettings.DefaultDistance > 0.55f || OSSettings.DefaultDrop < 15f || OSSettings.DefaultDrop > 25f)
+                    return "the default menu place (" + OSSettings.DefaultDistance + " m, " + OSSettings.DefaultDrop + " degrees) is outside easy reach (0.4 to 0.55 m, 15 to 25 degrees down)";
+                if (OSSettings.MinDistance < 0.4f) return "the menu may come " + OSSettings.MinDistance + " m from the eyes: too near to get a hand in front of it";
 
                 // Every field away from its default: the three menu-button switches, the corner side, the two sliders, the gesture
                 // display and the layout (the P1 fields are watchTurn, cornerButton, cornerOnLeft, gestureDisplay, flatLayout).
@@ -343,7 +353,7 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 s.watchTurn = false;
                 s.cornerButton = false;
                 s.cornerOnLeft = true;
-                s.menuDistance = 0.62f;
+                s.menuDistance = 0.58f;
                 s.menuDropDegrees = 22f;
                 s.gestureDisplay = true;
                 s.flatLayout = true;
@@ -358,14 +368,15 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 var back = OSSettings.Current;
                 if (ReferenceEquals(back, s)) return "Reload kept the old object";
                 if (back.tableButton || back.watchTurn || back.cornerButton || !back.cornerOnLeft || !back.gestureDisplay || !back.flatLayout) return "the values didn't round-trip";
-                string[] known = { "tableButton", "watchTurn", "cornerButton", "cornerOnLeft", "menuDistance", "menuDropDegrees", "gestureDisplay", "flatLayout" };
+                string[] known = { "tableButton", "watchTurn", "cornerButton", "cornerOnLeft", "menuDistance", "menuDropDegrees", "gestureDisplay", "flatLayout", "placementVersion" };
                 string text = File.ReadAllText(path);
                 foreach (string key in known)
                     if (!text.Contains("\"" + key + "\"")) return "the file doesn't name '" + key + "'";
                 // A field added later that this check doesn't know about: it has to be added here, so it is round-tripped too.
                 foreach (FieldInfo field in typeof(OSSettings).GetFields(BindingFlags.Public | BindingFlags.Instance))
                     if (Array.IndexOf(known, field.Name) < 0) return "OSSettings." + field.Name + " is a new field: add it to this round-trip check";
-                if (!Mathf.Approximately(back.menuDistance, 0.62f) || !Mathf.Approximately(back.menuDropDegrees, 22f)) return "the sliders didn't round-trip";
+                if (!Mathf.Approximately(back.menuDistance, 0.58f) || !Mathf.Approximately(back.menuDropDegrees, 22f)) return "the sliders didn't round-trip";
+                if (back.placementVersion != OSSettings.PlacementVersion) return "the placement version didn't round-trip";
 
                 back.menuDistance = 9f;
                 back.menuDropDegrees = -4f;
@@ -378,15 +389,24 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 Debug.unityLogger.logEnabled = false;
                 File.WriteAllText(path, "{ this is not json");
                 OSSettings.Reload();
-                if (!OSSettings.Current.tableButton || !Mathf.Approximately(OSSettings.Current.menuDistance, 0.5f)) return "a damaged file didn't give the defaults";
+                if (!OSSettings.Current.tableButton || !Mathf.Approximately(OSSettings.Current.menuDistance, OSSettings.DefaultDistance)) return "a damaged file didn't give the defaults";
                 File.WriteAllText(path, "");
                 OSSettings.Reload();
                 if (!OSSettings.Current.tableButton) return "an empty file didn't give the defaults";
-                File.WriteAllText(path, "{\"cornerOnLeft\": true, \"menuDistance\": 0.4}");
+                File.WriteAllText(path, "{\"cornerOnLeft\": true, \"menuDistance\": 0.45}");
                 OSSettings.Reload();
                 Debug.unityLogger.logEnabled = logs;
-                if (!OSSettings.Current.cornerOnLeft || !Mathf.Approximately(OSSettings.Current.menuDistance, 0.4f) || !OSSettings.Current.tableButton)
+                if (!OSSettings.Current.cornerOnLeft || !Mathf.Approximately(OSSettings.Current.menuDistance, 0.45f) || !OSSettings.Current.tableButton)
                     return "a partial file didn't keep what it had and default the rest";
+                // A file from before the reach fix still holds the old defaults (0.5 m, 15 degrees): read once, it moves to the new ones.
+                File.WriteAllText(path, "{\"menuDistance\": 0.5, \"menuDropDegrees\": 15}");
+                OSSettings.Reload();
+                if (!Mathf.Approximately(OSSettings.Current.menuDistance, OSSettings.DefaultDistance) || !Mathf.Approximately(OSSettings.Current.menuDropDegrees, OSSettings.DefaultDrop) || OSSettings.Current.placementVersion != OSSettings.PlacementVersion)
+                    return "an old file's untouched defaults weren't moved to the new place (" + OSSettings.Current.menuDistance + " m, " + OSSettings.Current.menuDropDegrees + " degrees)";
+                File.WriteAllText(path, "{\"menuDistance\": 0.5, \"menuDropDegrees\": 15, \"placementVersion\": 2}");
+                OSSettings.Reload();
+                if (!Mathf.Approximately(OSSettings.Current.menuDistance, 0.5f) || !Mathf.Approximately(OSSettings.Current.menuDropDegrees, 15f))
+                    return "a place the user chose after the fix was moved";
 
                 OSSettings.Current.tableButton = false;
                 OSSettings.Current.watchTurn = false;
@@ -792,6 +812,153 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
                 foreach (JToken k in kinds) if ((string)k == kind) has = true;
                 if (!has) return "os_open's kind enum lacks " + kind;
             }
+            return null;
+        }
+
+        // The menu's place, worked out for a head at 1.2 m looking ahead, down and up (the plain place: OSMenu.ReachPose; the
+        // search around obstacles is the Play-mode menu test's), the desk rule for a high desk, and the control sizes at the menu's scale.
+        static string MenuReach(out string note)
+        {
+            note = null;
+            var go = new GameObject("OSCheck head");
+            string settingsPath = Path.Combine(Application.temporaryCachePath, "os_check_reach", "os_settings.json");
+            OSSettings.SetPathForTests(settingsPath);  // the defaults, never the user's own file
+            try
+            {
+                Transform head = go.transform;
+                foreach (float pitch in new[] { 0f, 35f, -25f })
+                {
+                    head.SetPositionAndRotation(new Vector3(0.3f, 1.2f, -0.4f), Quaternion.Euler(pitch, 40f, 0f));
+                    OSMenu.ReachPose(head, out Vector3 center, out Quaternion rotation);
+                    Vector3 offset = center - head.position;
+                    float distance = offset.magnitude;
+                    float drop = Mathf.Atan2(-offset.y, new Vector2(offset.x, offset.z).magnitude) * Mathf.Rad2Deg;
+                    float yaw = Vector3.SignedAngle(Vector3.ProjectOnPlane(head.forward, Vector3.up), Vector3.ProjectOnPlane(offset, Vector3.up), Vector3.up);
+                    if (distance < 0.4f || distance > 0.55f) return $"looking {pitch} degrees down the menu is {distance:F2} m from the eyes (want 0.4 to 0.55)";
+                    if (drop < 15f || drop > 25f) return $"looking {pitch} degrees down the menu is {drop:F1} degrees below eye level (want 15 to 25)";
+                    if (Mathf.Abs(yaw) > 1f) return $"the menu is {yaw:F1} degrees to the side of where the head faces";
+                    if (Vector3.Angle(rotation * Vector3.forward, offset) > 1f) return "the menu does not face the eyes";
+                    note = $"{distance:F2} m, {drop:F1} degrees down";
+                }
+                // A desk 0.3 m under the eyes: the drop is lessened until the plate's lower edge is 4 cm above the desk top.
+                OSMenu.ReachSetting(out float d0, out float drop0);
+                float heightM = 496f * OSMenu.UnitMeters;  // the plate's height in menu units (Pad + tabs + grid + strip)
+                float lifted = OSMenu.AboveDesk(new Vector3(0f, 1.2f, 0f), Vector3.forward, d0, drop0, heightM, 0.9f);
+                float rad = lifted * Mathf.Deg2Rad;
+                float bottom = 1.2f - Mathf.Sin(rad) * d0 - Mathf.Cos(rad) * heightM * 0.5f;
+                if (lifted > drop0 + 0.01f || bottom < 0.9f + 0.035f) return $"over a high desk the menu's lower edge is {bottom - 0.9f:F3} m above it (drop {lifted:F1})";
+                if (OSMenu.AboveDesk(Vector3.up * 1.2f, Vector3.forward, d0, drop0, heightM, float.NegativeInfinity) != drop0) return "with no desk the drop changed";
+
+                // Control sizes in the menu: at least 28 mm (strip buttons, tabs, close, paging) and tiles far more; gaps 12 mm.
+                float unit = OSMenu.UnitMeters * 1000f;
+                float strip = Const("StripButtonHeight"), tab = Const("TabHeight"), gap = Const("Gap"), tileGap = Const("TileGap"), tileW = Const("TileWidth"), tileH = Const("TileHeight");
+                if (strip * unit < 28f) return $"the strip's buttons are {strip * unit:F1} mm tall (want 28)";
+                if (tab * unit < 28f) return $"the tabs are {tab * unit:F1} mm tall";
+                if (56f * unit < 28f) return "the close and paging buttons are under 28 mm";
+                if (gap * unit < 12f || tileGap * unit < 12f) return $"the gaps are {gap * unit:F1} and {tileGap * unit:F1} mm (want 12)";
+                if (tileH * unit < 28f) return $"a tile is {tileH * unit:F0} mm tall";
+                float width = (4f * tileW + 3f * tileGap + 2f * Const("Pad")) * OSMenu.UnitMeters;
+                float fov = 2f * Mathf.Atan(width * 0.5f / d0) * Mathf.Rad2Deg;
+                if (fov > 70f) return $"the menu is {fov:F0} degrees wide at {d0:F2} m (want under 70)";
+                // Body text at the menu's scale, as seen from its distance, against the rubric's 9.5 mm cap height at 0.5 m.
+                float cap = OSUi.BodyText * unit * 0.686f * 0.5f / d0;
+                if (cap < 9.5f) return $"the menu's body text reads as {cap:F2} mm cap height at 0.5 m (want 9.5)";
+                note += $"; strip buttons {strip * unit:F0} mm, tabs {tab * unit:F0} mm, tiles {tileW * unit:F0} x {tileH * unit:F0} mm, gaps {gap * unit:F1} mm, {fov:F0} degrees wide, text {cap:F1} mm";
+                float wrist = 22f, corner = 58f * (OSKit.Current != null ? OSKit.Current.unitMeters : 0.00065f) * 1000f;
+                if (corner < 28f) return $"the corner button is {corner:F0} mm";
+                note += $", corner button {corner:F0} mm, wrist button at least {wrist:F0} mm";
+                return null;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                OSSettings.SetPathForTests(null);
+            }
+        }
+
+        static float Const(string name)
+        {
+            FieldInfo f = typeof(OSMenu).GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+            if (f == null) throw new MissingFieldException("OSMenu." + name);
+            return Convert.ToSingle(f.GetRawConstantValue());
+        }
+
+        // A whistle built the way WhistleSetup builds it (a collider puck with a visual child) hides its puck: the child is off,
+        // the collider is off and props beside it no longer leave it room. Pressing it still raises AnyPressed (the keys, CallAlbie).
+        static string WhistleOffTable(out string note)
+        {
+            note = null;
+            if (Forge.Pet.WhistleButton.ShowOnTable) return "WhistleButton.ShowOnTable is on: the puck would show on the table";
+            var scene = UnityEditor.SceneManagement.EditorSceneManager.NewPreviewScene();
+            var go = new GameObject("OSCheck whistle");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(go, scene);
+            Action<Forge.Pet.WhistleButton> heard = null;
+            try
+            {
+                var box = go.AddComponent<BoxCollider>();
+                var visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                UnityEngine.Object.DestroyImmediate(visual.GetComponent<Collider>());
+                visual.transform.SetParent(go.transform, false);
+                var whistle = go.AddComponent<Forge.Pet.WhistleButton>();
+                // Edit mode runs no OnEnable: apply what it applies.
+                MethodInfo apply = typeof(Forge.Pet.WhistleButton).GetMethod("ApplyShown", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (apply == null) return "WhistleButton has no ApplyShown";
+                apply.Invoke(whistle, null);
+                if (!whistle.Hidden) return "the whistle says it is not hidden";
+                if (visual.activeSelf) return "the whistle's puck still shows";
+                if (box.enabled) return "the whistle's collider still takes mouse clicks and pokes";
+                if (whistle.TryGetDockSpot(out _, out _, out _)) return "a hidden whistle still claims a spot beside the dock";
+                int presses = 0;
+                heard = b => presses++;
+                Forge.Pet.WhistleButton.AnyPressed += heard;
+                whistle.Press();
+                if (presses != 1) return "pressing the hidden whistle (the F key, CallAlbie) no longer reaches AlbieSummon";
+                note = "puck, poke and ray targets off; F, controller B and CallAlbie still whistle";
+                return null;
+            }
+            finally
+            {
+                if (heard != null) Forge.Pet.WhistleButton.AnyPressed -= heard;
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEditor.SceneManagement.EditorSceneManager.ClosePreviewScene(scene);
+            }
+        }
+
+        static string SpacesTools(out string note)
+        {
+            note = null;
+            var asset = Resources.Load<TextAsset>("AlbieTools/spaces");
+            if (asset == null) return "Resources/AlbieTools/spaces.json is missing";
+            var defined = new List<string>();
+            foreach (JObject def in JArray.Parse(asset.text))
+            {
+                string name = (string)def["name"];
+                defined.Add(name);
+                if (string.IsNullOrEmpty((string)def["description"])) return name + " has no description";
+                if ((string)def["parameters"]?["type"] != "object") return name + " has no parameters schema";
+            }
+            if (defined.Count != OSSpaces.ToolNames.Length) return "spaces.json defines " + defined.Count + " tools, the code has " + OSSpaces.ToolNames.Length;
+            foreach (string name in OSSpaces.ToolNames)
+                if (!defined.Contains(name)) return "spaces.json doesn't define " + name;
+            if (!AlbieTools.Has(OSSpaces.ToolNames[0])) OSSpaces.Register();
+            foreach (string name in OSSpaces.ToolNames)
+                if (!AlbieTools.Has(name)) return name + " is defined but has no handler";
+            if (!OSShell.HasSystem(OSSpaces.WindowId)) OSShell.RegisterSystem(OSSpaces.WindowId, () => OSSpacesWindow.Open());  // what Register does at start
+            if (!OSShell.HasSystem(OSSpaces.WindowId)) return "no system page is registered under 'spaces'";
+            if (OSShell.Current == null)
+            {
+                foreach (string name in OSSpaces.ToolNames)
+                {
+                    JObject result = AlbieTools.Call(name, new JObject { ["name"] = "settings" });
+                    if (result["error"] == null) return name + " answered without an error with no shell: " + result;
+                }
+                // Collecting with nothing in the scene lists nothing and does not throw.
+                var items = new List<SpaceItem>();
+                OSSpaces.Collect(items);
+                note = items.Count + " things listed with no shell";
+            }
+            string source = Path.Combine(Application.dataPath, "_Forge/OS/Scripts/OSArtifacts.cs");
+            if (!File.Exists(source) || !File.ReadAllText(source).Contains("TrackWhole(host, windows)")) return "the open artifact is no longer tracked as a whole by the window manager (Close all would miss a course)";
             return null;
         }
 
