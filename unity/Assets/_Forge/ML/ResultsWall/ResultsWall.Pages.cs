@@ -13,21 +13,44 @@ namespace Forge.ML
 
         // ---- Overview: the verdict, the dial, the headline numbers, best and worst classes ----
 
+        int OverviewClassRows()
+        {
+            int count = 0;
+            if (report != null) for (int c = 0; c < report.classes; c++) if (report.f1[c] >= 0) count++;
+            return Mathf.Min(4, count);
+        }
+
+        float OverviewHeight(float width)
+        {
+            bool wide = width >= 620f;
+            float rightWidth = wide ? width - 264f : width;
+            int metricColumns = rightWidth >= 340f ? 3 : 2;
+            int listColumns = rightWidth >= 340f ? 2 : 1;
+            float classHeight = 48f + Mathf.Max(1, OverviewClassRows()) * 62f;
+            float rightHeight = Mathf.Ceil(6f / metricColumns) * 102f + Mathf.Ceil(2f / listColumns) * (classHeight + 10f);
+            return (wide ? Mathf.Max(350f, rightHeight) : 362f + rightHeight) + 8f;
+        }
+
         void DrawOverviewPage(RectTransform p, float w, float h)
         {
             var r = report;
-            const float verdictWidth = 252;
-            MLUI.Card(p, 0, 0, verdictWidth, h, 16);
+            bool wide = w >= 620f;
+            float verdictWidth = wide ? 252f : w;
+            var verdictCard = MLUI.Rect("Model fit card", p, 0, 0, verdictWidth, 350);
+            p = verdictCard;
+            MLUI.Card(p, 0, 0, verdictWidth, 350, 16);
             MLUI.Caps(p, "Model fit", 16, 16, 200);
             var verdict = MLUI.Text(p, r.verdict, 16, 30, verdictWidth - 32, 34, 26); verdict.fontStyle = FontStyles.Bold; verdict.color = r.VerdictColor;
             var reason = MLUI.Text(p, r.reason, 16, 66, verdictWidth - 32, 44, 10.5f); reason.color = MLUI.Sub;
+            Shrink(reason, 9f);
 
             float accuracy = r.evaluated > 0 ? r.accuracy : r.valAccuracy;
             Color dial = accuracy < 0 ? MLUI.Faint : MLUI.Heat(accuracy);
-            var gauge = Graphic<MLGauge>(p, "Accuracy dial", 36, 116, 180, 90); gauge.thickness = 9;
-            var big = MLUI.Text(p, accuracy < 0 ? "—" : accuracy.ToString("0.0%"), 36, 164, 180, 32, 26);
+            float dialX = (verdictWidth - 180f) * 0.5f;
+            var gauge = Graphic<MLGauge>(p, "Accuracy dial", dialX, 116, 180, 90); gauge.thickness = 9;
+            var big = MLUI.Text(p, accuracy < 0 ? "—" : accuracy.ToString("0.0%"), dialX, 164, 180, 32, 26);
             big.fontStyle = FontStyles.Bold; big.alignment = TextAlignmentOptions.Top;
-            var caption = MLUI.Caps(p, "Validation accuracy", 36, 196, 180); caption.alignment = TextAlignmentOptions.Top;
+            var caption = MLUI.Caps(p, "Validation accuracy", dialX, 196, 180); caption.alignment = TextAlignmentOptions.Top;
             if (reveal && accuracy > 0)
             {
                 // The run just finished: the dial and the number count up.
@@ -46,27 +69,47 @@ namespace Forge.ML
             {
                 var gap = MLUI.Text(p, $"Train is {r.gap * 100f:0.0} points ahead of val", 16, 268, verdictWidth - 32, 14, 10);
                 gap.color = r.gap > 0.1f ? MLUI.Warn : MLUI.Sub;
+                gap.textWrappingMode = TextWrappingModes.NoWrap; Shrink(gap, 8f);
             }
             MLUI.Fill(p, 16, 292, verdictWidth - 32, 1, Hairline);
-            MLUI.Caps(p, "Best epoch", 16, 302, 110);
-            var best = MLUI.Text(p, r.bestEpoch < 0 ? "—" : $"{r.bestEpoch + 1}<size=65%><color=#FFFFFF70>  of {Mathf.Max(r.epochs, r.bestEpoch + 1)}</color></size>", 16, 316, 110, 22, 17);
+            float footerWidth = (verdictWidth - 44f) * 0.5f, footerX = 28f + footerWidth;
+            Shrink(MLUI.Caps(p, "Best epoch", 16, 302, footerWidth), 8f);
+            var best = MLUI.Text(p, r.bestEpoch < 0 ? "—" : $"{r.bestEpoch + 1}<size=65%><color=#FFFFFF70>  of {Mathf.Max(r.epochs, r.bestEpoch + 1)}</color></size>", 16, 316, footerWidth, 22, 17);
             best.fontStyle = FontStyles.Bold;
-            MLUI.Caps(p, "Best val loss", 132, 302, 110);
-            var loss = MLUI.Text(p, r.bestEpoch < 0 ? "—" : r.bestValLoss.ToString("0.000"), 132, 316, 110, 22, 17); loss.fontStyle = FontStyles.Bold;
+            Shrink(MLUI.Caps(p, "Best val loss", footerX, 302, footerWidth), 8f);
+            var loss = MLUI.Text(p, r.bestEpoch < 0 ? "—" : r.bestValLoss.ToString("0.000"), footerX, 316, footerWidth, 22, 17); loss.fontStyle = FontStyles.Bold;
 
-            float x0 = verdictWidth + 12, kw = (w - x0 - 20) / 3f, kh = 66;
+            // KPIs and class cards use their own rows; smaller windows stack whole sections and scroll.
+            var page = (RectTransform)verdictCard.parent;
+            float x0 = wide ? verdictWidth + 12f : 0f, y0 = wide ? 0f : 362f;
+            float available = w - x0;
+            int columns = available >= 340f ? 3 : 2;
+            float kw = (available - (columns - 1) * 10f) / columns;
+            const float kh = 92f;
             bool any = r.evaluated > 0;
-            Kpi(p, x0, 0, kw, kh, "Accuracy", any ? r.accuracy.ToString("0.0%") : "—", any ? $"{r.correct:N0} of {r.evaluated:N0} images" : "no predictions yet", MLUI.Heat(any ? r.accuracy : -1), null);
-            Kpi(p, x0 + kw + 10, 0, kw, kh, "Macro F1", any ? r.macroF1.ToString("0.00") : "—", any ? $"precision {r.macroPrecision:0%}  ·  recall {r.macroRecall:0%}" : "", MLUI.Heat(any ? r.macroF1 : -1), () => ShowTab(Tab.Classes));
-            Kpi(p, x0 + 2 * (kw + 10), 0, kw, kh, "Top-3", any ? r.top3.ToString("0.0%") : "—", "true class among the top 3", MLUI.TextColor, null);
-            Kpi(p, x0, kh + 10, kw, kh, "Confidence", any ? r.meanConfidence.ToString("0%") : "—", any ? $"right {r.confidenceRight:0%}  ·  wrong {r.confidenceWrong:0%}" : "", MLUI.TextColor, () => ShowTab(Tab.Confidence));
-            string calibration = r.CalibrationWord;
-            Kpi(p, x0 + kw + 10, kh + 10, kw, kh, "Calibration", any ? r.ece.ToString("0.0%") : "—", any ? calibration : "", !any ? MLUI.TextColor : r.ece < 0.05f ? MLUI.Good : r.ece < 0.1f ? MLUI.Warn : MLUI.Bad, () => ShowTab(Tab.Confidence));
-            Kpi(p, x0 + 2 * (kw + 10), kh + 10, kw, kh, "Mistakes", any ? (r.evaluated - r.correct).ToString("N0") : "—", any ? $"{r.confidentWrong} of them over 90% sure" : "", MLUI.Bad, () => { ShowMistakes(); ShowTab(Tab.Images); });
+            string[] labels = { "Accuracy", "Macro F1", "Top-3", "Confidence", "Calibration", "Mistakes" };
+            string[] values = { any ? r.accuracy.ToString("0.0%") : "—", any ? r.macroF1.ToString("0.00") : "—",
+                any ? r.top3.ToString("0.0%") : "—", any ? r.meanConfidence.ToString("0%") : "—",
+                any ? r.ece.ToString("0.0%") : "—", any ? (r.evaluated - r.correct).ToString("N0") : "—" };
+            string[] notes = { any ? $"{r.correct:N0} of {r.evaluated:N0} images" : "No predictions yet",
+                any ? $"Precision {r.macroPrecision:0%}\nRecall {r.macroRecall:0%}" : "", "True class among the top 3",
+                any ? $"Right {r.confidenceRight:0%} · wrong {r.confidenceWrong:0%}" : "", any ? r.CalibrationWord : "",
+                any ? $"{r.confidentWrong} of them over 90% sure" : "" };
+            Color[] colors = { MLUI.Heat(any ? r.accuracy : -1), MLUI.Heat(any ? r.macroF1 : -1), MLUI.TextColor,
+                MLUI.TextColor, !any ? MLUI.TextColor : r.ece < 0.05f ? MLUI.Good : r.ece < 0.1f ? MLUI.Warn : MLUI.Bad, MLUI.Bad };
+            UnityAction[] actions = { null, () => ShowTab(Tab.Classes), null, () => ShowTab(Tab.Confidence),
+                () => ShowTab(Tab.Confidence), () => { ShowMistakes(); ShowTab(Tab.Images); } };
+            for (int i = 0; i < labels.Length; i++)
+                Kpi(page, x0 + (i % columns) * (kw + 10), y0 + (i / columns) * (kh + 10), kw, kh,
+                    labels[i], values[i], notes[i], colors[i], actions[i]);
 
-            float listTop = 2 * (kh + 10), listWidth = (w - x0 - 10) * 0.5f;
-            ClassList(p, x0, listTop, listWidth, h - listTop, "Strongest classes", true);
-            ClassList(p, x0 + listWidth + 10, listTop, listWidth, h - listTop, "Weakest classes", false);
+            float listTop = y0 + Mathf.Ceil(6f / columns) * (kh + 10);
+            int listColumns = available >= 340f ? 2 : 1;
+            float listWidth = (available - (listColumns - 1) * 10f) / listColumns;
+            float classHeight = 48f + Mathf.Max(1, OverviewClassRows()) * 62f;
+            ClassList(page, x0, listTop, listWidth, classHeight, "Strongest classes", true);
+            ClassList(page, x0 + (listColumns == 2 ? listWidth + 10 : 0),
+                listTop + (listColumns == 1 ? classHeight + 10 : 0), listWidth, classHeight, "Weakest classes", false);
         }
 
         void FitBar(RectTransform p, string label, float value, Color color, float y, float width)
@@ -89,39 +132,45 @@ namespace Forge.ML
 
         void Kpi(RectTransform p, float x, float y, float w, float h, string label, string value, string note, Color color, UnityAction click)
         {
-            if (click != null) HoverButton("Kpi " + label, p, x, y, w, h, 0.045f, 12).onClick.AddListener(click);
-            else MLUI.Card(p, x, y, w, h, 12);
-            var caps = MLUI.Caps(p, label, x + 12, y + 10, w - 24, 14, 9);
-            Shrink(caps, 6.5f);  // a caption never runs into the next tile
-            var big = MLUI.Text(p, value, x + 12, y + 23, w - 24, 26, 21); big.fontStyle = FontStyles.Bold; big.color = color; big.textWrappingMode = TextWrappingModes.NoWrap;
-            Shrink(big, 12f);
-            var small = MLUI.Text(p, note, x + 12, y + 48, w - 24, 12, 8.5f); small.color = MLUI.Faint;
-            small.textWrappingMode = TextWrappingModes.NoWrap; small.overflowMode = TextOverflowModes.Truncate;
+            var tile = MLUI.Rect("Metric " + label, p, x, y, w, h);
+            if (click != null) HoverButton("Kpi " + label, tile, 0, 0, w, h, 0.045f, 12).onClick.AddListener(click);
+            else MLUI.Card(tile, 0, 0, w, h, 12);
+            var caps = MLUI.Caps(tile, label, 12, 10, w - 24, 16, 9);
+            Shrink(caps, 8f);
+            var big = MLUI.Text(tile, value, 12, 28, w - 24, 28, 21);
+            big.fontStyle = FontStyles.Bold; big.color = color; big.textWrappingMode = TextWrappingModes.NoWrap;
+            Shrink(big, 14f);
+            var small = MLUI.Text(tile, note, 12, 58, w - 24, 30, 8.5f); small.color = MLUI.Sub;
+            small.overflowMode = TextOverflowModes.Ellipsis;
         }
 
         void ClassList(RectTransform p, float x, float y, float w, float h, string title, bool strongest)
         {
             var r = report;
-            MLUI.Card(p, x, y, w, h, 14);
-            Shrink(MLUI.Caps(p, title, x + 14, y + 12, w - 28), 6.5f);
-            float row = Mathf.Min(46f, (h - 34) / 4f);
+            var list = MLUI.Rect(title, p, x, y, w, h);
+            MLUI.Card(list, 0, 0, w, h, 14);
+            Shrink(MLUI.Caps(list, title, 14, 12, w - 28, 16), 8f);
             int shown = 0;
             for (int k = 0; k < r.classes && shown < 4; k++)
             {
                 int c = strongest ? r.byF1[k] : r.byF1[r.classes - 1 - k];
-                if (r.f1[c] < 0) continue;   // no images of this class
-                float ry = y + 30 + shown * row; shown++;
-                HoverButton("Class " + session.Data.classes[c], p, x + 6, ry, w - 12, row - 4, 0f, 9).onClick.AddListener(() => ShowClass(c));
-                var className = MLUI.Text(p, session.Data.classes[c], x + 14, ry + 4, w - 80, 16, 12); className.fontStyle = FontStyles.Bold;
-                className.textWrappingMode = TextWrappingModes.NoWrap; className.overflowMode = TextOverflowModes.Truncate;
-                var score = MLUI.Text(p, r.f1[c].ToString("0.00"), x + w - 60, ry + 4, 46, 16, 12); score.alignment = TextAlignmentOptions.TopRight;
-                score.fontStyle = FontStyles.Bold; score.color = MLUI.Heat(r.f1[c]);
+                if (r.f1[c] < 0) continue;
+                var row = MLUI.Rect("Class row " + session.Data.classes[c], list, 6, 38 + shown * 62f, w - 12, 60);
+                shown++;
+                HoverButton("Class " + session.Data.classes[c], row, 0, 0, w - 12, 60, 0f, 9).onClick.AddListener(() => ShowClass(c));
+                var name = MLUI.Text(row, session.Data.classes[c], 8, 2, w - 88, 20, 12);
+                name.fontStyle = FontStyles.Bold; name.textWrappingMode = TextWrappingModes.NoWrap;
+                name.overflowMode = TextOverflowModes.Ellipsis;
+                var score = MLUI.Text(row, r.f1[c].ToString("0.00"), w - 66, 2, 46, 20, 12);
+                score.alignment = TextAlignmentOptions.TopRight; score.fontStyle = FontStyles.Bold; score.color = MLUI.Heat(r.f1[c]);
                 float bar = w - 28;
-                MLUI.Surface(p, x + 14, ry + 22, bar, 4, Hairline, 2);
-                MLUI.Surface(p, x + 14, ry + 22, Mathf.Max(4, bar * Mathf.Clamp01(r.f1[c])), 4, MLUI.Heat(r.f1[c]), 2);
-                var note = MLUI.Text(p, $"precision {r.precision[c]:0%}  ·  recall {Mathf.Max(0, r.recall[c]):0%}", x + 14, ry + 28, w - 28, 12, 8.5f); note.color = MLUI.Faint;
+                MLUI.Surface(row, 8, 25, bar, 4, Hairline, 2);
+                MLUI.Surface(row, 8, 25, Mathf.Max(4, bar * Mathf.Clamp01(r.f1[c])), 4, MLUI.Heat(r.f1[c]), 2);
+                var note = MLUI.Text(row, $"Precision {r.precision[c]:0%}\nRecall {Mathf.Max(0, r.recall[c]):0%}", 8, 34, bar, 26, 8.5f);
+                note.color = MLUI.Sub; note.textWrappingMode = TextWrappingModes.NoWrap;
+                note.overflowMode = TextOverflowModes.Ellipsis;
             }
-            if (shown == 0) MLUI.Text(p, "No predictions yet", x + 14, y + 34, w - 28, 16, 10.5f).color = MLUI.Faint;
+            if (shown == 0) MLUI.Text(list, "No predictions yet", 14, 38, w - 28, 20, 10.5f).color = MLUI.Sub;
         }
 
         // ---- Classes: precision, recall, F1 and image count per class, best first ----
