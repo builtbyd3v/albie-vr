@@ -7,7 +7,8 @@ namespace Forge.OS
 {
     /// <summary>
     /// Albie's voice tools for the OS (Resources/AlbieTools/os.json): open and close the menu, switch its tab, open
-    /// something from it, and bring the windows here or close them all. Each answers with an error line when the scene has
+    /// something from it, and bring the windows here or close everything (see <see cref="OSSpaces"/>, which also has the
+    /// spaces_ tools). Each answers with an error line when the scene has
     /// no shell (a sandbox), the way the other tools answer problems.
     /// </summary>
     public static class OSTools
@@ -76,8 +77,9 @@ namespace Forge.OS
                     shell.Windows.BringHere();
                     break;
                 case "close_all":
-                    shell.Windows.CloseAll();
-                    break;
+                    // Everything, not only the windows: the open artifact and its course, the truck or drone, the transmitter
+                    // and loose panels too (OSSpaces). It asks on the Spaces list first when a run going on would be lost.
+                    return OSSpaces.CloseAllByVoice();
                 default:
                     return AlbieTools.Error("The actions are recenter and close_all.");
             }

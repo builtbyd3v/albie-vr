@@ -5,8 +5,9 @@ using UnityEngine.UI;
 namespace Forge.OS
 {
     /// <summary>
-    /// The corner button: a small round kit button on a dark plate, low in one corner of the view, shown only away from a
-    /// desk. It is never locked to the head. It keeps a world-space anchor; when the head has turned more than
+    /// The corner button: a small round kit button on a dark plate, low in one corner of the view, within arm's reach (0.45 m),
+    /// at a desk and away from one (at a desk it used to leave the menu to the table button, which lies flat on the desk and
+    /// proved hard to find and touch on the headset). It is never locked to the head. It keeps a world-space anchor; when the head has turned more than
     /// <see cref="recenterDegrees"/> away from the direction the anchor was set for, or has moved more than
     /// <see cref="recenterMeters"/>, it picks a new anchor and eases there over <see cref="easeSeconds"/> with a smooth
     /// step. It always faces the head. Pressing it opens the menu (summon value Corner); it hides while the menu is open,
@@ -84,7 +85,7 @@ namespace Forge.OS
         {
             if (shell == null) return;
             Transform head = shell.Head;
-            bool want = head != null && !shell.AtDesk && !shell.Held && !shell.MenuOpen && OSSettings.Current.cornerButton;
+            bool want = head != null && !shell.Held && !shell.MenuOpen && OSSettings.Current.cornerButton;
             if (want != shown)
             {
                 if (want && !Build())

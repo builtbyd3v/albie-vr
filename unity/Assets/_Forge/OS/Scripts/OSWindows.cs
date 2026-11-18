@@ -236,13 +236,51 @@ namespace Forge.OS
 
         public void Close(string id) => Find(id)?.Close();
 
-        /// <summary>Closes every window: opened ones go, adopted ones run their close action, and so does the open Workspace mode.</summary>
-        public void CloseAll()
+        /// <summary>
+        /// Puts a window's centre at <paramref name="center"/>, facing along <paramref name="rotation"/>, at once (a system
+        /// surface that opens within reach, like the Spaces list, where the menu was).
+        /// </summary>
+        public void PlaceAt(OSWindow window, Vector3 center, Quaternion rotation)
+        {
+            if (window == null || window.IsGroup || window.Root == null) return;
+            FinishOpen(window);
+            StopMotion(window);
+            Put(window, center, rotation);
+        }
+
+        /// <summary>One window (or volume) out of its dot if it was put away, then gliding to the nearest free place in front of the user.</summary>
+        public void BringOne(OSWindow window)
+        {
+            if (window == null || window.IsGroup || window.Root == null) return;
+            Restore(window);
+            Transform head = OSShell.FindHead();
+            if (head == null || !window.gameObject.activeInHierarchy) return;
+            pending.Clear();
+            if (FindSpot(window, head, out Vector3 center, out Quaternion rotation)) Glide(window, center, rotation, 0f);
+        }
+
+        /// <summary>A window that was put away (minimised into its dot, or hidden) is shown again where it was.</summary>
+        public void Restore(OSWindow window)
+        {
+            if (window == null || window.IsGroup || window.Root == null || window.gameObject.activeSelf) return;
+            var gesture = window.Panel != null ? window.Panel.GetComponent<GestureWindow>() : null;
+            if (gesture != null && gesture.IsMinimized) gesture.Restore(this);
+            else window.gameObject.SetActive(true);
+        }
+
+        /// <summary>
+        /// Closes every window: opened ones go, adopted ones run their close action, and so does the open Workspace mode and the
+        /// open artifact as a whole (with its room course and its Thing: <see cref="OSArtifacts.WholePrefix"/>).
+        /// </summary>
+        public void CloseAll() => CloseAllBut(null);
+
+        /// <summary><see cref="CloseAll"/>, leaving the window with id <paramref name="keepId"/> open (the Spaces list its own Close everything came from).</summary>
+        public void CloseAllBut(string keepId)
         {
             scratch.Clear();
             scratch.AddRange(windows);
             for (int i = scratch.Count - 1; i >= 0; i--)
-                if (scratch[i] != null) scratch[i].Close();
+                if (scratch[i] != null && (keepId == null || scratch[i].Id != keepId)) scratch[i].Close();
             scratch.Clear();
         }
 

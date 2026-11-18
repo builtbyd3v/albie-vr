@@ -8,6 +8,13 @@ namespace Forge.Pet
 {
     /// <summary>
     /// Small 3D desk button that summons Albie (AlbieSummon listens to AnyPressed, so there can be one per table).
+    /// <para>
+    /// Not on the table any more (<see cref="ShowOnTable"/> is false: the owner asked for the puck to go). The component stays
+    /// in the scene and keeps its job: F and controller B still whistle, <see cref="CallAlbie"/> presses the one at the
+    /// user's table from code (the OS Spaces list's Albie row, "Here"), and it still follows its table so the MRUK adapter
+    /// makes that table the desk when it is pressed. Only its puck, its poke and ray targets and its mouse collider are off.
+    /// The palm-up Call Albie gesture and the voice reach Albie without it.
+    /// </para>
     /// Inputs, all ending in Press():
     ///  * Meta Interaction SDK: PokeInteractable / RayInteractable children with an InteractableUnityEventWrapper whose
     ///    WhenSelect → Press(), WhenHover → HoverOn(), WhenUnhover → HoverOff() (wired by Forge/Pet/6. Add Whistle
@@ -80,6 +87,39 @@ namespace Forge.Pet
 
         static readonly List<WhistleButton> s_all = new List<WhistleButton>(8);
 
+        /// <summary>
+        /// Whether the puck shows on the table (its renderers, poke and ray targets and mouse collider). False: the owner
+        /// doesn't want it there. Pressing still works from the keys and from <see cref="CallAlbie"/>. Read each frame, so a
+        /// check or a later setting can turn it back on.
+        /// </summary>
+        public static bool ShowOnTable = false;
+
+        /// <summary>True while this button's puck is hidden (see <see cref="ShowOnTable"/>).</summary>
+        public bool Hidden => _hidden;
+        bool _hidden, _hiddenApplied;
+
+        /// <summary>
+        /// Calls Albie over as a whistle press would (summon, then listen hands-free; again cancels): presses the button whose
+        /// table is nearest the user's head. False when the scene has no button (then nothing happens).
+        /// </summary>
+        public static bool CallAlbie()
+        {
+            Transform head = PetUser.Head;
+            WhistleButton best = null;
+            float bestSq = float.MaxValue;
+            for (int i = 0; i < s_all.Count; i++)
+            {
+                WhistleButton b = s_all[i];
+                if (b == null || !b.isActiveAndEnabled) continue;
+                float sq = head != null ? (b.transform.position - head.position).sqrMagnitude : 0f;
+                if (sq < bestSq) { bestSq = sq; best = b; }
+            }
+            if (best == null) return false;
+            best._lastPress = -10f;  // a call from code is never swallowed by the key debounce
+            best.Press();
+            return true;
+        }
+
         BoxCollider _collider;
         MaterialPropertyBlock _mpb;
         Vector3 _visualRest, _baseScale;
@@ -128,6 +168,7 @@ namespace Forge.Pet
         {
             whistleAction?.Enable();
             if (!s_all.Contains(this)) s_all.Add(this);
+            ApplyShown();
         }
 
         void OnDisable()
@@ -137,7 +178,7 @@ namespace Forge.Pet
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { AnyPressed = null; s_all.Clear(); }
+        static void ResetStatics() { AnyPressed = null; s_all.Clear(); ShowOnTable = false; }
 
         // ---------------------------------------------------------------- public API
 
@@ -220,12 +261,13 @@ namespace Forge.Pet
 
         void Update()
         {
+            if (!_hiddenApplied || _hidden == ShowOnTable) ApplyShown();
             if (autoPlace && !_byDock && Time.time >= _nextPlaceCheck) { _nextPlaceCheck = Time.time + 0.5f; UpdatePlacement(); }
 
             if (whistleAction != null && whistleAction.WasPressedThisFrame() && !TypedSpeechToText.AnyListening && !global::DesktopRig.TypingInField) Press();
 
             Mouse mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame) TryMousePress(mouse);
+            if (!_hidden && mouse != null && mouse.leftButton.wasPressedThisFrame) TryMousePress(mouse);
 
             if (visual != null)
                 visual.transform.localPosition = Time.time < _pressedUntil ? _visualRest - Vector3.up * 0.006f : _visualRest;
@@ -237,11 +279,27 @@ namespace Forge.Pet
         }
 
         /// <summary>While it sits by the dock: the desk-top point under its centre, the direction along the edge away from
-        /// the dock, and its half width (m). Props beside it (AlbieHatchery) ask every LateUpdate to slide with it.</summary>
+        /// the dock, and its half width (m). Props beside it (AlbieHatchery) ask every LateUpdate to slide with it. False while
+        /// the puck is hidden, so they keep their own corner instead of leaving a gap for it.</summary>
         public bool TryGetDockSpot(out Vector3 deskPoint, out Vector3 away, out float halfWidth)
         {
             deskPoint = _dockPoint; away = _dockAway; halfWidth = _dockHalf;
-            return _byDock && isActiveAndEnabled;
+            return _byDock && isActiveAndEnabled && !_hidden;
+        }
+
+        // Shows or hides the puck: its child objects (the visual and the Interaction SDK poke and ray targets) and its collider.
+        // The component itself stays enabled, so the keys, CallAlbie and the table it belongs to still work.
+        void ApplyShown()
+        {
+            bool hide = !ShowOnTable;
+            if (_hiddenApplied && hide == _hidden) return;
+            _hiddenApplied = true;
+            _hidden = hide;
+            if (_collider == null) _collider = GetComponent<BoxCollider>();
+            if (_collider != null) _collider.enabled = !hide;
+            // Every child: the puck's parts are all shown while it is on the table (a clone of a hidden one has them all off).
+            for (int i = 0; i < transform.childCount; i++) transform.GetChild(i).gameObject.SetActive(!hide);
+            if (hide) SetHovered(false);
         }
 
         // Throttled (0.5 s). First placement as soon as a table / desk and a head exist; afterwards only when the user is
