@@ -2,14 +2,14 @@ using UnityEngine;
 
 namespace Forge.Demo
 {
-    // The take with bare hands, no controllers on screen (DemoConfig.handStep). Hudson's moves:
+    // Hudson's bare hands in the take (no controllers on screen). What he does is real and read from his tracked hands:
     //   palm up      Albie runs over and lands on it (B1); again later and the drone comes home (B6 to B7)
     //   finger poke  "Add to parts list" (B4) and "Confirm" (B5b), on the cards themselves
-    //   finger tap   thumb to middle fingertip with the other fingers open, either hand: everything A does on the controller (start, each of his
-    //                lines, the end of the take, and the palm or a poke when the real one didn't take)
-    // The tap is thumb to MIDDLE finger because thumb to index is the Interaction SDK's click and Quest's menu pinch. It
-    // can be made low, out of the shot. While this is on the app's own gestures are paused: opening and closing a hand
-    // would hide every window mid-take, and its "call Albie" palm would race the Director's.
+    // His spoken lines are cued from the laptop (demo.step). The app's own gestures are paused during a take: opening and
+    // closing a hand would hide every window, and its "call Albie" palm would race the Director's.
+    // DemoConfig.handStep (off by default) adds a cue he can give himself with nobody at the laptop:
+    //   finger tap   thumb to middle fingertip with the other fingers open, either hand: everything the Cue does.
+    // Thumb to MIDDLE finger because thumb to index is the Interaction SDK's click and Quest's menu pinch.
     public sealed partial class DemoDirector
     {
         const float TapClose = 0.24f, TapOpen = 0.42f;   // thumb tip to middle tip, in hand lengths (touching is about 0.1)
@@ -35,7 +35,6 @@ namespace Forge.Demo
 
         void PollHands()
         {
-            if (!HandStep) return;
             GestureEngine engine = GestureEngine.Current;
             if (engine == null) return;
             if (pausedEngine != engine)
@@ -43,8 +42,9 @@ namespace Forge.Demo
                 pausedEngine = engine;
                 engine.Paused = true;
                 engine.Actions.ShowDisplay(false);
-                Debug.Log("[Demo] bare hands: thumb to middle finger is the step; the app's own gestures are paused.");
+                Debug.Log("[Demo] the app's own hand gestures are paused for the take" + (HandStep ? "; thumb to middle finger is the cue." : "."));
             }
+            if (!HandStep) return;
 
             float now = Time.time;
             bool busy = PanelManipulator.Grabbing > 0;

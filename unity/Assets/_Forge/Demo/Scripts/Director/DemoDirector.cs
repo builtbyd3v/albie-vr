@@ -85,12 +85,13 @@ namespace Forge.Demo
             DemoActions.Register(DemoActions.Reset, OnResetAction);
             RegisterActions();
             subs.Add(ForgeNet.On("demo.next", (JToken _) => Next()));
+            subs.Add(ForgeNet.On("demo.step", (JToken _) => Step()));   // the laptop's Cue: Hudson's next move, as A does it
             subs.Add(ForgeNet.On("demo.back", (JToken _) => Back()));
             subs.Add(ForgeNet.On("demo.reset", (JToken _) => ResetAll()));
             subs.Add(ForgeNet.On("demo.goto", (JToken p) => Goto(p is JObject o ? (string)o["beat"] : null)));
             subs.Add(ForgeNet.On("stt.final", (JToken p) => OnFinalSpeech(p is JObject o ? (string)o["text"] : null)));
             DemoLayout.Capture();
-            Debug.Log($"[Demo] Director on: {(script != null ? script.beats.Count : 0)} beats. ] next, [ back, \\ reset, ` palm.");
+            Debug.Log($"[Demo] Director on: {(script != null ? script.beats.Count : 0)} beats. Enter cue, ] skip, [ back, \\ reset, ` palm.");
         }
 
         void OnDisable()

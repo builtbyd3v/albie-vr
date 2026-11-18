@@ -110,9 +110,11 @@ namespace Forge.Demo
         /// B goes back a beat. While on, his speech never moves a beat on (A is the only trigger, so the two can't double up) and
         /// the live voice is switched off, because A is push-to-talk outside the demo.</summary>
         public bool stepButton = true;
-        /// <summary>The same step with bare hands: touch the thumb to the middle finger (either hand). The palm and the two
-        /// pokes are real. While on, the app's own hand gestures (hide windows, call Albie) are paused for the take.</summary>
-        public bool handStep = true;
+        /// <summary>The same cue with bare hands and nobody at the laptop: touch the thumb to the middle finger (either hand).
+        /// Off by default: with an operator, Hudson's hands only do what the story shows (palm, pokes).</summary>
+        public bool handStep = false;
+        /// <summary>Hudson's speech never moves a beat on: his lines are cued from the laptop (Cue / Enter), A or the finger tap.</summary>
+        public bool cueOnly = true;
 
         public const string Resource = "demo_config";
 

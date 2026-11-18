@@ -8,7 +8,7 @@
 
 - **No brand names in the app's UI.** The UI says "model hub", not Hugging Face, "private repo" or "source control", not GitHub, and the camera cards use made-up product names. The voiceover and the Devpost text can name the real services.
 - **No real people other than the team.** The face the drone tracks is Hudson's.
-- **Hands only.** No controllers on screen, ever.
+- **Hands only.** No controllers on screen, ever. The hand choreography is in "Running the take" below.
 - **Seated start, within reach.** Hudson starts reclined. Standing up for the flight test is fine, because that beat is the room test, but every panel sits within 2 ft of the chair.
 - Scripted UI recorded in the headset is real footage. Say in the Devpost description which parts are live and which were scripted for the video (see `JUDGE_PATH.md`).
 
@@ -38,35 +38,46 @@
 5. "While that trains, I want to test it. Build me a flight test so it can follow me around the room."
 6. (hold out your palm)
 
-### The A button (whoever runs the take)
+## Running the take: one person at the laptop, Hudson's hands in the shot
 
-With `"stepButton": true` in `Demo/Resources/demo_config.json` (the default now), **A on the right controller plays Hudson's next move** and nothing else moves a beat on: his voice doesn't, so a line and a press can't both advance. **B** goes back one beat. The laptop remote still works.
+Two people. **The operator** sits at the laptop with the remote open (`http://<laptop>:<hub port>/demo`) and presses **Cue** (or Space) at each of Hudson's moments. **Hudson** wears the headset with the controllers put down, so Quest tracks his bare hands. Everything his hands do in the shot is read from his real hands: Albie lands on his actual palm and rides it, the buttons press under his actual fingertip, and the drone comes home to his actual hand. Only the moment after each spoken line is cued from the laptop.
 
-| Press | When | What happens |
-|---|---|---|
-| A | headset on, ready | B0 starts (A again skips the quiet 5 s) |
-| A | B1 | the palm: Albie runs over, hops onto the left hand (or the left controller if hands aren't tracked), says hello |
-| A | Hudson finishes line 1 | B2: the quad builds, flies, Albie's two lines |
-| A | Hudson finishes line 2 | B3 research runs by itself, then B4's verdict card |
-| A | verdict card up | pokes "Add to parts list": the camera flies onto the nose, then B5 pull and train run by themselves |
-| A | Confirm card up | pokes Confirm: the push runs, "Done. Version one is in your repo." |
-| A | Hudson finishes line 5 | B6: flight test, drone follows |
-| A | Hudson holds his palm out | B7: the drone comes home |
-| A | end of the take | finished; A once more resets for the next take |
+### Hudson's hands, beat by beat
 
-A press never cuts Albie off: if he's still talking, the move happens when his line ends. A press during B3, B5 or B4 after the poke does nothing (those run themselves). In demo mode the live voice is off (A is push-to-talk outside the demo), and the first-arrival greeting card is dismissed. Note that holding a controller turns Quest hand tracking off, so the B1 and B7 palm moments use the left controller's position.
+| Beat | What Hudson does with his hands | How to make it read as real | Operator |
+|---|---|---|---|
+| B0 | Nothing. Hands in his lap. | Keep both hands low and still: a quiet frame. | **Cue** to start. |
+| B1 | Raises one hand to chest height, **palm flat and up**, a forearm's length out, and looks at it. Holds it there. | Raise it, then hold still for a full second before expecting anything: Albie starts running after about a third of a second, and a hand that's still moving looks like it's chasing him. Keep the palm level while he sits on it; tip it or drop it and he hops off. | Nothing. Cue only if Albie hasn't moved after a second. |
+| after B1 | Says line 1 **to Albie on his palm**, then lowers the hand slowly. | Look at Albie, not at the room. Lower the hand only after the line: he hops down by himself when the palm tips. | **Cue** on the last word of line 1. |
+| B2 | Hands down. Watches the quad build and lift. | Follow the quad up with his eyes; one small lean back as it takes off. | Nothing. |
+| after B2 | Says line 2 looking at the drone. | | **Cue** on the last word of line 2. |
+| B3 | Hands down. Looks left at the cameras, then right at the models. | Turn the head, not just the eyes: the headset is the camera. | Nothing (it runs itself). |
+| B4 | When Albie says "This one", reaches out with **one index finger**, other fingers curled, and **pokes "Add to parts list"**. Pushes the fingertip into the button, then pulls straight back. | Start the reach as the card finishes growing. Move at a normal speed and stop on the button: a slow hover looks staged. Keep the finger there a beat so the press and the camera flying off overlap. | Nothing. Cue only if the button didn't press as his finger went in. |
+| B5 | Hands down. Watches the training curves. | | Nothing (it runs itself). |
+| B5b | **Pokes "Confirm"** the same way, with the same hand. | Read the card for a second first: this is the "nothing leaves without a yes" moment. | Nothing. Cue only if the button didn't press. |
+| after B5b | Says line 5 and starts to stand. | | **Cue** on the last word of line 5. |
+| B6 | Walks the room, arms loose. Glances at the drone-cam window at his left wrist once or twice. | Keep the hands below the chest and **don't turn a palm up** while walking: after 12 seconds a palm held up calls the drone home. | Nothing. |
+| B7 | Stops, turns to the drone, raises the hand **palm up** again and holds it. | Same as B1: raise, hold still, look at the hand. The drone comes to about 20 cm above it. Hold until Albie's line ends. | Nothing. Cue only if the drone hasn't turned after a second. Then **Cue** to end the take. |
 
-### Bare hands (no controllers on screen)
+### Rules for the hands
 
-With `"handStep": true` (also the default) the same take runs with no controller. Put the controllers down so Quest tracks your hands.
+- **Controllers out of reach.** Picking one up turns hand tracking off, and Albie would land in front of him instead of on his palm.
+- **Hands in front, not at the edge of view.** A hand has to be where the headset's cameras see it, roughly anywhere he can see it himself.
+- **One clear shape at a time.** Flat open palm for Albie and the drone; one pointing finger for the buttons. Nothing else is read, so he can talk with his hands between moments: the app's own gestures (hide windows, close a window, call Albie) are switched off during a take.
+- **If a hand moment misses, don't repeat it.** Hold the pose: the operator's Cue makes the same thing happen on his real hand within a second, and it cuts together fine.
+- **Don't wait for the operator.** After a line, keep looking at Albie or the drone. A half-second pause before Albie answers reads as him thinking.
 
-| Move | What it does |
-|---|---|
-| **Finger tap**: touch your thumb to your middle fingertip, other fingers open, either hand | Everything A does: start, each of Hudson's lines, the end of the take. It also stands in for the palm or a poke that didn't take. |
-| **Palm up**, held out, either hand | B1: Albie runs over and lands on it. B6: the drone comes home over it. |
-| **Poke** with a fingertip | "Add to parts list" and "Confirm", on the cards. |
+### The operator
 
-The tap can be made low, out of the shot. Part the fingers again before the next tap. It is thumb to middle finger on purpose: thumb to index is a click on whatever window you point at, and Quest's own menu pinch. While this is on, the app's own hand gestures are paused, so opening and closing a hand can't hide the windows mid-take. A and the finger tap both work in the same take.
+- **Cue** (the big button, Space, or Enter in the editor) is Hudson's next move, whatever it is. It never cuts Albie off: pressed early, the move waits for his line to end. Pressed while research or training is running, it does nothing.
+- The page's numbered list is the cue sheet; it highlights where you are (tap a row to move the marker if you lose your place).
+- **Skip beat** forces the running beat to end. **Back** replays the beat before. **Reset** sets up the next take.
+- Hudson's voice doesn't move the script (`"cueOnly": true` in `Demo/Resources/demo_config.json`), so nothing fires because of a cough or an ad-lib.
+
+### Without an operator
+
+- `"stepButton": true` (the default): **A** on the right controller is the Cue and **B** is Back. Holding a controller turns hand tracking off, so Albie lands on the left controller. For rehearsal, not for the shot.
+- `"handStep": true` (off by default): touching the **thumb to the middle fingertip**, other fingers open, on either hand, is the Cue. It can be done low, out of the shot. Not yet tuned on a real hand.
 
 If a beat fires early or late, keep going: we cut in the edit. Back and Reset are on the laptop remote (`TONIGHT_PLAN.md`, section 6).
 

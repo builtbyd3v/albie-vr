@@ -9,5 +9,6 @@
   "palmTimeoutSeconds": 0,
   "keepMicOpen": false,
   "stepButton": true,
-  "handStep": true
+  "handStep": false,
+  "cueOnly": true
 }

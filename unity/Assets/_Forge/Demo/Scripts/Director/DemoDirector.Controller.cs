@@ -27,17 +27,17 @@ namespace Forge.Demo
         readonly List<Behaviour> silenced = new List<Behaviour>();
 
         bool StepButton => config != null && config.stepButton;
-        /// <summary>Hudson steps the script himself (A or the finger tap), so his speech does not.</summary>
-        bool ManualStep => config != null && (config.stepButton || config.handStep);
+        /// <summary>The script is cued by hand (the laptop's Cue, A, or the finger tap), so Hudson's speech does not move it.</summary>
+        bool ManualStep => config != null && (config.cueOnly || config.stepButton || config.handStep);
 
         void PollController()
         {
+            Keyboard kb = Keyboard.current;
+            if (kb != null && kb.enterKey.wasPressedThisFrame) Step();   // the cue, on the desktop rig
             if (!StepButton) return;
             // RawButton.A / B are the right controller's buttons. OVRInput needs OVRManager, which Main's rig has.
             if (OVRInput.GetDown(OVRInput.RawButton.A)) Step();
             if (OVRInput.GetDown(OVRInput.RawButton.B)) Back();
-            Keyboard kb = Keyboard.current;
-            if (kb != null && kb.enterKey.wasPressedThisFrame) Step();   // the same on the desktop rig
         }
 
         /// <summary>Hudson's next move (the A button). See the table at the top of this file.</summary>
@@ -191,7 +191,7 @@ namespace Forge.Demo
             Silence(FindObjectsByType<WakeListener>());
             Silence(FindObjectsByType<AlbieFollowUp>());
             Silence(FindObjectsByType<WhistleButton>());
-            Debug.Log($"[Demo] Hudson steps the script by hand: live voice off ({silenced.Count} components).");
+            Debug.Log($"[Demo] the script is cued by hand: live voice off ({silenced.Count} components).");
         }
 
         void Silence<T>(T[] found) where T : Behaviour

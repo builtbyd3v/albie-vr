@@ -32,15 +32,17 @@ def test_page_lists_buttons_and_every_beat() -> None:
     client, _ = make()
     r = client.get("/demo")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"]
-    for label in ("Back", "Next", "Reset"):
+    for label in ("Cue", "Back", "Skip beat", "Reset"):
         assert f">{label}<" in r.text
     for beat, _name in BEATS:
         assert f'data-beat="{beat}"' in r.text
-    assert "%BEATS%" not in r.text
+    assert "%BEATS%" not in r.text and "%CUES%" not in r.text
 
 
 def test_next_back_reset_publish_their_event() -> None:
     client, bus = make()
+    assert client.post("/demo/step").json()["type"] == "demo.step"
+    assert bus.events.pop() == ("demo.step", {})
     for name in ("next", "back", "reset"):
         r = client.post(f"/demo/{name}")
         assert r.status_code == 200 and r.json()["type"] == f"demo.{name}"
@@ -67,4 +69,4 @@ def test_main_app_includes_the_remote() -> None:
     from main import create_app
 
     paths = set(create_app(watch=False).openapi()["paths"])
-    assert {"/demo", "/demo/next", "/demo/back", "/demo/reset", "/demo/goto"} <= paths
+    assert {"/demo", "/demo/step", "/demo/next", "/demo/back", "/demo/reset", "/demo/goto"} <= paths
