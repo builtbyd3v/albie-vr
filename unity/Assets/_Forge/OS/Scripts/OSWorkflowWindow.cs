@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Forge.Pet;
 using Newtonsoft.Json.Linq;
 using TMPro;
@@ -12,11 +13,13 @@ namespace Forge.OS
     {
         public const string WindowId = "workflow";
         ForgePanel panel;
+        Button createPlan;
+        readonly List<Button> actionButtons = new List<Button>();
         JObject current, review;
         IDisposable updates;
         string tab = "plan", notice = "", goal = "", repo = "";
         int page;
-        bool pending;
+        bool pending, polling, publicationAsked, connectionWarning;
         float nextPoll;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -45,40 +48,60 @@ namespace Forge.OS
 
         void Update()
         {
-            if (tab == "new" && ForgeNet.Status == ForgeNetStatus.Live && notice.StartsWith("Project builds run on the optional Albie hub", StringComparison.Ordinal))
+            // An initial status request can finish after New task is opened. Keep the button in step without
+            // rebuilding the form (which would steal text focus), including when the cloud wakes or disconnects.
+            if (createPlan != null) createPlan.interactable = OSWorkflowTransport.Available && !pending;
+            foreach (var button in actionButtons)
+                if (button != null) button.interactable = OSWorkflowTransport.Available && !pending;
+            if (tab == "new" && OSWorkflowTransport.Available && connectionWarning)
             {
+                connectionWarning = false;
                 notice = "";
                 Render();
             }
-            if (Time.unscaledTime < nextPoll || pending || tab == "new") return;
+            if (Time.unscaledTime < nextPoll || pending || polling || tab == "new") return;
             nextPoll = Time.unscaledTime + 3f;
             Refresh();
         }
 
         void Refresh()
         {
-            if (ForgeNet.Status != ForgeNetStatus.Live)
+            if (polling) return;
+            if (!OSWorkflowTransport.Available)
             {
-                notice = "Project builds run on the optional Albie hub, which is off. The rest of Albie works without it.";
+                notice = OSWorkflowTransport.ConnectionMessage;
+                connectionWarning = true;
                 Render();
                 return;
             }
-            pending = true;
-            ForgeNet.Get("/agent/builds", text =>
+            polling = true;
+            connectionWarning = false;
+            OSWorkflowTransport.List(all =>
             {
                 if (this == null) return;
-                pending = false;
-                var all = JArray.Parse(text);
+                polling = false;
+                nextPoll = Time.unscaledTime + 3f;
+                if (pending) return;
+                string previousId = (string)current?["id"];
                 current = all.Count > 0 ? all[0] as JObject : null;
+                if (previousId != (string)current?["id"]) publicationAsked = false;
+                if (current == null) notice = "";
                 if (tab != "new") Render();
-            }, Failed);
+            }, error =>
+            {
+                if (this == null) return;
+                polling = false;
+                nextPoll = Time.unscaledTime + 3f;
+                if (!pending && tab != "new") Failed(error);
+            });
         }
 
         void Failed(string error)
         {
             if (this == null) return;
             pending = false;
-            notice = "The hub couldn't complete that action: " + error;
+            connectionWarning = false;
+            notice = "The workflow couldn't complete that action: " + error;
             Render();
         }
 
@@ -86,11 +109,12 @@ namespace Forge.OS
         {
             if (pending || current == null) return;
             pending = true;
-            ForgeNet.Post("/agent/builds/" + (string)current["id"] + "/" + action, new { confirm = true }, _ =>
+            OSWorkflowTransport.Act((string)current["id"], action, result =>
             {
                 if (this == null) return;
                 pending = false;
-                notice = "";
+                publicationAsked = (string)result["status"] == "awaiting_confirmation";
+                notice = publicationAsked ? "Review Changes and Checks, then tap Confirm publish and open PR to publish." : "";
                 Refresh();
             }, Failed);
         }
@@ -99,11 +123,11 @@ namespace Forge.OS
         {
             if (pending || current == null) return;
             pending = true;
-            ForgeNet.Get("/agent/builds/" + (string)current["id"] + "/review", text =>
+            OSWorkflowTransport.Review((string)current["id"], value =>
             {
                 if (this == null) return;
                 pending = false;
-                review = JObject.Parse(text);
+                review = value;
                 tab = "changes";
                 page = 0;
                 Render();
@@ -117,16 +141,25 @@ namespace Forge.OS
             return label;
         }
 
+        void ActionButton(Transform parent, string text, Action action, OSButtonStyle style = OSButtonStyle.Secondary)
+        {
+            var button = OSUi.Button(parent, text, action, style);
+            if (button == null) return;
+            button.interactable = OSWorkflowTransport.Available && !pending;
+            actionButtons.Add(button);
+        }
+
         void Render()
         {
             if (panel == null) return;
+            actionButtons.Clear();
             var body = OSUi.Body(panel);
             OSUi.Clear(body);
             var column = OSUi.Column(body, 12f);
             var nav = OSUi.Row(column, OSUi.ButtonHeight, 19f);
             OSUi.Button(nav, "New task", () => { tab = "new"; Render(); });
             OSUi.Button(nav, "Plan", () => { tab = "plan"; Render(); });
-            OSUi.Button(nav, "Changes", LoadReview);
+            ActionButton(nav, "Changes", LoadReview);
             OSUi.Button(nav, "Checks", () => { tab = "checks"; page = 0; Render(); });
             if (tab == "new") { NewTask(column); FixLayout(body); return; }
             if (current == null)
@@ -191,17 +224,17 @@ namespace Forge.OS
                     Line(column, detail.Length > 150 ? detail.Substring(0, 150) + "…" : detail, true);
                 }
             }
-            if (state == "awaiting_plan") OSUi.Button(column, "Approve implementation plan", () => Act("approve"), OSButtonStyle.Primary);
+            if (state == "awaiting_plan") ActionButton(column, "Approve implementation plan", () => Act("approve"), OSButtonStyle.Primary);
             if (state == "ready" && current["repo"]?.Type == JTokenType.String)
             {
                 Line(column, "Review Changes and Checks. This publishes the branch and opens a pull request.", true);
-                OSUi.Button(column, "Publish branch and open PR", () => Act("ship"), OSButtonStyle.Primary);
+                ActionButton(column, publicationAsked ? "Confirm publish and open PR" : "Publish branch and open PR", () => Act("ship"), OSButtonStyle.Primary);
             }
             if (state == "planning" || state == "awaiting_plan" || state == "building" || state == "verifying")
-                OSUi.Button(column, "Stop workflow", () => Act("cancel"), OSButtonStyle.Destructive);
+                ActionButton(column, "Stop workflow", () => Act("cancel"), OSButtonStyle.Destructive);
             string url = (string)current["pr_url"];
             if (!string.IsNullOrEmpty(url)) Line(column, url);
-            Line(column, (string)current["error"] ?? notice, true);
+            Line(column, (string)current["error"] ?? (pending ? "Contacting the workflow service…" : notice), true);
             FixLayout(body);
         }
 
@@ -231,17 +264,19 @@ namespace Forge.OS
             {
                 if (pending || string.IsNullOrWhiteSpace(goal)) return;
                 pending = true;
-                ForgeNet.Post("/agent/builds", new { goal, repo = string.IsNullOrWhiteSpace(repo) ? null : repo.Trim() }, text =>
+                OSWorkflowTransport.Start(goal, string.IsNullOrWhiteSpace(repo) ? null : repo.Trim(), value =>
                 {
                     if (this == null) return;
                     pending = false;
-                    current = JObject.Parse(text);
+                    current = value;
+                    publicationAsked = false;
                     notice = "";
                     tab = "plan";
                     Render();
                 }, Failed);
             }, OSButtonStyle.Primary);
-            if (create != null) create.interactable = ForgeNet.Status == ForgeNetStatus.Live && !pending;
+            createPlan = create;
+            if (create != null) create.interactable = OSWorkflowTransport.Available && !pending;
             Line(column, "Albie proposes a plan first. You approve implementation and publication separately.", true);
             Line(column, notice, true);
         }

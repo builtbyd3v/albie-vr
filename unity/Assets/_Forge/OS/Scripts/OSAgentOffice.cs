@@ -28,6 +28,7 @@ namespace Forge.OS
         IDisposable updates;
         JObject build;
         string selected = "", rosterKey = "";
+        string workflowError = "";
         bool pending;
         float nextRefresh, nextPose;
         int stageResourceCount;
@@ -274,14 +275,22 @@ namespace Forge.OS
 
         void RefreshBuild()
         {
-            if (pending || ForgeNet.Status != ForgeNetStatus.Live) return;
+            if (pending || !OSWorkflowTransport.Available) return;
             pending = true;
-            ForgeNet.Get("/agent/builds", text =>
+            OSWorkflowTransport.List(list =>
             {
                 if (this == null) return;
                 pending = false;
-                var list = JArray.Parse(text); build = list.Count > 0 ? list[0] as JObject : null;
-            }, _ => { if (this != null) pending = false; });
+                workflowError = "";
+                nextRefresh = Time.unscaledTime + 3f;
+                build = list.Count > 0 ? list[0] as JObject : null;
+            }, error =>
+            {
+                if (this == null) return;
+                pending = false;
+                workflowError = error;
+                nextRefresh = Time.unscaledTime + 3f;
+            });
         }
 
         void Update()
@@ -293,10 +302,11 @@ namespace Forge.OS
             }
             bool pose = Time.unscaledTime >= nextPose;
             if (pose) nextPose = Time.unscaledTime + .15f;
-            bool live = ForgeNet.Status == ForgeNetStatus.Live;
-            summary.text = !live ? "Hub disconnected · showing crew visuals; task status may be stale"
+            bool live = OSWorkflowTransport.Available && string.IsNullOrEmpty(workflowError);
+            summary.text = !live ? "Workflow connection unavailable · showing crew visuals; task status may be stale"
                 : build == null ? "Existing crew · no project workflow yet"
                 : ((bool?)build["demo"] == true ? "SCRIPTED DEMO · " : "") + (string)build["title"] + " · " + WorkflowState;
+            if (!string.IsNullOrEmpty(workflowError)) summary.text = "Workflow service: " + workflowError;
             if (desks.Exists(d => d.portrait.fallback)) summary.text += "\nTemporary avatars · original Albie body asset is missing";
             foreach (var d in desks)
             {

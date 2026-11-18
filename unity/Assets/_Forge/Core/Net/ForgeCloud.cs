@@ -47,6 +47,7 @@ public class ForgeCloud : MonoBehaviour
 
     public static string BaseUrl => PlayerPrefs.GetString(UrlPref, DefaultUrl).Trim().TrimEnd('/');
     public static bool Configured => BaseUrl.Length > 0;
+    public static bool HasAppKey => !string.IsNullOrWhiteSpace(AppKey);
 
     public static string DeviceId
     {
@@ -273,6 +274,8 @@ public class ForgeCloud : MonoBehaviour
             AlbieTools.Call("ui_open_view", new JObject { ["view"] = show });
         yield return Events();  // the tool's own events (cad.model_updated ...) before Albie answers
         toolsRunning--;
+        if (name == "build_start" && answer["result"]?["build_id"] != null)
+            Forge.OS.OSWorkflowWindow.Open();
         done(answer["result"] as JObject ?? new JObject { ["ok"] = true });
     }
 
