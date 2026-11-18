@@ -55,10 +55,37 @@ public class DeskLocator : MonoBehaviour
             Debug.LogWarning("[DeskLocator] No TABLE in this room. Pick a simulator room with a table, or place the desk manually.");
             return;
         }
-        Desk = NearestTable(head != null ? head.position : Vector3.zero, out float distance);
+        TryPickDesk();
+    }
+
+    // A room scan from somewhere else can load with its tables far from the user (seen: 28 m). Such a table is not the
+    // desk: wait until a table is within reach, checking once a second.
+    const float MaxDeskDistance = 3f;
+    float nextPick;
+
+    void Update()
+    {
+        if (Desk != null || tables.Count == 0 || Time.time < nextPick) return;
+        TryPickDesk();
+    }
+
+    void TryPickDesk()
+    {
+        nextPick = Time.time + 1f;
+        var nearest = NearestTable(head != null ? head.position : Vector3.zero, out float distance);
+        if (nearest == null) return;
+        if (distance > MaxDeskDistance)
+        {
+            if (!warnedFar) Debug.Log($"[DeskLocator] Nearest table is {distance:F1} m away; no desk until one is within {MaxDeskDistance} m.");
+            warnedFar = true;
+            return;
+        }
+        Desk = nearest;
         Debug.Log($"[DeskLocator] Nearest desk at {DeskTop.From(Desk).center}, {distance:F2} m from head.");
         deskFound?.Invoke(Desk);
     }
+
+    bool warnedFar;
 
     /// <summary>Table whose top is horizontally closest to <paramref name="position"/>.</summary>
     public MRUKAnchor NearestTable(Vector3 position, out float distance)

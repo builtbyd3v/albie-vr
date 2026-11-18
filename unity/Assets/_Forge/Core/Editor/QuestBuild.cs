@@ -32,7 +32,7 @@ public static class QuestBuild
                 scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
                 locationPathName = path,
                 target = BuildTarget.Android,
-                options = dev ? BuildOptions.Development : BuildOptions.None,
+                options = (dev ? BuildOptions.Development : BuildOptions.None) | BuildOptions.CompressWithLz4,
             });
         }
         finally
@@ -111,7 +111,7 @@ public static class QuestBuild
                 locationPathName = path,
                 target = BuildTarget.Android,
                 targetGroup = BuildTargetGroup.Android,
-                options = BuildOptions.None,
+                options = BuildOptions.CompressWithLz4,
             });
             var s = report.summary;
             long bytes = System.IO.File.Exists(path) ? new System.IO.FileInfo(path).Length : 0;
