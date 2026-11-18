@@ -42,7 +42,7 @@ public class GesturePanel : MonoBehaviour
     readonly List<Row> rows = new List<Row>();
     readonly HandMeter[] meters = { new HandMeter(), new HandMeter() };
     TMP_Text status;
-    ForgePill teachPill;
+    ForgePill teachPill, handsPill;
     RectTransform rowsRoot;
     string shownStatus;
     string note = "Try a gesture.";
@@ -111,6 +111,13 @@ public class GesturePanel : MonoBehaviour
         teachPill = ForgePill.Create(panel.Content, "Teach a gesture", TeachByHand, 34f, 14f);
         teachPill.Rect.anchorMin = teachPill.Rect.anchorMax = teachPill.Rect.pivot = new Vector2(1f, 0f);
         teachPill.Rect.anchoredPosition = new Vector2(-Pad, 12f);
+
+        // The Hands setting: which hand opens and closes every window (the other does the one you look at).
+        handsPill = ForgePill.Create(panel.Content, GestureLibrary.Describe(HandSplit.RightAll), StepHands, 34f, 14f);
+        handsPill.Rect.anchorMin = handsPill.Rect.anchorMax = handsPill.Rect.pivot = new Vector2(1f, 0f);
+        float handsRight = Pad + teachPill.Rect.sizeDelta.x + 10f;
+        handsPill.Rect.anchoredPosition = new Vector2(-handsRight, 12f);
+        status.rectTransform.offsetMax = new Vector2(-(handsRight + handsPill.Rect.sizeDelta.x + 12f), 44f);
 
         engine.Library.Changed += Rebuild;
         engine.Fired += OnFired;
@@ -238,11 +245,12 @@ public class GesturePanel : MonoBehaviour
             Row row = rows[i];
             row.def = all[i];
             row.title.text = row.def.title;
-            row.how.text = row.def.how;
+            row.how.text = HandPrefix(row.def, engine.Library.Split) + row.def.how;
             SetActionLabel(row);
             row.forget.gameObject.SetActive(!row.def.builtin);
             row.flashUntil = 0f;
         }
+        handsPill.GetComponentInChildren<TMP_Text>().text = GestureLibrary.Describe(engine.Library.Split);
         float height = Mathf.Max(MinHeight, ForgeTheme.PanelHeader + Pad * 2f + Footer + all.Count * RowHeight);
         panel.SizeMeters = new Vector2(Width, height) * ForgePanel.MetersPerUnit;
     }
@@ -281,6 +289,22 @@ public class GesturePanel : MonoBehaviour
         var label = row.action.GetComponentInChildren<TMP_Text>();
         label.text = text;
         row.action.Rect.sizeDelta = new Vector2(Mathf.Max(112f, label.GetPreferredValues(text).x + 24f), 26f);
+    }
+
+    // Which hand a built-in answers to now, before its how-to.
+    static string HandPrefix(GestureDef def, HandSplit split)
+    {
+        if (def.role == GestureRole.Any) return "";
+        if (split == HandSplit.Off) return def.role == GestureRole.AllWindows ? "Off · " : "Either hand · ";
+        bool left = def.role == GestureRole.AllWindows ? split == HandSplit.LeftAll : split == HandSplit.RightAll;
+        return left ? "Left hand · " : "Right hand · ";
+    }
+
+    void StepHands()
+    {
+        var library = engine.Library;
+        library.Split = library.Split == HandSplit.LeftAll ? HandSplit.RightAll : library.Split == HandSplit.RightAll ? HandSplit.Off : HandSplit.LeftAll;
+        Note(GestureLibrary.Describe(library.Split) + ".");
     }
 
     void StepAction(Row row)

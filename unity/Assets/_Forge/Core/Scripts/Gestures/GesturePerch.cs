@@ -26,6 +26,9 @@ public sealed class GesturePerch
 
     public bool Active => hand != null;
 
+    /// <summary>He's on (or on his way to) this hand.</summary>
+    public bool On(GestureHand which) => hand != null && hand == which;
+
     public GesturePerch(GestureEngine engine) => this.engine = engine;
 
     AlbieController Albie()

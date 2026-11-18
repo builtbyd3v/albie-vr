@@ -17,6 +17,9 @@ public class GestureEngine : MonoBehaviour
     const float PokeRange = 0.18f;          // m: a fingertip this close to a window is poking it, not pointing at it
     const float NearPokeRange = 0.05f;      // m: the same, for a window that came to you
     const float AimMarginDegrees = 3f;      // around a window's edges, so it isn't fussy at a distance
+    const float LookMarginDegrees = 6f;     // the same for the window you look at: eyes wander more than a finger
+    const float QuietSeconds = 0.5f;        // after a gesture fires, no other starts on that hand for this long
+    const float PointQuietSeconds = 0.5f;   // an open or close can't start this soon after the hand was pointing
 
     public static GestureEngine Current { get; private set; }
 
@@ -108,12 +111,8 @@ public class GestureEngine : MonoBehaviour
                 continue;
             }
             if (recorder != null || held) continue;
-            for (int m = 0; m < matchers[h].Count; m++)
-            {
-                GestureMatcher matcher = matchers[h][m];
-                bool canStart = !matcher.def.NeedsTarget || hand.Target != null;
-                if (matcher.Step(hand.values, hand.motion, now, canStart)) Fire(matcher.def, hand);
-            }
+            GestureDef fired = StepHand(matchers[h], hand, now, hand.Target != null, Library.Split);
+            if (fired != null) Fire(fired, hand);
         }
 
         Actions.Tick(head);
@@ -124,6 +123,41 @@ public class GestureEngine : MonoBehaviour
             displayShown = true;
             Actions.ShowDisplay(true);
         }
+    }
+
+    /// <summary>
+    /// One hand's gestures for one frame; returns the one that fired, or null. At most one fires, and then the others on
+    /// that hand start over and wait <see cref="QuietSeconds"/>, so the tail of one gesture can't set off another. An open
+    /// or close can't start until the hand has stopped pointing for a moment, and an open's fist has to be made afresh
+    /// after that, which is what keeps curling the finger after a flick, then opening the hand, from doing anything. Shared with the self-test. No allocations.
+    /// </summary>
+    public static GestureDef StepHand(List<GestureMatcher> matchers, GestureHand hand, float now, bool hasTarget, HandSplit split)
+    {
+        if (GestureLibrary.IsAiming(hand.values)) hand.PointedAt = now;
+        if (now < hand.QuietUntil) return null;
+        bool afterPoint = now - hand.PointedAt < PointQuietSeconds;
+        for (int m = 0; m < matchers.Count; m++)
+        {
+            GestureMatcher matcher = matchers[m];
+            GestureDef def = matcher.def;
+            if (!def.AllowedOn(hand.sample.isLeft, split))
+            {
+                matcher.Reset();
+                continue;
+            }
+            if (def.quietAfterPoint && afterPoint)
+            {
+                if (def.freshAfterPoint) matcher.HoldOff(hand.values);
+                else matcher.Reset();
+                continue;
+            }
+            if (!matcher.Step(hand.values, hand.motion, now, !def.NeedsTarget || hasTarget)) continue;
+            hand.QuietUntil = now + QuietSeconds;
+            for (int other = 0; other < matchers.Count; other++)
+                if (other != m) matchers[other].Reset();
+            return def;
+        }
+        return null;
     }
 
     void Fire(GestureDef def, GestureHand hand)
@@ -156,9 +190,13 @@ public class GestureEngine : MonoBehaviour
         }
     }
 
-    static ForgePanel FindTarget(GestureHand hand, Vector3 headPosition)
+    static ForgePanel FindTarget(GestureHand hand, Vector3 headPosition) => FindTarget(hand.AimRay(headPosition), true, AimMarginDegrees);
+
+    /// <summary>The window in the middle of the view, for the gestures that act on the window you look at. Null if none.</summary>
+    public static ForgePanel LookedAt(Transform head) => head != null ? FindTarget(new Ray(head.position, head.forward), false, LookMarginDegrees) : null;
+
+    static ForgePanel FindTarget(Ray ray, bool skipPoked, float marginDegrees)
     {
-        Ray ray = hand.AimRay(headPosition);
         ForgePanel best = null;
         float bestDistance = float.MaxValue;
         for (int i = 0; i < ForgePanel.All.Count; i++)
@@ -170,11 +208,14 @@ public class GestureEngine : MonoBehaviour
             var plane = new Plane(t.forward, t.position);
             if (!plane.Raycast(ray, out float distance) || distance >= bestDistance) continue;
             // A window you pulled in sits within reach, and you still need to be able to flick it away.
-            float pokeRange = panel.TryGetComponent(out GestureWindow window) && window.IsNear ? NearPokeRange : PokeRange;
-            if (distance < pokeRange) continue;
+            if (skipPoked)
+            {
+                float pokeRange = panel.TryGetComponent(out GestureWindow window) && window.IsNear ? NearPokeRange : PokeRange;
+                if (distance < pokeRange) continue;
+            }
             Vector3 local = t.InverseTransformPoint(ray.GetPoint(distance));
             Rect rect = ((RectTransform)t).rect;
-            float margin = distance * Mathf.Tan(AimMarginDegrees * Mathf.Deg2Rad) / ForgePanel.MetersPerUnit;
+            float margin = distance * Mathf.Tan(marginDegrees * Mathf.Deg2Rad) / ForgePanel.MetersPerUnit;
             if (local.x < rect.xMin - margin || local.x > rect.xMax + margin || local.y < rect.yMin - margin || local.y > rect.yMax + margin) continue;
             best = panel;
             bestDistance = distance;

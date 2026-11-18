@@ -46,6 +46,10 @@ public static class GestureSelfTest
             SlowPullIsNotAFlick();
             StopPointingIsNotAFlick();
             FistOpenAndClose();
+            LeftHandDoesEveryWindow();
+            HandsSettingOff();
+            FlickThenCurlDoesNotClose();
+            RelaxedToFistDoesNotClose();
             SlowFistOpenDoesNothing();
             PalmUpHoldFiresOnce();
             PalmUpOutOfViewDoesNothing();
@@ -91,6 +95,7 @@ public static class GestureSelfTest
         public readonly List<string> fired = new List<string>();
         public bool hasWindow = true;
         public bool isLeft;
+        public HandSplit split = HandSplit.LeftAll;
         public float size = 1f;
         public float now = 10f;
         float nextTrackerFrame;
@@ -122,13 +127,11 @@ public static class GestureSelfTest
                     hand.sample.tracked = tracked;
                 }
                 hand.Update(now, HeadPosition, Quaternion.identity);
+                hand.sample.isLeft = isLeft;
                 if (hand.Usable)
                 {
-                    foreach (var m in matchers)
-                    {
-                        bool canStart = !m.def.NeedsTarget || hasWindow;
-                        if (m.Step(hand.values, hand.motion, now, canStart)) fired.Add(m.def.id);
-                    }
+                    GestureDef def = GestureEngine.StepHand(matchers, hand, now, hasWindow, split);
+                    if (def != null) fired.Add(def.id);
                 }
                 else foreach (var m in matchers) m.Reset();
                 eachFrame?.Invoke(hand, now);
@@ -217,7 +220,11 @@ public static class GestureSelfTest
         var s = new Sim { isLeft = true };
         s.Hold(0.4f, HandShape.Point);
         s.Run(0.5f, _ => HandShape.Point, Stroke(new Vector3(0f, 0.03f, -0.14f), 0f, 0.3f));
-        Check(s.Count(GestureLibrary.FlickIn) == 1, "the left hand can flick too");
+        Check(s.Count(GestureLibrary.FlickIn) == 0, "the left hand doesn't flick while it does every window");
+        s = new Sim { isLeft = true, split = HandSplit.Off };
+        s.Hold(0.4f, HandShape.Point);
+        s.Run(0.5f, _ => HandShape.Point, Stroke(new Vector3(0f, 0.03f, -0.14f), 0f, 0.3f));
+        Check(s.Count(GestureLibrary.FlickIn) == 1, "with the hands setting off, the left hand can flick too");
     }
 
     static void FlickNeedsPointing()
@@ -256,17 +263,70 @@ public static class GestureSelfTest
         }
     }
 
+    static void OpenThenClose(Sim s)
+    {
+        s.Hold(0.3f, HandShape.Open);
+        s.Run(0.3f, k => HandShape.Lerp(HandShape.Open, HandShape.Fist, k));
+        s.Hold(0.8f, HandShape.Fist);
+        s.Run(0.25f, k => HandShape.Lerp(HandShape.Fist, HandShape.Open, k));
+        s.Hold(0.3f, HandShape.Open);
+    }
+
     static void FistOpenAndClose()
     {
         var s = new Sim();
-        s.Hold(0.3f, HandShape.Open);
-        s.Run(0.3f, k => HandShape.Lerp(HandShape.Open, HandShape.Fist, k));
-        s.Hold(0.1f, HandShape.Fist);
-        Check(s.Count(GestureLibrary.FistClose) == 1, $"closing the hand fires Close fist once (got {s.Count(GestureLibrary.FistClose)})");
+        OpenThenClose(s);
+        Check(s.Count(GestureLibrary.FistClose) == 1, $"closing the right hand closes one window, once (got {s.Count(GestureLibrary.FistClose)})");
+        Check(s.Count(GestureLibrary.FistOpen) == 1, $"bursting it open reopens one, once (got {s.Count(GestureLibrary.FistOpen)})");
+        Check(s.Count(GestureLibrary.FistCloseAll) == 0 && s.Count(GestureLibrary.FistOpenAll) == 0, "the right hand doesn't do every window: " + string.Join(",", s.fired));
+    }
+
+    static void LeftHandDoesEveryWindow()
+    {
+        var s = new Sim { isLeft = true };
+        OpenThenClose(s);
+        Check(s.Count(GestureLibrary.FistCloseAll) == 1 && s.Count(GestureLibrary.FistOpenAll) == 1, "the left hand hides and shows every window: " + string.Join(",", s.fired));
+        Check(s.Count(GestureLibrary.FistClose) == 0 && s.Count(GestureLibrary.FistOpen) == 0, "and not one window as well");
+        s = new Sim { split = HandSplit.RightAll };
+        OpenThenClose(s);
+        Check(s.Count(GestureLibrary.FistCloseAll) == 1 && s.Count(GestureLibrary.FistClose) == 0, "swapped, the right hand does every window: " + string.Join(",", s.fired));
+    }
+
+    static void HandsSettingOff()
+    {
+        foreach (bool left in new[] { true, false })
+        {
+            var s = new Sim { isLeft = left, split = HandSplit.Off };
+            OpenThenClose(s);
+            Check(s.Count(GestureLibrary.FistCloseAll) == 0 && s.Count(GestureLibrary.FistClose) == 1, $"hands setting off: the {(left ? "left" : "right")} hand does one window: " + string.Join(",", s.fired));
+        }
+    }
+
+    // What was going wrong: after a flick the finger curls in, and the hand opens again. Neither is a close or an open.
+    static void FlickThenCurlDoesNotClose()
+    {
+        foreach (float seconds in new[] { 0.08f, 0.2f })
+        {
+            var s = new Sim();
+            s.Hold(0.4f, HandShape.Point);
+            s.Run(0.5f, _ => HandShape.Point, Stroke(new Vector3(0f, 0f, 0.16f), 0f, 0.3f));
+            s.Run(seconds, k => HandShape.Lerp(HandShape.Point, HandShape.Fist, k));
+            s.Hold(0.7f, HandShape.Fist);
+            s.Run(0.2f, k => HandShape.Lerp(HandShape.Fist, HandShape.Open, k));
+            s.Hold(0.3f, HandShape.Open);
+            Check(s.Count(GestureLibrary.FlickOut) == 1, "the flick itself still fires");
+            Check(s.Count(GestureLibrary.FistClose) == 0 && s.Count(GestureLibrary.FistOpen) == 0,
+                  $"curling the finger after a flick ({seconds} s), then opening the hand, closes and reopens nothing: {string.Join(",", s.fired)}");
+        }
+    }
+
+    static void RelaxedToFistDoesNotClose()
+    {
+        var s = new Sim();
+        s.Hold(0.4f, HandShape.Relaxed);
+        s.Run(0.3f, k => HandShape.Lerp(HandShape.Relaxed, HandShape.Fist, k));
         s.Hold(0.3f, HandShape.Fist);
-        s.Run(0.25f, k => HandShape.Lerp(HandShape.Fist, HandShape.Open, k));
-        s.Hold(0.1f, HandShape.Open);
-        Check(s.Count(GestureLibrary.FistOpen) == 1, $"bursting it open fires Open fist once (got {s.Count(GestureLibrary.FistOpen)})");
+        Check(s.Count(GestureLibrary.FistClose) == 0, "a resting hand closing isn't a close: it has to open first");
     }
 
     static void SlowFistOpenDoesNothing()

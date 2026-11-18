@@ -1041,9 +1041,10 @@ namespace Forge.OS.Editor
             if (view == null) { Unreachable("settings_page1", "the Settings window did not open"); yield break; }
             string[] what =
             {
-                "Settings, page 1 of 3: the three menu button switches (Table button, Watch turn, Corner button), the corner side, hands-free voice and the gesture display.",
-                "Settings, page 2 of 3: window layout, the Distance and Height sliders with their values.",
-                "Settings, page 3 of 3: Reset window positions, Forget permissions, and About with the version and credits.",
+                "Settings, page 1 of 4: the three menu button switches (Table button, Watch turn, Corner button), the corner side, hands-free voice and the gesture display.",
+                "Settings, page 2 of 4: window layout, the Distance and Height sliders with their values.",
+                "Settings, page 3 of 4: Hands, which hand hides all windows (Left hand, Right hand, Off), with a sentence saying what each hand does.",
+                "Settings, page 4 of 4: Reset window positions, Forget permissions, and About with the version and credits.",
             };
             for (int page = 0; page < OSSettingsWindow.PageCount; page++)
             {
