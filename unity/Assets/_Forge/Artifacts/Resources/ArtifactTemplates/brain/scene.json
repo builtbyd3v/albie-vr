@@ -27,9 +27,9 @@
       ]
     },
     {
-      "id": "label_temporal",
+      "id": "label_frontal",
       "kind": "text",
-      "text": "Temporal lobe",
+      "text": "Frontal lobe",
       "pos": [
         -0.2,
         0.12,
@@ -41,7 +41,7 @@
       "align": "right"
     },
     {
-      "id": "leader_temporal",
+      "id": "leader_frontal",
       "kind": "line",
       "points": [
         [
@@ -50,21 +50,21 @@
           -0.12
         ],
         [
-          -0.0065,
-          0.0023,
-          -0.0295
+          -0.0334,
+          0.0212,
+          -0.078
         ]
       ],
       "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_parietal",
+      "id": "label_corpus_callosum",
       "kind": "text",
-      "text": "Parietal lobe",
+      "text": "Corpus callosum",
       "pos": [
         -0.2,
-        0.0,
+        0.04,
         -0.12
       ],
       "height": 0.016,
@@ -73,27 +73,59 @@
       "align": "right"
     },
     {
-      "id": "leader_parietal",
+      "id": "leader_corpus_callosum",
       "kind": "line",
       "points": [
         [
           -0.208,
-          -0.004,
+          0.036,
           -0.12
         ],
         [
-          -0.0197,
-          -0.0188,
-          -0.043
+          -0.0023,
+          0.0107,
+          -0.0191
         ]
       ],
       "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_occipital",
+      "id": "label_thalamus",
       "kind": "text",
-      "text": "Occipital lobe",
+      "text": "Thalamus",
+      "pos": [
+        -0.2,
+        -0.04,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "right"
+    },
+    {
+      "id": "leader_thalamus",
+      "kind": "line",
+      "points": [
+        [
+          -0.208,
+          -0.044,
+          -0.12
+        ],
+        [
+          -0.0029,
+          -0.0177,
+          -0.03
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_brainstem",
+      "kind": "text",
+      "text": "Brainstem",
       "pos": [
         -0.2,
         -0.12,
@@ -105,7 +137,7 @@
       "align": "right"
     },
     {
-      "id": "leader_occipital",
+      "id": "leader_brainstem",
       "kind": "line",
       "points": [
         [
@@ -114,18 +146,18 @@
           -0.12
         ],
         [
-          -0.0143,
-          -0.027,
-          -0.0437
+          -0.0035,
+          -0.059,
+          -0.0266
         ]
       ],
       "width": 0.0008,
       "color": "#D0D4DA"
     },
     {
-      "id": "label_corpus_callosum",
+      "id": "label_parietal",
       "kind": "text",
-      "text": "Corpus callosum",
+      "text": "Parietal lobe",
       "pos": [
         0.2,
         0.12,
@@ -137,7 +169,7 @@
       "align": "left"
     },
     {
-      "id": "leader_corpus_callosum",
+      "id": "leader_parietal",
       "kind": "line",
       "points": [
         [
@@ -146,9 +178,73 @@
           -0.12
         ],
         [
-          0.0162,
-          -0.0,
-          -0.019
+          0.0107,
+          0.0113,
+          -0.0879
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_temporal",
+      "kind": "text",
+      "text": "Temporal lobe",
+      "pos": [
+        0.2,
+        0.04,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_temporal",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          0.036,
+          -0.12
+        ],
+        [
+          0.0072,
+          -0.016,
+          -0.0895
+        ]
+      ],
+      "width": 0.0008,
+      "color": "#D0D4DA"
+    },
+    {
+      "id": "label_occipital",
+      "kind": "text",
+      "text": "Occipital lobe",
+      "pos": [
+        0.2,
+        -0.04,
+        -0.12
+      ],
+      "height": 0.016,
+      "color": "#FFFFFF",
+      "billboard": true,
+      "align": "left"
+    },
+    {
+      "id": "leader_occipital",
+      "kind": "line",
+      "points": [
+        [
+          0.208,
+          -0.044,
+          -0.12
+        ],
+        [
+          0.0561,
+          -0.0316,
+          -0.0678
         ]
       ],
       "width": 0.0008,
@@ -160,7 +256,7 @@
       "text": "Cerebellum",
       "pos": [
         0.2,
-        0.06,
+        -0.12,
         -0.12
       ],
       "height": 0.016,
@@ -174,109 +270,13 @@
       "points": [
         [
           0.208,
-          0.056,
-          -0.12
-        ],
-        [
-          0.0098,
-          -0.0082,
-          -0.0639
-        ]
-      ],
-      "width": 0.0008,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_brainstem",
-      "kind": "text",
-      "text": "Brainstem",
-      "pos": [
-        0.2,
-        0.0,
-        -0.12
-      ],
-      "height": 0.016,
-      "color": "#FFFFFF",
-      "billboard": true,
-      "align": "left"
-    },
-    {
-      "id": "leader_brainstem",
-      "kind": "line",
-      "points": [
-        [
-          0.208,
-          -0.004,
-          -0.12
-        ],
-        [
-          0.0064,
-          -0.0108,
-          -0.0266
-        ]
-      ],
-      "width": 0.0008,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_thalamus",
-      "kind": "text",
-      "text": "Thalamus",
-      "pos": [
-        0.2,
-        -0.06,
-        -0.12
-      ],
-      "height": 0.016,
-      "color": "#FFFFFF",
-      "billboard": true,
-      "align": "left"
-    },
-    {
-      "id": "leader_thalamus",
-      "kind": "line",
-      "points": [
-        [
-          0.208,
-          -0.064,
-          -0.12
-        ],
-        [
-          0.0077,
-          -0.0122,
-          -0.03
-        ]
-      ],
-      "width": 0.0008,
-      "color": "#D0D4DA"
-    },
-    {
-      "id": "label_frontal",
-      "kind": "text",
-      "text": "Frontal lobe",
-      "pos": [
-        0.2,
-        -0.12,
-        -0.12
-      ],
-      "height": 0.016,
-      "color": "#FFFFFF",
-      "billboard": true,
-      "align": "left"
-    },
-    {
-      "id": "leader_frontal",
-      "kind": "line",
-      "points": [
-        [
-          0.208,
           -0.124,
           -0.12
         ],
         [
-          0.0249,
-          -0.0132,
-          -0.0428
+          0.0368,
+          -0.0688,
+          -0.0639
         ]
       ],
       "width": 0.0008,
@@ -378,9 +378,9 @@
       "kind": "primitive",
       "shape": "sphere",
       "pos": [
-        0.0249,
-        -0.0132,
-        -0.0428
+        -0.0334,
+        0.0212,
+        -0.078
       ],
       "size": [
         0.014,
@@ -426,27 +426,11 @@
       "input": "labels_on",
       "do": [
         {
-          "set": "label_temporal.visible",
+          "set": "label_frontal.visible",
           "value": true
         },
         {
-          "set": "leader_temporal.visible",
-          "value": true
-        },
-        {
-          "set": "label_parietal.visible",
-          "value": true
-        },
-        {
-          "set": "leader_parietal.visible",
-          "value": true
-        },
-        {
-          "set": "label_occipital.visible",
-          "value": true
-        },
-        {
-          "set": "leader_occipital.visible",
+          "set": "leader_frontal.visible",
           "value": true
         },
         {
@@ -458,11 +442,11 @@
           "value": true
         },
         {
-          "set": "label_cerebellum.visible",
+          "set": "label_thalamus.visible",
           "value": true
         },
         {
-          "set": "leader_cerebellum.visible",
+          "set": "leader_thalamus.visible",
           "value": true
         },
         {
@@ -474,19 +458,35 @@
           "value": true
         },
         {
-          "set": "label_thalamus.visible",
+          "set": "label_parietal.visible",
           "value": true
         },
         {
-          "set": "leader_thalamus.visible",
+          "set": "leader_parietal.visible",
           "value": true
         },
         {
-          "set": "label_frontal.visible",
+          "set": "label_temporal.visible",
           "value": true
         },
         {
-          "set": "leader_frontal.visible",
+          "set": "leader_temporal.visible",
+          "value": true
+        },
+        {
+          "set": "label_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "leader_occipital.visible",
+          "value": true
+        },
+        {
+          "set": "label_cerebellum.visible",
+          "value": true
+        },
+        {
+          "set": "leader_cerebellum.visible",
           "value": true
         }
       ]
@@ -496,27 +496,11 @@
       "input": "labels_off",
       "do": [
         {
-          "set": "label_temporal.visible",
+          "set": "label_frontal.visible",
           "value": false
         },
         {
-          "set": "leader_temporal.visible",
-          "value": false
-        },
-        {
-          "set": "label_parietal.visible",
-          "value": false
-        },
-        {
-          "set": "leader_parietal.visible",
-          "value": false
-        },
-        {
-          "set": "label_occipital.visible",
-          "value": false
-        },
-        {
-          "set": "leader_occipital.visible",
+          "set": "leader_frontal.visible",
           "value": false
         },
         {
@@ -528,11 +512,11 @@
           "value": false
         },
         {
-          "set": "label_cerebellum.visible",
+          "set": "label_thalamus.visible",
           "value": false
         },
         {
-          "set": "leader_cerebellum.visible",
+          "set": "leader_thalamus.visible",
           "value": false
         },
         {
@@ -544,19 +528,35 @@
           "value": false
         },
         {
-          "set": "label_thalamus.visible",
+          "set": "label_parietal.visible",
           "value": false
         },
         {
-          "set": "leader_thalamus.visible",
+          "set": "leader_parietal.visible",
           "value": false
         },
         {
-          "set": "label_frontal.visible",
+          "set": "label_temporal.visible",
           "value": false
         },
         {
-          "set": "leader_frontal.visible",
+          "set": "leader_temporal.visible",
+          "value": false
+        },
+        {
+          "set": "label_occipital.visible",
+          "value": false
+        },
+        {
+          "set": "leader_occipital.visible",
+          "value": false
+        },
+        {
+          "set": "label_cerebellum.visible",
+          "value": false
+        },
+        {
+          "set": "leader_cerebellum.visible",
           "value": false
         }
       ]
@@ -570,96 +570,96 @@
         [
           0,
           [
-            0.0249,
-            -0.0132,
-            -0.0428
+            -0.0334,
+            0.0212,
+            -0.078
           ]
         ],
         [
           1.7,
           [
-            0.0249,
-            -0.0132,
-            -0.0428
+            -0.0334,
+            0.0212,
+            -0.078
           ]
         ],
         [
           2.01,
           [
-            -0.0197,
-            -0.0188,
-            -0.043
+            0.0107,
+            0.0113,
+            -0.0879
           ]
         ],
         [
           3.7,
           [
-            -0.0197,
-            -0.0188,
-            -0.043
+            0.0107,
+            0.0113,
+            -0.0879
           ]
         ],
         [
           4.01,
           [
-            -0.0143,
-            -0.027,
-            -0.0437
+            0.0561,
+            -0.0316,
+            -0.0678
           ]
         ],
         [
           5.7,
           [
-            -0.0143,
-            -0.027,
-            -0.0437
+            0.0561,
+            -0.0316,
+            -0.0678
           ]
         ],
         [
           6.01,
           [
-            -0.0065,
-            0.0023,
-            -0.0295
+            0.0072,
+            -0.016,
+            -0.0895
           ]
         ],
         [
           7.7,
           [
-            -0.0065,
-            0.0023,
-            -0.0295
+            0.0072,
+            -0.016,
+            -0.0895
           ]
         ],
         [
           8.01,
           [
-            0.0098,
-            -0.0082,
+            0.0368,
+            -0.0688,
             -0.0639
           ]
         ],
         [
           9.7,
           [
-            0.0098,
-            -0.0082,
+            0.0368,
+            -0.0688,
             -0.0639
           ]
         ],
         [
           10.01,
           [
-            0.0064,
-            -0.0108,
+            -0.0035,
+            -0.059,
             -0.0266
           ]
         ],
         [
           11.7,
           [
-            0.0064,
-            -0.0108,
+            -0.0035,
+            -0.059,
             -0.0266
           ]
         ]
