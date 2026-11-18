@@ -33,6 +33,20 @@ public sealed class GestureActions
     // Confirming a send is the user's own step: a gesture mustn't be able to do it.
     static readonly HashSet<string> NeverBind = new HashSet<string> { "messages_confirm" };
 
+    /// <summary>
+    /// For things the close gesture should reach that are not windows (the open artifact: its model, its course marker, its
+    /// panels). Given the eyes' ray and the window they are on (or null), the owner closes its own thing if that is what is
+    /// looked at and returns what to say at the hand; null when it isn't, and the window minimises as usual. Set by the
+    /// artifact host (<c>ArtifactDismiss</c>).
+    /// </summary>
+    public static Func<Ray, ForgePanel, string> CloseLookedAtHook;
+
+    /// <summary>
+    /// The reopen gesture asks this first: the owner brings back what the close gesture (or a throw) closed last and returns
+    /// what to say, or null when it has nothing to bring back (then the last minimised window comes back).
+    /// </summary>
+    public static Func<string> ReopenHook;
+
     readonly GestureEngine engine;
     readonly GesturePerch perch;
     GesturePanel display;
@@ -67,10 +81,16 @@ public sealed class GestureActions
             case WindowClose:
             {
                 ForgePanel looked = GestureEngine.LookedAt(head);
+                // An artifact looked at (its model, course marker or panel) closes as a whole; a window minimises into its dot.
+                string closed = CloseLookedAtHook != null && head != null ? CloseLookedAtHook(new Ray(head.position, head.forward), looked) : null;
+                if (closed != null) return closed;
                 return looked != null ? GestureWindow.Of(looked).Close(engine, head) : "Look at a window";
             }
             case WindowReopen:
-                return GestureWindow.ReopenLast(engine);
+            {
+                string back = ReopenHook != null ? ReopenHook() : null;
+                return back ?? GestureWindow.ReopenLast(engine);
+            }
             case WindowsHide:
                 return WindowStash.HideAll(engine);
             case WindowsShow:

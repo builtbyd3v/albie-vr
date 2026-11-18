@@ -195,6 +195,17 @@ namespace Forge.OS
             }
             AddThings(into, host, artifactId);
 
+            // An artifact a hand closed (thrown away, its chip, the close gesture) can come back for a little while: undo.
+            ArtifactDismiss.Record closedByHand = ArtifactDismiss.Last;
+            if (closedByHand != null && artifactId == null)
+            {
+                var item = new SpaceItem { key = "closed:artifact", kind = SpaceKind.Artifact, title = closedByHand.title + " (closed)", icon = "artifact", away = true };
+                item.restore = () => ArtifactDismiss.Undo();
+                item.bring = () => ArtifactDismiss.Undo();
+                item.close = ArtifactDismiss.Forget;
+                into.Add(item);
+            }
+
             // The transmitter, out in the room or tucked in the tray.
             RcTransmitter transmitter = RcTransmitter.Instance;
             bool transmitterAway = InTray("transmitter");
@@ -309,6 +320,7 @@ namespace Forge.OS
             if (p.GetComponent<OSWindow>() != null) return false;
             if (ws != null && ws.IsOpenItem(p.gameObject)) return false;
             if (host != null && p.transform.IsChildOf(host.transform)) return false;
+            if (p.GetComponent<ArtifactCourseMarker>() != null) return false;  // the course's own card: the course row is it
             return true;
         }
 
@@ -445,6 +457,7 @@ namespace Forge.OS
             panelScratch.Clear();
             tray.Clear();
             PanelChrome.FinishAll();  // thrown-away panels close for real now; closed ones are no longer offered back
+            ArtifactDismiss.Forget();  // and so is an artifact a hand closed
 
             if (shell != null) shell.Windows.CloseAllBut(keepSpaces ? WindowId : null);
             else if (ws != null && !string.IsNullOrEmpty(ws.ActiveMode)) ws.Close();

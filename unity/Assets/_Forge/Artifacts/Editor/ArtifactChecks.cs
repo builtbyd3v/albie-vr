@@ -1008,3 +1008,332 @@ public static class ArtifactChecks
         Check(ArtifactLook.Color("#FF0000", Color.white) == Color.red && ArtifactLook.Color("nope", Color.white) == Color.white, "colours parse, with a fallback");
     }
 }
+
+/// <summary>
+/// Forge > Check Artifact Close (Play mode): closing artifacts by hand, on a real host in whatever scene is open (it enters
+/// Play mode itself and leaves it again; nothing is saved to the scene). In a scratch library it opens the double pendulum (a
+/// model in a volume) and checks: a synthetic hand that picks it up and flings it away closes it, and the undo brings it back
+/// where it was; a hand that carries it slowly and lets go does not; two hands never throw; the volume's close chip closes it;
+/// the hide-all gesture hides the model and show-all brings it back. Then it opens a slalom on a mock living room and checks
+/// the course has its marker, and that the marker's X (and artifact_close) leaves no course, no cones and no marker behind and
+/// raises the host's Closed (which puts the truck or drone away), and that hide-all hides the course and show-all restores it.
+/// Results in the Console, "[ArtifactCloseCheck] PASS/FAIL".
+/// </summary>
+public static class ArtifactCloseCheck
+{
+    const string Pending = "ArtifactCloseCheck.pending";
+    const float Dt = 1f / 72f;
+    static readonly System.Text.StringBuilder log = new System.Text.StringBuilder();
+    static int failed;
+    static string scratch;
+    static bool enteredPlay;
+
+    [MenuItem("Forge/Check Artifact Close (Play mode)")]
+    static void Menu()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            enteredPlay = false;
+            Begin();
+            return;
+        }
+        SessionState.SetBool(Pending, true);
+        EditorApplication.isPlaying = true;
+    }
+
+    [InitializeOnLoadMethod]
+    static void Hook()
+    {
+        EditorApplication.playModeStateChanged -= OnPlayMode;
+        EditorApplication.playModeStateChanged += OnPlayMode;
+    }
+
+    static void OnPlayMode(PlayModeStateChange state)
+    {
+        if (state != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(Pending, false)) return;
+        SessionState.SetBool(Pending, false);
+        enteredPlay = true;
+        Begin();
+    }
+
+    static void Begin()
+    {
+        log.Length = 0;
+        failed = 0;
+        var go = new GameObject("ArtifactCloseCheck");
+        go.AddComponent<ForgeRunner>().StartCoroutine(Run(go));
+    }
+
+    static void Expect(bool ok, string what)
+    {
+        log.Append(ok ? "  ok   " : "  FAIL ").AppendLine(what);
+        if (!ok) failed++;
+    }
+
+    static System.Collections.IEnumerator Run(GameObject runner)
+    {
+        ArtifactHost host = null;
+        Camera cam = Camera.main;
+        GameObject camGo = null;
+        try
+        {
+            scratch = Path.Combine(Application.temporaryCachePath, "artifact_close_check_" + DateTime.Now.Ticks);
+            Directory.CreateDirectory(scratch);
+            ArtifactLibrary.RootOverride = Path.Combine(scratch, "artifacts");
+            ArtifactApprovals.FileOverride = Path.Combine(scratch, "approvals.json");
+            if (cam == null)
+            {
+                camGo = new GameObject("check camera") { tag = "MainCamera" };
+                cam = camGo.AddComponent<Camera>();
+                camGo.transform.position = new Vector3(0f, 1.6f, 0f);
+            }
+            var prefab = Resources.Load<ArtifactHost>(ArtifactBootstrap.Resource);
+            if (prefab == null) Expect(false, "Resources/ArtifactHost exists");
+            else host = UnityEngine.Object.Instantiate(prefab);
+        }
+        catch (Exception e) { Expect(false, "setup: " + e.Message); }
+        try
+        {
+            if (host == null) throw new InvalidOperationException("no host");
+            host.name = "ArtifactCloseCheck host";
+            Vector3 ahead = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized;
+            if (ahead.sqrMagnitude < 0.5f) ahead = Vector3.forward;
+            host.transform.SetPositionAndRotation(cam.transform.position + ahead * 0.7f + Vector3.down * 0.5f, Quaternion.LookRotation(ahead));
+        }
+        catch (Exception e) { Expect(false, "setup: " + e.Message); }
+        if (host != null)
+        {
+            yield return Model(host, cam, ahead: Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized);
+            yield return Course(host);
+        }
+        try
+        {
+            if (host != null) { host.Close(); UnityEngine.Object.Destroy(host.gameObject); }
+            if (camGo != null) UnityEngine.Object.Destroy(camGo);
+            ArtifactLibrary.RootOverride = null;
+            ArtifactApprovals.FileOverride = null;
+            ArtifactDismiss.Forget();
+        }
+        catch (Exception e) { Expect(false, "cleanup: " + e.Message); }
+        string report = (failed == 0 ? "PASS" : $"FAIL ({failed})") + " artifact close check\n" + log;
+        if (failed == 0) Debug.Log("[ArtifactCloseCheck] " + report); else Debug.LogError("[ArtifactCloseCheck] " + report);
+        UnityEngine.Object.Destroy(runner);
+        if (enteredPlay) EditorApplication.isPlaying = false;
+    }
+
+    static string Make(string template)
+    {
+        var made = ArtifactLibrary.FromTemplate(template, null);
+        var p = ArtifactPackage.Load(made.Id, out _);
+        if (p != null && ArtifactApprovals.NeedsApproval(p.Manifest)) ArtifactApprovals.Approve(p.Manifest);
+        return made.Id;
+    }
+
+    static ForgeVolume VolumeOf(ArtifactHost host) => host.GetComponentInChildren<ForgeVolume>(false);
+
+    static System.Collections.IEnumerator WaitReal(float seconds)
+    {
+        float until = Time.realtimeSinceStartup + seconds;
+        while (Time.realtimeSinceStartup < until) yield return null;
+    }
+
+    // ---- a model in a volume -----------------------------------------------------------------------------------
+
+    static System.Collections.IEnumerator Model(ArtifactHost host, Camera cam, Vector3 ahead)
+    {
+        if (ahead.sqrMagnitude < 0.5f) ahead = Vector3.forward;
+        string id = null;
+        try { id = Make("double_pendulum"); host.Open(id); }
+        catch (Exception e) { Expect(false, "open the double pendulum: " + e.Message); }
+        if (id == null) yield break;
+        yield return WaitReal(ForgeTheme.UnfoldTime + 0.2f);
+        var volume = VolumeOf(host);
+        Expect(host.OpenId == id && volume != null, "the double pendulum opens in a volume");
+        if (volume == null) yield break;
+        var hands = volume.GetComponent<ArtifactHandGrab>();
+        var chrome = volume.GetComponent<ForgeVolumeChrome>();
+        Expect(hands != null && volume.Closable && volume.ThrowHandler != null, "its volume can be picked up, closed and thrown");
+        Expect(chrome != null && chrome.Chip != null && chrome.Chip.gameObject.activeSelf, "its volume shows a close chip beside the label");
+
+        // A slow carry and let go: stays open.
+        Vector3 placedAt = volume.transform.position;
+        bool thrown = Drive(hands, volume, cam, ahead, 0.5f, 0.6f, false);
+        yield return WaitReal(ArtifactDismiss.FlySeconds + 0.2f);
+        Expect(!thrown && host.OpenId == id && ArtifactDismiss.Last == null, "carried 30 cm at 0.5 m/s and let go, it stays open (moved " + (volume != null ? (volume.transform.position - placedAt).magnitude.ToString("0.00") : "?") + " m)");
+
+        // Two hands on it, then a fast fling with both: never a throw.
+        thrown = Drive(hands, volume, cam, ahead, 3f, 0.18f, true);
+        yield return WaitReal(ArtifactDismiss.FlySeconds + 0.2f);
+        Expect(!thrown && host.OpenId == id, "flung while two hands hold it (resizing), it stays open");
+
+        // Picked up and flung away: it flies off and the artifact closes.
+        volume = VolumeOf(host);
+        hands = volume != null ? volume.GetComponent<ArtifactHandGrab>() : null;
+        Vector3 before = volume != null ? volume.transform.position : Vector3.zero;
+        thrown = hands != null && Drive(hands, volume, cam, ahead, 3f, 0.18f, false);
+        Expect(thrown, "picked up and flung away at 3 m/s, the hand grab calls it a throw");
+        yield return WaitReal(ArtifactDismiss.FlySeconds + 0.3f);
+        Expect(host.OpenId == null && VolumeOf(host) == null, "thrown, the artifact closes: no model, no panel left");
+        var record = ArtifactDismiss.Last;
+        Expect(record != null && record.id == id, "what was thrown can be brought back for " + ArtifactDismiss.UndoSeconds + " s");
+
+        // Undo: back, where the hands had it.
+        string problem = ArtifactDismiss.Undo();
+        yield return WaitReal(ForgeTheme.UnfoldTime + 0.2f);
+        volume = VolumeOf(host);
+        Expect(problem == null && host.OpenId == id && volume != null, "undo opens it again (" + (problem ?? "ok") + ")");
+        if (volume == null) yield break;
+        Expect(record != null && (volume.transform.position - record.volumePosition).magnitude < 0.01f, "undo puts the model back where it was thrown from");
+
+        // The chip closes it.
+        chrome = volume.GetComponent<ForgeVolumeChrome>();
+        PanelChromeButton x = chrome != null && chrome.Chip != null ? PanelChrome.Of(chrome.Chip).CloseButton : null;
+        if (x != null) x.Press();
+        yield return null;
+        Expect(x != null && host.OpenId == null && VolumeOf(host) == null && ArtifactDismiss.Last != null, "the volume's close chip closes the artifact, with an undo");
+        ArtifactDismiss.Undo();
+        yield return WaitReal(ForgeTheme.UnfoldTime + 0.2f);
+
+        // Hide all hides the model; show all brings it back.
+        volume = VolumeOf(host);
+        float size = volume != null ? volume.transform.localScale.x : 1f;
+        var runner = new GameObject("stash runner").AddComponent<ForgeRunner>();
+        WindowStash.HideAll(runner);
+        yield return WaitReal(0.35f);
+        Expect(volume != null && !volume.gameObject.activeSelf && host.OpenId == id, "the hide-all gesture hides the model (the artifact stays open)");
+        WindowStash.ShowAll(runner);
+        yield return WaitReal(0.4f);
+        Expect(volume != null && volume.gameObject.activeSelf && Mathf.Abs(volume.transform.localScale.x - size) < 0.01f, "show-all brings the model back at its size");
+        UnityEngine.Object.Destroy(runner.gameObject);
+        host.Close();
+        ArtifactDismiss.Forget();
+    }
+
+    // One hand pinches the model, holds still, then moves along `ahead` at up to `speed` for `seconds`, then lets go. With
+    // `twoHands` the other hand pinches too. Returns whether the grab threw it. The component is switched off meanwhile so
+    // its own Update (the real hands) doesn't step it too.
+    static bool Drive(ArtifactHandGrab hands, ForgeVolume volume, Camera cam, Vector3 ahead, float speed, float seconds, bool twoHands)
+    {
+        hands.enabled = false;
+        var left = new HandSample { isLeft = true };
+        var right = new HandSample();
+        Bounds b = new Bounds(volume.transform.position + Vector3.up * 0.2f, Vector3.zero);
+        bool any = false;
+        foreach (var r in volume.ContentRoot.GetComponentsInChildren<Renderer>())
+        {
+            if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+        }
+        Vector3 at = b.center, fwd = ahead;
+        float now = Time.unscaledTime;
+        bool thrown = false;
+        left.tracked = false;
+        Vector3 leftAt = at - Vector3.Cross(Vector3.up, fwd) * 0.08f;
+        for (int i = 0; i < 40 && !thrown; i++)
+        {
+            Pose(right, at, fwd, true);
+            if (twoHands && i > 10) Pose(left, leftAt, fwd, true);
+            now += Dt;
+            thrown = hands.Step(left, right, Dt, now);
+        }
+        for (float s = 0f; s < seconds && !thrown; s += Dt)
+        {
+            float v = speed >= 1.5f ? Mathf.Min(speed, s / 0.15f * speed) : speed;
+            at += fwd * (v * Dt);
+            leftAt += fwd * (v * Dt);
+            Pose(right, at, fwd, true);
+            if (twoHands) Pose(left, leftAt, fwd, true);
+            now += Dt;
+            thrown = hands.Step(left, right, Dt, now);
+        }
+        for (int i = 0; i < 6 && !thrown; i++)
+        {
+            Pose(right, at, fwd, false);
+            if (twoHands) Pose(left, leftAt, fwd, false);
+            now += Dt;
+            thrown = hands.Step(left, right, Dt, now);
+        }
+        if (hands != null && !thrown) hands.enabled = true;
+        return thrown;
+    }
+
+    // A hand whose pinch point is at `at`, pointing along `forward` (as ArtifactChecks.Pose).
+    static void Pose(HandSample s, Vector3 at, Vector3 forward, bool pinched)
+    {
+        forward.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, forward).normalized;
+        Vector3 wrist = at - forward * 0.12f;
+        s.tracked = true;
+        s.highConfidence = true;
+        for (int i = 0; i < HandJoint.Count; i++) s.joints[i] = wrist;
+        s.joints[HandJoint.Middle1] = wrist + forward * 0.09f;
+        s.joints[HandJoint.Index1] = wrist + forward * 0.09f + side * 0.02f;
+        s.joints[HandJoint.Pinky1] = wrist + forward * 0.08f - side * 0.03f;
+        float half = pinched ? 0.004f : 0.02f;
+        s.joints[HandJoint.ThumbTip] = at - side * half;
+        s.joints[HandJoint.IndexTip] = at + side * half;
+    }
+
+    // ---- a room course -----------------------------------------------------------------------------------------
+
+    static System.Collections.IEnumerator Course(ArtifactHost host)
+    {
+        string id = null;
+        host.Room = MockFloorPlan.All()[0];
+        int closed = 0;
+        System.Action<ArtifactHost> onClosed = h => closed++;
+        host.Closed += onClosed;
+        try { id = Make("slalom"); host.Open(id); }
+        catch (Exception e) { Expect(false, "open the slalom: " + e.Message); }
+        yield return WaitReal(ForgeTheme.UnfoldTime + 0.2f);
+        Transform course = host.ContentRoot;
+        var marker = ArtifactCourseMarker.Of(host);
+        Expect(host.OpenId == id && course != null && !course.IsChildOf(host.transform), "the slalom opens on the mock living room's floor");
+        Expect(marker != null && marker.Panel != null && marker.Panel.Title.Length > 0, "the course has a marker over its start, with its name");
+        if (course == null || marker == null) { host.Closed -= onClosed; yield break; }
+        int cones = course.GetComponentsInChildren<Renderer>(true).Length;
+        Expect(cones > 0, "the course has cones and gates (" + cones + " renderers)");
+        Expect(Vector3.Distance(marker.transform.position, host.SceneOrigin.position) < 1.6f, "the marker floats over the course start");
+
+        // Hide all hides the course; show all brings it back.
+        var runner = new GameObject("stash runner").AddComponent<ForgeRunner>();
+        WindowStash.HideAll(runner);
+        yield return WaitReal(0.35f);
+        Expect(!course.gameObject.activeSelf && host.OpenId == id, "the hide-all gesture hides the course (it stays open)");
+        WindowStash.ShowAll(runner);
+        yield return WaitReal(0.4f);
+        Expect(course.gameObject.activeSelf, "show-all brings the course back");
+        UnityEngine.Object.Destroy(runner.gameObject);
+
+        // The marker's X: everything goes.
+        var markerGo = marker.gameObject;
+        PanelChromeButton x = PanelChrome.Of(marker.Panel).CloseButton;
+        Expect(x != null && x.gameObject.activeSelf, "the marker has the window X");
+        if (x != null) x.Press();
+        yield return null;
+        yield return null;
+        Expect(host.OpenId == null && course == null && markerGo == null && closed >= 1,
+            "the marker's X closes the course: no course, no cones, no marker left, and the host said Closed (the Thing is put away)");
+        Expect(NoVisibleTruck(), "no truck or drone is left out");
+
+        // Undo, then the voice's artifact_close: the same, no orphans.
+        ArtifactDismiss.Undo();
+        yield return WaitReal(ForgeTheme.UnfoldTime + 0.2f);
+        course = host.ContentRoot;
+        markerGo = ArtifactCourseMarker.Of(host) != null ? ArtifactCourseMarker.Of(host).gameObject : null;
+        Expect(host.OpenId == id && course != null && markerGo != null, "undo lays the course out again, with its marker");
+        AlbieTools.Call("artifact_close", new JObject());
+        yield return null;
+        yield return null;
+        Expect(host.OpenId == null && course == null && markerGo == null, "artifact_close (Albie, Close everything) leaves no course or marker behind");
+        Expect(NoVisibleTruck(), "and no truck or drone");
+        host.Closed -= onClosed;
+        host.Room = null;
+    }
+
+    static bool NoVisibleTruck()
+    {
+        foreach (var brain in UnityEngine.Object.FindObjectsByType<SlalomBrain>())
+            if (brain != null && !brain.Hidden) return false;
+        return ArtifactDrone.Live == null;
+    }
+}

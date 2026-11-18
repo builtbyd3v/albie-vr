@@ -136,8 +136,18 @@ public class ForgePanel : MonoBehaviour
     public void ThrowAway(Vector3 velocity)
     {
         if (!closable || !gameObject.activeInHierarchy) return;
+        if (ThrowHandler != null)
+        {
+            PanelChrome.Forget(this);
+            try { ThrowHandler(velocity); }
+            catch (System.Exception e) { Debug.LogException(e); }
+            return;
+        }
         PanelChrome.Throw(this, velocity);
     }
+
+    /// <summary>Replaces what a throw does (an artifact's panel throws the whole artifact away, with its own undo). Null: the default throw.</summary>
+    public System.Action<Vector3> ThrowHandler { get; set; }
 
     /// <summary>Into a dot where it is (tap the dot to open it again), or the panel's own minimise if it has one (the notes).</summary>
     public bool Minimise()

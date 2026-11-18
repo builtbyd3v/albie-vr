@@ -1,0 +1,3 @@
+[
+  {"name": "artifact_undo_close", "description": "Bring back the artifact the user just closed by hand (threw it away, tapped its close chip, or closed it with the hand gesture), where it was. Use it when they say undo, bring it back or I didn't mean that within 20 seconds of it closing. It fails if it's been longer or another artifact is open now: say so.", "parameters": {"type": "object", "properties": {}}}
+]

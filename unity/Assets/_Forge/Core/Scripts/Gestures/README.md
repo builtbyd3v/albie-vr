@@ -11,10 +11,12 @@ It installs itself in any scene with a `Workspace`, so there's nothing to set up
 | Point at a window, flick toward you | The window comes to about arm's length |
 | Point at a window, flick away | A window that came to you goes back; otherwise it minimizes into a dot (tap the dot to reopen it) |
 | Hand out flat, palm up, held for 0.6 s | Albie jumps onto your palm, sits and listens |
-| Left hand: open it, then close it | Hides every window |
+| Left hand: open it, then close it | Hides every window, and the open artifact's model, room course and truck or drone (a course with a run going on stays out) |
 | Left hand: make a fist, then burst it open | Shows them all again |
-| Right hand: look at a window, open your hand, close it | That window minimizes into a dot |
-| Right hand: make a fist, then burst it open | The last window closed comes back |
+| Right hand: look at a window, open your hand, close it | That window minimizes into a dot. Looking at an artifact (its model, its course marker or one of its panels), the whole artifact closes instead, with an undo for 20 s |
+| Right hand: make a fist, then burst it open | The artifact the close gesture (or a throw) closed comes back if it was in the last 20 s; otherwise the last window closed comes back |
+
+Windows minimise (a dot to tap), artifacts close (they are a whole scene: model, course, truck): the reopen gesture, "undo", Albie's card and the Spaces list bring a closed artifact back for 20 s. An artifact can also be thrown away by hand: pick up its model (pinch) or grab its base or panel by ray, and fling it away from you; see `HandThrow` and `ArtifactDismiss`.
 
 The pointing flicks are the right hand's too. The Hands setting changes this: in Settings (page 3), the **Hands** pill on the gesture display, or by asking Albie (`gesture_hands`). The choices are *Left hand: all windows* (the default), *Right hand: all windows* (swapped), or *Either hand: one window* (nothing hides everything; both hands close, open and flick one window).
 

@@ -661,7 +661,8 @@ namespace Forge.OS
         /// Makes what the host shows movable and tracked: every ForgePanel under the host gets a PanelManipulator (Init'd with the
         /// head and the desk frame, as GesturePanel does), every ForgeVolume a VolumeManipulator, and each is adopted into the
         /// window manager so Bring windows here and Close all reach it. Closing any of them closes the artifact. Safe to call
-        /// again: what is already adopted is left alone. A room course itself (unparented, on the floor) is not a window.
+        /// again: what is already adopted is left alone. A room course itself (unparented, on the floor) is not a window, nor
+        /// is its marker or a volume's close chip.
         /// </summary>
         internal static void AdoptPanels(ArtifactHost host)
         {
@@ -680,6 +681,8 @@ namespace Forge.OS
             {
                 ForgePanel panel = panelScratch[i];
                 if (panel == null || panel.GetComponent<OSWindow>() != null) continue;
+                // A volume's close chip is part of the volume, not a window to move about (and the course marker isn't under the host).
+                if (panel.GetComponentInParent<ForgeVolumeChrome>() != null || panel.GetComponent<ArtifactCourseMarker>() != null) continue;
                 PanelManipulator handles = panel.GetComponent<PanelManipulator>();
                 if (handles == null) handles = panel.gameObject.AddComponent<PanelManipulator>();
                 handles.Init(head, frame);

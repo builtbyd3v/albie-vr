@@ -17,8 +17,9 @@ public enum PanelGrab { None, Move, ResizeLeft, ResizeRight, TurnLeft, TurnRight
 /// - Brackets at the bottom corners: resize (the opposite corner stays put). Changes SizeMeters, not scale.
 /// - Bars at the sides: turn left / right. Bar under the bottom edge: tilt. Both snap to Face me and Straight.
 /// - Title bar buttons: Face me, Straight, left of the panel's own Close and Minimise (<see cref="PanelChrome"/>).
-/// - Throw: let go of the title bar mid-flick (a hand or controller ray swinging fast) and the panel is thrown away: it
-///   flies off and fades, and can be brought back from the Spaces list for <see cref="PanelChrome.UndoSeconds"/>.
+/// - Throw: let go of the title bar mid-flick (a hand or controller ray swinging fast, or the hand itself moving fast away
+///   from you: <see cref="HandThrow"/>) and the panel is thrown away: it flies off and fades, and can be brought back from
+///   the Spaces list for <see cref="PanelChrome.UndoSeconds"/>. An artifact's panel throws the whole artifact away.
 /// </summary>
 [RequireComponent(typeof(ForgePanel))]
 public class PanelManipulator : MonoBehaviour
@@ -101,6 +102,7 @@ public class PanelManipulator : MonoBehaviour
     /// <summary>Drop the panel if it's held (the workspace is folding it away).</summary>
     public void Cancel()
     {
+        fling.End();  // dropped, never thrown
         if (grab != PanelGrab.None) EndGrab(heldHandle);
         if (turning != null) StopCoroutine(turning);
         turning = null;
@@ -164,6 +166,8 @@ public class PanelManipulator : MonoBehaviour
         grabbedAt = Time.unscaledTime;
         swingCount = 0;
         swingNext = 0;
+        if (grab == PanelGrab.Move && pointer.source == ForgePointer.Source.Ray) fling.Begin(grabbedAt, r.origin);
+        else fling.End();
         handle.SetHeld(true);
         Grabbing++;
         UserPlaced = true;
@@ -284,6 +288,7 @@ public class PanelManipulator : MonoBehaviour
     readonly float[] swingTime = new float[SwingSamples];
     int swingCount, swingNext;
     float grabbedAt;
+    readonly HandThrow fling = new HandThrow();  // the hand's own speed (the ray's origin moves with the hand)
 
     void Swing(Ray r)
     {
@@ -292,13 +297,27 @@ public class PanelManipulator : MonoBehaviour
         swingTime[swingNext] = Time.unscaledTime;
         swingNext = (swingNext + 1) % SwingSamples;
         if (swingCount < SwingSamples) swingCount++;
+        fling.Sample(Time.unscaledTime, r.origin);
     }
 
     // A throw: a hand or controller ray (not the mouse, not a poke) swinging fast when it let go, on a closable panel.
     bool IsThrow(out Vector3 direction)
     {
         direction = Vector3.zero;
-        if (pointer == null || pointer.source != ForgePointer.Source.Ray || panel == null || !panel.Closable) return false;
+        if (pointer == null || pointer.source != ForgePointer.Source.Ray || panel == null || !panel.Closable)
+        {
+            fling.End();
+            return false;
+        }
+        // The hand flung it away (its own speed, toward the room): a throw whatever the ray's swing.
+        Vector3 velocity = Vector3.zero;
+        bool flung = fling.Holding && head != null && fling.Release(Time.unscaledTime, head.position, Center(), out velocity);
+        fling.End();
+        if (flung)
+        {
+            direction = velocity;
+            return true;
+        }
         if (Time.unscaledTime - grabbedAt < ThrowMinHold || swingCount < 3) return false;
         int newest = (swingNext - 1 + SwingSamples) % SwingSamples;
         float now = swingTime[newest];
