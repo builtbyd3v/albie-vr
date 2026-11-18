@@ -36,6 +36,22 @@ How it stays smooth and dependable:
   pause, so the two never fight. The base lights up and a hint line says what a pinch will do.
 - The logic is `HandGrabCore`, plain C#. `ArtifactChecks` drives it with synthetic hands.
 
+## By voice (`ArtifactVoiceTools`, `Resources/AlbieTools/artifact_voice.json`)
+
+These are headset tools, part of Albie's standalone voice (`AlbieVoice`). The laptop hub's voice doesn't have
+artifact tools.
+
+| Say | Tool and what it does |
+|---|---|
+| "Expand the heart", "take the eye apart", "explode it" | `artifact_explore` separate. With `template`, it opens the model first if it isn't open and waits for it to load. |
+| "Put it back together", "cut it open", "make it whole", "X-ray it", "turn it", "reset it" | `artifact_explore` assemble, cut open, whole, X-ray, turn (by degrees), reset |
+| "Show me the mitral valve", "show me the lens" | `artifact_explore` focus: that part stays solid and the rest goes see-through. The part is found by its spoken name, so "left ventricle" isn't the right one. An unknown part gets the list of parts back. |
+| "Explain the blood flow", "how does the eye see", "tour the brain", "follow a protein" | `artifact_press`: plays the model's walkthrough. Albie gets its captions in order, with timings, and explains one step per caption as it plays. A request to explain that names no button plays the model's main walkthrough. |
+| "Show / hide the blood flow", "spin it", "stop spinning", "hide labels" | `artifact_press` on that button. A toggle's label flips as if it were tapped, and asking for what's already on says so. |
+| A question about the open model | `artifact_describe`: the title, parts, buttons, walkthrough captions, notes and state, so Albie answers from what's there. |
+
+The scene's own labels now hide whenever the parts are apart, however that was asked for (the Explorer does it).
+
 Two markers in the GLB, both empty child nodes of a part, drive this:
 
 - `explode` (or `explode.001` and so on, as Blender names them). Its local position is where the part goes when

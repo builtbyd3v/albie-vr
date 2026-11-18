@@ -1,0 +1,33 @@
+[
+  {
+    "name": "artifact_explore",
+    "description": "Act on the open 3D model (heart, eye, brain, animal cell, plant cell, DNA). action: separate (also 'expand', 'explode', 'take it apart': the parts glide apart, each named), assemble (put it back together), cut_open (cut it open to see inside), whole (undo the cut), xray (see through the outer layers), xray_off, focus (show one part solid and everything else see-through; give part, e.g. 'mitral valve', 'lens', 'frontal lobe'), unfocus, turn (degrees, default 30), reset (everything back as it was). Pass template too (heart, eye, brain, cell, plant_cell, dna) when the user names a model that isn't open: it opens it first and waits for it to load. The result lists the model's parts and its state; say in a few words what changed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {"type": "string", "enum": ["separate", "assemble", "cut_open", "whole", "xray", "xray_off", "focus", "unfocus", "turn", "reset"]},
+        "part": {"type": "string", "description": "For focus: the part's name as the user said it."},
+        "degrees": {"type": "number", "description": "For turn: how far, in degrees (positive turns it to the right). Default 30."},
+        "template": {"type": "string", "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."}
+      },
+      "required": ["action"]
+    }
+  },
+  {
+    "name": "artifact_press",
+    "description": "Press one of the open artifact's own buttons, to play its walkthrough or animation: 'trace the blood', 'show the blood flow' / 'hide it', 'pause the beat' (heart); 'follow the light' (eye); 'tour the lobes' (brain); 'follow a protein' (cell); 'follow the sunlight' (plant cell); 'explain it', 'spin it' / 'stop spinning' (DNA); 'hide labels' / 'show labels'. Say it as the user did; the result says which button it pressed and, for a walkthrough, its captions in order with how long each is on screen: explain the steps in that order, one short sentence each, as they play. If nothing matches, the result lists the buttons there are.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "button": {"type": "string", "description": "The button as the user said it, or its label or id."},
+        "template": {"type": "string", "description": "The model the user named, if it might not be the open one: heart, eye, brain, cell, plant_cell or dna."}
+      },
+      "required": ["button"]
+    }
+  },
+  {
+    "name": "artifact_describe",
+    "description": "What's open right now and what it can do: the artifact's title, its named parts, its buttons, its walkthrough captions and notes, and its state (apart, cut open, X-ray, which part is in focus). Call it before explaining the open model or answering a question about it, so you talk about what's actually there.",
+    "parameters": {"type": "object", "properties": {}}
+  }
+]

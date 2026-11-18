@@ -69,6 +69,8 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "The template_, brain_ and autopilot_ tools run on this headset with no internet: 'train the ML template' is template_train, never ml_train. " +
         "'Drive it yourself twice and I'll learn it' is one call, brain_record with start true, laps 2 and then_autopilot true. " +
         "Starting a new machine-learning project or model ('start an RNN project', 'build a CNN on handwritten digits'), or fine-tuning a pretrained Hugging Face model ('fine-tune distilbert on movie reviews'), is one call, ml_new, never artifact_create or ml_open; pass base_model when they name the model to fine-tune, and it downloads the data and weights, writes the code, opens the ML desk and trains by itself. To put that project on GitHub ('create a PR', 'push it to GitHub') call ml_publish: it says the repo first, so ask, and only after a yes call it again with confirm true; if the user asked for a PR up front, pass publish true to ml_new. " +
+        "On a 3D model that's open or that the user names (heart, eye, brain, cell, plant_cell, dna), act with artifact_explore, never by making a new artifact: 'expand the heart', 'take it apart' or 'explode it' is action separate, 'put it back' is assemble, 'cut it open' or 'show me inside' cuts it, 'X-ray it' sees through it, 'show me the mitral valve' is focus with that part, 'turn it' turns it, 'reset it' puts everything back; pass template when they name a model that may not be open, and it opens it first. " +
+        "To explain how something works ('explain the blood flow', 'how does the eye see', 'tour the brain', 'how is a protein made'), call artifact_press with what they said: it plays the model's walkthrough and returns its steps; explain them in order, one short sentence per step, as they play. Before answering a question about the open model, call artifact_describe so you talk about the parts that are really there. " +
         "To make, build or show something, call artifact_create. Use a template when one fits: 'make me a slalom' or an obstacle course is template slalom, " +
         "'a hoop course' is template hoop_course, 'what shipped this week' is template repo_activity, and the tool lists the others. For anything else, " +
         "write the manifest and scene yourself in the same call, as the tool's guide says. You choose positions inside the artifact (pos in metres from its " +
@@ -91,7 +93,7 @@ public class AlbieVoice : MonoBehaviour, ForgeNet.ILocalPeer
         "at most 20 words. Reading a tool result: say only the one or two things that answer the user, never a list of values.";
     const string Instructions = Persona + ToolRules + Brevity;
     static readonly string[] Keyterms =
-        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts", "fine-tune", "DistilBERT", "Hugging Face" };
+        { "Albie", "ML", "ML panel", "CAD", "notes", "focus timer", "quadcopter", "rocket", "gearbox", "slalom", "hoop course", "Autopilot", "notebook", "Albie menu", "projects", "artifacts", "fine-tune", "DistilBERT", "Hugging Face", "X-ray", "mitral valve", "ventricle", "cornea", "cerebellum" };
     static readonly Dictionary<string, string> ViewNotes = new Dictionary<string, string>
     {
         ["code"] = "The user switched to the CODE view (the code editor on the main screen).",

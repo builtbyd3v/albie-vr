@@ -73,28 +73,18 @@ namespace Forge.Artifacts
                 y += Note(panel.Content, y, credit != null
                     ? "With your hands: pinch the model to pick it up and turn it, and pinch with both hands to resize it."
                     : "With your hands: pinch the model to pick it up and turn it, pinch with both hands to resize it, and once it's separated, pinch a part to take it out. The buttons cut it open, separate its parts, or see through the outer layers.") + Gap;
-                // Scene labels point at where parts sit when assembled, so they hide while the parts are apart.
-                var hiddenLabels = new List<GameObject>();
-                Action<bool> sceneLabels = apart =>
-                {
-                    if (apart)
-                    {
-                        foreach (var pair in build.Nodes)
-                            if (pair.Value != null && pair.Value.activeSelf && (pair.Key.StartsWith("label_") || pair.Key.StartsWith("leader_")))
-                            {
-                                pair.Value.SetActive(false);
-                                hiddenLabels.Add(pair.Value);
-                            }
-                    }
-                    else
-                    {
-                        foreach (var go in hiddenLabels) if (go != null) go.SetActive(true);
-                        hiddenLabels.Clear();
-                    }
-                };
                 // Each view pill says what a press does next, like the scene's own toggles (Hide labels / Show labels);
                 // X-ray lights up while it's on. Reset view puts all three back.
                 ForgePill cutPill = null, xrayPill = null, apartPill = null;
+                // Voice and hands change the view too: the pills follow the explorer, not just their own presses.
+                Action<ArtifactExplorer> sync = e =>
+                {
+                    SetLabel(cutPill, e.Sectioned ? "Make whole" : "Cut open");
+                    SetLabel(apartPill, e.Separated ? "Assemble" : "Separate");
+                    if (xrayPill != null) xrayPill.On = e.XRay;
+                };
+                foreach (var node in build.Nodes.Values)
+                    if (node != null && node.TryGetComponent<ArtifactGltf>(out var loading)) WhenExplorable(loading, e => e.Changed += () => sync(e));
                 Action<Action<ArtifactExplorer>> inspect = action =>
                 {
                     foreach (var node in build.Nodes.Values)
@@ -103,8 +93,7 @@ namespace Forge.Artifacts
                             // The part names lay themselves out round this panel rather than under it.
                             model.Explorer.Avoid = panel.transform;
                             model.Explorer.AvoidHalfWidth = panel.SizeMeters.x * 0.5f;
-                            action(model.Explorer);
-                            sceneLabels(model.Explorer.Separated);
+                            action(model.Explorer);  // the explorer hides the scene's labels while its parts are apart
                             SetLabel(cutPill, model.Explorer.Sectioned ? "Make whole" : "Cut open");
                             SetLabel(apartPill, model.Explorer.Separated ? "Assemble" : "Separate");
                             if (xrayPill != null) xrayPill.On = model.Explorer.XRay;
@@ -194,6 +183,14 @@ namespace Forge.Artifacts
         public static float PanelHeight(float contentHeight) => Chrome + contentHeight;
 
         // The pill keeps the width it was made with, as a toggle button does.
+        // Calls back with the model's explorer once its glTF has loaded (at once if it already has).
+        static async void WhenExplorable(ArtifactGltf model, Action<ArtifactExplorer> then)
+        {
+            try { if (model.Loading != null) await model.Loading; }
+            catch (Exception) { return; }
+            if (model != null && model.Explorer != null) then(model.Explorer);
+        }
+
         static void SetLabel(ForgePill pill, string label)
         {
             var shown = pill != null ? pill.GetComponentInChildren<TMP_Text>() : null;

@@ -274,6 +274,9 @@ namespace Forge.Artifacts
         /// <summary>The open scene's rules, for nodes that act on them.</summary>
         public JToken Rules => open?.Scene["rules"];
 
+        /// <summary>The open scene (its nodes and rules), for the voice tools that act on it. Null when nothing is open.</summary>
+        public JObject OpenScene => build != null ? open?.Scene : null;
+
         /// <summary>The open artifact's live numbers.</summary>
         public ArtifactMetrics Metrics => build?.Metrics;
 
