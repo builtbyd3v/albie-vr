@@ -6,9 +6,9 @@ namespace Forge.OS
 {
     /// <summary>
     /// The planner behind Build something: a small question tree held as data, with no UI and no Unity calls, so it works
-    /// offline, with voice off, and a check can walk every path. The first question asks what is being built (RC truck,
-    /// Drone, Rocket, A model that recognises things, Something else); each kind then asks two more (what it should be best
-    /// at, and how it is tested). That is three questions at most, each with two to four answers (the first has five).
+    /// offline, with voice off, and a check can walk every path. The first question asks what is being built (Drone,
+    /// Rocket, A model that recognises things, Something else); each kind then asks two more (what it should be best
+    /// at, and how it is tested). That is three questions at most, each with two to four answers (the first has four).
     /// <see cref="Answer"/> advances; after the last answer <see cref="Result"/> holds a <see cref="Plan"/> with a goal,
     /// parts, a test and milestones as plain strings. <see cref="Match"/> turns a spoken answer into an answer index, so
     /// speaking an option counts as tapping it. <see cref="Validate"/> walks every path and returns what is wrong with the
@@ -369,7 +369,7 @@ namespace Forge.OS
         /// <summary>
         /// Walks every path of the tree and returns what is wrong, one sentence each, naming the path ("truck > quick > ...").
         /// An empty list means: every path ends in a plan within <see cref="MaxQuestions"/> questions, no text is empty, no
-        /// answer id repeats in a question, every question has two to four answers (the first has five), every question is
+        /// answer id repeats in a question, every question has two to four answers (the first has four), every question is
         /// reachable, a spoken answer never picks the wrong button, and every plan has a goal, a test, parts and milestones.
         /// </summary>
         public static List<string> Validate()
@@ -423,7 +423,7 @@ namespace Forge.OS
             }
             if (depth == 1)
             {
-                if (q.choices.Length != 5) problems.Add("The first question has " + q.choices.Length + " answers; it must have five.");
+                if (q.choices.Length != 4) problems.Add("The first question has " + q.choices.Length + " answers; it must have four.");
             }
             else if (q.choices.Length < 2 || q.choices.Length > 4)
             {
@@ -534,11 +534,7 @@ namespace Forge.OS
         {
             var t = new Dictionary<string, Question>(StringComparer.Ordinal);
 
-            Q(t, FirstId, "What are we building?", 4,
-                C("truck", "RC truck", "truck,rc,car,rover,vehicle,lorry", "truck_size",
-                    goal: "Build a self-driving RC truck",
-                    parts: "The truck and its controller|A course in my room",
-                    milestones: "Set up the course|Drive two practice runs by hand", kind: Kind.Truck),
+            Q(t, FirstId, "What are we building?", 3,
                 C("drone", "Drone", "drone,quadcopter,quad,copter,fly,flying,aircraft", "drone_job",
                     goal: "Build a small drone",
                     parts: "Frame|Four motors and propellers|Flight controller|Battery",
@@ -555,25 +551,6 @@ namespace Forge.OS
                     goal: "Build my own project",
                     parts: "A written sketch of the idea",
                     milestones: "Sketch it and list the parts", kind: Kind.Other));
-
-            // ---- truck
-            Q(t, "truck_size", "How big and how fast should the truck be?", 2,
-                C("quick", "Small and quick", "small,quick,little,fast,light,speedy", "truck_test",
-                    goal: "that is small and quick", parts: "Light frame|Fast motor"),
-                C("steady", "Big and steady", "big,large,steady,heavy,slow,sturdy", "truck_test",
-                    goal: "that is big and steady", parts: "Large frame|Strong, slow motor"),
-                C("middle", "Somewhere in between", "between,middle,medium,balanced,normal,average,either", "truck_test",
-                    goal: "that is a middle size at a middle speed", parts: "Mid-size frame|Standard motor"));
-            Q(t, "truck_test", "How do we test it?", 0,
-                C("slalom", "Slalom around my couch", "slalom,couch,sofa,cones,weave",
-                    test: "Drive the slalom around my couch on its own without hitting a cone.",
-                    milestones: "Train the controller on those runs|The autopilot passes the slalom around my couch"),
-                C("dash", "Dash across the room", "dash,straight,across,race,sprint",
-                    test: "Cross the room in a straight line on its own in under ten seconds.",
-                    milestones: "Train the controller on those runs|The autopilot makes the dash across the room"),
-                C("park", "Park on a marked spot", "park,parking,spot,mark,marked",
-                    test: "Drive to a marked spot on the floor and stop inside it, three times out of three.",
-                    milestones: "Train the controller on those runs|The autopilot parks on the marked spot three times"));
 
             // ---- drone
             Q(t, "drone_job", "What should the drone do first?", 0,

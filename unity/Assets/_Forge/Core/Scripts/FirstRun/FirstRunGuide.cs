@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Forge.Artifacts;
-using Forge.Controllers;
 using Forge.Pet;
 using Newtonsoft.Json.Linq;
 using TMPro;
@@ -18,8 +17,7 @@ using UnityEngine.InputSystem;
 /// First launch: the arrival greeting card (<see cref="ArrivalGreeting"/>) gets Albie's hello and START; once START is
 /// pressed and the dock has come in, the welcome card opens: how to talk to Albie and three things to try. Each try
 /// button runs the same Albie tool the voice model calls (<see cref="AlbieTools"/>), and Albie says how it went
-/// (voice on: albie.say, voice off: pet.say, the caption; the AlbieTips path). Once a slalom truck is out, the card adds
-/// the hands driving hint (<see cref="HandsTransmitter"/>) and Albie says it once.
+/// (voice on: albie.say, voice off: pet.say, the caption; the AlbieTips path).
 /// The card is shown once (PlayerPrefs <see cref="ShownPref"/>). Closed, it shrinks into a "?" dot
 /// (<see cref="PanelOrb"/>, the desk extras' minimize pattern): tap it, or say "help" (tool help_show), and it comes back.
 /// No arrival in the scene (no desk found within <see cref="ArrivalWaitS"/>): Albie says hello and the card opens anyway.
@@ -35,7 +33,6 @@ public class FirstRunGuide : MonoBehaviour
     /// <summary>How long to wait for the arrival greeting before opening the card anyway (s).</summary>
     public const float ArrivalWaitS = 25f;
     const float AfterStartS = 2.5f;  // START: the dock comes in (1.3 s) and the code view opens; place the card after
-    const float TruckPollS = 0.5f;
     const string PetId = "bit";
 
     // ---- Copy (no brand names) ----
@@ -64,10 +61,9 @@ public class FirstRunGuide : MonoBehaviour
 
     public static readonly Try[] Tries =
     {
-        new Try("Make me a slalom", "artifact_create", "{\"template\":\"slalom\"}", "Here's your slalom."),
         new Try("Show me a beating heart", "artifact_create", "{\"template\":\"heart\"}", "Here's a beating heart."),
-        new Try("Drive it twice and I'll learn it", "brain_record", "{\"start\":true,\"laps\":2,\"then_autopilot\":true}",
-                "Drive two laps and I'll learn from you. " + DriveHint, needsTruck: true),
+        new Try("Show me the solar system", "artifact_create", "{\"template\":\"solar_system\"}", "Here's the solar system."),
+        new Try("Show me a double pendulum", "artifact_create", "{\"template\":\"double_pendulum\"}", "Here's a double pendulum."),
     };
 
     // ---- Layout (canvas units = mm) ----
@@ -93,10 +89,7 @@ public class FirstRunGuide : MonoBehaviour
     ForgePanel panelPrefab, card;
     PanelOrb orb;
     Transform head, deskFrame;
-    TMP_Text driveLine;
-    bool truckOut, driveHintSaid;
     string lastHint = FirstHint;
-    float nextTruckPoll;
 
     public ForgePanel Card => card;
     public PanelOrb Orb => orb;
@@ -209,7 +202,6 @@ public class FirstRunGuide : MonoBehaviour
     {
         if (card == null) card = BuildCard();
         if (orb != null) orb.gameObject.SetActive(false);
-        driveLine.gameObject.SetActive(truckOut);
         card.gameObject.SetActive(true);
         Place(card.transform, card.SizeMeters, CardYaws, CardDrops);
         PlayerPrefs.SetInt(ShownPref, 1);
@@ -245,11 +237,6 @@ public class FirstRunGuide : MonoBehaviour
     void Tap(int index)
     {
         var t = Tries[index];
-        if (t.needsTruck && !truckOut)
-        {
-            Say(NeedSlalom);
-            return;
-        }
         CloseCard();  // out of the way of what it makes
         Run(t);
     }
@@ -284,16 +271,10 @@ public class FirstRunGuide : MonoBehaviour
         Say(say != null ? t.done + " " + say : t.done, TapHint);
     }
 
-    // ---------------------------------------------------------------- truck, resume, hotkeys
+    // ---------------------------------------------------------------- resume, hotkeys
 
     void Update()
     {
-        if (Time.unscaledTime >= nextTruckPoll)
-        {
-            nextTruckPoll = Time.unscaledTime + TruckPollS;
-            bool now = BrainLoops.Active is SlalomBrain brain && brain != null && !brain.Hidden;
-            if (now != truckOut) TruckChanged(now);
-        }
 #if UNITY_EDITOR
         var k = Keyboard.current;
         if (k == null) return;
@@ -306,17 +287,6 @@ public class FirstRunGuide : MonoBehaviour
 #endif
     }
 
-    void TruckChanged(bool now)
-    {
-        truckOut = now;
-        if (driveLine != null) driveLine.gameObject.SetActive(now);
-        if (!now) return;
-        lastHint = DriveHint;
-        if (driveHintSaid) return;
-        driveHintSaid = true;
-        Say("Your truck is out. " + DriveHint, TapHint);
-    }
-
     /// <summary>
     /// The app came back after <paramref name="secondsAway"/>. Over <see cref="ResumeAfterS"/>: Albie says welcome
     /// back, what we were doing, and the last hint again. Subscribed to AppLifecycle.Resumed at merge (see OnEnable).
@@ -326,7 +296,6 @@ public class FirstRunGuide : MonoBehaviour
         string line = ResumeLine(secondsAway, Doing(), lastHint);
         if (line == null) return;
         Say(line, ResumeHint);
-        if (CardShown) driveLine.gameObject.SetActive(truckOut);
     }
 
     /// <summary>The welcome back line, or null when the person was away too short a time to need one.</summary>
@@ -339,7 +308,6 @@ public class FirstRunGuide : MonoBehaviour
 
     string Doing()
     {
-        if (truckOut) return "driving the slalom truck";
         var host = ArtifactHost.Current;
         if (host != null && host.OpenId != null) return "looking at the " + host.OpenTitle.ToLowerInvariant();
         var ws = Workspace.Current;
@@ -357,7 +325,6 @@ public class FirstRunGuide : MonoBehaviour
         var tries = new JArray();
         foreach (var t in Tries) tries.Add(t.label);
         var result = new JObject { ["status"] = "shown", ["how_to_talk"] = TalkLine, ["try"] = tries };
-        if (Instance.truckOut) result["driving"] = DriveHint;
         return result;
     }
 
@@ -475,8 +442,6 @@ public class FirstRunGuide : MonoBehaviour
             y += PillH + PillGap;
         }
         y += 4f;
-        driveLine = Line(content, DriveHint, 14f, ForgeTheme.PanelSubtext, ref y, 36f);
-        driveLine.gameObject.SetActive(truckOut);
 
         var done = ForgePill.Create(content, "Got it", CloseCard, 32f, 15f);
         done.Rect.anchorMin = done.Rect.anchorMax = done.Rect.pivot = new Vector2(1f, 0f);

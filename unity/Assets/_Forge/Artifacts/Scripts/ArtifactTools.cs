@@ -31,12 +31,18 @@ namespace Forge.Artifacts
         {
             var templates = new JArray();
             foreach (string name in ArtifactLibrary.Templates)
-                if (ArtifactLibrary.TryTemplate(name, out var manifest, out _))
+                if (name != "slalom" && name != "hoop_course" && ArtifactLibrary.TryTemplate(name, out var manifest, out _))
                     templates.Add(new JObject { ["template"] = name, ["title"] = manifest["title"], ["inputs"] = manifest["inputs"] });
+            var library = ArtifactLibrary.List();
+            for (int i = library.Count - 1; i >= 0; i--)
+            {
+                string template = (string)library[i]["template"] ?? (string)library[i]["id"];
+                if (template == "slalom" || template == "hoop_course") library.RemoveAt(i);
+            }
             var host = ArtifactHost.Current;
             return new JObject
             {
-                ["templates"] = templates, ["data_sources"] = ArtifactData.Sources(), ["library"] = ArtifactLibrary.List(),
+                ["templates"] = templates, ["data_sources"] = ArtifactData.Sources(), ["library"] = library,
                 ["open"] = host != null ? host.OpenId : null,
             };
         }

@@ -1,4 +1,5 @@
 using System;
+using Forge.Artifacts;
 using System.Collections.Generic;
 using System.Text;
 using Newtonsoft.Json.Linq;
@@ -62,7 +63,7 @@ public static class FirstRunCheck
             failed += Step(sb, "Text readable at 1 m", () => Readable(w));
             failed += Step(sb, "Got it shrinks it into the ? dot", () => GotIt(w));
             failed += Step(sb, "Reopen works (dot tap and help_show)", () => Reopen(w));
-            failed += Step(sb, "Drive button before a truck", () => BrainNeedsTruck(w));
+            failed += Step(sb, "Welcome suggestions exclude driving", () => SubmissionSuggestions(w));
             failed += Step(sb, "Try button with no tool says the phrase", () => NoToolSaysPhrase(w));
             failed += Step(sb, "OnResumed text", () => Resumed(w));
             failed += Step(sb, "Panels in the way are seen", Overlap);
@@ -206,21 +207,25 @@ public static class FirstRunCheck
         return "dot tap and help_show both reopen it; help_show returns the 3 ideas";
     }
 
-    static string BrainNeedsTruck(World w)
+    static string SubmissionSuggestions(World w)
     {
-        if (Application.isPlaying && Forge.Controllers.BrainLoops.Active != null) return "skipped in Play mode (a truck is out; a tap would start real laps)";
-        Press(w, FirstRunGuide.Tries[2].label);
-        Expect(FirstRunGuide.LastSaid == FirstRunGuide.NeedSlalom, "said: " + FirstRunGuide.LastSaid);
-        Expect(w.guide.CardShown, "card closed without running anything");
-        return "Albie: \"" + FirstRunGuide.NeedSlalom + "\"";
+        foreach (var suggestion in FirstRunGuide.Tries)
+        {
+            Expect(!suggestion.needsTruck, "a welcome suggestion requires the truck");
+            var args = JObject.Parse(suggestion.argsJson);
+            string template = (string)args["template"];
+            Expect(template != "slalom" && template != "hoop_course", "a welcome suggestion opens a driving course");
+            Expect(ArtifactLibrary.TryTemplate(template, out _, out _), "welcome template is missing: " + template);
+        }
+        return "all three suggestions open available templates without a truck";
     }
 
     static string NoToolSaysPhrase(World w)
     {
-        if (Application.isPlaying) return "skipped in Play mode (the tool is registered; a tap would build a real slalom)";
+        if (Application.isPlaying) return "skipped in Play mode (the tool is registered; a tap would build a real artifact)";
         Expect(!AlbieTools.Has("artifact_create"), "artifact_create registered in Edit mode");
         Press(w, FirstRunGuide.Tries[0].label);
-        Expect(FirstRunGuide.LastSaid == "Say \"Make me a slalom\" and I'll do it.", "said: " + FirstRunGuide.LastSaid);
+        Expect(FirstRunGuide.LastSaid == "Say \"" + FirstRunGuide.Tries[0].label + "\" and I'll do it.", "said: " + FirstRunGuide.LastSaid);
         Expect(!w.guide.CardShown && w.guide.OrbShown, "the card should fold into the dot on a try tap");
         return "Albie: \"" + FirstRunGuide.LastSaid + "\", card folded into the dot";
     }

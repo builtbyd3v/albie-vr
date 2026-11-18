@@ -228,7 +228,7 @@ namespace Forge.OS
             if (linked.Count == 0)
             {
                 OSUi.Text(section, kind == OSProjectKind.Truck
-                    ? "Nothing linked yet. Tap Course to make the slalom for this project."
+                    ? "Nothing linked yet. Open an artifact to explore it."
                     : "Nothing linked yet. Artifacts made while this project is open link to it.", NoteSize, true);
                 return;
             }
@@ -259,12 +259,7 @@ namespace Forge.OS
             switch (kind)
             {
                 case OSProjectKind.Truck:
-                    AddAction(row, "Course", "course", OSButtonStyle.Primary);
-                    AddAction(row, "Drive", "drive", OSButtonStyle.Secondary, OSProjects.FindTool("drive") == null ? DriveMissing : null);
-                    AddAction(row, "Train", "train", OSButtonStyle.Secondary);
-                    AddAction(row, "Autopilot", "autopilot", OSButtonStyle.Secondary);
-                    AddAction(row, "Code", "code", OSButtonStyle.Secondary);
-                    AddAction(row, "Send", "send", OSButtonStyle.Secondary, OSProjects.SendUnavailable);
+                    AddAction(row, "Code", "code", OSButtonStyle.Primary);
                     break;
                 case OSProjectKind.Cad:
                     AddAction(row, "Open design", "design", OSButtonStyle.Primary);
@@ -281,7 +276,6 @@ namespace Forge.OS
             AddAction(row, "Notebook", "notebook", OSButtonStyle.Secondary, OSProjects.FindTool("notebook") == null ? "The notebook window couldn't be found." : null);
 
             for (int i = 0; i < hints.Count; i++) OSUi.Text(section, hints[i], NoteSize, true);
-            if (kind == OSProjectKind.Truck) brainText = OSUi.Text(section, "", NoteSize, true);
             statusText = OSUi.Text(section, statusLine.Length > 0 ? statusLine : "Tap a step to continue.", LeadSize);
         }
 

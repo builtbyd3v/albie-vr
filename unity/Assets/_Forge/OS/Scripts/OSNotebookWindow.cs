@@ -73,7 +73,7 @@ namespace Forge.OS
         public static string ProjectName(string id)
         {
             if (string.IsNullOrEmpty(id)) return "";
-            if (id == NotebookStore.DefaultProject) return "RC truck";
+            if (id == NotebookStore.DefaultProject) return "Project notebook";
             if (id == nameFor) return nameText;
             string name = id.StartsWith("proj_") ? id.Substring(5) : id;
             name = name.Replace('_', ' ').Trim();
@@ -205,7 +205,7 @@ namespace Forge.OS
             IReadOnlyList<JObject> entries = NotebookStore.Entries;
             if (entries.Count == 0)
             {
-                Line(section, "No attempts yet. Drive the truck or run a test and it shows up here.", BodySize, true);
+                Line(section, "No attempts yet. Run a test and it shows up here.", BodySize, true);
                 return;
             }
 

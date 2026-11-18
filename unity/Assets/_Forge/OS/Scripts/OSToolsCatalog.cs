@@ -1,13 +1,10 @@
-using Forge.Controllers;
 using UnityEngine;
 
 namespace Forge.OS
 {
     /// <summary>
-    /// The fixed entries of the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures, Drive and Agents. Drive's tile is made by
-    /// <see cref="OSDriveWindow.RegisterTool"/> and comes after Gestures. The four
-    /// Workspace modes open through <see cref="OSModes"/>, so they work at a desk and away from one; Train also opens the
-    /// controller brain trainer when a brain truck is running; Notebook opens <see cref="OSNotebookWindow"/>; Gestures shows
+    /// The fixed entries of the Tools tab: CAD, Code, Train, Notebook, Messages, Gestures and Agents. The
+    /// Workspace modes open through <see cref="OSModes"/>, so they work at a desk and away from one; Notebook opens <see cref="OSNotebookWindow"/>; Gestures shows
     /// the gesture display the same way the gesture "display.toggle" does and hands it to the window manager, so Bring windows
     /// here and Close all reach it. Every status line is read from real state, and a status string is rebuilt only when what
     /// it says changes.
@@ -22,8 +19,6 @@ namespace Forge.OS
         static readonly Vector2 BrainSize = new Vector2(0.78f, 0.62f);  // metres; the view lays itself out in ~500 mm of height
 
         // Status strings that are rebuilt only when their inputs change (the menu may ask often).
-        static int trainKey = -1;
-        static string trainText = "";
         static int gestureCount = -1;
         static string gestureText = "";
 
@@ -34,8 +29,6 @@ namespace Forge.OS
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
-            trainKey = -1;
-            trainText = "";
             gestureCount = -1;
             gestureText = "";
             gestureDisplay = null;
@@ -76,7 +69,7 @@ namespace Forge.OS
                 isOpen = GesturesOpen,
                 open = OpenGestures,
             });
-            OSDriveWindow.RegisterTool();  // Drive follows Gestures
+            OSRegistry.UnregisterTool("drive");  // Hidden for the submission.
             OSRegistry.RegisterTool(new OSEntry
             {
                 id = "agents",
@@ -112,29 +105,11 @@ namespace Forge.OS
             return shell != null && shell.Windows.IsOpen(id);
         }
 
-        // ---------------------------------------------------------------- Train: the ML desk, plus the brain trainer when a truck runs
+        // ---------------------------------------------------------------- Train: the ML desk
 
         static void OpenTrain()
         {
             if (!OSModes.Open("ml")) Debug.Log("[OS] Train couldn't open the ML desk here.");
-            // Nothing in Main shows the controller brain panel, so the OS does: as a window of its own, beside the ML desk,
-            // whenever a brain truck is running (OSProjects.LiveLoop is the SlalomBrain that ArtifactBootstrap.EnsureBrain spawns).
-            if (OSProjects.LiveLoop != null) OpenBrain();
-            else if (OSShell.Current != null) OSShell.Current.Windows.Open("train_help", "Learn to drive", new Vector2(0.48f, 0.28f), BuildTrainHelp);
-        }
-
-        static void BuildTrainHelp(ForgePanel panel)
-        {
-            var body = OSUi.Body(panel);
-            if (body == null) return;
-            var column = OSUi.Column(body, 19f);
-            var status = OSUi.Text(column, "Open the slalom first, then I can learn to drive it.", OSUi.BodyText);
-            OSUi.Button(column, "Open slalom", () =>
-            {
-                OSProjects.OpenProject(Forge.Notebook.NotebookStore.DefaultProject);
-                var project = OSShell.Current?.Windows.Find(OSProjectWindow.WindowId)?.GetComponent<OSProjectWindow>();
-                status.text = project != null ? project.Do("course") : "The truck project couldn't open.";
-            }, OSButtonStyle.Primary);
         }
 
         /// <summary>
@@ -160,26 +135,7 @@ namespace Forge.OS
 
         static string TrainStatus()
         {
-            bool open = OSModes.IsOpen("ml") || WindowOpen(BrainId);
-            IBrainLoop loop = OSProjects.LiveLoop;
-            var brain = loop as Forge.Artifacts.SlalomBrain;
-            int state = loop == null ? -1 : (brain != null ? (int)brain.State : 0);
-            int laps = brain != null ? Mathf.Clamp(brain.CompletedLaps, 0, 99) : 0;
-            int key = (open ? 1 : 0) | ((state + 1) << 1) | (laps << 4);
-            if (key == trainKey) return trainText;
-
-            string truck;
-            if (loop == null) truck = "Open slalom to train";
-            else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Lap) truck = "recording a lap";
-            else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Training) truck = "training";
-            else if (state == (int)Forge.Artifacts.SlalomBrain.Mode.Autopilot) truck = "autopilot driving";
-            else if (laps == 1) truck = "brain ready · 1 lap";
-            else if (laps > 1) truck = "brain ready · " + laps + " laps";
-            else truck = "brain ready";
-
-            trainKey = key;
-            trainText = open ? "open · " + truck : truck;
-            return trainText;
+            return OSModes.IsOpen("ml") ? "open" : "machine learning projects";
         }
 
         // ---------------------------------------------------------------- Notebook

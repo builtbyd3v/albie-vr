@@ -1,3 +1,3 @@
 [
-  {"name": "help_show", "description": "Show the welcome card again: how to talk to Albie (face him and talk, or hold a palm up and he hops on), three things to try (make a slalom, show a beating heart, drive the truck twice so Albie learns it) and, once a truck is out, how to drive it with hands. Call it when the person asks for help, what they can do here, or how this works. Then tell them one or two of the ideas in your own words.", "parameters": {"type": "object", "properties": {}}}
+  {"name": "help_show", "description": "Show the welcome card again: how to talk to Albie (face him and talk, or hold a palm up and he hops on), three things to try (show a beating heart, show the solar system, show a double pendulum). Call it when the person asks for help, what they can do here, or how this works. Then tell them one or two of the ideas in your own words.", "parameters": {"type": "object", "properties": {}}}
 ]

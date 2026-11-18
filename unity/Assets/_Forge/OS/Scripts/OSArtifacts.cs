@@ -163,6 +163,9 @@ namespace Forge.OS
                     if (item == null) continue;
                     string id = (string)item["id"];
                     if (string.IsNullOrEmpty(id)) continue;
+                    // Also hide saved copies, including those with a generated id.
+                    string template = (string)item["template"] ?? id;
+                    if (template == "slalom" || template == "hoop_course") continue;
                     rows.Add(ReadRow(id, item));
                 }
                 rows.Sort((a, b) => string.Compare(a.title, b.title, System.StringComparison.OrdinalIgnoreCase));
@@ -293,7 +296,7 @@ namespace Forge.OS
         {
             OSEntry entry = OSRegistry.Find(OSTab.Projects, projectId);
             if (entry != null && !string.IsNullOrEmpty(entry.title)) return entry.title;
-            if (projectId == NotebookStore.DefaultProject) return "RC truck";
+            if (projectId == NotebookStore.DefaultProject) return "Project notebook";
             return Pretty(projectId.StartsWith("proj_") ? projectId.Substring(5) : projectId);
         }
 
@@ -322,8 +325,8 @@ namespace Forge.OS
         {
             foreach (string template in ArtifactLibrary.Templates)
             {
-                // Hidden for the submission (Satyabrata, Nov 16): hoops are for a drone, and the app has none to fly.
-                if (template == "hoop_course") continue;
+                // Room driving courses are not offered in the submission.
+                if (template == "slalom" || template == "hoop_course") continue;
                 string name = template;
                 string key = "new_" + name;
                 bool room = RoomTemplates.Contains(name);

@@ -150,6 +150,8 @@ namespace Forge.OS
 
         static void AddEntry(string id, string title, string icon)
         {
+            // Keep the saved truck notebook, but leave the unfinished driving demo out of the submission.
+            if (id == NotebookStore.DefaultProject) return;
             statusById[id] = ComputeStatus(id, null);
             string captured = id;
             entries.Add(new OSEntry

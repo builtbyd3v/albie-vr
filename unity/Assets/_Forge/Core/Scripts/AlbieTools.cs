@@ -59,7 +59,13 @@ public static class AlbieTools
     {
         var all = new JArray();
         foreach (var (def, _) in tools.Values)
+        {
+            // Keep the experimental controller handlers for sandboxes, without advertising them to voice.
+            string name = (string)def["name"];
+            if (name == "brain_record" || name == "brain_train" || name == "brain_status"
+                || name == "autopilot_on" || name == "autopilot_off") continue;
             all.Add(new JObject { ["type"] = "function", ["name"] = def["name"], ["description"] = def["description"], ["parameters"] = def["parameters"] });
+        }
         return all;
     }
 
