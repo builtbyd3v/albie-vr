@@ -59,22 +59,38 @@ unity command script eval 'UnityEngine.PlayerPrefs.SetString("Forge.HubUrl", "ht
 
 On the original development Mac, this address is already saved and the demo backend is already running.
 
+## Try a spoken project
+
+Use an updated Unity client and updated voice-enabled hub, or a configured Quest build connected to the updated cloud.
+The demo on port 8003 disables speech. For a laptop voice test, run this from the repository root with Grok voice
+and the coding provider configured in the hub environment.
+
+```sh
+VOICE_PROVIDER=grok .venv/bin/python -m uvicorn agent.standalone:app --app-dir hub --host 127.0.0.1 --port 8014
+```
+
+Point the Unity Editor's Forge.HubUrl preference at `http://127.0.0.1:8014` before entering Play.
+Open **Home → Tools → Agents → Project workflow → Describe your project**. When Albie asks what the crew should build,
+allow microphone access and say “Build a Python tip calculator with bill splitting, tests and a README.”
+Check the plan, approve implementation, then select each assigned worker in the right-hand office to inspect progress.
+The room crew count should stay the same. **Type instead** opens the optional text form.
+
 ## Run the whole example
 
-1. Click **New task**.
+1. Click **Type instead**.
 2. Enter: **Build a Python tip calculator with bill amount, tip percentage, bill splitting, tests and README.**
 3. Leave the repository field empty. Click **Create implementation plan**.
 4. Expect `awaiting_plan`, four queued roles and the scripted-demo banner. The crew must not begin this build
    until approval. Existing crew characters from previous runs may remain in the room.
 5. Click **Approve implementation plan**. Watch Builder → Tester → Scribe → Reviewer change from queued to
-   running to done. Observe the crew characters and their progress captions. Normal generation takes about
+   running to done. Watch the assigned workers in the right-hand Agent office. Normal generation takes about
    12 seconds, plus workspace creation and checks; allow up to a minute on a slower machine.
 6. Expect `ready · simulated`, with every role done.
 7. Click **Changes**. Expect `tipcalc.py`, `test_tipcalc.py` and `README.md`. Use Previous/Next to page through
    the diff. The web dashboard provides a larger diff view.
 8. Click **Checks**. Expect the independent unittest command to show `passed`, `Ran 6 tests`, and `OK`.
 9. Confirm there is no publication action for this demo. No GitHub PR should be created.
-10. Repeat with **New task** to watch it again. Changing the prompt still creates the same fixed sample.
+10. Repeat with **Type instead** to watch it again. Changing the prompt still creates the same fixed sample.
 
 Files and workflow history are stored beneath `hub/.data/orchestration-demo/`. Each approved run gets its own
 directory and local Git history. Inside a completed run's directory, optionally run:
@@ -94,7 +110,7 @@ Expected calculator output: tip **3.00**, total **23.00**, per person **11.50**.
 | Approval | Create a task without approving | It stays at awaiting_plan; no coding steps start |
 | Cancel | Create another task; click Stop workflow before approval | State becomes cancelled |
 | Reopen | Close and reopen Project workflow after completion | Latest build and results load again |
-| Text entry | Type into New task | Letters do not trigger walking, hatching or whistle actions |
+| Text entry | Type into the project form | Letters do not trigger walking, hatching or whistle actions |
 | Disconnection | Stop the demo backend | The panel reports a connection/action problem; no success is invented |
 
 If a test fails, report the OS, Unity version, hub URL, build ID, last state, exact error, reproduction steps and

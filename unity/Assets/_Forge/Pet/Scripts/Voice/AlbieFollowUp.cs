@@ -131,6 +131,10 @@ namespace Forge.Pet
             if (voiceBargeIn && !StartMonitor()) _retryAt = Time.time + 0.3f;
         }
 
+        float projectPromptUntil = -1f;
+
+        public void ExpectProjectReply() => projectPromptUntil = Time.unscaledTime + 30f;
+
         void OnSpeechEnded()
         {
             _speaking = false;
@@ -138,6 +142,14 @@ namespace Forge.Pet
             Debug.Log($"[AlbieFollowUp] answer ended: peak mic {_peakMic:F3}, peak echo gate {_peakEcho:F3}, monitored={_monitor != null}");
             _peakMic = _peakEcho = 0f;
             if (pushToTalk.SessionActive) { StopMonitor(); return; }   // barge-in / Space: someone is already talking
+            if (Time.unscaledTime < projectPromptUntil)
+            {
+                projectPromptUntil = -1f;
+                StopMonitor();
+                if (pushToTalk.Provider is HubSpeechToText mic) mic.RequireName = false;
+                if (pushToTalk.CanListenHandsFree) _following = pushToTalk.BeginHandsFree(listenSeconds);
+                return;
+            }
             AlbieState s = controller.State;
             if (s == AlbieState.Answering || s == AlbieState.Wandering || s == AlbieState.TaskComplete)
                 _startAt = Time.time + startDelay;    // the mic keeps running into the follow-up window (no restart)
@@ -274,6 +286,7 @@ namespace Forge.Pet
         /// <summary>Headset off / back on (AppLifecycle): close the follow-up window and let go of the mic, asking nothing.</summary>
         public void Halt()
         {
+            projectPromptUntil = -1f;
             _startAt = _retryAt = -1f;
             _attending = _following = _speaking = false;
             StopMonitor();
