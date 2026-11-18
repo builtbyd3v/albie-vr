@@ -35,7 +35,7 @@ namespace Forge.OS
         sealed class Portrait
         {
             public Transform root;
-            public bool fallback;
+            public bool fallback, sized;
             public readonly List<Part> parts = new List<Part>();
         }
         sealed class Part
@@ -244,7 +244,6 @@ namespace Forge.OS
                 var block = new MaterialPropertyBlock(); renderer.GetPropertyBlock(block); mr.SetPropertyBlock(block);
                 portrait.parts.Add(new Part { source = renderer, target = go.transform, mesh = mesh, skinned = skin != null });
             }
-            portrait.root.localScale = source.transform.lossyScale;
             // This checkout may lack the separately supplied Albie body asset. Show an honest visual fallback,
             // retaining the existing identity/task, rather than an invisible character or a new fake agent.
             portrait.fallback = source.GetComponentInChildren<Animator>(true) == null || portrait.parts.Count == 0;
@@ -330,10 +329,31 @@ namespace Forge.OS
                         var matrix = d.source.transform.worldToLocalMatrix * part.source.localToWorldMatrix;
                         part.target.localPosition = matrix.GetColumn(3); part.target.localRotation = matrix.rotation;
                         part.target.localScale = matrix.lossyScale;
-                        if (part.skinned) ((SkinnedMeshRenderer)part.source).BakeMesh(part.mesh);
+                        // useScale: the bake must not carry the renderer scale too, or matrix.lossyScale applies it twice.
+                        if (part.skinned) ((SkinnedMeshRenderer)part.source).BakeMesh(part.mesh, true);
                     }
+                if (pose && !d.portrait.fallback && !d.portrait.sized) Fit(d.portrait);
                 if (d.id == selected) detail.text = d.name + " · " + (live ? d.state : "offline") + "\n" + d.task;
             }
+        }
+
+        // One fixed office size for every crew member, whatever its room scale or model units.
+        static void Fit(Portrait portrait)
+        {
+            var bounds = new Bounds(); bool any = false;
+            foreach (var part in portrait.parts)
+            {
+                var m = part.target.localToWorldMatrix; var b = part.mesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var p = m.MultiplyPoint3x4(b.center + Vector3.Scale(b.extents, new Vector3((i & 1) * 2 - 1, (i & 2) - 1, (i & 4) / 2 - 1)));
+                    if (any) bounds.Encapsulate(p); else { bounds = new Bounds(p, Vector3.zero); any = true; }
+                }
+            }
+            float size = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+            if (size < 1e-4f) return;
+            portrait.root.localScale *= .3f / size; // longest side 0.3 office units, about the temporary croc
+            portrait.sized = true;
         }
 
         Material Material(Color color)
