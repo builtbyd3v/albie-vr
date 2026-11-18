@@ -63,3 +63,22 @@ a future change, preserve the applicable copyright and license notices and check
 - Preview screenshot: `unity/Logs/agent-office-preview.png`. The office was left open in Unity.
 - Tested through Unity button handlers and visual screenshots, not physical Quest controller input. Live model
   execution and PR publication remain outside this scripted demonstration.
+
+
+## Office workers and camera controls
+
+Crew members now open the office when they appear. Their existing task connections continue while their room
+bodies, captions and colliders are hidden using the crew's home state. Closing the window keeps them in this
+state. Reopen Agent office to see them again. Albie's lead character remains available for conversation.
+
+The expanded floor has wider workstation spacing. Select a role to follow its workstation and read its live task.
+Rotate left/right changes the view. Zoom in/out returns to free viewing. Overview restores the whole office.
+Project steps supply workers even when no corresponding room character exists.
+
+The planner supports Scout research and preserves CNN/ML requirements. Scout can search and read references
+with the Claude executor, and its findings feed later steps. GitHub publication still uses the explicitly selected
+owner/repo and requires plan and publication approval. Research references do not change that destination.
+
+Verification uses scripted backend tests and a Unity runtime crew. Live CNN training, GitHub publication and the
+updated office on a physical headset require separate verification. The checkout still uses procedural crocodile
+stand-ins where the original Albie body asset is unavailable.

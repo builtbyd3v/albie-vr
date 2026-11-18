@@ -90,6 +90,8 @@ public static class CrewTools
 
     static JObject Assign(JObject args)
     {
+        if (UnityEngine.Object.FindFirstObjectByType<Forge.OS.OSAgentOffice>() != null)
+            return new JObject { ["error"] = "Use build_start for work in the agent office. Put the full project request and requested roles in goal, and the confirmed GitHub destination in repo. This sample-project task tool cannot build or publish that project." };
         string task = ((string)args["task"] ?? "").Trim();
         if (task.Length == 0) throw new ArgumentException("the task is empty");
         var m = Spawn((string)args["agent"]);

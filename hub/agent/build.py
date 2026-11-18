@@ -47,8 +47,8 @@ from .turn import TurnControl
 log = logging.getLogger(__name__)
 
 LEAD = "bit"  # Albie's pet id
-MAX_STEPS = 5
-PLAN_AGENTS = ("builder", "tester", "scribe", "reviewer", "fixer", "sentinel")
+MAX_STEPS = 7
+PLAN_AGENTS = ("scout", "builder", "tester", "scribe", "reviewer", "fixer", "sentinel")
 GIT_NAME, GIT_EMAIL = "Albie", "albie-bot@users.noreply.github.com"
 DONE_STATES = ("ready", "shipped", "failed", "cancelled")
 
@@ -69,15 +69,19 @@ PLAN_SCHEMA: dict[str, Any] = {
 }
 
 PLAN_SYSTEM = (
-    "You plan small software projects for Albie's crew of coding agents, who work in a shared folder in an XR "
-    "workspace while the user watches. Each step is done by one crew member, in order, and each sees the files the "
-    "earlier steps wrote. Crew: builder (writes the code), fixer (fixes a bug a test found), tester (writes and runs "
-    "tests, never production code), scribe (writes the README and comments), reviewer (reads and reports, never "
-    "changes files), sentinel (security review, never changes files). "
-    f"Plan 3 to {MAX_STEPS} steps: one or two builder steps, then a tester step, a scribe step, and end with a "
-    "reviewer step. The whole project must be finishable in about ten minutes: one language, standard library first, "
-    "no external services, accounts or API keys, and runnable from a terminal. Each task is self-contained: name the "
-    "files to create and what they do, and how to run the result. Keep the title short."
+    "Plan the user's software project faithfully for Albie's crew in a shared repository. "
+    "Steps execute in order and receive earlier results. Scout researches GitHub references and the existing "
+    "codebase, reports source URLs and licenses, and recommends an approach without changing files. "
+    "Builder implements, Tester writes and runs tests, Fixer corrects defects, Scribe documents, "
+    "Reviewer checks the final diff, and Sentinel reviews security. "
+    f"Use 3 to {MAX_STEPS} self-contained steps. Include Scout first when research or repository discovery "
+    "is requested, Builder and Tester, and Reviewer last. Preserve the requested frameworks and domain. "
+    "For a CNN or other ML project include a real model, data loading, training and evaluation, dependency "
+    "versions, a reproducible small CPU smoke run, and tests for tensor shapes and model behavior. "
+    "Separate a bounded validation run from full training. Never substitute a canned calculator or unrelated "
+    "terminal app. State dataset, compute and credential requirements explicitly. "
+    "Research repositories are references; the user's confirmed target repository is the publication destination. "
+    "Do not copy third-party code without checking its license. Keep the title short."
 )
 
 
@@ -534,7 +538,7 @@ class Builds:
                 return
             if error_message or not result or not result.strip():
                 raise RuntimeError(error_message or "The agent returned no result")
-            if agent.read_only and not re.search(r"REVIEW:\s*PASS\s*$", result):
+            if agent.kit == "review" and not re.search(r"REVIEW:\s*PASS\s*$", result):
                 raise RuntimeError("Review did not approve the changes: " + result[-250:])
         except asyncio.CancelledError:
             step.state, step.finished_at = "cancelled", now()
@@ -665,7 +669,7 @@ BUILD_START_DESCRIPTION = (
     "Have the crew write a software project from scratch, as code in a repo, end to end: Albie plans it, the crew "
     "appears in the agent office, and Builder, Tester, Scribe and Reviewer each do their part in turn, committing as they go; when it's "
     "ready the user can have a pull request opened. Use it when the user asks for a program, app, script, tool, "
-    "website, game to run on a computer, or a pull request ('build me a Python to-do app', 'write a command-line "
+    "CNN, ML training pipeline, website, game to run on a computer, or a pull request ('build me a Python to-do app', 'write a command-line "
     "unit converter', 'have the crew make a snake game in the terminal'). Something to look at or play with in the "
     "room is artifact_create instead. Takes a few minutes; returns at once with a build id. Say you're on it.")
 _ID = {"type": "string", "description": "build id; omit for the latest build"}

@@ -12,6 +12,11 @@ namespace Forge.Pet
     [DisallowMultipleComponent]
     public class AlbieCrewMember : MonoBehaviour
     {
+        public static bool WorkersInOffice { get; set; } = true;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetOffice() => WorkersInOffice = true;
+
         const float HatchSeconds = 0.45f, GoHomeSeconds = 0.3f;
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -68,6 +73,7 @@ namespace Forge.Pet
 
         void Start()
         {
+            if (WorkersInOffice) { SetHome(true); Forge.OS.OSAgentOffice.Open(); }
             if (_interaction != null) _interaction.Poked += OnPoked;
             if (_caption != null && Type != null) _caption.SetText("Hi! I'm " + Type.Name + ". I " + Type.Role + ".", false);
         }
@@ -227,6 +233,7 @@ namespace Forge.Pet
 
         void Update()
         {
+            if (WorkersInOffice && !Leaving && (!Home || HomeSpot.HasValue)) SetHome(true);
             if (Home && !Leaving) HomeTick();
             if (_model == null) return;
             float t = Time.time - _animStart;

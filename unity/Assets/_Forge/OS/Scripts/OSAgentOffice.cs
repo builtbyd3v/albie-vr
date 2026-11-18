@@ -32,6 +32,20 @@ namespace Forge.OS
         bool pending;
         float nextRefresh, nextPose;
         int stageResourceCount;
+        float viewYaw = -25f, viewZoom = 2.15f;
+        bool followSelected;
+
+        void ViewCamera()
+        {
+            Vector3 focus = Vector3.zero;
+            var chosen = desks.Find(d => d.id == selected);
+            if (followSelected && chosen != null) focus = chosen.root.localPosition + chosen.portrait.root.localPosition;
+            var rotation = Quaternion.Euler(52f, viewYaw, 0);
+            officeCamera.transform.localPosition = focus - rotation * Vector3.forward * 7f;
+            officeCamera.transform.localRotation = rotation;
+            officeCamera.orthographicSize = followSelected ? .65f : viewZoom;
+        }
+
 
         sealed class Portrait
         {
@@ -69,7 +83,8 @@ namespace Forge.OS
         public static OSWindow Open()
         {
             if (OSShell.Current == null) return null;
-            return OSShell.Current.Windows.Open(WindowId, "Agent office", new Vector2(1.05f, 0.94f), panel =>
+            AlbieCrewMember.WorkersInOffice = true;
+            return OSShell.Current.Windows.Open(WindowId, "Agent office", new Vector2(1.3f, 1.04f), panel =>
             {
                 panel.gameObject.AddComponent<OSAgentOffice>().Init(panel);
             }, "OFFICE");
@@ -82,6 +97,13 @@ namespace Forge.OS
             actions.GetComponent<LayoutElement>().flexibleHeight = 0;
             OSUi.Button(actions, "Project workflow", () => OSWorkflowWindow.Open(), OSButtonStyle.Primary);
             OSUi.Button(actions, "Manage crew", () => OSAgentsWindow.Open());
+            var view = OSUi.Row(column, OSUi.ButtonHeight, 12f);
+            view.GetComponent<LayoutElement>().flexibleHeight = 0;
+            OSUi.Button(view, "Rotate left", () => viewYaw -= 30f);
+            OSUi.Button(view, "Rotate right", () => viewYaw += 30f);
+            OSUi.Button(view, "Zoom in", () => { followSelected = false; viewZoom = Mathf.Max(.8f, viewZoom - .25f); });
+            OSUi.Button(view, "Zoom out", () => { followSelected = false; viewZoom = Mathf.Min(3f, viewZoom + .25f); });
+            OSUi.Button(view, "Overview", () => { followSelected = false; viewYaw = -25f; viewZoom = 2.15f; });
             summary = OSUi.Text(column, "Looking for the crew…", OSUi.BodyText);
             summary.richText = false;
             var viewport = new GameObject("Live office viewport", typeof(RectTransform), typeof(RawImage), typeof(LayoutElement));
@@ -106,20 +128,20 @@ namespace Forge.OS
             stage = new GameObject("Albie office preview (visuals only)");
             // Isolated from the room: no physical colliders, lighting, navmesh, or scene registry changes.
             stage.transform.position = new Vector3(10000f, 10000f, 10000f);
-            Box(stage.transform, "Oak office floor", new Vector3(0, -0.035f, 0), new Vector3(2.5f, 0.07f, 2.05f), new Color(.14f, .19f, .23f));
-            for (int i = 0; i < 11; i++)
-                Box(stage.transform, "Floor seam", new Vector3(-1.18f + i * .235f, .002f, 0), new Vector3(.006f, .003f, 2f), new Color(.21f, .27f, .30f));
-            Box(stage.transform, "Back wall", new Vector3(0, .20f, .99f), new Vector3(2.5f, .44f, .035f), new Color(.24f, .31f, .35f));
-            Box(stage.transform, "Left wall", new Vector3(-1.23f, .12f, 0), new Vector3(.035f, .28f, 2.02f), new Color(.20f, .27f, .31f));
-            Box(stage.transform, "Team board", new Vector3(.22f, .26f, .96f), new Vector3(1.15f, .24f, .015f), new Color(.08f, .12f, .16f));
-            var title = WorldText(stage.transform, "ALBIE / CREW OFFICE", new Vector3(.22f, .27f, .944f), .048f);
+            Box(stage.transform, "Oak office floor", new Vector3(0, -0.035f, 0), new Vector3(4f, 0.07f, 3.3f), new Color(.14f, .19f, .23f));
+            for (int i = 0; i < 17; i++)
+                Box(stage.transform, "Floor seam", new Vector3(-1.88f + i * .235f, .002f, 0), new Vector3(.006f, .003f, 3.25f), new Color(.21f, .27f, .30f));
+            Box(stage.transform, "Back wall", new Vector3(0, .20f, 1.64f), new Vector3(4f, .44f, .035f), new Color(.24f, .31f, .35f));
+            Box(stage.transform, "Left wall", new Vector3(-1.98f, .12f, 0), new Vector3(.035f, .28f, 3.27f), new Color(.20f, .27f, .31f));
+            Box(stage.transform, "Team board", new Vector3(.22f, .26f, 1.61f), new Vector3(1.15f, .24f, .015f), new Color(.08f, .12f, .16f));
+            var title = WorldText(stage.transform, "ALBIE / CREW OFFICE", new Vector3(.22f, .27f, 1.594f), .048f);
             title.transform.localRotation = Quaternion.identity;
             for (int i = 0; i < 3; i++)
             {
-                Box(stage.transform, "Window", new Vector3(-.91f + i * .20f, .25f, .963f), new Vector3(.15f, .19f, .015f), new Color(.41f, .68f, .76f));
-                Box(stage.transform, "Window mullion", new Vector3(-.91f + i * .20f, .25f, .95f), new Vector3(.009f, .19f, .008f), new Color(.2f, .31f, .36f));
+                Box(stage.transform, "Window", new Vector3(-.91f + i * .20f, .25f, 1.613f), new Vector3(.15f, .19f, .015f), new Color(.41f, .68f, .76f));
+                Box(stage.transform, "Window mullion", new Vector3(-.91f + i * .20f, .25f, 1.60f), new Vector3(.009f, .19f, .008f), new Color(.2f, .31f, .36f));
             }
-            Plant(new Vector3(1.08f, 0, .79f)); Plant(new Vector3(-1.07f, 0, -.82f));
+            Plant(new Vector3(1.78f, 0, 1.39f)); Plant(new Vector3(-1.77f, 0, -1.42f));
             target = new RenderTexture(1400, 800, 24) { name = "Albie office viewport", antiAliasing = 2 };
             target.Create();
             var cameraObject = new GameObject("Office camera", typeof(Camera));
@@ -149,13 +171,17 @@ namespace Forge.OS
         void SyncCrew()
         {
             var crew = AlbieCrew.Instance;
-            string key = crew != null && crew.Lead != null ? crew.Lead.GetEntityId().ToString() : "";
+            var lead = crew != null ? crew.Lead : FindFirstObjectByType<AlbieController>();
+            string key = lead != null ? lead.GetEntityId().ToString() : "";
             if (crew != null)
                 foreach (var m in crew.Members) if (m != null && !m.Leaving) key += ":" + m.GetEntityId();
             var roles = new HashSet<string>();
             if (build?["steps"] is JArray steps)
                 foreach (var step in steps)
                     if (roles.Add((string)step["type"])) key += "/" + (string)step["type"];
+            if (crew != null)
+                foreach (var member in crew.Members)
+                    if (member != null && !member.Leaving && (!member.Home || member.HomeSpot.HasValue)) member.SetHome(true);
             if (key == rosterKey) return;
             rosterKey = key;
             foreach (var d in desks) if (d.root != null) Destroy(d.root.gameObject);
@@ -166,8 +192,8 @@ namespace Forge.OS
                 owned.RemoveAt(i);
             }
             OSUi.Clear(roster);
-            if (crew != null && crew.Lead != null)
-                AddDesk("albie", "Albie", new Color(.45f, .85f, .73f), crew.Lead);
+            if (lead != null)
+                AddDesk("albie", "Albie", new Color(.45f, .85f, .73f), lead);
             foreach (var type in AlbieAgentTypes.All)
             {
                 var member = crew != null ? crew.Find(type) : null;
@@ -185,7 +211,7 @@ namespace Forge.OS
                     row.GetComponent<LayoutElement>().flexibleHeight = 0;
                 }
                 string id = desks[i].id;
-                OSUi.Button(row, desks[i].name, () => selected = id);
+                OSUi.Button(row, desks[i].name, () => { selected = id; followSelected = true; });
             }
             if (desks.Count == 0) OSUi.Text(roster, "No agents here yet. Tap Manage crew to hatch one.", OSUi.SmallText, true);
         }
@@ -196,8 +222,8 @@ namespace Forge.OS
             var root = new GameObject("Office station " + id).transform;
             root.SetParent(stage.transform, false);
             // Lead has a station at the front. Up to nine existing crew types fill three rows behind it.
-            root.localPosition = slot == 0 ? new Vector3(.70f, 0, -.77f)
-                : new Vector3(-.72f + (slot - 1) % 3 * .72f, 0, -.46f + (slot - 1) / 3 * .43f);
+            root.localPosition = slot == 0 ? new Vector3(0f, 0, -1.40f)
+                : new Vector3(-1.15f + (slot - 1) % 3 * 1.15f, 0, -.7f + (slot - 1) / 3 * .85f);
             Box(root, "Role rug", new Vector3(0, .006f, -.03f), new Vector3(.55f, .009f, .36f), Color.Lerp(color, new Color(.15f, .19f, .23f), .72f));
             Box(root, "Desk top", new Vector3(0, .10f, .09f), new Vector3(.34f, .025f, .15f), new Color(.66f, .48f, .32f));
             foreach (float x in new[] { -.13f, .13f })
@@ -206,11 +232,12 @@ namespace Forge.OS
             Box(root, "Monitor frame", new Vector3(0, .19f, .12f), new Vector3(.18f, .11f, .024f), new Color(.07f, .1f, .14f));
             var monitor = Box(root, "Live work indicator", new Vector3(0, .19f, .105f), new Vector3(.15f, .081f, .005f), color * .4f);
             Box(root, "Keyboard", new Vector3(0, .116f, .045f), new Vector3(.12f, .007f, .035f), new Color(.25f, .31f, .37f));
-            var label = WorldText(root, displayName + " / idle", new Vector3(0, .024f, -.23f), .037f);
+            var label = WorldText(root, displayName + " / idle", new Vector3(0, .024f, -.39f), .037f);
             var desk = new Desk { id = id, name = displayName, root = root, color = color, source = source,
                 bridge = source != null ? source.GetComponent<AlbieAgentBridge>() : null, monitor = monitor.GetComponent<Renderer>(), label = label,
                 seat = new Vector3(0, .015f, -.075f) };
             desk.portrait = MakePortrait(root, source);
+            desk.portrait.root.localPosition = desk.seat + new Vector3(-.35f, 0, -.25f);
             if (desk.portrait.fallback) FallbackAvatar(desk.portrait.root, color, id == "albie");
             desks.Add(desk);
         }
@@ -303,6 +330,7 @@ namespace Forge.OS
         void Update()
         {
             if (stage == null) return;
+            ViewCamera();
             if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + 3f; SyncCrew(); RefreshBuild();
@@ -337,7 +365,7 @@ namespace Forge.OS
                 d.label.text = d.name + " / " + (live ? d.state : "offline");
                 d.label.transform.rotation = officeCamera.transform.rotation;
                 // Visual-only motion: work at the desk, otherwise take a small idle walk on that station's rug.
-                Vector3 destination = d.seat + (busy ? Vector3.zero : new Vector3(Mathf.Sin(Time.unscaledTime * .45f + d.root.localPosition.x) * .08f, 0, -.04f));
+                Vector3 destination = d.seat + (busy ? Vector3.zero : new Vector3(Mathf.Sin(Time.unscaledTime * .45f + d.root.localPosition.x) * .25f, 0, -.20f));
                 d.portrait.root.localPosition = Vector3.Lerp(d.portrait.root.localPosition, destination, Time.unscaledDeltaTime * 3f);
                 if (d.source != null && pose)
                     foreach (var part in d.portrait.parts)
@@ -397,7 +425,7 @@ namespace Forge.OS
             go.transform.SetParent(parent, false); go.transform.localPosition = position; go.layer = PreviewLayer;
             var label = go.GetComponent<TextMeshPro>(); label.text = text; label.richText = false;
             label.fontSize = size * 10f; label.alignment = TextAlignmentOptions.Center;
-            label.rectTransform.sizeDelta = new Vector2(1.2f, .12f);
+            label.rectTransform.sizeDelta = new Vector2(.8f, .14f);
             label.color = new Color(.86f, .92f, .94f);
             return label;
         }
