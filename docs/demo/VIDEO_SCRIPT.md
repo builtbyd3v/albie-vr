@@ -56,6 +56,18 @@ With `"stepButton": true` in `Demo/Resources/demo_config.json` (the default now)
 
 A press never cuts Albie off: if he's still talking, the move happens when his line ends. A press during B3, B5 or B4 after the poke does nothing (those run themselves). In demo mode the live voice is off (A is push-to-talk outside the demo), and the first-arrival greeting card is dismissed. Note that holding a controller turns Quest hand tracking off, so the B1 and B7 palm moments use the left controller's position.
 
+### Bare hands (no controllers on screen)
+
+With `"handStep": true` (also the default) the same take runs with no controller. Put the controllers down so Quest tracks your hands.
+
+| Move | What it does |
+|---|---|
+| **Finger tap**: touch your thumb to your middle fingertip, other fingers open, either hand | Everything A does: start, each of Hudson's lines, the end of the take. It also stands in for the palm or a poke that didn't take. |
+| **Palm up**, held out, either hand | B1: Albie runs over and lands on it. B6: the drone comes home over it. |
+| **Poke** with a fingertip | "Add to parts list" and "Confirm", on the cards. |
+
+The tap can be made low, out of the shot. Part the fingers again before the next tap. It is thumb to middle finger on purpose: thumb to index is a click on whatever window you point at, and Quest's own menu pinch. While this is on, the app's own hand gestures are paused, so opening and closing a hand can't hide the windows mid-take. A and the finger tap both work in the same take.
+
 If a beat fires early or late, keep going: we cut in the edit. Back and Reset are on the laptop remote (`TONIGHT_PLAN.md`, section 6).
 
 ## Clips (2:05 to 2:50), under voiceover

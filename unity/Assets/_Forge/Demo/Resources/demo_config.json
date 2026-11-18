@@ -8,5 +8,6 @@
   "minSpeechWords": 2,
   "palmTimeoutSeconds": 0,
   "keepMicOpen": false,
-  "stepButton": true
+  "stepButton": true,
+  "handStep": true
 }

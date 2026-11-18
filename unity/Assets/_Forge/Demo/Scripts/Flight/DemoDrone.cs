@@ -205,10 +205,22 @@ namespace Forge.Demo
         static bool TryPalm(out Vector3 p)
         {
             var e = GestureEngine.Current;
-            if (e != null && e.Hands.Length > 0 && e.Hands[0].Usable)
+            if (e != null)
             {
-                p = e.Hands[0].Palm;
-                return true;
+                // The hand held palm up, whichever it is; else any tracked hand, the left first.
+                GestureHand hand = null;
+                for (int i = 0; i < e.Hands.Length; i++)
+                {
+                    GestureHand h = e.Hands[i];
+                    if (!h.Usable) continue;
+                    if (hand == null) hand = h;
+                    if (GestureLibrary.CanHoldPerch(h.values)) { hand = h; break; }
+                }
+                if (hand != null)
+                {
+                    p = hand.Palm;
+                    return true;
+                }
             }
             // Controllers in hand (the A-button demo): hand tracking is off, so the left controller stands in for the palm.
             if (OVRInput.GetControllerPositionTracked(OVRInput.Controller.LTouch))

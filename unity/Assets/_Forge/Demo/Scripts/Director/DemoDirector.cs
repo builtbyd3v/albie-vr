@@ -102,6 +102,7 @@ namespace Forge.Demo
             for (int i = 0; i < subs.Count; i++) subs[i]?.Dispose();
             subs.Clear();
             RestoreLiveVoice();
+            ReleaseHands();
             ReleaseAlbie();
         }
 
@@ -110,6 +111,7 @@ namespace Forge.Demo
             if (script == null) return;
             PollKeys();
             PollController();
+            PollHands();
             ResolveAlbie();
             SilenceLiveVoice();
             UpdatePalm();
@@ -483,7 +485,7 @@ namespace Forge.Demo
         {
             if (string.IsNullOrWhiteSpace(text)) return;
             if (config != null && config.muteLiveAgent) muteUntil = Time.time + MuteSeconds;   // always, even for chatter and his own echo
-            if (StepButton) return;   // A is the only trigger: his voice and a press must not both move a beat on
+            if (ManualStep) return;   // A or the finger tap is the only trigger: his voice and a press must not both move a beat on
             if (!beatRunning || !advanceHasSpeech || !linesDone) return;
             float now = Time.time;
             if (voice != null && (voice.Speaking || now < voice.EndedAt + EchoGuardSeconds)) return;

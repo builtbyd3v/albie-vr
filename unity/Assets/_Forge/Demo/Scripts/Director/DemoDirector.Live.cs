@@ -21,7 +21,7 @@ namespace Forge.Demo
         Summon summon;
         Transform anchor;
         bool forced, ownsPerch, palmKey, approachStarted, onController;
-        int forcedBeat = -1;
+        int forcedBeat = -1, palmHand;
         float summonStart, palmHeldSince = -1f, graceStart = -1f, approachStart, perchStart, landedAt, handLostAt = -1f, turnedAt = -1f;
         float palmUpSince = -1f, lastPalmSignal = -10f;
         Vector3 forcedPos;
@@ -44,6 +44,8 @@ namespace Forge.Demo
         {
             if (summon != Summon.WaitPalm) return;
             Transform head = PetUser.Head;
+            // A hand is already held out (bare hands): he lands on it and rides it, as with the real gesture.
+            if (HoldableHand(out int open)) { palmHand = open; Debug.Log("[Demo] Albie comes to the open hand."); BeginApproach(); return; }
             forced = true;
             forcedPos = head != null ? head.TransformPoint(new Vector3(-0.1f, -0.2f, 0.45f)) : albie.transform.position;   // a palm held out, inside the view
             onController = LeftControllerPoint(out Vector3 pad);
@@ -79,11 +81,30 @@ namespace Forge.Demo
             DemoActions.Raise("albie.on_hand");
         }
 
-        // The left hand as the gesture engine reads it; null off-headset or before the engine starts.
-        static GestureHand LeftHand()
+        // The hand Albie is called to, as the gesture engine reads it (the left, or the right when that is the one held out);
+        // null off-headset or before the engine starts.
+        GestureHand PalmHand()
         {
             GestureEngine engine = GestureEngine.Current;
-            return engine != null ? engine.Hands[0] : null;
+            return engine != null ? engine.Hands[palmHand] : null;
+        }
+
+        static GestureHand Hand(int index)
+        {
+            GestureEngine engine = GestureEngine.Current;
+            return engine != null ? engine.Hands[index] : null;
+        }
+
+        // A tracked hand turned up enough for him to sit in: the left first.
+        bool HoldableHand(out int index)
+        {
+            for (index = 0; index < 2; index++)
+            {
+                GestureHand h = Hand(index);
+                if (h != null && h.Usable && GestureLibrary.CanHoldPerch(h.values)) return true;
+            }
+            index = 0;
+            return false;
         }
 
         static bool PalmHeldUp(GestureHand h) =>
@@ -99,7 +120,10 @@ namespace Forge.Demo
         void UpdatePalm()
         {
             float now = Time.time;
-            GestureHand hand = LeftHand();
+            // Before he is on his way either palm will do; after that he stays with the hand he was called to.
+            if ((summon == Summon.Idle || summon == Summon.WaitPalm) && !PalmHeldUp(Hand(palmHand)) && PalmHeldUp(Hand(1 - palmHand)))
+                palmHand = 1 - palmHand;
+            GestureHand hand = PalmHand();
             bool palmUp = PalmHeldUp(hand);
             bool key = palmKey;
             palmKey = false;
@@ -125,7 +149,7 @@ namespace Forge.Demo
                     if (now - palmHeldSince < PalmHoldSeconds) break;
                     if (graceStart < 0f) graceStart = now;
                     if (albie.Perched) { summon = Summon.Perching; perchStart = now; break; }   // the engine's own gesture got there first
-                    if (now - graceStart >= (GestureEngine.Current != null ? EngineGraceSeconds : 0f)) BeginApproach();
+                    if (now - graceStart >= (GestureEngine.Current != null && !GestureEngine.Current.Paused ? EngineGraceSeconds : 0f)) BeginApproach();
                     break;
 
                 case Summon.Approach:
@@ -226,7 +250,7 @@ namespace Forge.Demo
         // While a beat waits for Hudson's speech and Albie is done talking, a hands-free session is always open.
         void UpdateMic()
         {
-            if (!config.keepMicOpen || config.stepButton || talk == null || !advanceHasSpeech || !linesDone) return;
+            if (!config.keepMicOpen || ManualStep || talk == null || !advanceHasSpeech || !linesDone) return;
             float now = Time.time;
             if (voice != null && (voice.Speaking || now < voice.EndedAt + 0.5f)) return;
             if (talk.SessionActive || now < nextMicTry) return;

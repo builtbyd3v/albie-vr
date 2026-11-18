@@ -27,6 +27,8 @@ namespace Forge.Demo
         readonly List<Behaviour> silenced = new List<Behaviour>();
 
         bool StepButton => config != null && config.stepButton;
+        /// <summary>Hudson steps the script himself (A or the finger tap), so his speech does not.</summary>
+        bool ManualStep => config != null && (config.stepButton || config.handStep);
 
         void PollController()
         {
@@ -57,7 +59,7 @@ namespace Forge.Demo
             switch (summon)
             {
                 case Summon.WaitPalm:
-                    Debug.Log("[Demo] A: palm (Albie comes to the left hand).");
+                    Debug.Log("[Demo] A: palm (Albie comes to the hand).");
                     ForceSummon();
                     return;
                 case Summon.Approach:
@@ -182,14 +184,14 @@ namespace Forge.Demo
         // The live voice: A opens it outside the demo, and the wake word, follow-ups and the whistle would answer Hudson's lines.
         void SilenceLiveVoice()
         {
-            if (liveVoiceOff || !StepButton || albie == null) return;
+            if (liveVoiceOff || !ManualStep || albie == null) return;
             liveVoiceOff = true;
             if (talk != null && talk.SessionActive) talk.CancelSession();
             Silence(FindObjectsByType<PushToTalk>());
             Silence(FindObjectsByType<WakeListener>());
             Silence(FindObjectsByType<AlbieFollowUp>());
             Silence(FindObjectsByType<WhistleButton>());
-            Debug.Log($"[Demo] A is the step button: live voice off ({silenced.Count} components).");
+            Debug.Log($"[Demo] Hudson steps the script by hand: live voice off ({silenced.Count} components).");
         }
 
         void Silence<T>(T[] found) where T : Behaviour

@@ -38,6 +38,9 @@ public class GestureEngine : MonoBehaviour
     /// <summary>A gesture fired, with the hand that made it (it runs whatever it's bound to).</summary>
     public event Action<GestureDef, GestureHand> Fired;
 
+    /// <summary>Hands are still read, but no gesture fires and the display stays away (the scripted demo owns the hands).</summary>
+    public bool Paused { get; set; }
+
     /// <summary>What the recorder wants the user to do, or null when not teaching.</summary>
     public string TeachPrompt => recorder != null ? recorder.Prompt : null;
 
@@ -105,7 +108,7 @@ public class GestureEngine : MonoBehaviour
             source.Read(h, hand.sample);
             hand.Update(now, head.position, head.rotation);
             UpdateAim(hand, head, now);
-            if (!hand.Deliberate)
+            if (!hand.Deliberate || Paused)
             {
                 for (int m = 0; m < matchers[h].Count; m++) matchers[h][m].Reset();
                 continue;
@@ -118,7 +121,7 @@ public class GestureEngine : MonoBehaviour
         Actions.Tick(head);
         if (recorder != null) TickRecorder(now);
 
-        if (!displayShown && showDisplayOnFirstHand && (Hands[0].Deliberate || Hands[1].Deliberate))
+        if (!Paused && !displayShown && showDisplayOnFirstHand && (Hands[0].Deliberate || Hands[1].Deliberate))
         {
             displayShown = true;
             Actions.ShowDisplay(true);
