@@ -38,7 +38,10 @@ public class MentionsPanel : MonoBehaviour
         var placeholder = content.Find("Placeholder");
         if (placeholder != null) placeholder.gameObject.SetActive(false);
         heading = ChatUi.OverlineText(content, "Heading");
-        heading.text = "Unread direct messages and mentions";
+        // Short enough for the narrow panel in capitals (the long line ran outside it); "…" if it still doesn't fit.
+        heading.text = "Unread DMs and mentions";
+        heading.textWrappingMode = TextWrappingModes.NoWrap;
+        heading.overflowMode = TextOverflowModes.Ellipsis;
         list = ChatUi.Rect(content, "List");
         footer = ChatUi.Text(content, "Footer", ChatUi.Small, ChatUi.Subtext, align: TextAlignmentOptions.Center);
         empty = ChatUi.Text(content, "Empty", ChatUi.Body, ChatUi.Subtext, align: TextAlignmentOptions.Center, wrap: true);

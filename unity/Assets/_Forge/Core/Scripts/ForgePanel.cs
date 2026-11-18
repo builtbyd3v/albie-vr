@@ -222,7 +222,11 @@ public class ForgePanel : MonoBehaviour
     public string Title
     {
         get => titleText != null ? titleText.text : "";
-        set { if (titleText != null) titleText.text = value; }
+        set
+        {
+            if (titleText != null) titleText.text = value;
+            LayoutHeader();  // a longer title may need the Straight / Face me pills out of its way
+        }
     }
 
     /// <summary>Small second line under the title (e.g. "rocket v1"). Empty hides it.</summary>
@@ -270,9 +274,25 @@ public class ForgePanel : MonoBehaviour
     }
 
     // Title (and subtitle) after the badge, clear of the Straight / Face me pills on the right.
+    /// <summary>How far in from the left edge the title and subtitle reach at their natural width (canvas units): what
+    /// <see cref="PanelManipulator"/> keeps clear of. Only on a layout change.</summary>
+    public float TitleSpan
+    {
+        get
+        {
+            if (titleText == null) return 0f;
+            bool hasBadge = badge != null && badge.gameObject.activeSelf;
+            float left = HeaderLeft + (hasBadge ? ((RectTransform)badge.transform).sizeDelta.x + BadgeGap : 0f);
+            float title = string.IsNullOrEmpty(titleText.text) ? 0f : titleText.GetPreferredValues(titleText.text).x;
+            float sub = subtitleText != null && !string.IsNullOrEmpty(subtitleText.text) ? subtitleText.GetPreferredValues(subtitleText.text).x : 0f;
+            return left + Mathf.Max(title, sub);
+        }
+    }
+
     void LayoutHeader()
     {
         if (titleText == null) return;
+        if (Handles != null) Handles.LayoutTitleButtons();  // the pills first (in the header, or above it): the title keeps clear
         bool hasBadge = badge != null && badge.gameObject.activeSelf;
         bool hasSubtitle = subtitleText != null && !string.IsNullOrEmpty(subtitleText.text);
         float left = HeaderLeft + (hasBadge ? ((RectTransform)badge.transform).sizeDelta.x + BadgeGap : 0f);
@@ -314,7 +334,7 @@ public class ForgePanel : MonoBehaviour
             if (!pill.Quiet || pill.transform.parent == null || pill.transform.parent.parent != transform) continue;  // the manipulator's own pills
             RectTransform rt = pill.Rect;
             if (rt.anchorMin.x < 0.99f || rt.anchorMin.y < 0.99f) continue;  // only the ones laid out from the top-right corner
-            if (rt.anchoredPosition.y < -ForgeTheme.PanelHeader) continue;
+            if (rt.anchoredPosition.y < -ForgeTheme.PanelHeader || rt.anchoredPosition.y > 0f) continue;  // above the panel: nothing to clear
             extent = Mathf.Max(extent, -rt.anchoredPosition.x + rt.sizeDelta.x * rt.pivot.x);
         }
         pillScratch.Clear();
