@@ -362,15 +362,16 @@ def heart():
     # Vessel ends inside the crop box: the point of each vessel farthest from the heart centre.
     for k, part in (("svc_top", "Superior vena cava"), ("ivc_bottom", "Inferior vena cava"), ("aorta_far", "Aorta"),
                     ("pa_far", "Pulmonary arteries"), ("pv_far", "Pulmonary veins")):
-        lm[k] = max((v.co for v in built[part][0].data.vertices), key=lambda q: (q - centre).length)
+        lm[k] = max((v.co for v in built[part][0].data.vertices), key=lambda q: (q - centre).length).copy()
     # Points along the vessels, sorted by height, for the blood path.
     for k, part in (("svc", "Superior vena cava"), ("ivc", "Inferior vena cava"), ("aorta", "Aorta"),
                     ("pa", "Pulmonary arteries"), ("pv", "Pulmonary veins")):
-        vs = [v.co for v in built[part][0].data.vertices]
+        vs = [v.co.copy() for v in built[part][0].data.vertices]
         lm[k] = mean(vs)
         lm[k + "_top"] = max(vs, key=lambda q: q.z)
         lm[k + "_bottom"] = min(vs, key=lambda q: q.z)
-    apex = max((v.co for v in built["Left ventricle"][0].data.vertices), key=lambda q: (q - (lm["mitral"] + lm["tricuspid"]) / 2).length)
+    # Landmarks are copies: v.co follows the mesh, which finish() moves (a reference would be moved twice).
+    apex = max((v.co for v in built["Left ventricle"][0].data.vertices), key=lambda q: (q - (lm["mitral"] + lm["tricuspid"]) / 2).length).copy()
     lm["apex"] = apex
 
     # Separated layout, in output space (glTF +Y up, +Z toward the viewer; Blender here is +Z up, -Y toward the viewer).

@@ -48,6 +48,7 @@ public static class BioTemplatesCheck
             ok &= Check(sb, "every model is bundled, openly licensed and credited, and matches its hash", Model);
             ok &= Check(sb, "every biology model comes apart into named parts, each with a place to go", Parts);
             ok &= Check(sb, "every label has a leader, and Show and Hide labels cover them all", Labels);
+            ok &= Check(sb, "everything in a scene, and every place it moves to, stays by the model", Near);
             ok &= Check(sb, "captions and moving parts stay hidden until their button starts them", Hidden);
             ok &= Check(sb, "the heart squeezes about its own centre", Beat);
             ok &= Check(sb, "the DNA turns a full circle, and Stop puts it back at rest", Spin);
@@ -228,6 +229,32 @@ public static class BioTemplatesCheck
             }
         }
         note = total + " labels";
+        return null;
+    }
+
+    // Label anchors and tour paths come from the model's own landmarks; a landmark measured in the wrong space put the
+    // heart's blood cells 10^29 m away (and Show blood flow showed nothing). Everything must stay within 1 m of the model.
+    static string Near(out string note)
+    {
+        note = null;
+        int count = 0;
+        const float Reach = 1f;
+        bool Far(JToken p) => p is JArray a && a.Count == 3 && (Math.Abs((float)a[0]) > Reach || Math.Abs((float)a[1]) > Reach || Math.Abs((float)a[2]) > Reach);
+        foreach (string t in Bio)
+        {
+            var scene = Scene(t);
+            foreach (JObject n in (JArray)scene["nodes"])
+            {
+                if (Far(n["pos"])) return $"{t}: {n["id"]} is at {n["pos"].ToString(Newtonsoft.Json.Formatting.None)}";
+                if (n["points"] is JArray pts) foreach (var q in pts) if (Far(q)) return $"{t}: {n["id"]} has a point at {q.ToString(Newtonsoft.Json.Formatting.None)}";
+                count++;
+            }
+            foreach (JObject r in (JArray)scene["rules"])
+                if ((string)r["type"] == "animate" && (string)r["property"] == "pos")
+                    foreach (JArray k in (JArray)r["keys"])
+                        if (Far(k[1])) return $"{t}: {r["target"]} moves to {k[1].ToString(Newtonsoft.Json.Formatting.None)}";
+        }
+        note = count + " nodes";
         return null;
     }
 
