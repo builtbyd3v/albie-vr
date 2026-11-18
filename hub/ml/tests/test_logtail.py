@@ -311,3 +311,119 @@ def test_a_cloned_repo_trained_from_the_panel_streams_and_ends_done(tmp_path, mo
             seen.append(ws.receive_json())
     assert [e["payload"]["epoch"] for e in seen if e["type"] == "ml.metrics"] == [1, 2, 3]
     assert seen[-1]["payload"] == {"run_id": run_id, "status": "done", "epoch": 3, "total_epochs": 3}
+
+
+# --- the basic algorithms, as GitHub repos write them: fit once, print the scores ----------------------------------
+HOUSES = "area,rooms,age,price\n" + "\n".join(
+    f"{50 + i * 7},{1 + i % 5},{i % 30},{100000 + (50 + i * 7) * 1500 + (1 + i % 5) * 8000 - (i % 30) * 900}"
+    for i in range(60))
+
+ALGORITHMS = {
+    "linear regression (house prices from a CSV)": ("sklearn", """\
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.model_selection import train_test_split
+df = pd.read_csv("houses.csv")
+X_train, X_test, y_train, y_test = train_test_split(df[["area", "rooms", "age"]], df["price"], test_size=0.2,
+                                                    random_state=0)
+model = LinearRegression().fit(X_train, y_train)
+pred = model.predict(X_test)
+print("R2 Score:", r2_score(y_test, pred))
+print("MAE:", mean_absolute_error(y_test, pred))
+print("Model saved")
+"""),
+    "logistic regression": ("sklearn", """\
+from sklearn.datasets import load_breast_cancer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+model = LogisticRegression(max_iter=5000).fit(X_train, y_train)
+print(f"Accuracy: {model.score(X_test, y_test):.3f}")
+"""),
+    "decision tree": ("sklearn", """\
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+print("accuracy =", DecisionTreeClassifier(random_state=0).fit(X_train, y_train).score(X_test, y_test))
+"""),
+    "random forest": ("sklearn", """\
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+pred = RandomForestRegressor(n_estimators=50, random_state=0).fit(X_train, y_train).predict(X_test)
+print("RMSE:", mean_squared_error(y_test, pred) ** 0.5)
+"""),
+    "xgboost": ("xgboost", """\
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+print("Accuracy:", XGBClassifier(n_estimators=50).fit(X_train, y_train).score(X_test, y_test))
+"""),
+    "lightgbm": ("lightgbm", """\
+from lightgbm import LGBMRegressor
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+print("R2:", LGBMRegressor(n_estimators=50, verbose=-1).fit(X_train, y_train).score(X_test, y_test))
+"""),
+}
+
+
+def _train(tmp_path, script: str, files: dict[str, str] | None = None) -> list[dict]:
+    repo = tmp_path / "repo"
+    (repo / ".forge").mkdir(parents=True)
+    (repo / ".forge" / "profile.json").write_text(json.dumps(
+        {"archetype": "generic", "python": sys.executable, "train_cmd": "python train.py"}))
+    (repo / "train.py").write_text(script)
+    for name, text in (files or {}).items():
+        (repo / name).write_text(text)
+    with TestClient(make_app(repo)) as client, client.websocket_connect("/ws") as ws:
+        assert client.post("/ml/train", json={"epochs": 3}).status_code == 200
+        seen = []
+        while not (seen and seen[-1]["type"] == "ml.run_state" and seen[-1]["payload"]["status"] == "done"):
+            seen.append(ws.receive_json())
+        return seen
+
+
+@pytest.mark.parametrize("name", list(ALGORITHMS))
+def test_a_basic_algorithm_trains_and_its_scores_end_the_run(tmp_path, monkeypatch, name):
+    package, script = ALGORITHMS[name]
+    pytest.importorskip(package)
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    done = _train(tmp_path, script, {"houses.csv": HOUSES})[-1]["payload"]
+    assert "error" not in done, done.get("error")
+    assert done["summary"].startswith("Finished: ")
+    word = {"linear regression (house prices from a CSV)": "R2 Score", "logistic regression": "Accuracy",
+            "decision tree": "accuracy", "random forest": "RMSE", "xgboost": "Accuracy", "lightgbm": "R2"}[name]
+    assert word in done["summary"] and "Model saved" not in done["summary"]
+
+
+def test_a_script_that_asks_for_input_fails_at_once_and_says_why(tmp_path, monkeypatch):
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    done = _train(tmp_path, 'print("R2:", 0.9)\narea = int(input("Enter the area: "))\n')[-1]["payload"]
+    assert "EOFError" in done["error"] and "keyboard input" in done["error"]
+
+
+def test_gradient_descent_by_hand_streams_its_epochs(tmp_path, monkeypatch):
+    monkeypatch.setattr(logtail, "POLL_S", 0.05)
+    seen = _train(tmp_path, """\
+import numpy as np
+x = np.linspace(0, 1, 50); y = 3 * x + 1
+w = b = 0.0
+for epoch in range(5):
+    pred = w * x + b
+    w -= 0.5 * (2 * ((pred - y) * x).mean()); b -= 0.5 * (2 * (pred - y).mean())
+    print(f"Epoch {epoch + 1}/5, loss: {((w * x + b - y) ** 2).mean():.4f}", flush=True)
+""")
+    losses = [e["payload"]["train_loss"] for e in seen if e["type"] == "ml.metrics"]
+    assert len(losses) == 5 and losses[-1] < losses[0] and "summary" not in seen[-1]["payload"]

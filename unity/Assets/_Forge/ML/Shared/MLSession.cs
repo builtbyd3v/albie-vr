@@ -531,11 +531,12 @@ namespace Forge.ML
             SetRunState(state.status, state.totalEpochs);
             if (state.status == "done" && runError != null && state.runId == errorRunId) { Notice = runError; Changed?.Invoke(); }
         }
-        // A run the hub followed that ended with no epochs it could read: say why, or the panel looks stuck.
+        // A run the hub followed that ended with no epochs it could read: say why (error), or the scores a fit-once
+        // script printed (summary: scikit-learn, XGBoost, LightGBM), or the panel looks stuck with nothing to show.
         void OnLiveRunError(Newtonsoft.Json.Linq.JToken token)
         {
             if (!IsLive || token == null) return;
-            string error = (string)token["error"];
+            string error = (string)token["error"] ?? (string)token["summary"];
             if (string.IsNullOrEmpty(error)) return;
             errorRunId = (string)token["run_id"];
             runError = error;

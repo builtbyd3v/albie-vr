@@ -10,7 +10,9 @@ picked Skip, or the repo was never patched). Reads what the script already logs 
   sent once the next one starts, or when the process exits.
 
 A run started by the hub always ends with ml.run_state done, also when nothing could be read (a crash, or a script
-that prints nothing we recognise): that one carries an `error` line, so the panels stop saying TRAINING.
+that prints nothing we recognise): that one carries an `error` line, so the panels stop saying TRAINING. A script
+that trains in one go with no epochs (scikit-learn, XGBoost, LightGBM: fit, then print the scores) and exits 0
+carries a `summary` of the scores it printed instead ("R2 Score: 0.51 · MAE: 160000").
 
 No tensorboard dependency: event files are read with the small TFRecord + protobuf decoder below.
 
@@ -130,6 +132,28 @@ def read_stdout(path: Path, final: bool = False) -> list[Tick]:
     if not final and numbers:
         numbers = numbers[:-1]
     return [to_tick(n, epochs[n]) for n in numbers if epochs[n]]
+
+
+# A printed score: "R2 Score: 0.51", "MAE: 1600.2", "Accuracy 0.93", "f1-score 0.88", "RMSE = 3.1"
+SCORE_RE = re.compile(r"\b(r2|r\^2|r²|r-squared|mae|mse|rmse|accuracy|acc|score|precision|recall|f1|auc|loss|error)\b"
+                      r"[^0-9\n-]{0,30}-?\d", re.I)
+
+
+def scores(path: Path, limit: int = 4) -> str | None:
+    """The last few lines that print a score, joined, for a run with no epochs (fit once, then print)."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 65536))
+            lines = f.read().decode("utf-8", "replace").replace("\r", "\n").splitlines()
+    except OSError:
+        return None
+    found: list[str] = []
+    for line in lines:
+        line = " ".join(line.split())
+        if line and len(line) <= 120 and SCORE_RE.search(line) and line not in found:
+            found.append(line)
+    return " · ".join(found[-limit:]) or None
 
 
 def last_line(path: Path) -> str | None:
@@ -484,9 +508,16 @@ class LogTail:
         state: dict[str, Any] = {"run_id": self.run_id, "status": "done", "epoch": self.sent, "total_epochs": epochs}
         if self.sent == 0:
             said = last_line(self.stdout) if self.stdout is not None else None
-            state["error"] = (f"The training script stopped (exit code {returncode}): {said}" if returncode
-                              else "The training script finished, but printed no epochs with a loss or accuracy."
-                              + (f" Its last line: {said}" if said else ""))
+            result = scores(self.stdout) if self.stdout is not None and returncode == 0 else None
+            if result:
+                state["summary"] = "Finished: " + result  # trained in one go (fit, then print the scores)
+            elif returncode:
+                why = (" It asks for keyboard input (input()), which a training run can't give."
+                       if said and "EOFError" in said else "")
+                state["error"] = f"The training script stopped (exit code {returncode}): {said}{why}"
+            else:
+                state["error"] = ("The training script finished, but printed no epochs or scores."
+                                  + (f" Its last line: {said}" if said else ""))
         events.append(("ml.run_state", state))
         self._record(events[-1:])
         return events
