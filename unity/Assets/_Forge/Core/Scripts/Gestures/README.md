@@ -22,6 +22,8 @@ The pointing flicks are the right hand's too. The Hands setting changes this: in
 
 A close has to start from an open hand, not a resting or pointing one, and an open or close can't start out of a point: the pose has to be made afresh after the hand stops pointing. After any gesture fires, the other gestures on that hand wait half a second. That's what keeps curling your finger after a flick from also closing or reopening a window.
 
+A hand only counts once it has been tracked for half a second, is in view and is no more than 0.35 m under your eyes, so typing and resting hands do nothing. Calling Albie is the exception: a palm is held out lower than that, so it counts down to 0.6 m under the eyes (`GestureHand.HeldOut`, `GestureDef.lowHand`).
+
 Closing the hand Albie sits in sends him off instead. Albie also hops off if you turn your hand over or it leaves tracking. The mic opens when he lands and again after each answer. One silence closes it until you call him again, so this never leaves a paid voice session listening to the room.
 
 ## Teaching a gesture

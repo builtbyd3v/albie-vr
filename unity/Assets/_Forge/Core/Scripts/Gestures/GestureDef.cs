@@ -123,6 +123,9 @@ public sealed class GestureDef
     /// <summary>Built-ins only, not saved: and its start pose has to be made afresh after pointing, not just held on (a
     /// finger curled after a flick leaves a fist, and bursting that open isn't meant).</summary>
     public bool freshAfterPoint;
+    /// <summary>Built-ins only, not saved: it also counts from a hand held out lower than the others need
+    /// (<see cref="GestureHand.HeldOut"/>). For a pose a typing or resting hand doesn't make.</summary>
+    public bool lowHand;
 
     public bool IsPlainPose => motion == null && end == null;
     /// <summary>It acts on the window you're pointing at, so it can't start without one.</summary>
