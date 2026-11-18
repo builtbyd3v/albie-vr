@@ -29,7 +29,7 @@ namespace Forge.OS
         // What a voice request would send for these, so a tap and "Albie, fine-tune DistilBERT on movie reviews" match.
         static readonly Starter[] starters =
         {
-            new Starter { id = "ml_new_distilbert", title = "Fine-tune DistilBERT", line = "on movie reviews, from Hugging Face",
+            new Starter { id = "ml_new_distilbert", title = "Fine-tune DistilBERT", line = "on movie reviews, from a public model hub",
                 args = new JObject { ["request"] = "fine-tune distilbert on movie reviews", ["model"] = "hf",
                     ["base_model"] = "distilbert-base-uncased", ["task"] = "text_classification" } },
             new Starter { id = "ml_new_rnn", title = "RNN on movie reviews", line = "an LSTM trained from scratch on IMDb",
@@ -179,7 +179,7 @@ namespace Forge.OS
             entries.Add(new OSEntry
             {
                 id = ImportId,
-                title = "Import from GitHub",
+                title = "Import from source control",
                 icon = "repo",
                 tab = OSTab.Projects,
                 section = Section,
@@ -193,7 +193,7 @@ namespace Forge.OS
         static string StatusLine(Card c)
         {
             if (c.training) return "training now";
-            string from = c.kind == "github" ? "from GitHub" : c.kind == "new" ? "built by Albie" : "example";
+            string from = c.kind == "github" ? "from source control" : c.kind == "new" ? "built by Albie" : "example";
             switch (c.status)
             {
                 case "scanning": case "classifying": case "adapting": case "building": return "setting up · " + from;

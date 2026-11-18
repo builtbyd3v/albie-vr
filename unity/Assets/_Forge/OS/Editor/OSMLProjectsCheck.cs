@@ -48,7 +48,7 @@ namespace Forge.OS.Editor
 
                 Check(byId.Count == 4 + 3 + 1, $"four projects, three starters and Import from GitHub ({byId.Count} tiles)");
                 Check(Status(byId, "ml_project:hf-imdb-1117") == "87.4% · built by Albie", "a built project shows its score");
-                Check(Status(byId, "ml_project:Sentiment-Analysis-IMDb-Reviews") == "not trained yet · from GitHub", "a cloned repo says it hasn't trained");
+                Check(Status(byId, "ml_project:Sentiment-Analysis-IMDb-Reviews") == "not trained yet · from source control", "a cloned repo says it hasn't trained");
                 Check(Status(byId, "ml_project:lstm-imdb") == "training now", "a project that's training says so");
                 Check(byId.TryGetValue("ml_project:template", out var open) && open.isOpen(), "the open project shows as open");
                 Check(byId.TryGetValue("ml_project:Sentiment-Analysis-IMDb-Reviews", out var repo) && repo.icon == "repo", "a cloned repo has the repo icon");

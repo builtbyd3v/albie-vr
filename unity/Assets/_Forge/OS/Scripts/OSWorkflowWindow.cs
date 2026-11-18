@@ -45,7 +45,7 @@ namespace Forge.OS
 
         void Update()
         {
-            if (tab == "new" && ForgeNet.Status == ForgeNetStatus.Live && notice.StartsWith("Connect the Albie hub", StringComparison.Ordinal))
+            if (tab == "new" && ForgeNet.Status == ForgeNetStatus.Live && notice.StartsWith("Project builds run on the optional Albie hub", StringComparison.Ordinal))
             {
                 notice = "";
                 Render();
@@ -59,7 +59,7 @@ namespace Forge.OS
         {
             if (ForgeNet.Status != ForgeNetStatus.Live)
             {
-                notice = "Connect the Albie hub to build a project with Claude.";
+                notice = "Project builds run on the optional Albie hub, which is off. The rest of Albie works without it.";
                 Render();
                 return;
             }
@@ -140,7 +140,7 @@ namespace Forge.OS
             panel.Subtitle = state + " · " + ((bool?)current["simulated"] == true ? "simulated" : (string)current["backend"]);
             Line(column, (string)current["title"] ?? (string)current["goal"]);
             Line(column, (bool?)current["demo"] == true
-                ? "Fixed scripted sample · no API keys · GitHub publishing disabled"
+                ? "Fixed scripted sample · no API keys · publishing disabled"
                 : (string)current["repo"] ?? "Local project; configure BUILD_REPO to publish it.", true);
             if (tab == "changes")
             {
@@ -194,7 +194,7 @@ namespace Forge.OS
             if (state == "awaiting_plan") OSUi.Button(column, "Approve implementation plan", () => Act("approve"), OSButtonStyle.Primary);
             if (state == "ready" && current["repo"]?.Type == JTokenType.String)
             {
-                Line(column, "Review Changes and Checks. This publishes the branch and opens a GitHub PR.", true);
+                Line(column, "Review Changes and Checks. This publishes the branch and opens a pull request.", true);
                 OSUi.Button(column, "Publish branch and open PR", () => Act("ship"), OSButtonStyle.Primary);
             }
             if (state == "planning" || state == "awaiting_plan" || state == "building" || state == "verifying")
@@ -225,7 +225,7 @@ namespace Forge.OS
         {
             Line(column, "What should Albie's crew build or fix?");
             Input(column, goal, "Describe the project or change", value => goal = value);
-            Line(column, "GitHub repository (optional owner/repo)", true);
+            Line(column, "Source control repository (optional owner/repo)", true);
             Input(column, repo, "Leave blank to use the hub's configured destination", value => repo = value);
             var create = OSUi.Button(column, "Create implementation plan", () =>
             {

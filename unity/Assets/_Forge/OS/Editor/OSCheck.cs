@@ -754,6 +754,7 @@ if (prefab.GetComponentInChildren<OSMenu>(true) == null) return "no OSMenu under
             OSRegistry.Fill(OSTab.Artifacts, artifacts);
             foreach (string template in Forge.Artifacts.ArtifactLibrary.Templates)
             {
+                if (template == "hoop_course") continue; // hidden for the submission (OSArtifacts)
                 JObject manifest, scene;
                 string title = Forge.Artifacts.ArtifactLibrary.TryTemplate(template, out manifest, out scene) ? (string)manifest["title"] : null;
                 bool found = artifacts.Exists(e => e.id == template
